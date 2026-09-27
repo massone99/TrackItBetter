@@ -1,0 +1,722 @@
+[
+  {
+    "chainId": "push-up-progression",
+    "level": 1,
+    "exerciseId": "wall-push-up",
+    "target": {
+      "sets": 3,
+      "restSec": 120,
+      "reps": 5,
+      "unit": "reps"
+    },
+    "requiredSessions": 3
+  },
+  {
+    "chainId": "push-up-progression",
+    "level": 2,
+    "exerciseId": "incline-push-up",
+    "target": {
+      "sets": 3,
+      "restSec": 120,
+      "reps": 8,
+      "unit": "reps"
+    },
+    "requiredSessions": 3
+  },
+  {
+    "chainId": "push-up-progression",
+    "level": 3,
+    "exerciseId": "push-up-progression-standard",
+    "target": {
+      "sets": 3,
+      "restSec": 120,
+      "reps": 10,
+      "unit": "reps"
+    },
+    "requiredSessions": 3
+  },
+  {
+    "chainId": "push-up-progression",
+    "level": 4,
+    "exerciseId": "decline-push-up-progression",
+    "target": {
+      "sets": 3,
+      "restSec": 120,
+      "reps": 12,
+      "unit": "reps"
+    },
+    "requiredSessions": 3
+  },
+  {
+    "chainId": "dip-progression",
+    "level": 1,
+    "exerciseId": "bench-dip-progression",
+    "target": {
+      "sets": 3,
+      "restSec": 120,
+      "reps": 5,
+      "unit": "reps"
+    },
+    "requiredSessions": 3
+  },
+  {
+    "chainId": "dip-progression",
+    "level": 2,
+    "exerciseId": "band-assisted-dip",
+    "target": {
+      "sets": 3,
+      "restSec": 120,
+      "reps": 8,
+      "unit": "reps"
+    },
+    "requiredSessions": 3
+  },
+  {
+    "chainId": "dip-progression",
+    "level": 3,
+    "exerciseId": "parallel-bar-dip-progression",
+    "target": {
+      "sets": 3,
+      "restSec": 120,
+      "reps": 10,
+      "unit": "reps"
+    },
+    "requiredSessions": 3
+  },
+  {
+    "chainId": "dip-progression",
+    "level": 4,
+    "exerciseId": "ring-dip-progression",
+    "target": {
+      "sets": 3,
+      "restSec": 120,
+      "reps": 12,
+      "unit": "reps"
+    },
+    "requiredSessions": 3
+  },
+  {
+    "chainId": "pull-up-progression",
+    "level": 1,
+    "exerciseId": "scapular-pull-up-progression",
+    "target": {
+      "sets": 3,
+      "restSec": 120,
+      "reps": 5,
+      "unit": "reps"
+    },
+    "requiredSessions": 3
+  },
+  {
+    "chainId": "pull-up-progression",
+    "level": 2,
+    "exerciseId": "band-assisted-pull-up",
+    "target": {
+      "sets": 3,
+      "restSec": 120,
+      "reps": 8,
+      "unit": "reps"
+    },
+    "requiredSessions": 3
+  },
+  {
+    "chainId": "pull-up-progression",
+    "level": 3,
+    "exerciseId": "negative-pull-up",
+    "target": {
+      "sets": 3,
+      "restSec": 120,
+      "reps": 10,
+      "unit": "reps"
+    },
+    "requiredSessions": 3
+  },
+  {
+    "chainId": "pull-up-progression",
+    "level": 4,
+    "exerciseId": "strict-pull-up",
+    "target": {
+      "sets": 3,
+      "restSec": 120,
+      "reps": 12,
+      "unit": "reps"
+    },
+    "requiredSessions": 3
+  },
+  {
+    "chainId": "front-lever-progression",
+    "level": 1,
+    "exerciseId": "tuck-front-lever",
+    "target": {
+      "sets": 3,
+      "restSec": 120,
+      "durationSec": 8,
+      "unit": "seconds"
+    },
+    "requiredSessions": 3
+  },
+  {
+    "chainId": "front-lever-progression",
+    "level": 2,
+    "exerciseId": "advanced-tuck-front-lever",
+    "target": {
+      "sets": 3,
+      "restSec": 120,
+      "durationSec": 12,
+      "unit": "seconds"
+    },
+    "requiredSessions": 3
+  },
+  {
+    "chainId": "front-lever-progression",
+    "level": 3,
+    "exerciseId": "straddle-front-lever",
+    "target": {
+      "sets": 3,
+      "restSec": 120,
+      "durationSec": 15,
+      "unit": "seconds"
+    },
+    "requiredSessions": 3
+  },
+  {
+    "chainId": "front-lever-progression",
+    "level": 4,
+    "exerciseId": "full-front-lever",
+    "target": {
+      "sets": 3,
+      "restSec": 120,
+      "durationSec": 20,
+      "unit": "seconds"
+    },
+    "requiredSessions": 3
+  },
+  {
+    "chainId": "back-lever-progression",
+    "level": 1,
+    "exerciseId": "tuck-back-lever",
+    "target": {
+      "sets": 3,
+      "restSec": 120,
+      "durationSec": 8,
+      "unit": "seconds"
+    },
+    "requiredSessions": 3
+  },
+  {
+    "chainId": "back-lever-progression",
+    "level": 2,
+    "exerciseId": "advanced-tuck-back-lever",
+    "target": {
+      "sets": 3,
+      "restSec": 120,
+      "durationSec": 12,
+      "unit": "seconds"
+    },
+    "requiredSessions": 3
+  },
+  {
+    "chainId": "back-lever-progression",
+    "level": 3,
+    "exerciseId": "straddle-back-lever",
+    "target": {
+      "sets": 3,
+      "restSec": 120,
+      "durationSec": 15,
+      "unit": "seconds"
+    },
+    "requiredSessions": 3
+  },
+  {
+    "chainId": "back-lever-progression",
+    "level": 4,
+    "exerciseId": "full-back-lever",
+    "target": {
+      "sets": 3,
+      "restSec": 120,
+      "durationSec": 20,
+      "unit": "seconds"
+    },
+    "requiredSessions": 3
+  },
+  {
+    "chainId": "planche-progression",
+    "level": 1,
+    "exerciseId": "planche-lean",
+    "target": {
+      "sets": 3,
+      "restSec": 120,
+      "durationSec": 8,
+      "unit": "seconds"
+    },
+    "requiredSessions": 3
+  },
+  {
+    "chainId": "planche-progression",
+    "level": 2,
+    "exerciseId": "tuck-planche",
+    "target": {
+      "sets": 3,
+      "restSec": 120,
+      "durationSec": 12,
+      "unit": "seconds"
+    },
+    "requiredSessions": 3
+  },
+  {
+    "chainId": "planche-progression",
+    "level": 3,
+    "exerciseId": "advanced-tuck-planche",
+    "target": {
+      "sets": 3,
+      "restSec": 120,
+      "durationSec": 15,
+      "unit": "seconds"
+    },
+    "requiredSessions": 3
+  },
+  {
+    "chainId": "planche-progression",
+    "level": 4,
+    "exerciseId": "straddle-planche",
+    "target": {
+      "sets": 3,
+      "restSec": 120,
+      "durationSec": 20,
+      "unit": "seconds"
+    },
+    "requiredSessions": 3
+  },
+  {
+    "chainId": "handstand-progression",
+    "level": 1,
+    "exerciseId": "pike-handstand-hold",
+    "target": {
+      "sets": 3,
+      "restSec": 120,
+      "durationSec": 8,
+      "unit": "seconds"
+    },
+    "requiredSessions": 3
+  },
+  {
+    "chainId": "handstand-progression",
+    "level": 2,
+    "exerciseId": "wall-facing-handstand-hold",
+    "target": {
+      "sets": 3,
+      "restSec": 120,
+      "durationSec": 12,
+      "unit": "seconds"
+    },
+    "requiredSessions": 3
+  },
+  {
+    "chainId": "handstand-progression",
+    "level": 3,
+    "exerciseId": "chest-to-wall-handstand-shrug",
+    "target": {
+      "sets": 3,
+      "restSec": 120,
+      "reps": 10,
+      "unit": "reps"
+    },
+    "requiredSessions": 3
+  },
+  {
+    "chainId": "handstand-progression",
+    "level": 4,
+    "exerciseId": "freestanding-handstand-hold",
+    "target": {
+      "sets": 3,
+      "restSec": 120,
+      "durationSec": 20,
+      "unit": "seconds"
+    },
+    "requiredSessions": 3
+  },
+  {
+    "chainId": "hspu-progression",
+    "level": 1,
+    "exerciseId": "pike-push-up-progression",
+    "target": {
+      "sets": 3,
+      "restSec": 120,
+      "reps": 5,
+      "unit": "reps"
+    },
+    "requiredSessions": 3
+  },
+  {
+    "chainId": "hspu-progression",
+    "level": 2,
+    "exerciseId": "elevated-pike-push-up",
+    "target": {
+      "sets": 3,
+      "restSec": 120,
+      "reps": 8,
+      "unit": "reps"
+    },
+    "requiredSessions": 3
+  },
+  {
+    "chainId": "hspu-progression",
+    "level": 3,
+    "exerciseId": "wall-headstand-push-up",
+    "target": {
+      "sets": 3,
+      "restSec": 120,
+      "reps": 10,
+      "unit": "reps"
+    },
+    "requiredSessions": 3
+  },
+  {
+    "chainId": "hspu-progression",
+    "level": 4,
+    "exerciseId": "wall-handstand-push-up",
+    "target": {
+      "sets": 3,
+      "restSec": 120,
+      "reps": 12,
+      "unit": "reps"
+    },
+    "requiredSessions": 3
+  },
+  {
+    "chainId": "muscle-up-progression",
+    "level": 1,
+    "exerciseId": "jumping-muscle-up-transition",
+    "target": {
+      "sets": 3,
+      "restSec": 120,
+      "reps": 5,
+      "unit": "reps"
+    },
+    "requiredSessions": 3
+  },
+  {
+    "chainId": "muscle-up-progression",
+    "level": 2,
+    "exerciseId": "band-assisted-muscle-up",
+    "target": {
+      "sets": 3,
+      "restSec": 120,
+      "reps": 8,
+      "unit": "reps"
+    },
+    "requiredSessions": 3
+  },
+  {
+    "chainId": "muscle-up-progression",
+    "level": 3,
+    "exerciseId": "strict-chest-to-bar-pull-up",
+    "target": {
+      "sets": 3,
+      "restSec": 120,
+      "reps": 10,
+      "unit": "reps"
+    },
+    "requiredSessions": 3
+  },
+  {
+    "chainId": "muscle-up-progression",
+    "level": 4,
+    "exerciseId": "strict-muscle-up",
+    "target": {
+      "sets": 3,
+      "restSec": 120,
+      "reps": 12,
+      "unit": "reps"
+    },
+    "requiredSessions": 3
+  },
+  {
+    "chainId": "l-sit-progression",
+    "level": 1,
+    "exerciseId": "tuck-support-hold",
+    "target": {
+      "sets": 3,
+      "restSec": 120,
+      "durationSec": 8,
+      "unit": "seconds"
+    },
+    "requiredSessions": 3
+  },
+  {
+    "chainId": "l-sit-progression",
+    "level": 2,
+    "exerciseId": "one-leg-l-sit",
+    "target": {
+      "sets": 3,
+      "restSec": 120,
+      "durationSec": 12,
+      "unit": "seconds"
+    },
+    "requiredSessions": 3
+  },
+  {
+    "chainId": "l-sit-progression",
+    "level": 3,
+    "exerciseId": "l-sit-progression-full",
+    "target": {
+      "sets": 3,
+      "restSec": 120,
+      "durationSec": 15,
+      "unit": "seconds"
+    },
+    "requiredSessions": 3
+  },
+  {
+    "chainId": "l-sit-progression",
+    "level": 4,
+    "exerciseId": "v-sit",
+    "target": {
+      "sets": 3,
+      "restSec": 120,
+      "durationSec": 20,
+      "unit": "seconds"
+    },
+    "requiredSessions": 3
+  },
+  {
+    "chainId": "pistol-squat-progression",
+    "level": 1,
+    "exerciseId": "assisted-pistol-squat",
+    "target": {
+      "sets": 3,
+      "restSec": 120,
+      "reps": 5,
+      "unit": "reps"
+    },
+    "requiredSessions": 3
+  },
+  {
+    "chainId": "pistol-squat-progression",
+    "level": 2,
+    "exerciseId": "box-pistol-squat",
+    "target": {
+      "sets": 3,
+      "restSec": 120,
+      "reps": 8,
+      "unit": "reps"
+    },
+    "requiredSessions": 3
+  },
+  {
+    "chainId": "pistol-squat-progression",
+    "level": 3,
+    "exerciseId": "counterbalanced-pistol-squat",
+    "target": {
+      "sets": 3,
+      "restSec": 120,
+      "reps": 10,
+      "unit": "reps"
+    },
+    "requiredSessions": 3
+  },
+  {
+    "chainId": "pistol-squat-progression",
+    "level": 4,
+    "exerciseId": "pistol-squat",
+    "target": {
+      "sets": 3,
+      "restSec": 120,
+      "reps": 12,
+      "unit": "reps"
+    },
+    "requiredSessions": 3
+  },
+  {
+    "chainId": "nordic-curl-progression",
+    "level": 1,
+    "exerciseId": "assisted-nordic-curl",
+    "target": {
+      "sets": 3,
+      "restSec": 120,
+      "reps": 5,
+      "unit": "reps"
+    },
+    "requiredSessions": 3
+  },
+  {
+    "chainId": "nordic-curl-progression",
+    "level": 2,
+    "exerciseId": "partial-nordic-curl",
+    "target": {
+      "sets": 3,
+      "restSec": 120,
+      "reps": 8,
+      "unit": "reps"
+    },
+    "requiredSessions": 3
+  },
+  {
+    "chainId": "nordic-curl-progression",
+    "level": 3,
+    "exerciseId": "negative-nordic-curl",
+    "target": {
+      "sets": 3,
+      "restSec": 120,
+      "reps": 10,
+      "unit": "reps"
+    },
+    "requiredSessions": 3
+  },
+  {
+    "chainId": "nordic-curl-progression",
+    "level": 4,
+    "exerciseId": "full-nordic-curl",
+    "target": {
+      "sets": 3,
+      "restSec": 120,
+      "reps": 12,
+      "unit": "reps"
+    },
+    "requiredSessions": 3
+  },
+  {
+    "chainId": "bridge-progression",
+    "level": 1,
+    "exerciseId": "glute-bridge-progression",
+    "target": {
+      "sets": 3,
+      "restSec": 120,
+      "reps": 5,
+      "unit": "reps"
+    },
+    "requiredSessions": 3
+  },
+  {
+    "chainId": "bridge-progression",
+    "level": 2,
+    "exerciseId": "elevated-bridge",
+    "target": {
+      "sets": 3,
+      "restSec": 120,
+      "durationSec": 12,
+      "unit": "seconds"
+    },
+    "requiredSessions": 3
+  },
+  {
+    "chainId": "bridge-progression",
+    "level": 3,
+    "exerciseId": "wall-walk-bridge",
+    "target": {
+      "sets": 3,
+      "restSec": 120,
+      "reps": 10,
+      "unit": "reps"
+    },
+    "requiredSessions": 3
+  },
+  {
+    "chainId": "bridge-progression",
+    "level": 4,
+    "exerciseId": "floor-bridge-hold",
+    "target": {
+      "sets": 3,
+      "restSec": 120,
+      "durationSec": 20,
+      "unit": "seconds"
+    },
+    "requiredSessions": 3
+  },
+  {
+    "chainId": "human-flag-progression",
+    "level": 1,
+    "exerciseId": "vertical-flag-hold",
+    "target": {
+      "sets": 3,
+      "restSec": 120,
+      "durationSec": 8,
+      "unit": "seconds"
+    },
+    "requiredSessions": 3
+  },
+  {
+    "chainId": "human-flag-progression",
+    "level": 2,
+    "exerciseId": "tuck-human-flag",
+    "target": {
+      "sets": 3,
+      "restSec": 120,
+      "durationSec": 12,
+      "unit": "seconds"
+    },
+    "requiredSessions": 3
+  },
+  {
+    "chainId": "human-flag-progression",
+    "level": 3,
+    "exerciseId": "straddle-human-flag",
+    "target": {
+      "sets": 3,
+      "restSec": 120,
+      "durationSec": 15,
+      "unit": "seconds"
+    },
+    "requiredSessions": 3
+  },
+  {
+    "chainId": "human-flag-progression",
+    "level": 4,
+    "exerciseId": "full-human-flag",
+    "target": {
+      "sets": 3,
+      "restSec": 120,
+      "durationSec": 20,
+      "unit": "seconds"
+    },
+    "requiredSessions": 3
+  },
+  {
+    "chainId": "dragon-flag-progression",
+    "level": 1,
+    "exerciseId": "tuck-dragon-flag",
+    "target": {
+      "sets": 3,
+      "restSec": 120,
+      "reps": 5,
+      "unit": "reps"
+    },
+    "requiredSessions": 3
+  },
+  {
+    "chainId": "dragon-flag-progression",
+    "level": 2,
+    "exerciseId": "one-leg-dragon-flag",
+    "target": {
+      "sets": 3,
+      "restSec": 120,
+      "reps": 8,
+      "unit": "reps"
+    },
+    "requiredSessions": 3
+  },
+  {
+    "chainId": "dragon-flag-progression",
+    "level": 3,
+    "exerciseId": "negative-dragon-flag",
+    "target": {
+      "sets": 3,
+      "restSec": 120,
+      "reps": 10,
+      "unit": "reps"
+    },
+    "requiredSessions": 3
+  },
+  {
+    "chainId": "dragon-flag-progression",
+    "level": 4,
+    "exerciseId": "dragon-flag",
+    "target": {
+      "sets": 3,
+      "restSec": 120,
+      "reps": 12,
+      "unit": "reps"
+    },
+    "requiredSessions": 3
+  }
+]

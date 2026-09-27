@@ -1,0 +1,55 @@
+{
+  "expo": {
+    "name": "TrackItBetter",
+    "slug": "track-it-better",
+    "scheme": "trackitbetter",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.trackitbetter.app"
+    },
+    "android": {
+      "package": "com.trackitbetter.app",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/images/adaptive-icon.png",
+        "backgroundColor": "#2F45C8"
+      }
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "single",
+      "favicon": "./assets/images/favicon.png"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-localization",
+      "expo-sqlite",
+      "expo-notifications",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow TrackItBetter to access progress photos and form-check videos you choose.",
+          "cameraPermission": "Allow TrackItBetter to take progress photos and record form-check videos."
+        }
+      ],
+      "expo-video",
+      "expo-font",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/images/splash-icon.png",
+          "imageWidth": 180,
+          "resizeMode": "contain",
+          "backgroundColor": "#2F45C8"
+        }
+      ],
+      "react-native-fast-tflite"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    },
+    "icon": "./assets/images/icon.png"
+  }
+}

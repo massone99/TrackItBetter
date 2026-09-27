@@ -1,0 +1,2799 @@
+[
+  {
+    "id": "push-up",
+    "name": "Push-up",
+    "aliases": [
+      "press-up"
+    ],
+    "metric": "reps",
+    "category": "push",
+    "movementPattern": "horizontal-push",
+    "primaryMuscles": [
+      "chest"
+    ],
+    "secondaryMuscles": [
+      "triceps",
+      "front-delts"
+    ],
+    "equipment": [
+      "floor"
+    ],
+    "unilateral": false,
+    "chainId": null,
+    "level": null,
+    "leverageFactor": null,
+    "cues": [
+      "Brace your trunk; lower chest and hips together."
+    ],
+    "demoUrl": null
+  },
+  {
+    "id": "wide-push-up",
+    "name": "Wide Push-up",
+    "aliases": [],
+    "metric": "reps",
+    "category": "push",
+    "movementPattern": "horizontal-push",
+    "primaryMuscles": [
+      "chest"
+    ],
+    "secondaryMuscles": [
+      "front-delts",
+      "triceps"
+    ],
+    "equipment": [
+      "floor"
+    ],
+    "unilateral": false,
+    "chainId": null,
+    "level": null,
+    "leverageFactor": null,
+    "cues": [
+      "Keep elbows angled back; use a pain-free range."
+    ],
+    "demoUrl": null
+  },
+  {
+    "id": "diamond-push-up",
+    "name": "Diamond Push-up",
+    "aliases": [],
+    "metric": "reps",
+    "category": "push",
+    "movementPattern": "horizontal-push",
+    "primaryMuscles": [
+      "triceps"
+    ],
+    "secondaryMuscles": [
+      "chest",
+      "front-delts"
+    ],
+    "equipment": [
+      "floor"
+    ],
+    "unilateral": false,
+    "chainId": null,
+    "level": null,
+    "leverageFactor": null,
+    "cues": [
+      "Keep elbows close and body in one line."
+    ],
+    "demoUrl": null
+  },
+  {
+    "id": "decline-push-up",
+    "name": "Decline Push-up",
+    "aliases": [],
+    "metric": "reps",
+    "category": "push",
+    "movementPattern": "vertical-push",
+    "primaryMuscles": [
+      "upper-chest",
+      "front-delts"
+    ],
+    "secondaryMuscles": [
+      "triceps"
+    ],
+    "equipment": [
+      "bench",
+      "floor"
+    ],
+    "unilateral": false,
+    "chainId": null,
+    "level": null,
+    "leverageFactor": null,
+    "cues": [
+      "Elevate feet; keep ribs tucked."
+    ],
+    "demoUrl": null
+  },
+  {
+    "id": "pike-push-up",
+    "name": "Pike Push-up",
+    "aliases": [],
+    "metric": "reps",
+    "category": "push",
+    "movementPattern": "vertical-push",
+    "primaryMuscles": [
+      "front-delts"
+    ],
+    "secondaryMuscles": [
+      "triceps",
+      "upper-back"
+    ],
+    "equipment": [
+      "floor"
+    ],
+    "unilateral": false,
+    "chainId": null,
+    "level": null,
+    "leverageFactor": null,
+    "cues": [
+      "Keep hips high and lower head between hands."
+    ],
+    "demoUrl": null
+  },
+  {
+    "id": "bench-dip",
+    "name": "Bench Dip",
+    "aliases": [],
+    "metric": "reps",
+    "category": "push",
+    "movementPattern": "vertical-push",
+    "primaryMuscles": [
+      "triceps"
+    ],
+    "secondaryMuscles": [
+      "chest",
+      "front-delts"
+    ],
+    "equipment": [
+      "bench"
+    ],
+    "unilateral": false,
+    "chainId": null,
+    "level": null,
+    "leverageFactor": null,
+    "cues": [
+      "Keep shoulders comfortable; avoid dropping below a controlled range."
+    ],
+    "demoUrl": null
+  },
+  {
+    "id": "parallel-bar-dip",
+    "name": "Parallel Bar Dip",
+    "aliases": [],
+    "metric": "reps",
+    "category": "push",
+    "movementPattern": "vertical-push",
+    "primaryMuscles": [
+      "triceps",
+      "chest"
+    ],
+    "secondaryMuscles": [
+      "front-delts"
+    ],
+    "equipment": [
+      "dip-bars"
+    ],
+    "unilateral": false,
+    "chainId": null,
+    "level": null,
+    "leverageFactor": null,
+    "cues": [
+      "Use a stable shoulder position and controlled depth."
+    ],
+    "demoUrl": null
+  },
+  {
+    "id": "ring-dip",
+    "name": "Ring Dip",
+    "aliases": [],
+    "metric": "reps",
+    "category": "push",
+    "movementPattern": "vertical-push",
+    "primaryMuscles": [
+      "triceps",
+      "chest"
+    ],
+    "secondaryMuscles": [
+      "front-delts",
+      "rotator-cuff"
+    ],
+    "equipment": [
+      "rings"
+    ],
+    "unilateral": false,
+    "chainId": null,
+    "level": null,
+    "leverageFactor": null,
+    "cues": [
+      "Keep rings close and turn them out only as control allows."
+    ],
+    "demoUrl": null
+  },
+  {
+    "id": "inverted-row",
+    "name": "Inverted Row",
+    "aliases": [
+      "body row"
+    ],
+    "metric": "reps",
+    "category": "pull",
+    "movementPattern": "horizontal-pull",
+    "primaryMuscles": [
+      "upper-back"
+    ],
+    "secondaryMuscles": [
+      "biceps",
+      "rear-delts"
+    ],
+    "equipment": [
+      "bar"
+    ],
+    "unilateral": false,
+    "chainId": null,
+    "level": null,
+    "leverageFactor": null,
+    "cues": [
+      "Keep body straight and pull chest toward the bar."
+    ],
+    "demoUrl": null
+  },
+  {
+    "id": "ring-row",
+    "name": "Ring Row",
+    "aliases": [],
+    "metric": "reps",
+    "category": "pull",
+    "movementPattern": "horizontal-pull",
+    "primaryMuscles": [
+      "upper-back"
+    ],
+    "secondaryMuscles": [
+      "biceps",
+      "rear-delts"
+    ],
+    "equipment": [
+      "rings"
+    ],
+    "unilateral": false,
+    "chainId": null,
+    "level": null,
+    "leverageFactor": null,
+    "cues": [
+      "Keep shoulders down and body rigid."
+    ],
+    "demoUrl": null
+  },
+  {
+    "id": "scapular-pull-up",
+    "name": "Scapular Pull-up",
+    "aliases": [],
+    "metric": "reps",
+    "category": "pull",
+    "movementPattern": "vertical-pull",
+    "primaryMuscles": [
+      "lower-traps"
+    ],
+    "secondaryMuscles": [
+      "lats",
+      "forearms"
+    ],
+    "equipment": [
+      "bar"
+    ],
+    "unilateral": false,
+    "chainId": null,
+    "level": null,
+    "leverageFactor": null,
+    "cues": [
+      "Keep elbows straight; move shoulder blades down."
+    ],
+    "demoUrl": null
+  },
+  {
+    "id": "dead-hang",
+    "name": "Dead Hang",
+    "aliases": [
+      "passive hang"
+    ],
+    "metric": "time",
+    "category": "pull",
+    "movementPattern": "vertical-pull",
+    "primaryMuscles": [
+      "forearms"
+    ],
+    "secondaryMuscles": [
+      "lats",
+      "shoulders"
+    ],
+    "equipment": [
+      "bar"
+    ],
+    "unilateral": false,
+    "chainId": null,
+    "level": null,
+    "leverageFactor": null,
+    "cues": [
+      "Use a secure grip and stop if shoulder discomfort appears."
+    ],
+    "demoUrl": null
+  },
+  {
+    "id": "chin-up",
+    "name": "Chin-up",
+    "aliases": [
+      "chin up"
+    ],
+    "metric": "reps",
+    "category": "pull",
+    "movementPattern": "vertical-pull",
+    "primaryMuscles": [
+      "lats",
+      "biceps"
+    ],
+    "secondaryMuscles": [
+      "upper-back",
+      "forearms"
+    ],
+    "equipment": [
+      "bar"
+    ],
+    "unilateral": false,
+    "chainId": null,
+    "level": null,
+    "leverageFactor": null,
+    "cues": [
+      "Start from a controlled hang; bring chin over bar."
+    ],
+    "demoUrl": null
+  },
+  {
+    "id": "pull-up",
+    "name": "Pull-up",
+    "aliases": [
+      "pull up"
+    ],
+    "metric": "reps",
+    "category": "pull",
+    "movementPattern": "vertical-pull",
+    "primaryMuscles": [
+      "lats"
+    ],
+    "secondaryMuscles": [
+      "biceps",
+      "upper-back",
+      "forearms"
+    ],
+    "equipment": [
+      "bar"
+    ],
+    "unilateral": false,
+    "chainId": null,
+    "level": null,
+    "leverageFactor": null,
+    "cues": [
+      "Avoid swinging; finish with chin over bar."
+    ],
+    "demoUrl": null
+  },
+  {
+    "id": "neutral-grip-pull-up",
+    "name": "Neutral-grip Pull-up",
+    "aliases": [],
+    "metric": "reps",
+    "category": "pull",
+    "movementPattern": "vertical-pull",
+    "primaryMuscles": [
+      "lats",
+      "biceps"
+    ],
+    "secondaryMuscles": [
+      "upper-back",
+      "forearms"
+    ],
+    "equipment": [
+      "pull-up-handles"
+    ],
+    "unilateral": false,
+    "chainId": null,
+    "level": null,
+    "leverageFactor": null,
+    "cues": [
+      "Keep wrists neutral and lower under control."
+    ],
+    "demoUrl": null
+  },
+  {
+    "id": "archer-pull-up",
+    "name": "Archer Pull-up",
+    "aliases": [],
+    "metric": "reps",
+    "category": "pull",
+    "movementPattern": "vertical-pull",
+    "primaryMuscles": [
+      "lats"
+    ],
+    "secondaryMuscles": [
+      "biceps",
+      "upper-back"
+    ],
+    "equipment": [
+      "bar"
+    ],
+    "unilateral": true,
+    "chainId": null,
+    "level": null,
+    "leverageFactor": null,
+    "cues": [
+      "Shift toward one hand while keeping the other arm long."
+    ],
+    "demoUrl": null
+  },
+  {
+    "id": "hanging-knee-raise",
+    "name": "Hanging Knee Raise",
+    "aliases": [],
+    "metric": "reps",
+    "category": "core",
+    "movementPattern": "trunk-flexion",
+    "primaryMuscles": [
+      "abs"
+    ],
+    "secondaryMuscles": [
+      "hip-flexors",
+      "forearms"
+    ],
+    "equipment": [
+      "bar"
+    ],
+    "unilateral": false,
+    "chainId": null,
+    "level": null,
+    "leverageFactor": null,
+    "cues": [
+      "Curl pelvis up; minimize swinging."
+    ],
+    "demoUrl": null
+  },
+  {
+    "id": "hanging-leg-raise",
+    "name": "Hanging Leg Raise",
+    "aliases": [],
+    "metric": "reps",
+    "category": "core",
+    "movementPattern": "trunk-flexion",
+    "primaryMuscles": [
+      "abs"
+    ],
+    "secondaryMuscles": [
+      "hip-flexors",
+      "forearms"
+    ],
+    "equipment": [
+      "bar"
+    ],
+    "unilateral": false,
+    "chainId": null,
+    "level": null,
+    "leverageFactor": null,
+    "cues": [
+      "Keep the movement controlled and avoid swinging."
+    ],
+    "demoUrl": null
+  },
+  {
+    "id": "lying-leg-raise",
+    "name": "Lying Leg Raise",
+    "aliases": [],
+    "metric": "reps",
+    "category": "core",
+    "movementPattern": "trunk-flexion",
+    "primaryMuscles": [
+      "abs"
+    ],
+    "secondaryMuscles": [
+      "hip-flexors"
+    ],
+    "equipment": [
+      "floor"
+    ],
+    "unilateral": false,
+    "chainId": null,
+    "level": null,
+    "leverageFactor": null,
+    "cues": [
+      "Keep lower back gently braced against the floor."
+    ],
+    "demoUrl": null
+  },
+  {
+    "id": "hollow-body-hold",
+    "name": "Hollow-body Hold",
+    "aliases": [],
+    "metric": "time",
+    "category": "core",
+    "movementPattern": "anti-extension",
+    "primaryMuscles": [
+      "abs"
+    ],
+    "secondaryMuscles": [
+      "quads"
+    ],
+    "equipment": [
+      "floor"
+    ],
+    "unilateral": false,
+    "chainId": null,
+    "level": null,
+    "leverageFactor": null,
+    "cues": [
+      "Keep lower back in contact with the floor."
+    ],
+    "demoUrl": null
+  },
+  {
+    "id": "plank",
+    "name": "Plank",
+    "aliases": [],
+    "metric": "time",
+    "category": "core",
+    "movementPattern": "anti-extension",
+    "primaryMuscles": [
+      "abs"
+    ],
+    "secondaryMuscles": [
+      "glutes",
+      "shoulders"
+    ],
+    "equipment": [
+      "floor"
+    ],
+    "unilateral": false,
+    "chainId": null,
+    "level": null,
+    "leverageFactor": null,
+    "cues": [
+      "Keep head, hips, and heels aligned."
+    ],
+    "demoUrl": null
+  },
+  {
+    "id": "side-plank",
+    "name": "Side Plank",
+    "aliases": [],
+    "metric": "time",
+    "category": "core",
+    "movementPattern": "anti-lateral-flexion",
+    "primaryMuscles": [
+      "obliques"
+    ],
+    "secondaryMuscles": [
+      "glutes",
+      "shoulders"
+    ],
+    "equipment": [
+      "floor"
+    ],
+    "unilateral": false,
+    "chainId": null,
+    "level": null,
+    "leverageFactor": null,
+    "cues": [
+      "Stack shoulders and hips; keep hips lifted."
+    ],
+    "demoUrl": null
+  },
+  {
+    "id": "reverse-plank",
+    "name": "Reverse Plank",
+    "aliases": [],
+    "metric": "time",
+    "category": "core",
+    "movementPattern": "hip-extension",
+    "primaryMuscles": [
+      "glutes"
+    ],
+    "secondaryMuscles": [
+      "hamstrings",
+      "shoulders"
+    ],
+    "equipment": [
+      "floor"
+    ],
+    "unilateral": false,
+    "chainId": null,
+    "level": null,
+    "leverageFactor": null,
+    "cues": [
+      "Lift hips without forcing the neck."
+    ],
+    "demoUrl": null
+  },
+  {
+    "id": "l-sit-floor",
+    "name": "Floor L-sit",
+    "aliases": [
+      "floor L-sit"
+    ],
+    "metric": "time",
+    "category": "core",
+    "movementPattern": "hip-flexion",
+    "primaryMuscles": [
+      "abs",
+      "hip-flexors"
+    ],
+    "secondaryMuscles": [
+      "triceps",
+      "quads"
+    ],
+    "equipment": [
+      "parallettes"
+    ],
+    "unilateral": false,
+    "chainId": null,
+    "level": null,
+    "leverageFactor": null,
+    "cues": [
+      "Press tall and keep legs as straight as your mobility allows."
+    ],
+    "demoUrl": null
+  },
+  {
+    "id": "bodyweight-squat",
+    "name": "Bodyweight Squat",
+    "aliases": [],
+    "metric": "reps",
+    "category": "legs",
+    "movementPattern": "squat",
+    "primaryMuscles": [
+      "quads",
+      "glutes"
+    ],
+    "secondaryMuscles": [
+      "adductors",
+      "calves"
+    ],
+    "equipment": [
+      "floor"
+    ],
+    "unilateral": false,
+    "chainId": null,
+    "level": null,
+    "leverageFactor": null,
+    "cues": [
+      "Keep feet planted and knees tracking over toes."
+    ],
+    "demoUrl": null
+  },
+  {
+    "id": "split-squat",
+    "name": "Split Squat",
+    "aliases": [],
+    "metric": "reps",
+    "category": "legs",
+    "movementPattern": "single-leg-squat",
+    "primaryMuscles": [
+      "quads",
+      "glutes"
+    ],
+    "secondaryMuscles": [
+      "hamstrings",
+      "calves"
+    ],
+    "equipment": [
+      "floor"
+    ],
+    "unilateral": true,
+    "chainId": null,
+    "level": null,
+    "leverageFactor": null,
+    "cues": [
+      "Lower under control with a stable front foot."
+    ],
+    "demoUrl": null
+  },
+  {
+    "id": "reverse-lunge",
+    "name": "Reverse Lunge",
+    "aliases": [],
+    "metric": "reps",
+    "category": "legs",
+    "movementPattern": "single-leg-squat",
+    "primaryMuscles": [
+      "glutes",
+      "quads"
+    ],
+    "secondaryMuscles": [
+      "hamstrings",
+      "calves"
+    ],
+    "equipment": [
+      "floor"
+    ],
+    "unilateral": true,
+    "chainId": null,
+    "level": null,
+    "leverageFactor": null,
+    "cues": [
+      "Step back far enough to keep the front heel grounded."
+    ],
+    "demoUrl": null
+  },
+  {
+    "id": "step-up",
+    "name": "Step-up",
+    "aliases": [],
+    "metric": "reps",
+    "category": "legs",
+    "movementPattern": "single-leg-squat",
+    "primaryMuscles": [
+      "quads",
+      "glutes"
+    ],
+    "secondaryMuscles": [
+      "hamstrings",
+      "calves"
+    ],
+    "equipment": [
+      "bench"
+    ],
+    "unilateral": true,
+    "chainId": null,
+    "level": null,
+    "leverageFactor": null,
+    "cues": [
+      "Use a stable step and control the lowering phase."
+    ],
+    "demoUrl": null
+  },
+  {
+    "id": "calf-raise",
+    "name": "Single-leg Calf Raise",
+    "aliases": [],
+    "metric": "reps",
+    "category": "legs",
+    "movementPattern": "ankle-plantar-flexion",
+    "primaryMuscles": [
+      "calves"
+    ],
+    "secondaryMuscles": [
+      "foot-intrinsics"
+    ],
+    "equipment": [
+      "step"
+    ],
+    "unilateral": true,
+    "chainId": null,
+    "level": null,
+    "leverageFactor": null,
+    "cues": [
+      "Use full comfortable range without bouncing."
+    ],
+    "demoUrl": null
+  },
+  {
+    "id": "glute-bridge",
+    "name": "Glute Bridge",
+    "aliases": [],
+    "metric": "reps",
+    "category": "legs",
+    "movementPattern": "hip-extension",
+    "primaryMuscles": [
+      "glutes"
+    ],
+    "secondaryMuscles": [
+      "hamstrings",
+      "abs"
+    ],
+    "equipment": [
+      "floor"
+    ],
+    "unilateral": false,
+    "chainId": null,
+    "level": null,
+    "leverageFactor": null,
+    "cues": [
+      "Finish by squeezing glutes; avoid arching the lower back."
+    ],
+    "demoUrl": null
+  },
+  {
+    "id": "single-leg-glute-bridge",
+    "name": "Single-leg Glute Bridge",
+    "aliases": [],
+    "metric": "reps",
+    "category": "legs",
+    "movementPattern": "hip-extension",
+    "primaryMuscles": [
+      "glutes"
+    ],
+    "secondaryMuscles": [
+      "hamstrings",
+      "abs"
+    ],
+    "equipment": [
+      "floor"
+    ],
+    "unilateral": true,
+    "chainId": null,
+    "level": null,
+    "leverageFactor": null,
+    "cues": [
+      "Keep pelvis level as you extend the hip."
+    ],
+    "demoUrl": null
+  },
+  {
+    "id": "hamstring-walkout",
+    "name": "Hamstring Walkout",
+    "aliases": [],
+    "metric": "reps",
+    "category": "legs",
+    "movementPattern": "knee-flexion",
+    "primaryMuscles": [
+      "hamstrings"
+    ],
+    "secondaryMuscles": [
+      "glutes",
+      "calves"
+    ],
+    "equipment": [
+      "floor"
+    ],
+    "unilateral": false,
+    "chainId": null,
+    "level": null,
+    "leverageFactor": null,
+    "cues": [
+      "Keep hips lifted while taking small controlled steps."
+    ],
+    "demoUrl": null
+  },
+  {
+    "id": "nordic-hamstring-curl",
+    "name": "Nordic Hamstring Curl",
+    "aliases": [
+      "Nordic curl"
+    ],
+    "metric": "reps",
+    "category": "legs",
+    "movementPattern": "knee-flexion",
+    "primaryMuscles": [
+      "hamstrings"
+    ],
+    "secondaryMuscles": [
+      "glutes",
+      "calves"
+    ],
+    "equipment": [
+      "anchor"
+    ],
+    "unilateral": false,
+    "chainId": null,
+    "level": null,
+    "leverageFactor": null,
+    "cues": [
+      "Anchor ankles securely and resist the descent."
+    ],
+    "demoUrl": null
+  },
+  {
+    "id": "reverse-nordic",
+    "name": "Reverse Nordic Curl",
+    "aliases": [],
+    "metric": "reps",
+    "category": "legs",
+    "movementPattern": "knee-extension",
+    "primaryMuscles": [
+      "quads"
+    ],
+    "secondaryMuscles": [
+      "hip-flexors"
+    ],
+    "equipment": [
+      "floor"
+    ],
+    "unilateral": false,
+    "chainId": null,
+    "level": null,
+    "leverageFactor": null,
+    "cues": [
+      "Keep hips extended and lean back within a comfortable range."
+    ],
+    "demoUrl": null
+  },
+  {
+    "id": "hip-flexor-lunge-stretch",
+    "name": "Half-kneeling Hip-flexor Stretch",
+    "aliases": [],
+    "metric": "time",
+    "category": "mobility",
+    "movementPattern": "hip-extension",
+    "primaryMuscles": [
+      "hip-flexors"
+    ],
+    "secondaryMuscles": [
+      "glutes"
+    ],
+    "equipment": [
+      "floor"
+    ],
+    "unilateral": false,
+    "chainId": null,
+    "level": null,
+    "leverageFactor": null,
+    "cues": [
+      "Gently tuck pelvis and keep the stretch pain-free."
+    ],
+    "demoUrl": null
+  },
+  {
+    "id": "pike-stretch",
+    "name": "Seated Pike Stretch",
+    "aliases": [],
+    "metric": "time",
+    "category": "mobility",
+    "movementPattern": "hamstring-flexibility",
+    "primaryMuscles": [
+      "hamstrings"
+    ],
+    "secondaryMuscles": [
+      "calves",
+      "lower-back"
+    ],
+    "equipment": [
+      "floor"
+    ],
+    "unilateral": false,
+    "chainId": null,
+    "level": null,
+    "leverageFactor": null,
+    "cues": [
+      "Hinge at hips and keep breathing steadily."
+    ],
+    "demoUrl": null
+  },
+  {
+    "id": "wrist-rocks",
+    "name": "Quadruped Wrist Rocks",
+    "aliases": [],
+    "metric": "reps",
+    "category": "mobility",
+    "movementPattern": "wrist-mobility",
+    "primaryMuscles": [
+      "forearms"
+    ],
+    "secondaryMuscles": [
+      "wrists"
+    ],
+    "equipment": [
+      "floor"
+    ],
+    "unilateral": false,
+    "chainId": null,
+    "level": null,
+    "leverageFactor": null,
+    "cues": [
+      "Move gently through a comfortable wrist range."
+    ],
+    "demoUrl": null
+  },
+  {
+    "id": "shoulder-wall-slide",
+    "name": "Shoulder Wall Slide",
+    "aliases": [],
+    "metric": "reps",
+    "category": "mobility",
+    "movementPattern": "shoulder-flexion",
+    "primaryMuscles": [
+      "shoulders"
+    ],
+    "secondaryMuscles": [
+      "upper-back"
+    ],
+    "equipment": [
+      "wall"
+    ],
+    "unilateral": false,
+    "chainId": null,
+    "level": null,
+    "leverageFactor": null,
+    "cues": [
+      "Keep ribs down as arms slide overhead."
+    ],
+    "demoUrl": null
+  },
+  {
+    "id": "burpee",
+    "name": "Burpee",
+    "aliases": [],
+    "metric": "reps",
+    "category": "cardio",
+    "movementPattern": "full-body-conditioning",
+    "primaryMuscles": [
+      "quads",
+      "chest"
+    ],
+    "secondaryMuscles": [
+      "shoulders",
+      "glutes"
+    ],
+    "equipment": [
+      "floor"
+    ],
+    "unilateral": false,
+    "chainId": null,
+    "level": null,
+    "leverageFactor": null,
+    "cues": [
+      "Choose a pace that preserves controlled landings."
+    ],
+    "demoUrl": null
+  },
+  {
+    "id": "mountain-climber",
+    "name": "Mountain Climber",
+    "aliases": [],
+    "metric": "reps",
+    "category": "cardio",
+    "movementPattern": "trunk-stability",
+    "primaryMuscles": [
+      "abs"
+    ],
+    "secondaryMuscles": [
+      "hip-flexors",
+      "shoulders"
+    ],
+    "equipment": [
+      "floor"
+    ],
+    "unilateral": false,
+    "chainId": null,
+    "level": null,
+    "leverageFactor": null,
+    "cues": [
+      "Keep shoulders over hands and hips steady."
+    ],
+    "demoUrl": null
+  },
+  {
+    "id": "bear-crawl",
+    "name": "Bear Crawl",
+    "aliases": [],
+    "metric": "distance",
+    "category": "cardio",
+    "movementPattern": "locomotion",
+    "primaryMuscles": [
+      "shoulders",
+      "quads"
+    ],
+    "secondaryMuscles": [
+      "abs",
+      "glutes"
+    ],
+    "equipment": [
+      "floor"
+    ],
+    "unilateral": false,
+    "chainId": null,
+    "level": null,
+    "leverageFactor": null,
+    "cues": [
+      "Keep knees low and move opposite hand and foot together."
+    ],
+    "demoUrl": null
+  },
+  {
+    "id": "jump-rope",
+    "name": "Jump Rope",
+    "aliases": [],
+    "metric": "time",
+    "category": "cardio",
+    "movementPattern": "locomotion",
+    "primaryMuscles": [
+      "calves"
+    ],
+    "secondaryMuscles": [
+      "forearms",
+      "shoulders"
+    ],
+    "equipment": [
+      "jump-rope"
+    ],
+    "unilateral": false,
+    "chainId": null,
+    "level": null,
+    "leverageFactor": null,
+    "cues": [
+      "Use small relaxed jumps and a clear landing surface."
+    ],
+    "demoUrl": null
+  },
+  {
+    "id": "handstand-wall-facing",
+    "name": "Wall-facing Handstand",
+    "aliases": [
+      "wall handstand"
+    ],
+    "metric": "time",
+    "category": "skill",
+    "movementPattern": "inversion",
+    "primaryMuscles": [
+      "shoulders"
+    ],
+    "secondaryMuscles": [
+      "triceps",
+      "abs"
+    ],
+    "equipment": [
+      "wall"
+    ],
+    "unilateral": false,
+    "chainId": null,
+    "level": null,
+    "leverageFactor": null,
+    "cues": [
+      "Use a clear wall and exit safely before fatigue."
+    ],
+    "demoUrl": null
+  },
+  {
+    "id": "handstand-kick-up-practice",
+    "name": "Handstand Kick-up Practice",
+    "aliases": [],
+    "metric": "reps",
+    "category": "skill",
+    "movementPattern": "inversion",
+    "primaryMuscles": [
+      "shoulders"
+    ],
+    "secondaryMuscles": [
+      "triceps",
+      "abs"
+    ],
+    "equipment": [
+      "wall"
+    ],
+    "unilateral": false,
+    "chainId": null,
+    "level": null,
+    "leverageFactor": null,
+    "cues": [
+      "Practice controlled entries near a clear wall."
+    ],
+    "demoUrl": null
+  },
+  {
+    "id": "wall-push-up",
+    "name": "Wall Push-up",
+    "aliases": [],
+    "metric": "reps",
+    "category": "push",
+    "movementPattern": "horizontal-push",
+    "primaryMuscles": [
+      "chest"
+    ],
+    "secondaryMuscles": [
+      "triceps",
+      "front-delts"
+    ],
+    "equipment": [
+      "wall"
+    ],
+    "unilateral": false,
+    "chainId": "push-up-progression",
+    "level": 1,
+    "leverageFactor": 0.25,
+    "cues": [
+      "Keep body straight and hands at chest height."
+    ],
+    "demoUrl": null
+  },
+  {
+    "id": "incline-push-up",
+    "name": "Incline Push-up",
+    "aliases": [],
+    "metric": "reps",
+    "category": "push",
+    "movementPattern": "horizontal-push",
+    "primaryMuscles": [
+      "chest"
+    ],
+    "secondaryMuscles": [
+      "triceps",
+      "front-delts"
+    ],
+    "equipment": [
+      "bench"
+    ],
+    "unilateral": false,
+    "chainId": "push-up-progression",
+    "level": 2,
+    "leverageFactor": 0.4,
+    "cues": [
+      "Choose a stable incline and keep body aligned."
+    ],
+    "demoUrl": null
+  },
+  {
+    "id": "push-up-progression-standard",
+    "name": "Standard Push-up",
+    "aliases": [],
+    "metric": "reps",
+    "category": "push",
+    "movementPattern": "horizontal-push",
+    "primaryMuscles": [
+      "chest"
+    ],
+    "secondaryMuscles": [
+      "triceps",
+      "front-delts"
+    ],
+    "equipment": [
+      "floor"
+    ],
+    "unilateral": false,
+    "chainId": "push-up-progression",
+    "level": 3,
+    "leverageFactor": 0.6,
+    "cues": [
+      "Lower chest and hips together with a braced trunk."
+    ],
+    "demoUrl": null
+  },
+  {
+    "id": "decline-push-up-progression",
+    "name": "Decline Push-up",
+    "aliases": [],
+    "metric": "reps",
+    "category": "push",
+    "movementPattern": "horizontal-push",
+    "primaryMuscles": [
+      "upper-chest",
+      "front-delts"
+    ],
+    "secondaryMuscles": [
+      "triceps"
+    ],
+    "equipment": [
+      "bench",
+      "floor"
+    ],
+    "unilateral": false,
+    "chainId": "push-up-progression",
+    "level": 4,
+    "leverageFactor": 0.75,
+    "cues": [
+      "Elevate feet on a stable surface; keep ribs tucked."
+    ],
+    "demoUrl": null
+  },
+  {
+    "id": "bench-dip-progression",
+    "name": "Bench Dip",
+    "aliases": [],
+    "metric": "reps",
+    "category": "push",
+    "movementPattern": "vertical-push",
+    "primaryMuscles": [
+      "triceps"
+    ],
+    "secondaryMuscles": [
+      "chest",
+      "front-delts"
+    ],
+    "equipment": [
+      "bench"
+    ],
+    "unilateral": false,
+    "chainId": "dip-progression",
+    "level": 1,
+    "leverageFactor": 0.35,
+    "cues": [
+      "Keep shoulders comfortable and use controlled depth."
+    ],
+    "demoUrl": null
+  },
+  {
+    "id": "band-assisted-dip",
+    "name": "Band-assisted Dip",
+    "aliases": [],
+    "metric": "reps_load",
+    "category": "push",
+    "movementPattern": "vertical-push",
+    "primaryMuscles": [
+      "triceps",
+      "chest"
+    ],
+    "secondaryMuscles": [
+      "front-delts"
+    ],
+    "equipment": [
+      "dip-bars",
+      "band"
+    ],
+    "unilateral": false,
+    "chainId": "dip-progression",
+    "level": 2,
+    "leverageFactor": 0.55,
+    "cues": [
+      "Use a securely attached band, keep shoulders steady, and log assistance as negative load."
+    ],
+    "demoUrl": null
+  },
+  {
+    "id": "parallel-bar-dip-progression",
+    "name": "Parallel Bar Dip",
+    "aliases": [],
+    "metric": "reps",
+    "category": "push",
+    "movementPattern": "vertical-push",
+    "primaryMuscles": [
+      "triceps",
+      "chest"
+    ],
+    "secondaryMuscles": [
+      "front-delts"
+    ],
+    "equipment": [
+      "dip-bars"
+    ],
+    "unilateral": false,
+    "chainId": "dip-progression",
+    "level": 3,
+    "leverageFactor": 0.75,
+    "cues": [
+      "Use a controlled, comfortable range."
+    ],
+    "demoUrl": null
+  },
+  {
+    "id": "ring-dip-progression",
+    "name": "Ring Dip",
+    "aliases": [],
+    "metric": "reps",
+    "category": "push",
+    "movementPattern": "vertical-push",
+    "primaryMuscles": [
+      "triceps",
+      "chest"
+    ],
+    "secondaryMuscles": [
+      "front-delts",
+      "rotator-cuff"
+    ],
+    "equipment": [
+      "rings"
+    ],
+    "unilateral": false,
+    "chainId": "dip-progression",
+    "level": 4,
+    "leverageFactor": 0.9,
+    "cues": [
+      "Keep rings close and control their movement."
+    ],
+    "demoUrl": null
+  },
+  {
+    "id": "scapular-pull-up-progression",
+    "name": "Scapular Pull-up",
+    "aliases": [],
+    "metric": "reps",
+    "category": "pull",
+    "movementPattern": "vertical-pull",
+    "primaryMuscles": [
+      "lower-traps"
+    ],
+    "secondaryMuscles": [
+      "lats",
+      "forearms"
+    ],
+    "equipment": [
+      "bar"
+    ],
+    "unilateral": false,
+    "chainId": "pull-up-progression",
+    "level": 1,
+    "leverageFactor": 0.25,
+    "cues": [
+      "Keep elbows straight and draw shoulder blades down."
+    ],
+    "demoUrl": null
+  },
+  {
+    "id": "band-assisted-pull-up",
+    "name": "Band-assisted Pull-up",
+    "aliases": [],
+    "metric": "reps_load",
+    "category": "pull",
+    "movementPattern": "vertical-pull",
+    "primaryMuscles": [
+      "lats"
+    ],
+    "secondaryMuscles": [
+      "biceps",
+      "upper-back"
+    ],
+    "equipment": [
+      "bar",
+      "band"
+    ],
+    "unilateral": false,
+    "chainId": "pull-up-progression",
+    "level": 2,
+    "leverageFactor": 0.45,
+    "cues": [
+      "Secure the band carefully, avoid bouncing, and log assistance as negative load."
+    ],
+    "demoUrl": null
+  },
+  {
+    "id": "negative-pull-up",
+    "name": "Negative Pull-up",
+    "aliases": [],
+    "metric": "reps",
+    "category": "pull",
+    "movementPattern": "vertical-pull",
+    "primaryMuscles": [
+      "lats"
+    ],
+    "secondaryMuscles": [
+      "biceps",
+      "upper-back",
+      "forearms"
+    ],
+    "equipment": [
+      "bar"
+    ],
+    "unilateral": false,
+    "chainId": "pull-up-progression",
+    "level": 3,
+    "leverageFactor": 0.65,
+    "cues": [
+      "Start at the top safely and lower under control."
+    ],
+    "demoUrl": null
+  },
+  {
+    "id": "strict-pull-up",
+    "name": "Strict Pull-up",
+    "aliases": [
+      "strict pull up"
+    ],
+    "metric": "reps",
+    "category": "pull",
+    "movementPattern": "vertical-pull",
+    "primaryMuscles": [
+      "lats"
+    ],
+    "secondaryMuscles": [
+      "biceps",
+      "upper-back",
+      "forearms"
+    ],
+    "equipment": [
+      "bar"
+    ],
+    "unilateral": false,
+    "chainId": "pull-up-progression",
+    "level": 4,
+    "leverageFactor": 0.8,
+    "cues": [
+      "Start from a controlled hang without swinging."
+    ],
+    "demoUrl": null
+  },
+  {
+    "id": "tuck-front-lever",
+    "name": "Tuck Front Lever",
+    "aliases": [],
+    "metric": "time",
+    "category": "skill",
+    "movementPattern": "horizontal-pull",
+    "primaryMuscles": [
+      "lats"
+    ],
+    "secondaryMuscles": [
+      "abs",
+      "upper-back"
+    ],
+    "equipment": [
+      "bar"
+    ],
+    "unilateral": false,
+    "chainId": "front-lever-progression",
+    "level": 1,
+    "leverageFactor": 0.45,
+    "cues": [
+      "Depress shoulders and keep hips tucked."
+    ],
+    "demoUrl": null
+  },
+  {
+    "id": "advanced-tuck-front-lever",
+    "name": "Advanced Tuck Front Lever",
+    "aliases": [],
+    "metric": "time",
+    "category": "skill",
+    "movementPattern": "horizontal-pull",
+    "primaryMuscles": [
+      "lats"
+    ],
+    "secondaryMuscles": [
+      "abs",
+      "upper-back"
+    ],
+    "equipment": [
+      "bar"
+    ],
+    "unilateral": false,
+    "chainId": "front-lever-progression",
+    "level": 2,
+    "leverageFactor": 0.6,
+    "cues": [
+      "Open the hip angle while maintaining a flat back."
+    ],
+    "demoUrl": null
+  },
+  {
+    "id": "straddle-front-lever",
+    "name": "Straddle Front Lever",
+    "aliases": [],
+    "metric": "time",
+    "category": "skill",
+    "movementPattern": "horizontal-pull",
+    "primaryMuscles": [
+      "lats"
+    ],
+    "secondaryMuscles": [
+      "abs",
+      "upper-back"
+    ],
+    "equipment": [
+      "bar"
+    ],
+    "unilateral": false,
+    "chainId": "front-lever-progression",
+    "level": 3,
+    "leverageFactor": 0.8,
+    "cues": [
+      "Spread legs and keep shoulders actively depressed."
+    ],
+    "demoUrl": null
+  },
+  {
+    "id": "full-front-lever",
+    "name": "Full Front Lever",
+    "aliases": [
+      "front lever"
+    ],
+    "metric": "time",
+    "category": "skill",
+    "movementPattern": "horizontal-pull",
+    "primaryMuscles": [
+      "lats"
+    ],
+    "secondaryMuscles": [
+      "abs",
+      "upper-back"
+    ],
+    "equipment": [
+      "bar"
+    ],
+    "unilateral": false,
+    "chainId": "front-lever-progression",
+    "level": 4,
+    "leverageFactor": 1.0,
+    "cues": [
+      "Hold a straight line with active shoulders."
+    ],
+    "demoUrl": null
+  },
+  {
+    "id": "tuck-back-lever",
+    "name": "Tuck Back Lever",
+    "aliases": [],
+    "metric": "time",
+    "category": "skill",
+    "movementPattern": "shoulder-extension",
+    "primaryMuscles": [
+      "shoulders"
+    ],
+    "secondaryMuscles": [
+      "chest",
+      "abs"
+    ],
+    "equipment": [
+      "bar",
+      "rings"
+    ],
+    "unilateral": false,
+    "chainId": "back-lever-progression",
+    "level": 1,
+    "leverageFactor": 0.45,
+    "cues": [
+      "Use a safe skin-the-cat entry and keep elbows straight."
+    ],
+    "demoUrl": null
+  },
+  {
+    "id": "advanced-tuck-back-lever",
+    "name": "Advanced Tuck Back Lever",
+    "aliases": [],
+    "metric": "time",
+    "category": "skill",
+    "movementPattern": "shoulder-extension",
+    "primaryMuscles": [
+      "shoulders"
+    ],
+    "secondaryMuscles": [
+      "chest",
+      "abs"
+    ],
+    "equipment": [
+      "bar",
+      "rings"
+    ],
+    "unilateral": false,
+    "chainId": "back-lever-progression",
+    "level": 2,
+    "leverageFactor": 0.6,
+    "cues": [
+      "Open hips gradually without losing shoulder position."
+    ],
+    "demoUrl": null
+  },
+  {
+    "id": "straddle-back-lever",
+    "name": "Straddle Back Lever",
+    "aliases": [],
+    "metric": "time",
+    "category": "skill",
+    "movementPattern": "shoulder-extension",
+    "primaryMuscles": [
+      "shoulders"
+    ],
+    "secondaryMuscles": [
+      "chest",
+      "abs"
+    ],
+    "equipment": [
+      "bar",
+      "rings"
+    ],
+    "unilateral": false,
+    "chainId": "back-lever-progression",
+    "level": 3,
+    "leverageFactor": 0.8,
+    "cues": [
+      "Keep elbows locked and body level."
+    ],
+    "demoUrl": null
+  },
+  {
+    "id": "full-back-lever",
+    "name": "Full Back Lever",
+    "aliases": [
+      "back lever"
+    ],
+    "metric": "time",
+    "category": "skill",
+    "movementPattern": "shoulder-extension",
+    "primaryMuscles": [
+      "shoulders"
+    ],
+    "secondaryMuscles": [
+      "chest",
+      "abs"
+    ],
+    "equipment": [
+      "bar",
+      "rings"
+    ],
+    "unilateral": false,
+    "chainId": "back-lever-progression",
+    "level": 4,
+    "leverageFactor": 1.0,
+    "cues": [
+      "Maintain a straight body and pain-free shoulder position."
+    ],
+    "demoUrl": null
+  },
+  {
+    "id": "planche-lean",
+    "name": "Planche Lean",
+    "aliases": [],
+    "metric": "time",
+    "category": "skill",
+    "movementPattern": "horizontal-push",
+    "primaryMuscles": [
+      "front-delts"
+    ],
+    "secondaryMuscles": [
+      "chest",
+      "abs"
+    ],
+    "equipment": [
+      "floor",
+      "parallettes"
+    ],
+    "unilateral": false,
+    "chainId": "planche-progression",
+    "level": 1,
+    "leverageFactor": 0.35,
+    "cues": [
+      "Protract shoulders and lean only as far as wrists tolerate."
+    ],
+    "demoUrl": null
+  },
+  {
+    "id": "tuck-planche",
+    "name": "Tuck Planche",
+    "aliases": [],
+    "metric": "time",
+    "category": "skill",
+    "movementPattern": "horizontal-push",
+    "primaryMuscles": [
+      "front-delts"
+    ],
+    "secondaryMuscles": [
+      "chest",
+      "abs"
+    ],
+    "equipment": [
+      "parallettes"
+    ],
+    "unilateral": false,
+    "chainId": "planche-progression",
+    "level": 2,
+    "leverageFactor": 0.55,
+    "cues": [
+      "Push tall through shoulders and keep knees tucked."
+    ],
+    "demoUrl": null
+  },
+  {
+    "id": "advanced-tuck-planche",
+    "name": "Advanced Tuck Planche",
+    "aliases": [],
+    "metric": "time",
+    "category": "skill",
+    "movementPattern": "horizontal-push",
+    "primaryMuscles": [
+      "front-delts"
+    ],
+    "secondaryMuscles": [
+      "chest",
+      "abs"
+    ],
+    "equipment": [
+      "parallettes"
+    ],
+    "unilateral": false,
+    "chainId": "planche-progression",
+    "level": 3,
+    "leverageFactor": 0.72,
+    "cues": [
+      "Open the hips while keeping scapulae protracted."
+    ],
+    "demoUrl": null
+  },
+  {
+    "id": "straddle-planche",
+    "name": "Straddle Planche",
+    "aliases": [],
+    "metric": "time",
+    "category": "skill",
+    "movementPattern": "horizontal-push",
+    "primaryMuscles": [
+      "front-delts"
+    ],
+    "secondaryMuscles": [
+      "chest",
+      "abs"
+    ],
+    "equipment": [
+      "parallettes"
+    ],
+    "unilateral": false,
+    "chainId": "planche-progression",
+    "level": 4,
+    "leverageFactor": 0.9,
+    "cues": [
+      "Keep arms straight and hold a controlled straddle."
+    ],
+    "demoUrl": null
+  },
+  {
+    "id": "pike-handstand-hold",
+    "name": "Pike Handstand Hold",
+    "aliases": [],
+    "metric": "time",
+    "category": "skill",
+    "movementPattern": "inversion",
+    "primaryMuscles": [
+      "shoulders"
+    ],
+    "secondaryMuscles": [
+      "triceps",
+      "abs"
+    ],
+    "equipment": [
+      "bench"
+    ],
+    "unilateral": false,
+    "chainId": "handstand-progression",
+    "level": 1,
+    "leverageFactor": 0.4,
+    "cues": [
+      "Elevate hips over shoulders and keep elbows straight."
+    ],
+    "demoUrl": null
+  },
+  {
+    "id": "wall-facing-handstand-hold",
+    "name": "Wall-facing Handstand Hold",
+    "aliases": [],
+    "metric": "time",
+    "category": "skill",
+    "movementPattern": "inversion",
+    "primaryMuscles": [
+      "shoulders"
+    ],
+    "secondaryMuscles": [
+      "triceps",
+      "abs"
+    ],
+    "equipment": [
+      "wall"
+    ],
+    "unilateral": false,
+    "chainId": "handstand-progression",
+    "level": 2,
+    "leverageFactor": 0.65,
+    "cues": [
+      "Keep ribs tucked and use a safe wall exit."
+    ],
+    "demoUrl": null
+  },
+  {
+    "id": "chest-to-wall-handstand-shrug",
+    "name": "Chest-to-wall Handstand Shrug",
+    "aliases": [],
+    "metric": "reps",
+    "category": "skill",
+    "movementPattern": "inversion",
+    "primaryMuscles": [
+      "shoulders"
+    ],
+    "secondaryMuscles": [
+      "triceps",
+      "upper-back"
+    ],
+    "equipment": [
+      "wall"
+    ],
+    "unilateral": false,
+    "chainId": "handstand-progression",
+    "level": 3,
+    "leverageFactor": 0.8,
+    "cues": [
+      "Elevate shoulders without bending elbows."
+    ],
+    "demoUrl": null
+  },
+  {
+    "id": "freestanding-handstand-hold",
+    "name": "Freestanding Handstand Hold",
+    "aliases": [],
+    "metric": "time",
+    "category": "skill",
+    "movementPattern": "inversion",
+    "primaryMuscles": [
+      "shoulders"
+    ],
+    "secondaryMuscles": [
+      "triceps",
+      "abs"
+    ],
+    "equipment": [
+      "floor"
+    ],
+    "unilateral": false,
+    "chainId": "handstand-progression",
+    "level": 4,
+    "leverageFactor": 1.0,
+    "cues": [
+      "Practice near a clear area and exit safely."
+    ],
+    "demoUrl": null
+  },
+  {
+    "id": "pike-push-up-progression",
+    "name": "Pike Push-up",
+    "aliases": [],
+    "metric": "reps",
+    "category": "push",
+    "movementPattern": "vertical-push",
+    "primaryMuscles": [
+      "front-delts"
+    ],
+    "secondaryMuscles": [
+      "triceps",
+      "upper-back"
+    ],
+    "equipment": [
+      "floor"
+    ],
+    "unilateral": false,
+    "chainId": "hspu-progression",
+    "level": 1,
+    "leverageFactor": 0.35,
+    "cues": [
+      "Keep hips high and lower head between hands."
+    ],
+    "demoUrl": null
+  },
+  {
+    "id": "elevated-pike-push-up",
+    "name": "Elevated Pike Push-up",
+    "aliases": [],
+    "metric": "reps",
+    "category": "push",
+    "movementPattern": "vertical-push",
+    "primaryMuscles": [
+      "front-delts"
+    ],
+    "secondaryMuscles": [
+      "triceps"
+    ],
+    "equipment": [
+      "bench",
+      "floor"
+    ],
+    "unilateral": false,
+    "chainId": "hspu-progression",
+    "level": 2,
+    "leverageFactor": 0.55,
+    "cues": [
+      "Elevate feet on a stable support; control descent."
+    ],
+    "demoUrl": null
+  },
+  {
+    "id": "wall-headstand-push-up",
+    "name": "Wall-supported Partial HSPU",
+    "aliases": [],
+    "metric": "reps",
+    "category": "push",
+    "movementPattern": "vertical-push",
+    "primaryMuscles": [
+      "front-delts"
+    ],
+    "secondaryMuscles": [
+      "triceps"
+    ],
+    "equipment": [
+      "wall"
+    ],
+    "unilateral": false,
+    "chainId": "hspu-progression",
+    "level": 3,
+    "leverageFactor": 0.75,
+    "cues": [
+      "Use a padded, controlled range and stable wall support."
+    ],
+    "demoUrl": null
+  },
+  {
+    "id": "wall-handstand-push-up",
+    "name": "Wall Handstand Push-up",
+    "aliases": [],
+    "metric": "reps",
+    "category": "push",
+    "movementPattern": "vertical-push",
+    "primaryMuscles": [
+      "front-delts"
+    ],
+    "secondaryMuscles": [
+      "triceps"
+    ],
+    "equipment": [
+      "wall"
+    ],
+    "unilateral": false,
+    "chainId": "hspu-progression",
+    "level": 4,
+    "leverageFactor": 0.95,
+    "cues": [
+      "Maintain a braced line and controlled depth."
+    ],
+    "demoUrl": null
+  },
+  {
+    "id": "jumping-muscle-up-transition",
+    "name": "Jumping Muscle-up Transition",
+    "aliases": [],
+    "metric": "reps",
+    "category": "skill",
+    "movementPattern": "pull-to-push-transition",
+    "primaryMuscles": [
+      "lats",
+      "chest"
+    ],
+    "secondaryMuscles": [
+      "biceps",
+      "triceps"
+    ],
+    "equipment": [
+      "bar"
+    ],
+    "unilateral": false,
+    "chainId": "muscle-up-progression",
+    "level": 1,
+    "leverageFactor": 0.35,
+    "cues": [
+      "Use a low stable bar and practice a smooth transition."
+    ],
+    "demoUrl": null
+  },
+  {
+    "id": "band-assisted-muscle-up",
+    "name": "Band-assisted Muscle-up",
+    "aliases": [],
+    "metric": "reps",
+    "category": "skill",
+    "movementPattern": "pull-to-push-transition",
+    "primaryMuscles": [
+      "lats",
+      "chest"
+    ],
+    "secondaryMuscles": [
+      "biceps",
+      "triceps"
+    ],
+    "equipment": [
+      "bar",
+      "band"
+    ],
+    "unilateral": false,
+    "chainId": "muscle-up-progression",
+    "level": 2,
+    "leverageFactor": 0.55,
+    "cues": [
+      "Use a secure band; keep wrists clear of the bar."
+    ],
+    "demoUrl": null
+  },
+  {
+    "id": "strict-chest-to-bar-pull-up",
+    "name": "Chest-to-bar Pull-up",
+    "aliases": [],
+    "metric": "reps",
+    "category": "pull",
+    "movementPattern": "vertical-pull",
+    "primaryMuscles": [
+      "lats"
+    ],
+    "secondaryMuscles": [
+      "biceps",
+      "upper-back"
+    ],
+    "equipment": [
+      "bar"
+    ],
+    "unilateral": false,
+    "chainId": "muscle-up-progression",
+    "level": 3,
+    "leverageFactor": 0.75,
+    "cues": [
+      "Pull explosively without kicking."
+    ],
+    "demoUrl": null
+  },
+  {
+    "id": "strict-muscle-up",
+    "name": "Strict Muscle-up",
+    "aliases": [],
+    "metric": "reps",
+    "category": "skill",
+    "movementPattern": "pull-to-push-transition",
+    "primaryMuscles": [
+      "lats",
+      "chest"
+    ],
+    "secondaryMuscles": [
+      "biceps",
+      "triceps"
+    ],
+    "equipment": [
+      "bar"
+    ],
+    "unilateral": false,
+    "chainId": "muscle-up-progression",
+    "level": 4,
+    "leverageFactor": 1.0,
+    "cues": [
+      "Use a controlled transition and stable support finish."
+    ],
+    "demoUrl": null
+  },
+  {
+    "id": "tuck-support-hold",
+    "name": "Tuck Support Hold",
+    "aliases": [],
+    "metric": "time",
+    "category": "skill",
+    "movementPattern": "support-hold",
+    "primaryMuscles": [
+      "triceps"
+    ],
+    "secondaryMuscles": [
+      "abs",
+      "shoulders"
+    ],
+    "equipment": [
+      "parallettes"
+    ],
+    "unilateral": false,
+    "chainId": "l-sit-progression",
+    "level": 1,
+    "leverageFactor": 0.3,
+    "cues": [
+      "Press shoulders down and hold knees tucked."
+    ],
+    "demoUrl": null
+  },
+  {
+    "id": "one-leg-l-sit",
+    "name": "One-leg L-sit",
+    "aliases": [],
+    "metric": "time",
+    "category": "skill",
+    "movementPattern": "support-hold",
+    "primaryMuscles": [
+      "abs",
+      "hip-flexors"
+    ],
+    "secondaryMuscles": [
+      "triceps",
+      "quads"
+    ],
+    "equipment": [
+      "parallettes"
+    ],
+    "unilateral": true,
+    "chainId": "l-sit-progression",
+    "level": 2,
+    "leverageFactor": 0.55,
+    "cues": [
+      "Keep one leg extended and shoulders depressed."
+    ],
+    "demoUrl": null
+  },
+  {
+    "id": "l-sit-progression-full",
+    "name": "L-sit",
+    "aliases": [],
+    "metric": "time",
+    "category": "skill",
+    "movementPattern": "support-hold",
+    "primaryMuscles": [
+      "abs",
+      "hip-flexors"
+    ],
+    "secondaryMuscles": [
+      "triceps",
+      "quads"
+    ],
+    "equipment": [
+      "parallettes"
+    ],
+    "unilateral": false,
+    "chainId": "l-sit-progression",
+    "level": 3,
+    "leverageFactor": 0.8,
+    "cues": [
+      "Lock knees as able and press tall through hands."
+    ],
+    "demoUrl": null
+  },
+  {
+    "id": "v-sit",
+    "name": "V-sit",
+    "aliases": [],
+    "metric": "time",
+    "category": "skill",
+    "movementPattern": "support-hold",
+    "primaryMuscles": [
+      "abs",
+      "hip-flexors"
+    ],
+    "secondaryMuscles": [
+      "triceps",
+      "quads"
+    ],
+    "equipment": [
+      "parallettes"
+    ],
+    "unilateral": false,
+    "chainId": "l-sit-progression",
+    "level": 4,
+    "leverageFactor": 1.0,
+    "cues": [
+      "Lift legs higher only while keeping support stable."
+    ],
+    "demoUrl": null
+  },
+  {
+    "id": "assisted-pistol-squat",
+    "name": "Assisted Pistol Squat",
+    "aliases": [],
+    "metric": "reps",
+    "category": "legs",
+    "movementPattern": "single-leg-squat",
+    "primaryMuscles": [
+      "quads",
+      "glutes"
+    ],
+    "secondaryMuscles": [
+      "hamstrings",
+      "calves"
+    ],
+    "equipment": [
+      "rack"
+    ],
+    "unilateral": true,
+    "chainId": "pistol-squat-progression",
+    "level": 1,
+    "leverageFactor": 0.35,
+    "cues": [
+      "Hold a stable support lightly and control the descent."
+    ],
+    "demoUrl": null
+  },
+  {
+    "id": "box-pistol-squat",
+    "name": "Box Pistol Squat",
+    "aliases": [],
+    "metric": "reps",
+    "category": "legs",
+    "movementPattern": "single-leg-squat",
+    "primaryMuscles": [
+      "quads",
+      "glutes"
+    ],
+    "secondaryMuscles": [
+      "hamstrings",
+      "calves"
+    ],
+    "equipment": [
+      "bench"
+    ],
+    "unilateral": true,
+    "chainId": "pistol-squat-progression",
+    "level": 2,
+    "leverageFactor": 0.55,
+    "cues": [
+      "Sit to a stable target and stand without collapsing."
+    ],
+    "demoUrl": null
+  },
+  {
+    "id": "counterbalanced-pistol-squat",
+    "name": "Counterbalanced Pistol Squat",
+    "aliases": [],
+    "metric": "reps",
+    "category": "legs",
+    "movementPattern": "single-leg-squat",
+    "primaryMuscles": [
+      "quads",
+      "glutes"
+    ],
+    "secondaryMuscles": [
+      "hamstrings",
+      "calves"
+    ],
+    "equipment": [
+      "floor"
+    ],
+    "unilateral": true,
+    "chainId": "pistol-squat-progression",
+    "level": 3,
+    "leverageFactor": 0.75,
+    "cues": [
+      "Reach arms forward and keep the whole foot grounded."
+    ],
+    "demoUrl": null
+  },
+  {
+    "id": "pistol-squat",
+    "name": "Pistol Squat",
+    "aliases": [
+      "single-leg squat"
+    ],
+    "metric": "reps",
+    "category": "legs",
+    "movementPattern": "single-leg-squat",
+    "primaryMuscles": [
+      "quads",
+      "glutes"
+    ],
+    "secondaryMuscles": [
+      "hamstrings",
+      "calves"
+    ],
+    "equipment": [
+      "floor"
+    ],
+    "unilateral": true,
+    "chainId": "pistol-squat-progression",
+    "level": 4,
+    "leverageFactor": 1.0,
+    "cues": [
+      "Keep the non-working leg clear and descend under control."
+    ],
+    "demoUrl": null
+  },
+  {
+    "id": "assisted-nordic-curl",
+    "name": "Band-assisted Nordic Curl",
+    "aliases": [],
+    "metric": "reps",
+    "category": "legs",
+    "movementPattern": "knee-flexion",
+    "primaryMuscles": [
+      "hamstrings"
+    ],
+    "secondaryMuscles": [
+      "glutes",
+      "calves"
+    ],
+    "equipment": [
+      "anchor",
+      "band"
+    ],
+    "unilateral": false,
+    "chainId": "nordic-curl-progression",
+    "level": 1,
+    "leverageFactor": 0.4,
+    "cues": [
+      "Anchor ankles securely and use a band to scale assistance."
+    ],
+    "demoUrl": null
+  },
+  {
+    "id": "partial-nordic-curl",
+    "name": "Partial Nordic Curl",
+    "aliases": [],
+    "metric": "reps",
+    "category": "legs",
+    "movementPattern": "knee-flexion",
+    "primaryMuscles": [
+      "hamstrings"
+    ],
+    "secondaryMuscles": [
+      "glutes",
+      "calves"
+    ],
+    "equipment": [
+      "anchor"
+    ],
+    "unilateral": false,
+    "chainId": "nordic-curl-progression",
+    "level": 2,
+    "leverageFactor": 0.6,
+    "cues": [
+      "Anchor ankles and use a repeatable partial range."
+    ],
+    "demoUrl": null
+  },
+  {
+    "id": "negative-nordic-curl",
+    "name": "Nordic Curl Negative",
+    "aliases": [],
+    "metric": "reps",
+    "category": "legs",
+    "movementPattern": "knee-flexion",
+    "primaryMuscles": [
+      "hamstrings"
+    ],
+    "secondaryMuscles": [
+      "glutes",
+      "calves"
+    ],
+    "equipment": [
+      "anchor"
+    ],
+    "unilateral": false,
+    "chainId": "nordic-curl-progression",
+    "level": 3,
+    "leverageFactor": 0.8,
+    "cues": [
+      "Resist the lowering phase and catch safely with hands."
+    ],
+    "demoUrl": null
+  },
+  {
+    "id": "full-nordic-curl",
+    "name": "Full Nordic Curl",
+    "aliases": [],
+    "metric": "reps",
+    "category": "legs",
+    "movementPattern": "knee-flexion",
+    "primaryMuscles": [
+      "hamstrings"
+    ],
+    "secondaryMuscles": [
+      "glutes",
+      "calves"
+    ],
+    "equipment": [
+      "anchor"
+    ],
+    "unilateral": false,
+    "chainId": "nordic-curl-progression",
+    "level": 4,
+    "leverageFactor": 1.0,
+    "cues": [
+      "Lower under control and return with assistance if needed."
+    ],
+    "demoUrl": null
+  },
+  {
+    "id": "glute-bridge-progression",
+    "name": "Glute Bridge",
+    "aliases": [],
+    "metric": "reps",
+    "category": "legs",
+    "movementPattern": "hip-extension",
+    "primaryMuscles": [
+      "glutes"
+    ],
+    "secondaryMuscles": [
+      "hamstrings",
+      "shoulders"
+    ],
+    "equipment": [
+      "floor"
+    ],
+    "unilateral": false,
+    "chainId": "bridge-progression",
+    "level": 1,
+    "leverageFactor": 0.25,
+    "cues": [
+      "Lift hips while keeping ribs controlled."
+    ],
+    "demoUrl": null
+  },
+  {
+    "id": "elevated-bridge",
+    "name": "Elevated Bridge",
+    "aliases": [],
+    "metric": "time",
+    "category": "mobility",
+    "movementPattern": "spinal-extension",
+    "primaryMuscles": [
+      "shoulders",
+      "glutes"
+    ],
+    "secondaryMuscles": [
+      "chest",
+      "hip-flexors"
+    ],
+    "equipment": [
+      "bench"
+    ],
+    "unilateral": false,
+    "chainId": "bridge-progression",
+    "level": 2,
+    "leverageFactor": 0.5,
+    "cues": [
+      "Use a stable support and keep the range comfortable."
+    ],
+    "demoUrl": null
+  },
+  {
+    "id": "wall-walk-bridge",
+    "name": "Wall Walk to Bridge",
+    "aliases": [],
+    "metric": "reps",
+    "category": "mobility",
+    "movementPattern": "spinal-extension",
+    "primaryMuscles": [
+      "shoulders",
+      "glutes"
+    ],
+    "secondaryMuscles": [
+      "chest",
+      "hip-flexors"
+    ],
+    "equipment": [
+      "wall"
+    ],
+    "unilateral": false,
+    "chainId": "bridge-progression",
+    "level": 3,
+    "leverageFactor": 0.75,
+    "cues": [
+      "Walk hands down only within a controlled range."
+    ],
+    "demoUrl": null
+  },
+  {
+    "id": "floor-bridge-hold",
+    "name": "Floor Bridge Hold",
+    "aliases": [],
+    "metric": "time",
+    "category": "mobility",
+    "movementPattern": "spinal-extension",
+    "primaryMuscles": [
+      "shoulders",
+      "glutes"
+    ],
+    "secondaryMuscles": [
+      "chest",
+      "hip-flexors"
+    ],
+    "equipment": [
+      "floor"
+    ],
+    "unilateral": false,
+    "chainId": "bridge-progression",
+    "level": 4,
+    "leverageFactor": 1.0,
+    "cues": [
+      "Press evenly through hands and feet; avoid pinching."
+    ],
+    "demoUrl": null
+  },
+  {
+    "id": "vertical-flag-hold",
+    "name": "Vertical Flag Support Hold",
+    "aliases": [],
+    "metric": "time",
+    "category": "skill",
+    "movementPattern": "anti-lateral-flexion",
+    "primaryMuscles": [
+      "obliques",
+      "shoulders"
+    ],
+    "secondaryMuscles": [
+      "lats",
+      "forearms"
+    ],
+    "equipment": [
+      "vertical-pole"
+    ],
+    "unilateral": false,
+    "chainId": "human-flag-progression",
+    "level": 1,
+    "leverageFactor": 0.3,
+    "cues": [
+      "Grip a secure pole and keep feet on the ground for support."
+    ],
+    "demoUrl": null
+  },
+  {
+    "id": "tuck-human-flag",
+    "name": "Tuck Human Flag",
+    "aliases": [],
+    "metric": "time",
+    "category": "skill",
+    "movementPattern": "anti-lateral-flexion",
+    "primaryMuscles": [
+      "obliques",
+      "shoulders"
+    ],
+    "secondaryMuscles": [
+      "lats",
+      "forearms"
+    ],
+    "equipment": [
+      "vertical-pole"
+    ],
+    "unilateral": false,
+    "chainId": "human-flag-progression",
+    "level": 2,
+    "leverageFactor": 0.55,
+    "cues": [
+      "Use a secure apparatus and hold a compact tuck."
+    ],
+    "demoUrl": null
+  },
+  {
+    "id": "straddle-human-flag",
+    "name": "Straddle Human Flag",
+    "aliases": [],
+    "metric": "time",
+    "category": "skill",
+    "movementPattern": "anti-lateral-flexion",
+    "primaryMuscles": [
+      "obliques",
+      "shoulders"
+    ],
+    "secondaryMuscles": [
+      "lats",
+      "forearms"
+    ],
+    "equipment": [
+      "vertical-pole"
+    ],
+    "unilateral": false,
+    "chainId": "human-flag-progression",
+    "level": 3,
+    "leverageFactor": 0.8,
+    "cues": [
+      "Keep the pole secure and body controlled."
+    ],
+    "demoUrl": null
+  },
+  {
+    "id": "full-human-flag",
+    "name": "Full Human Flag",
+    "aliases": [],
+    "metric": "time",
+    "category": "skill",
+    "movementPattern": "anti-lateral-flexion",
+    "primaryMuscles": [
+      "obliques",
+      "shoulders"
+    ],
+    "secondaryMuscles": [
+      "lats",
+      "forearms"
+    ],
+    "equipment": [
+      "vertical-pole"
+    ],
+    "unilateral": false,
+    "chainId": "human-flag-progression",
+    "level": 4,
+    "leverageFactor": 1.0,
+    "cues": [
+      "Maintain straight legs and stop before grip failure."
+    ],
+    "demoUrl": null
+  },
+  {
+    "id": "tuck-dragon-flag",
+    "name": "Tuck Dragon Flag",
+    "aliases": [],
+    "metric": "reps",
+    "category": "core",
+    "movementPattern": "anti-extension",
+    "primaryMuscles": [
+      "abs"
+    ],
+    "secondaryMuscles": [
+      "lats",
+      "glutes"
+    ],
+    "equipment": [
+      "bench"
+    ],
+    "unilateral": false,
+    "chainId": "dragon-flag-progression",
+    "level": 1,
+    "leverageFactor": 0.35,
+    "cues": [
+      "Hold bench securely and keep shoulders supported."
+    ],
+    "demoUrl": null
+  },
+  {
+    "id": "one-leg-dragon-flag",
+    "name": "One-leg Dragon Flag",
+    "aliases": [],
+    "metric": "reps",
+    "category": "core",
+    "movementPattern": "anti-extension",
+    "primaryMuscles": [
+      "abs"
+    ],
+    "secondaryMuscles": [
+      "lats",
+      "glutes"
+    ],
+    "equipment": [
+      "bench"
+    ],
+    "unilateral": true,
+    "chainId": "dragon-flag-progression",
+    "level": 2,
+    "leverageFactor": 0.55,
+    "cues": [
+      "Lower slowly with one leg extended."
+    ],
+    "demoUrl": null
+  },
+  {
+    "id": "negative-dragon-flag",
+    "name": "Dragon Flag Negative",
+    "aliases": [],
+    "metric": "reps",
+    "category": "core",
+    "movementPattern": "anti-extension",
+    "primaryMuscles": [
+      "abs"
+    ],
+    "secondaryMuscles": [
+      "lats",
+      "glutes"
+    ],
+    "equipment": [
+      "bench"
+    ],
+    "unilateral": false,
+    "chainId": "dragon-flag-progression",
+    "level": 3,
+    "leverageFactor": 0.8,
+    "cues": [
+      "Lower as one unit and stop at a controlled point."
+    ],
+    "demoUrl": null
+  },
+  {
+    "id": "dragon-flag",
+    "name": "Dragon Flag",
+    "aliases": [
+      "full dragon flag"
+    ],
+    "metric": "reps",
+    "category": "core",
+    "movementPattern": "anti-extension",
+    "primaryMuscles": [
+      "abs"
+    ],
+    "secondaryMuscles": [
+      "lats",
+      "glutes"
+    ],
+    "equipment": [
+      "bench"
+    ],
+    "unilateral": false,
+    "chainId": "dragon-flag-progression",
+    "level": 4,
+    "leverageFactor": 1.0,
+    "cues": [
+      "Keep a rigid line and avoid loading the neck."
+    ],
+    "demoUrl": null
+  },
+  {
+    "id": "weighted-pull-up",
+    "name": "Weighted Pull-up",
+    "aliases": ["loaded pull-up"],
+    "metric": "reps_load",
+    "category": "pull",
+    "movementPattern": "vertical-pull",
+    "primaryMuscles": ["lats"],
+    "secondaryMuscles": ["biceps", "upper-back", "forearms"],
+    "equipment": ["pull-up-bar", "weight-belt", "weight-vest"],
+    "unilateral": false,
+    "chainId": null,
+    "level": null,
+    "leverageFactor": 1,
+    "cues": ["Start from a controlled hang and avoid kipping."],
+    "demoUrl": null
+  },
+  {
+    "id": "weighted-dip",
+    "name": "Weighted Dip",
+    "aliases": ["loaded dip"],
+    "metric": "reps_load",
+    "category": "push",
+    "movementPattern": "vertical-push",
+    "primaryMuscles": ["triceps", "chest"],
+    "secondaryMuscles": ["front-delts"],
+    "equipment": ["dip-bars", "weight-belt", "weight-vest"],
+    "unilateral": false,
+    "chainId": null,
+    "level": null,
+    "leverageFactor": 1,
+    "cues": ["Keep shoulders controlled and use a pain-free depth."],
+    "demoUrl": null
+  }
+]

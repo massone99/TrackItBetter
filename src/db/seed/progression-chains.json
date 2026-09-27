@@ -1,0 +1,422 @@
+[
+  {
+    "id": "push-up-progression",
+    "name": "Push-up Progression",
+    "description": "Horizontal pushing strength",
+    "family": "push-up",
+    "levels": [
+      {
+        "level": 1,
+        "exerciseId": "wall-push-up",
+        "name": "Wall Push-up"
+      },
+      {
+        "level": 2,
+        "exerciseId": "incline-push-up",
+        "name": "Incline Push-up"
+      },
+      {
+        "level": 3,
+        "exerciseId": "push-up-progression-standard",
+        "name": "Standard Push-up"
+      },
+      {
+        "level": 4,
+        "exerciseId": "decline-push-up-progression",
+        "name": "Decline Push-up"
+      }
+    ]
+  },
+  {
+    "id": "dip-progression",
+    "name": "Dip Progression",
+    "description": "Vertical pushing strength",
+    "family": "dip",
+    "levels": [
+      {
+        "level": 1,
+        "exerciseId": "bench-dip-progression",
+        "name": "Bench Dip"
+      },
+      {
+        "level": 2,
+        "exerciseId": "band-assisted-dip",
+        "name": "Band-assisted Dip"
+      },
+      {
+        "level": 3,
+        "exerciseId": "parallel-bar-dip-progression",
+        "name": "Parallel Bar Dip"
+      },
+      {
+        "level": 4,
+        "exerciseId": "ring-dip-progression",
+        "name": "Ring Dip"
+      }
+    ]
+  },
+  {
+    "id": "pull-up-progression",
+    "name": "Pull-up Progression",
+    "description": "Vertical pulling strength",
+    "family": "pull-up",
+    "levels": [
+      {
+        "level": 1,
+        "exerciseId": "scapular-pull-up-progression",
+        "name": "Scapular Pull-up"
+      },
+      {
+        "level": 2,
+        "exerciseId": "band-assisted-pull-up",
+        "name": "Band-assisted Pull-up"
+      },
+      {
+        "level": 3,
+        "exerciseId": "negative-pull-up",
+        "name": "Negative Pull-up"
+      },
+      {
+        "level": 4,
+        "exerciseId": "strict-pull-up",
+        "name": "Strict Pull-up"
+      }
+    ]
+  },
+  {
+    "id": "front-lever-progression",
+    "name": "Front Lever Progression",
+    "description": "Straight-arm horizontal pulling",
+    "family": "front-lever",
+    "levels": [
+      {
+        "level": 1,
+        "exerciseId": "tuck-front-lever",
+        "name": "Tuck Front Lever"
+      },
+      {
+        "level": 2,
+        "exerciseId": "advanced-tuck-front-lever",
+        "name": "Advanced Tuck Front Lever"
+      },
+      {
+        "level": 3,
+        "exerciseId": "straddle-front-lever",
+        "name": "Straddle Front Lever"
+      },
+      {
+        "level": 4,
+        "exerciseId": "full-front-lever",
+        "name": "Full Front Lever"
+      }
+    ]
+  },
+  {
+    "id": "back-lever-progression",
+    "name": "Back Lever Progression",
+    "description": "Straight-arm shoulder extension",
+    "family": "back-lever",
+    "levels": [
+      {
+        "level": 1,
+        "exerciseId": "tuck-back-lever",
+        "name": "Tuck Back Lever"
+      },
+      {
+        "level": 2,
+        "exerciseId": "advanced-tuck-back-lever",
+        "name": "Advanced Tuck Back Lever"
+      },
+      {
+        "level": 3,
+        "exerciseId": "straddle-back-lever",
+        "name": "Straddle Back Lever"
+      },
+      {
+        "level": 4,
+        "exerciseId": "full-back-lever",
+        "name": "Full Back Lever"
+      }
+    ]
+  },
+  {
+    "id": "planche-progression",
+    "name": "Planche Progression",
+    "description": "Straight-arm horizontal pushing",
+    "family": "planche",
+    "levels": [
+      {
+        "level": 1,
+        "exerciseId": "planche-lean",
+        "name": "Planche Lean"
+      },
+      {
+        "level": 2,
+        "exerciseId": "tuck-planche",
+        "name": "Tuck Planche"
+      },
+      {
+        "level": 3,
+        "exerciseId": "advanced-tuck-planche",
+        "name": "Advanced Tuck Planche"
+      },
+      {
+        "level": 4,
+        "exerciseId": "straddle-planche",
+        "name": "Straddle Planche"
+      }
+    ]
+  },
+  {
+    "id": "handstand-progression",
+    "name": "Handstand Progression",
+    "description": "Inversion balance",
+    "family": "handstand",
+    "levels": [
+      {
+        "level": 1,
+        "exerciseId": "pike-handstand-hold",
+        "name": "Pike Handstand Hold"
+      },
+      {
+        "level": 2,
+        "exerciseId": "wall-facing-handstand-hold",
+        "name": "Wall-facing Handstand Hold"
+      },
+      {
+        "level": 3,
+        "exerciseId": "chest-to-wall-handstand-shrug",
+        "name": "Chest-to-wall Handstand Shrug"
+      },
+      {
+        "level": 4,
+        "exerciseId": "freestanding-handstand-hold",
+        "name": "Freestanding Handstand Hold"
+      }
+    ]
+  },
+  {
+    "id": "hspu-progression",
+    "name": "Handstand Push-up Progression",
+    "description": "Overhead pushing strength",
+    "family": "hspu",
+    "levels": [
+      {
+        "level": 1,
+        "exerciseId": "pike-push-up-progression",
+        "name": "Pike Push-up"
+      },
+      {
+        "level": 2,
+        "exerciseId": "elevated-pike-push-up",
+        "name": "Elevated Pike Push-up"
+      },
+      {
+        "level": 3,
+        "exerciseId": "wall-headstand-push-up",
+        "name": "Wall-supported Partial HSPU"
+      },
+      {
+        "level": 4,
+        "exerciseId": "wall-handstand-push-up",
+        "name": "Wall Handstand Push-up"
+      }
+    ]
+  },
+  {
+    "id": "muscle-up-progression",
+    "name": "Muscle-up Progression",
+    "description": "Pull-to-support transition",
+    "family": "muscle-up",
+    "levels": [
+      {
+        "level": 1,
+        "exerciseId": "jumping-muscle-up-transition",
+        "name": "Jumping Muscle-up Transition"
+      },
+      {
+        "level": 2,
+        "exerciseId": "band-assisted-muscle-up",
+        "name": "Band-assisted Muscle-up"
+      },
+      {
+        "level": 3,
+        "exerciseId": "strict-chest-to-bar-pull-up",
+        "name": "Chest-to-bar Pull-up"
+      },
+      {
+        "level": 4,
+        "exerciseId": "strict-muscle-up",
+        "name": "Strict Muscle-up"
+      }
+    ]
+  },
+  {
+    "id": "l-sit-progression",
+    "name": "L-sit Progression",
+    "description": "Compression and support hold",
+    "family": "l-sit",
+    "levels": [
+      {
+        "level": 1,
+        "exerciseId": "tuck-support-hold",
+        "name": "Tuck Support Hold"
+      },
+      {
+        "level": 2,
+        "exerciseId": "one-leg-l-sit",
+        "name": "One-leg L-sit"
+      },
+      {
+        "level": 3,
+        "exerciseId": "l-sit-progression-full",
+        "name": "L-sit"
+      },
+      {
+        "level": 4,
+        "exerciseId": "v-sit",
+        "name": "V-sit"
+      }
+    ]
+  },
+  {
+    "id": "pistol-squat-progression",
+    "name": "Pistol Squat Progression",
+    "description": "Single-leg squat strength",
+    "family": "pistol-squat",
+    "levels": [
+      {
+        "level": 1,
+        "exerciseId": "assisted-pistol-squat",
+        "name": "Assisted Pistol Squat"
+      },
+      {
+        "level": 2,
+        "exerciseId": "box-pistol-squat",
+        "name": "Box Pistol Squat"
+      },
+      {
+        "level": 3,
+        "exerciseId": "counterbalanced-pistol-squat",
+        "name": "Counterbalanced Pistol Squat"
+      },
+      {
+        "level": 4,
+        "exerciseId": "pistol-squat",
+        "name": "Pistol Squat"
+      }
+    ]
+  },
+  {
+    "id": "nordic-curl-progression",
+    "name": "Nordic Curl Progression",
+    "description": "Knee flexion strength",
+    "family": "nordic-curl",
+    "levels": [
+      {
+        "level": 1,
+        "exerciseId": "assisted-nordic-curl",
+        "name": "Band-assisted Nordic Curl"
+      },
+      {
+        "level": 2,
+        "exerciseId": "partial-nordic-curl",
+        "name": "Partial Nordic Curl"
+      },
+      {
+        "level": 3,
+        "exerciseId": "negative-nordic-curl",
+        "name": "Nordic Curl Negative"
+      },
+      {
+        "level": 4,
+        "exerciseId": "full-nordic-curl",
+        "name": "Full Nordic Curl"
+      }
+    ]
+  },
+  {
+    "id": "bridge-progression",
+    "name": "Bridge Progression",
+    "description": "Shoulder and hip extension mobility",
+    "family": "bridge",
+    "levels": [
+      {
+        "level": 1,
+        "exerciseId": "glute-bridge-progression",
+        "name": "Glute Bridge"
+      },
+      {
+        "level": 2,
+        "exerciseId": "elevated-bridge",
+        "name": "Elevated Bridge"
+      },
+      {
+        "level": 3,
+        "exerciseId": "wall-walk-bridge",
+        "name": "Wall Walk to Bridge"
+      },
+      {
+        "level": 4,
+        "exerciseId": "floor-bridge-hold",
+        "name": "Floor Bridge Hold"
+      }
+    ]
+  },
+  {
+    "id": "human-flag-progression",
+    "name": "Human Flag Progression",
+    "description": "Lateral body strength",
+    "family": "human-flag",
+    "levels": [
+      {
+        "level": 1,
+        "exerciseId": "vertical-flag-hold",
+        "name": "Vertical Flag Support Hold"
+      },
+      {
+        "level": 2,
+        "exerciseId": "tuck-human-flag",
+        "name": "Tuck Human Flag"
+      },
+      {
+        "level": 3,
+        "exerciseId": "straddle-human-flag",
+        "name": "Straddle Human Flag"
+      },
+      {
+        "level": 4,
+        "exerciseId": "full-human-flag",
+        "name": "Full Human Flag"
+      }
+    ]
+  },
+  {
+    "id": "dragon-flag-progression",
+    "name": "Dragon Flag Progression",
+    "description": "Anti-extension trunk strength",
+    "family": "dragon-flag",
+    "levels": [
+      {
+        "level": 1,
+        "exerciseId": "tuck-dragon-flag",
+        "name": "Tuck Dragon Flag"
+      },
+      {
+        "level": 2,
+        "exerciseId": "one-leg-dragon-flag",
+        "name": "One-leg Dragon Flag"
+      },
+      {
+        "level": 3,
+        "exerciseId": "negative-dragon-flag",
+        "name": "Dragon Flag Negative"
+      },
+      {
+        "level": 4,
+        "exerciseId": "dragon-flag",
+        "name": "Dragon Flag"
+      }
+    ]
+  }
+]
