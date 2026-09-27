@@ -43,6 +43,30 @@ describe('positions', () => {
     });
     expect(findPosition('handstand_line')!.measure(pose, null).value).toBeCloseTo(0);
   });
+
+  it('measures the tuck planche back angle, treating hips above the shoulders as flat', () => {
+    const tuck = findPosition('tuck_planche')!;
+    const arms = { rightWrist: k(100, 200), rightElbow: k(100, 150) };
+    const dropped = poseWith({ ...arms, rightShoulder: k(100, 100), rightHip: k(0, 100 + 100 * Math.tan(Math.PI / 6)) });
+    expect(tuck.measure(dropped, null).value).toBeCloseTo(30);
+    const high = poseWith({ ...arms, rightShoulder: k(100, 100), rightHip: k(0, 80) });
+    expect(tuck.measure(high, null).value).toBeCloseTo(0);
+    expect(tuck.measure(high, null).warning).toBeUndefined();
+  });
+
+  it('adds body tilt and hip bend for a full planche, facing either way, and flags bent elbows', () => {
+    const planche = findPosition('full_planche')!;
+    const flat = poseWith({ leftWrist: k(100, 200), leftElbow: k(100, 150), leftShoulder: k(100, 100), leftHip: k(200, 100), leftAnkle: k(300, 100) });
+    expect(planche.measure(flat, null).value).toBeCloseTo(0);
+    // Mirrored, feet raised 10° above the shoulders, hips piked 20° and elbows bent.
+    const ankle = k(100 - 300 * Math.cos(Math.PI / 18), 100 - 300 * Math.sin(Math.PI / 18));
+    const hip = k(0, 100 - 100 * Math.tan(Math.PI / 18) + 60);
+    const bent = poseWith({ rightWrist: k(160, 180), rightElbow: k(100, 150), rightShoulder: k(100, 100), rightHip: hip, rightAnkle: ankle });
+    const result = planche.measure(bent, null);
+    const hipBend = 180 - jointAngle(k(100, 100), hip, ankle);
+    expect(result.value).toBeCloseTo(10 + hipBend);
+    expect(result.warning).toBe('elbowsBent');
+  });
 });
 
 describe('levels', () => {

@@ -47,7 +47,8 @@ export function midpoint(a: Keypoint, b: Keypoint): Keypoint {
 
 export type PoseSide = 'left' | 'right';
 export type PositionId =
-  | 'front_split' | 'middle_split' | 'pike' | 'pancake' | 'bridge' | 'shoulder_flexion' | 'deep_squat' | 'handstand_line';
+  | 'front_split' | 'middle_split' | 'pike' | 'pancake' | 'bridge' | 'shoulder_flexion' | 'deep_squat' | 'handstand_line'
+  | 'tuck_planche' | 'full_planche';
 
 export interface PoseMeasurement {
   /** Primary value in degrees. */
@@ -114,6 +115,26 @@ function hipFold(pose: Pose): PoseMeasurement {
   return { value: fold.value, angle: fold, confidence: fold.confidence, warning: knee.value < 160 ? 'kneesBent' : undefined };
 }
 
+/**
+ * Angle between the `from`→`to` line and the horizontal, whichever way the body faces. With
+ * `ignoreAbove`, a `to` higher than `from` counts as level (0°). The angle is drawn against a
+ * horizontal reference point at `from`.
+ */
+function tiltFromHorizontal(from: Keypoint, to: Keypoint, ignoreAbove = false): Omit<PoseMeasurement, 'confidence' | 'warning'> {
+  const dx = to.x - from.x;
+  // Image y grows downwards, so a positive angle means `to` sits below `from`.
+  const signed = (Math.atan2(to.y - from.y, Math.abs(dx)) * 180) / Math.PI;
+  const level = { x: from.x + (dx >= 0 ? 1 : -1) * Math.hypot(dx, to.y - from.y), y: from.y, score: from.score };
+  return { value: ignoreAbove ? Math.max(0, signed) : Math.abs(signed), angle: { a: to, vertex: from, c: level } };
+}
+
+/** Planche positions are filmed side-on: measure the clearer side and check the arms are locked. */
+function planche(pose: Pose, measure: (side: PoseSide) => { value: number; angle: PoseMeasurement['angle']; confidence: number }): PoseMeasurement {
+  const side = clearerSide(pose, [WRIST, SHOULDER, HIP]);
+  const elbow = triple(pose, side, SHOULDER, ELBOW, WRIST);
+  return { ...measure(side), warning: elbow.value < 160 ? 'elbowsBent' : undefined };
+}
+
 export const POSITIONS: PositionDefinition[] = [
   { id: 'front_split', sideAware: true, better: 'higher', thresholds: [120, 140, 160, 175], measure: legSpread },
   { id: 'middle_split', sideAware: false, better: 'higher', thresholds: [110, 130, 150, 170], measure: legSpread },
@@ -152,6 +173,26 @@ export const POSITIONS: PositionDefinition[] = [
       const deviation = (180 - shoulder.value) + (180 - hip.value);
       return { value: deviation, angle: hip, confidence: (shoulder.confidence + hip.confidence) / 2 };
     },
+  },
+  {
+    // Back angle: 0° when the hips are level with (or above) the shoulders.
+    id: 'tuck_planche', sideAware: false, better: 'lower', thresholds: [40, 30, 20, 10],
+    measure: (pose) => planche(pose, (side) => {
+      const shoulder = pick(pose, side, ...SHOULDER);
+      const hip = pick(pose, side, ...HIP);
+      return { ...tiltFromHorizontal(shoulder, hip, true), confidence: (shoulder.score + hip.score) / 2 };
+    }),
+  },
+  {
+    // Total bend away from a horizontal shoulder–hip–ankle line: body tilt plus hip pike or sag.
+    id: 'full_planche', sideAware: false, better: 'lower', thresholds: [40, 30, 20, 10],
+    measure: (pose) => planche(pose, (side) => {
+      const shoulder = pick(pose, side, ...SHOULDER);
+      const ankle = pick(pose, side, ...ANKLE);
+      const hip = triple(pose, side, SHOULDER, HIP, ANKLE);
+      const tilt = tiltFromHorizontal(shoulder, ankle);
+      return { value: tilt.value + (180 - hip.value), angle: tilt.angle, confidence: (shoulder.score + ankle.score + hip.vertex.score) / 3 };
+    }),
   },
 ];
 
