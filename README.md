@@ -29,10 +29,13 @@ upstream bug where synchronous web query results longer than 255 bytes were trun
 Needs JDK 17 and the Android SDK (with `ANDROID_HOME` set). `android/` is generated, not committed:
 
 ```sh
-npx expo prebuild -p android --clean
-cd android && ./gradlew assembleRelease
-# → android/app/build/outputs/apk/release/app-release.apk
+npm run build:apk
+# → build/TrackItBetter-<version>.apk
 ```
+
+`scripts/build-apk.sh` regenerates `android/`, clears stale native build caches in `node_modules`, and
+builds for `arm64-v8a` only with compressed native libs to keep the APK small. For other ABIs (e.g. an
+x86_64 emulator) run `ABIS=x86_64 npm run build:apk`.
 
 The generated project signs release builds with the debug keystore, which is fine for sideloading;
 use a real upload key (or `eas build -p android --profile preview`) for store distribution.

@@ -15,7 +15,8 @@
     "format:check": "prettier --check .",
     "test": "jest --passWithNoTests",
     "db:generate": "drizzle-kit generate",
-    "postinstall": "patch-package"
+    "postinstall": "patch-package",
+    "build:apk": "scripts/build-apk.sh"
   },
   "dependencies": {
     "@expo-google-fonts/barlow": "^0.4.1",
