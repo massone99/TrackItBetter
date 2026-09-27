@@ -195,7 +195,7 @@ export default function NewPoseCheckScreen() {
             pose={analysis.pose}
             highlight={measurement.angle}
             label={t('pose.degrees', { value: Math.round(measurement.value) })}
-            angles={measurement.joints?.map((joint) => ({ ...joint, label: t('pose.degrees', { value: Math.round(joint.value) }) }))}
+            angles={measurement.joints?.map((joint) => ({ ...joint, name: t(`pose.jointsShort.${joint.id}`), value: t('pose.degrees', { value: Math.round(joint.value) }) }))}
             maxWidth={canvasWidth}
             onChange={(pose) => setAnalysis({ ...analysis, pose })}
           />
