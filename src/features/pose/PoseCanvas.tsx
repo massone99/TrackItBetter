@@ -1,5 +1,5 @@
 import { Canvas, Circle, Image as SkiaImage, Line, useImage, vec } from '@shopify/react-native-skia';
-import { useState } from 'react';
+import { Fragment, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { LOW_CONFIDENCE, SKELETON, type Keypoint, type Pose } from '../../domain/pose';
@@ -9,17 +9,27 @@ import { fonts } from '../../shared/theme/typography';
 
 const TOUCH_RADIUS = 36;
 
+/** A secondary joint angle drawn over the photo; the first one is drawn stronger. */
+export interface CanvasAngle {
+  a: Keypoint;
+  vertex: Keypoint;
+  c: Keypoint;
+  label: string;
+}
+
 /**
  * Photo with the detected skeleton drawn on top. Joints can be dragged to correct the detection;
- * the measured angle is highlighted and labelled with its value.
+ * the measured angle is highlighted and labelled with its value, and any other joint angles are
+ * drawn and labelled alongside it.
  */
-export function PoseCanvas({ uri, imageWidth, imageHeight, pose, highlight, label, maxWidth, maxHeight = 520, editable = true, onChange }: {
+export function PoseCanvas({ uri, imageWidth, imageHeight, pose, highlight, label, angles = [], maxWidth, maxHeight = 520, editable = true, onChange }: {
   uri: string;
   imageWidth: number;
   imageHeight: number;
   pose: Pose;
   highlight?: { a: Keypoint; vertex: Keypoint; c: Keypoint } | null;
   label?: string | null;
+  angles?: CanvasAngle[];
   maxWidth: number;
   maxHeight?: number;
   editable?: boolean;
@@ -69,6 +79,12 @@ export function PoseCanvas({ uri, imageWidth, imageHeight, pose, highlight, labe
           {SKELETON.map(([from, to]) => (
             <Line key={`${from}-${to}`} p1={toView(pose[from])} p2={toView(pose[to])} color="rgba(255,255,255,0.85)" strokeWidth={3} />
           ))}
+          {angles.map((angle, index) => (
+            <Fragment key={`angle-${index}`}>
+              <Line p1={toView(angle.a)} p2={toView(angle.vertex)} color={palette.accent} strokeWidth={index === 0 ? 5 : 3} />
+              <Line p1={toView(angle.vertex)} p2={toView(angle.c)} color={palette.accent} strokeWidth={index === 0 ? 5 : 3} />
+            </Fragment>
+          ))}
           {highlight ? (
             <>
               <Line p1={toView(highlight.a)} p2={toView(highlight.vertex)} color={palette.record} strokeWidth={5} />
@@ -91,6 +107,11 @@ export function PoseCanvas({ uri, imageWidth, imageHeight, pose, highlight, labe
             );
           })}
         </Canvas>
+        {placeAngleLabels(angles.map((angle) => toView(angle.vertex)), width, height).map((place, index) => (
+          <View key={`angle-label-${index}`} pointerEvents="none" style={[styles.angleLabel, { left: place.left, top: place.top, backgroundColor: palette.accent }]}>
+            <Text style={[styles.angleLabelText, index === 0 && styles.angleLabelStrong]}>{angles[index].label}</Text>
+          </View>
+        ))}
         {label && labelPoint ? (
           <View pointerEvents="none" style={[styles.label, { left: Math.min(width - 72, Math.max(0, labelPoint.x + 10)), top: Math.max(0, labelPoint.y - 34), backgroundColor: palette.record }]}>
             <Text style={styles.labelText}>{label}</Text>
@@ -101,7 +122,25 @@ export function PoseCanvas({ uri, imageWidth, imageHeight, pose, highlight, labe
   );
 }
 
+const LABEL_WIDTH = 56;
+const LABEL_HEIGHT = 22;
+
+/** Puts each angle label just below its joint, pushing it down while it would cover an earlier label. */
+function placeAngleLabels(points: { x: number; y: number }[], width: number, height: number) {
+  const placed: { left: number; top: number }[] = [];
+  for (const point of points) {
+    const left = Math.min(width - LABEL_WIDTH, Math.max(0, point.x - LABEL_WIDTH / 2));
+    let top = point.y + 8;
+    while (placed.some((other) => Math.abs(other.left - left) < LABEL_WIDTH && Math.abs(other.top - top) < LABEL_HEIGHT)) top += LABEL_HEIGHT;
+    placed.push({ left, top: Math.min(height - LABEL_HEIGHT, top) });
+  }
+  return placed;
+}
+
 const styles = StyleSheet.create({
   label: { position: 'absolute', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8 },
   labelText: { fontFamily: fonts.display, fontSize: 20, color: '#FFFFFF' },
+  angleLabel: { position: 'absolute', paddingHorizontal: 5, paddingVertical: 1, borderRadius: 6 },
+  angleLabelText: { fontFamily: fonts.medium, fontSize: 12, color: '#FFFFFF' },
+  angleLabelStrong: { fontFamily: fonts.display, fontSize: 15 },
 });

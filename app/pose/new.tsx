@@ -195,6 +195,7 @@ export default function NewPoseCheckScreen() {
             pose={analysis.pose}
             highlight={measurement.angle}
             label={t('pose.degrees', { value: Math.round(measurement.value) })}
+            angles={measurement.joints?.map((joint) => ({ ...joint, label: t('pose.degrees', { value: Math.round(joint.value) }) }))}
             maxWidth={canvasWidth}
             onChange={(pose) => setAnalysis({ ...analysis, pose })}
           />
@@ -210,6 +211,17 @@ export default function NewPoseCheckScreen() {
             </View>
             <Body>{target === null ? t('pose.topLevel') : t('pose.nextTarget', { value: target })}</Body>
             {measurement.warning ? <Text style={[styles.warning, { color: palette.warning }]}>{t(`pose.warnings.${measurement.warning}`)}</Text> : null}
+            {measurement.joints ? (
+              <View style={styles.joints}>
+                <Label>{t('pose.jointAngles')}</Label>
+                {measurement.joints.map((joint, index) => (
+                  <View key={joint.id} style={styles.jointRow}>
+                    <Body style={index === 0 ? styles.jointStrong : undefined}>{t(`pose.joints.${joint.id}`)}</Body>
+                    <Body style={index === 0 ? styles.jointStrong : undefined}>{t('pose.degrees', { value: Math.round(joint.value) })}</Body>
+                  </View>
+                ))}
+              </View>
+            ) : null}
           </Card>
           <TextField value={note} onChangeText={setNote} placeholder={t('pose.notePlaceholder')} maxLength={200} />
           <ActionButton icon="checkmark" label={t('pose.save')} disabled={Boolean(busy)} onPress={() => void save()} />
@@ -247,4 +259,7 @@ const baseStyles = StyleSheet.create({
   result: { gap: 10 },
   resultRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   warning: { fontFamily: fonts.medium, fontSize: 14 },
+  joints: { gap: 4 },
+  jointRow: { flexDirection: 'row', justifyContent: 'space-between' },
+  jointStrong: { fontFamily: fonts.display, fontSize: 17 },
 });

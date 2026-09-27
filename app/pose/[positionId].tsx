@@ -59,6 +59,7 @@ export default function PoseHistoryScreen() {
         pose={capture.pose}
         highlight={measurement.angle}
         label={t('pose.degrees', { value: Math.round(capture.value) })}
+        angles={measurement.joints?.map((joint) => ({ ...joint, label: t('pose.degrees', { value: Math.round(joint.value) }) }))}
         maxWidth={width}
         maxHeight={width === contentWidth ? 440 : 300}
         editable={false}

@@ -59,6 +59,19 @@ export interface PoseMeasurement {
   confidence: number;
   /** Form issue to point out, as a translation key. */
   warning?: 'kneesBent' | 'elbowsBent';
+  /** Every joint angle that matters for the position, most important first. */
+  joints?: JointAngle[];
+}
+
+export type JointAngleId = 'hip' | 'shoulder' | 'elbow' | 'knee' | 'lean';
+
+/** One labelled joint angle: the angle at `vertex` between `a` and `c`, in degrees. */
+export interface JointAngle {
+  id: JointAngleId;
+  value: number;
+  a: Keypoint;
+  vertex: Keypoint;
+  c: Keypoint;
 }
 
 export interface PositionDefinition {
@@ -128,11 +141,27 @@ function tiltFromHorizontal(from: Keypoint, to: Keypoint, ignoreAbove = false): 
   return { value: ignoreAbove ? Math.max(0, signed) : Math.abs(signed), angle: { a: to, vertex: from, c: level } };
 }
 
-/** Planche positions are filmed side-on: measure the clearer side and check the arms are locked. */
+/**
+ * Planche positions are filmed side-on: measure the clearer side, check the arms are locked and
+ * report every joint angle, starting with the hip (torso to thigh).
+ */
 function planche(pose: Pose, measure: (side: PoseSide) => { value: number; angle: PoseMeasurement['angle']; confidence: number }): PoseMeasurement {
   const side = clearerSide(pose, [WRIST, SHOULDER, HIP]);
-  const elbow = triple(pose, side, SHOULDER, ELBOW, WRIST);
-  return { ...measure(side), warning: elbow.value < 160 ? 'elbowsBent' : undefined };
+  const joint = (id: JointAngleId, a: [number, number], b: [number, number], c: [number, number]): JointAngle => {
+    const { a: ka, vertex, c: kc, value } = triple(pose, side, a, b, c);
+    return { id, value, a: ka, vertex, c: kc };
+  };
+  const elbow = joint('elbow', SHOULDER, ELBOW, WRIST);
+  // Lean: how far the shoulders sit past the hands, as the wrist–shoulder line's angle from vertical.
+  const wrist = pick(pose, side, ...WRIST);
+  const shoulder = pick(pose, side, ...SHOULDER);
+  const up = { x: wrist.x, y: wrist.y - Math.hypot(shoulder.x - wrist.x, shoulder.y - wrist.y), score: wrist.score };
+  const lean: JointAngle = { id: 'lean', value: jointAngle(shoulder, wrist, up), a: shoulder, vertex: wrist, c: up };
+  return {
+    ...measure(side),
+    warning: elbow.value < 160 ? 'elbowsBent' : undefined,
+    joints: [joint('hip', SHOULDER, HIP, KNEE), joint('shoulder', ELBOW, SHOULDER, HIP), elbow, joint('knee', HIP, KNEE, ANKLE), lean],
+  };
 }
 
 export const POSITIONS: PositionDefinition[] = [

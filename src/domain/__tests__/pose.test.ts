@@ -67,6 +67,21 @@ describe('positions', () => {
     expect(result.value).toBeCloseTo(10 + hipBend);
     expect(result.warning).toBe('elbowsBent');
   });
+
+  it('reports every planche joint angle, hip first', () => {
+    const pose = poseWith({
+      leftWrist: k(100, 200), leftElbow: k(100, 150), leftShoulder: k(150, 100),
+      leftHip: k(250, 100), leftKnee: k(300, 150), leftAnkle: k(300, 200),
+    });
+    const joints = findPosition('tuck_planche')!.measure(pose, null).joints!;
+    const byId = Object.fromEntries(joints.map((joint) => [joint.id, joint.value]));
+    expect(joints[0].id).toBe('hip');
+    expect(byId.hip).toBeCloseTo(135);
+    expect(byId.shoulder).toBeCloseTo(135);
+    expect(byId.elbow).toBeCloseTo(135);
+    expect(byId.knee).toBeCloseTo(135);
+    expect(byId.lean).toBeCloseTo(26.6, 1);
+  });
 });
 
 describe('levels', () => {

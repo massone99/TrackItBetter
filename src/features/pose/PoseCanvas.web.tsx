@@ -9,6 +9,7 @@ export function PoseCanvas({ uri, imageWidth, imageHeight, maxWidth, maxHeight =
   pose: Pose;
   highlight?: { a: Keypoint; vertex: Keypoint; c: Keypoint } | null;
   label?: string | null;
+  angles?: { a: Keypoint; vertex: Keypoint; c: Keypoint; label: string }[];
   maxWidth: number;
   maxHeight?: number;
   editable?: boolean;
