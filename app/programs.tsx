@@ -1,16 +1,28 @@
-import { router } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
+import { useCallback, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Pressable, StyleSheet, View } from "react-native";
 import { Text } from "../src/shared/components/Text";
 import { programTemplates } from "../src/features/programs/catalog";
-import { ActionButton, Body, Card, Label, PageHeading, Screen, Icon } from "../src/shared/components/ui";
+import { listUserPrograms, type UserProgram } from "../src/features/programs/userPrograms";
+import { sortByWeekday, weekdayKey } from "../src/domain/userProgram";
+import { ActionButton, Body, Card, Label, ListGroup, ListRow, PageHeading, Screen, SectionTitle, Icon } from "../src/shared/components/ui";
 import i18n from "../src/shared/i18n";
 import { useTheme } from "../src/shared/theme/ThemeProvider";
 import { useScaledStyles } from "../src/shared/theme/useScaledStyles";
 
 export default function ProgramsScreen() {
   const styles = useScaledStyles(baseStyles);
+  const { t } = useTranslation();
   const { palette } = useTheme();
   const language = i18n.language.startsWith("it") ? "it" : "en";
+  const [mine, setMine] = useState<UserProgram[]>([]);
+
+  useFocusEffect(useCallback(() => {
+    let mounted = true;
+    void listUserPrograms().then((programs) => { if (mounted) setMine(programs); });
+    return () => { mounted = false; };
+  }, []));
 
   return (
     <Screen>
@@ -20,10 +32,26 @@ export default function ProgramsScreen() {
           ? "Scegli una struttura adatta ai tuoi obiettivi e registra ogni sessione."
           : "Choose a structure that fits your goals, then log each session."}
       />
-      <ActionButton
-        label={language === "it" ? "Crea la tua routine" : "Build your own routine"}
-        onPress={() => router.push("/program-builder")}
-      />
+
+      <SectionTitle title={t("userProgram.myPrograms")} />
+      {mine.length > 0 ? (
+        <ListGroup>
+          {mine.map((program) => (
+            <ListRow
+              key={program.id}
+              icon="calendar-outline"
+              title={program.name}
+              subtitle={sortByWeekday(program.sessions).map((session) => t(`reminders.weekdaysShort.${weekdayKey(session.weekday)}`)).join(" · ")}
+              onPress={() => router.push({ pathname: "/program/user/[id]", params: { id: program.id } })}
+            />
+          ))}
+        </ListGroup>
+      ) : (
+        <Body>{t("userProgram.myProgramsEmpty")}</Body>
+      )}
+      <ActionButton icon="add" label={t("userProgram.create")} secondary onPress={() => router.push("/program-builder")} />
+
+      <SectionTitle title={t("userProgram.templates")} />
       {programTemplates.map((program) => (
         <Pressable key={program.id} accessibilityRole="button" onPress={() => router.push({ pathname: "/program/[id]", params: { id: program.id } })}>
           <Card style={styles.card}>

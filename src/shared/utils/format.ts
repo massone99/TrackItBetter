@@ -15,6 +15,13 @@ export function formatClock(seconds: number): string {
   return `${Math.floor(safe / 60)}:${String(safe % 60).padStart(2, "0")}`;
 }
 
+/** Rounded minutes for totals, e.g. "12 min" or "1 h 05 min". */
+export function formatMinutes(seconds: number): string {
+  const minutes = Math.max(0, Math.round(seconds / 60));
+  if (minutes < 60) return `${minutes} min`;
+  return `${Math.floor(minutes / 60)} h ${String(minutes % 60).padStart(2, "0")} min`;
+}
+
 /**
  * Reads a number typed by hand: accepts a decimal comma and, with `clock`, "m:ss" (1:30 → 90).
  * Returns null for anything that is not a finite number.

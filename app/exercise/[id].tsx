@@ -6,6 +6,9 @@ import type { Exercise } from '../../src/db/schema';
 import { openReferenceVideo, ReferenceLinkSheet } from '../../src/features/exercises/ReferenceLinkSheet';
 import { archiveCustomExercise, getExerciseById, setExerciseFavourite } from '../../src/features/exercises/repository';
 import { addExerciseToWorkout, getActiveWorkout, startWorkout } from '../../src/features/session/repository';
+import { getExerciseWeekStats } from '../../src/features/analytics/repository';
+import type { ExerciseWeek } from '../../src/features/analytics/mobility';
+import { formatMinutes } from '../../src/shared/utils/format';
 import { ActionButton, Body, Icon, IconButton, ListGroup, ListRow, PageHeading, Screen, SectionTitle, Sheet, Text } from '../../src/shared/components/ui';
 import { useTheme } from '../../src/shared/theme/ThemeProvider';
 import { fonts } from '../../src/shared/theme/typography';
@@ -29,12 +32,15 @@ export default function ExerciseRoute() {
   const { palette } = useTheme();
   const [exercise, setExercise] = useState<Exercise | null>(null);
   const [loading, setLoading] = useState(true);
+  const [week, setWeek] = useState<ExerciseWeek | null>(null);
   const [editingReference, setEditingReference] = useState(false);
   const [confirmArchive, setConfirmArchive] = useState(false);
 
   const reload = useCallback(async () => {
-    setExercise(await getExerciseById(id));
+    const found = await getExerciseById(id);
+    setExercise(found);
     setLoading(false);
+    if (found) setWeek(await getExerciseWeekStats(found.id, found.metric).catch(() => null));
   }, [id]);
 
   useFocusEffect(useCallback(() => { void reload(); }, [reload]));
@@ -113,6 +119,21 @@ export default function ExerciseRoute() {
         </View>
       ) : null}
 
+      {week ? (
+        <View style={styles.section}>
+          <SectionTitle title={t('mobilityStats.exerciseTitle')} />
+          {week.sets === 0 ? (
+            <Body>{t('mobilityStats.exerciseNone')}</Body>
+          ) : (
+            <View style={[styles.week, { backgroundColor: palette.surface, borderColor: palette.border }]}>
+              <WeekStat value={String(week.sets)} label={t('mobilityStats.exerciseSets', { count: week.sets })} />
+              <WeekStat value={String(week.sessions)} label={t('mobilityStats.exerciseSessions', { count: week.sessions })} />
+              {week.seconds !== null ? <WeekStat value={formatMinutes(week.seconds)} label={t('mobilityStats.exerciseTime')} /> : null}
+            </View>
+          )}
+        </View>
+      ) : null}
+
       <ActionButton icon="add" label={t('exercise.addToWorkout')} onPress={() => void beginWithExercise()} />
       {exercise.isCustom ? (
         <ActionButton icon="archive-outline" label={t('exercise.removeFromLibrary')} variant="danger" onPress={() => setConfirmArchive(true)} />
@@ -137,6 +158,17 @@ export default function ExerciseRoute() {
   );
 }
 
+function WeekStat({ value, label }: { value: string; label: string }) {
+  const styles = useScaledStyles(baseStyles);
+  const { palette } = useTheme();
+  return (
+    <View style={styles.weekItem}>
+      <Text style={[styles.weekValue, { color: palette.text }]}>{value}</Text>
+      <Text style={[styles.weekLabel, { color: palette.textMuted }]}>{label}</Text>
+    </View>
+  );
+}
+
 function Tag({ label, icon }: { label: string; icon: 'body-outline' | 'construct-outline' }) {
   const styles = useScaledStyles(baseStyles);
   const { palette } = useTheme();
@@ -150,6 +182,10 @@ function Tag({ label, icon }: { label: string; icon: 'body-outline' | 'construct
 
 const baseStyles = StyleSheet.create({
   section: { gap: 10 },
+  week: { flexDirection: 'row', borderRadius: 20, borderWidth: StyleSheet.hairlineWidth, paddingVertical: 14 },
+  weekItem: { flex: 1, alignItems: 'center', gap: 2, paddingHorizontal: 6 },
+  weekValue: { fontFamily: fonts.display, fontSize: 26, lineHeight: 30 },
+  weekLabel: { fontFamily: fonts.body, fontSize: 13, textAlign: 'center' },
   cues: { borderRadius: 20, borderWidth: StyleSheet.hairlineWidth, paddingHorizontal: 16, paddingVertical: 6 },
   cue: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, paddingVertical: 9 },
   cueText: { flex: 1 },

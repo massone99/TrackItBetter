@@ -4,6 +4,9 @@ import { useTranslation } from 'react-i18next';
 import { Platform, Pressable, StyleSheet, View } from 'react-native';
 import { estimateRoutineSeconds } from '../../src/domain/mobilityPlan';
 import { listMobilityRoutines, type MobilityRoutine } from '../../src/features/mobility/routines';
+import { getMobilityWeek } from '../../src/features/analytics/repository';
+import type { MobilityWeek } from '../../src/features/analytics/mobility';
+import { formatMinutes } from '../../src/shared/utils/format';
 import { ActionButton, EmptyState, Icon, IconButton, ListGroup, ListRow, PageHeading, Screen, SectionTitle, Text } from '../../src/shared/components/ui';
 import { useTheme } from '../../src/shared/theme/ThemeProvider';
 import { fonts } from '../../src/shared/theme/typography';
@@ -14,10 +17,12 @@ export default function MobilityHubScreen() {
   const { t } = useTranslation();
   const { palette } = useTheme();
   const [routines, setRoutines] = useState<MobilityRoutine[] | null>(null);
+  const [week, setWeek] = useState<MobilityWeek | null>(null);
 
   useFocusEffect(useCallback(() => {
     let mounted = true;
     void listMobilityRoutines().then((items) => { if (mounted) setRoutines(items); });
+    void getMobilityWeek().then((summary) => { if (mounted) setWeek(summary); }).catch(() => undefined);
     return () => { mounted = false; };
   }, []));
 
@@ -28,6 +33,20 @@ export default function MobilityHubScreen() {
         subtitle={t('mobility.subtitle')}
         action={<IconButton icon="add" tone="accent" label={t('mobility.newRoutine')} onPress={() => router.push({ pathname: '/mobility/routine/[id]', params: { id: 'new' } })} />}
       />
+
+      {week ? (
+        <View style={[styles.week, { backgroundColor: palette.surface, borderColor: palette.border }]}>
+          <View style={styles.weekItem}>
+            <Text style={styles.weekValue}>{formatMinutes(week.seconds)}</Text>
+            <Text style={[styles.weekLabel, { color: palette.textMuted }]}>{t('mobilityStats.hubTime')}</Text>
+          </View>
+          <View style={[styles.weekDivider, { backgroundColor: palette.border }]} />
+          <View style={styles.weekItem}>
+            <Text style={styles.weekValue}>{week.sessions}</Text>
+            <Text style={[styles.weekLabel, { color: palette.textMuted }]}>{t('mobilityStats.hubSessions', { count: week.sessions })}</Text>
+          </View>
+        </View>
+      ) : null}
 
       <SectionTitle title={t('mobility.routines')} />
       {routines && routines.length === 0 ? (
@@ -78,6 +97,11 @@ export default function MobilityHubScreen() {
 
 const baseStyles = StyleSheet.create({
   emptyAction: { alignSelf: 'stretch', marginTop: 6 },
+  week: { flexDirection: 'row', borderRadius: 20, borderWidth: StyleSheet.hairlineWidth, paddingVertical: 14 },
+  weekItem: { flex: 1, alignItems: 'center', gap: 2, paddingHorizontal: 8 },
+  weekValue: { fontFamily: fonts.display, fontSize: 26, lineHeight: 30 },
+  weekLabel: { fontFamily: fonts.body, fontSize: 13, textAlign: 'center' },
+  weekDivider: { width: StyleSheet.hairlineWidth },
   routine: { flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 20, borderWidth: StyleSheet.hairlineWidth, paddingLeft: 18, paddingRight: 12, paddingVertical: 12 },
   routineCopy: { flex: 1, gap: 3, paddingVertical: 4 },
   routineName: { fontFamily: fonts.display, fontSize: 24, lineHeight: 28 },

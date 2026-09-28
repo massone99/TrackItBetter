@@ -2,7 +2,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
-import { getWorkoutRecords } from '../../../src/features/analytics/repository';
+import { getWorkoutMobilitySeconds, getWorkoutRecords } from '../../../src/features/analytics/repository';
 import type { WorkoutRecord } from '../../../src/features/analytics/summary';
 import { CompletedWorkout, getCompletedWorkout } from '../../../src/features/session/repository';
 import { ActionButton, Body, Icon, Label, ListGroup, ListRow, Numeral, Screen, SectionTitle, tapFeedback, Text, Title } from '../../../src/shared/components/ui';
@@ -20,11 +20,13 @@ export default function WorkoutSummaryScreen() {
   const [workout, setWorkout] = useState<CompletedWorkout | null>(null);
   const [records, setRecords] = useState<WorkoutRecord[]>([]);
   const [loading, setLoading] = useState(true);
+  const [mobilitySeconds, setMobilitySeconds] = useState(0);
 
   useEffect(() => {
     let mounted = true;
-    void Promise.all([getCompletedWorkout(id), getWorkoutRecords(id)]).then(([completed, found]) => {
+    void Promise.all([getCompletedWorkout(id), getWorkoutRecords(id), getWorkoutMobilitySeconds(id)]).then(([completed, found, mobility]) => {
       if (!mounted) return;
+      setMobilitySeconds(mobility);
       setWorkout(completed);
       setRecords(found);
       setLoading(false);
@@ -59,6 +61,12 @@ export default function WorkoutSummaryScreen() {
         <Stat value={completedSets.length} label={t('summary.sets')} />
         <View style={[styles.divider, { backgroundColor: palette.border }]} />
         <Stat value={exercisesDone} label={t('summary.exercises')} />
+        {mobilitySeconds > 0 ? (
+          <>
+            <View style={[styles.divider, { backgroundColor: palette.border }]} />
+            <Stat value={Math.max(1, Math.round(mobilitySeconds / 60))} label={t('mobilityStats.summaryStat')} />
+          </>
+        ) : null}
         {avgRpe !== null ? (
           <>
             <View style={[styles.divider, { backgroundColor: palette.border }]} />

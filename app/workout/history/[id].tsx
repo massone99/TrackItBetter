@@ -22,6 +22,8 @@ import {
 } from '../../../src/features/session/repository';
 import type { CompletedWorkout, RemovedRows, SessionExercise, SessionSet } from '../../../src/features/session/repository';
 import { RpePicker } from '../../../src/features/session/RpePicker';
+import { getWorkoutMobilitySeconds } from '../../../src/features/analytics/repository';
+import { formatMinutes } from '../../../src/shared/utils/format';
 import { formatRpe } from '../../../src/domain/rpe';
 import { ActionButton, Body, Card, Heading, Icon, IconButton, Label, NumberEdit, PageHeading, Screen, Sheet, Stepper, tapFeedback, Text, TextField, Toast } from '../../../src/shared/components/ui';
 import { useTheme } from '../../../src/shared/theme/ThemeProvider';
@@ -38,6 +40,7 @@ export default function PastWorkoutScreen() {
   const { palette } = useTheme();
   const [workout, setWorkout] = useState<CompletedWorkout | null>(null);
   const [loading, setLoading] = useState(true);
+  const [mobilitySeconds, setMobilitySeconds] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [loadError, setLoadError] = useState(false);
   const [setFor, setSetFor] = useState<SetTarget | null>(null);
@@ -51,7 +54,9 @@ export default function PastWorkoutScreen() {
 
   const refresh = useCallback(async () => {
     try {
-      setWorkout(await getCompletedWorkout(id));
+      const [completed, mobility] = await Promise.all([getCompletedWorkout(id), getWorkoutMobilitySeconds(id)]);
+      setWorkout(completed);
+      setMobilitySeconds(mobility);
       setLoadError(false);
     } catch {
       setLoadError(true);
@@ -124,6 +129,12 @@ export default function PastWorkoutScreen() {
         })}
         action={<IconButton icon="create-outline" tone="accent" label={t('history.editDetails')} onPress={() => setDetailsOpen(true)} />}
       />
+      {mobilitySeconds > 0 ? (
+        <View style={[styles.mobility, { backgroundColor: palette.accentSoft }]}>
+          <Icon name="body-outline" size={16} color={palette.accentStrong} />
+          <Text style={[styles.mobilityText, { color: palette.accentStrong }]}>{t('mobilityStats.workoutLine', { time: formatMinutes(mobilitySeconds) })}</Text>
+        </View>
+      ) : null}
       <ActionButton icon="share-social-outline" label={t('shareCard.action')} secondary onPress={() => router.push({ pathname: '/workout/share/[id]', params: { id } })} />
       <Body>{t('history.editHelp')}</Body>
       {error ? <Text accessibilityLiveRegion="polite" style={[styles.error, { color: palette.warning }]}>{error}</Text> : null}
@@ -437,6 +448,8 @@ function LoadEditor({ value, onSave }: { value: number; onSave: (value: number) 
 }
 
 const baseStyles = StyleSheet.create({
+  mobility: { flexDirection: 'row', alignItems: 'center', gap: 8, alignSelf: 'flex-start', borderRadius: 999, paddingHorizontal: 12, paddingVertical: 6, marginTop: -8 },
+  mobilityText: { fontFamily: fonts.semibold, fontSize: 14 },
   flex: { flex: 1 },
   error: { fontFamily: fonts.medium, fontSize: 14 },
   exerciseCard: { gap: 4 },

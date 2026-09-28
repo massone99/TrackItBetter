@@ -2,7 +2,10 @@ import { router, useFocusEffect } from "expo-router";
 import { useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Pressable, StyleSheet, View } from "react-native";
-import { getProgressSnapshot } from "../../src/features/analytics/repository";
+import { getMobilityWeek, getProgressSnapshot } from "../../src/features/analytics/repository";
+import { sessionSetCount, sessionsForWeekday, type UserProgram, type UserProgramSession, type Weekday } from "../../src/domain/userProgram";
+import { startUserProgramSession } from "../../src/features/programs/startUserSession";
+import { listUserPrograms } from "../../src/features/programs/userPrograms";
 import type { PersonalBest } from "../../src/features/analytics/summary";
 import { getGoalSnapshot, GoalSnapshot } from "../../src/features/goals/repository";
 import { ActiveWorkout, getActiveWorkout, listRecentWorkouts, WorkoutHistoryItem } from "../../src/features/session/repository";
@@ -20,20 +23,27 @@ type HomeData = {
   weekSets: number;
   bests: PersonalBest[];
   last: WorkoutHistoryItem | null;
+  mobilityMinutes: number;
+  planned: { program: UserProgram; session: UserProgramSession }[];
 };
 
 export default function TodayScreen() {
   const styles = useScaledStyles(baseStyles);
   const { t, i18n } = useTranslation();
   const { palette } = useTheme();
-  const [data, setData] = useState<HomeData>({ active: null, goals: null, weekSets: 0, bests: [], last: null });
+  const [data, setData] = useState<HomeData>({ active: null, goals: null, weekSets: 0, bests: [], last: null, mobilityMinutes: 0, planned: [] });
+  const [starting, setStarting] = useState<string | null>(null);
 
   useFocusEffect(useCallback(() => {
     let mounted = true;
-    void Promise.all([getActiveWorkout(), getGoalSnapshot(), getProgressSnapshot(), listRecentWorkouts(1)]).then(([active, goals, progress, recent]) => {
+    void Promise.all([getActiveWorkout(), getGoalSnapshot(), getProgressSnapshot(), listRecentWorkouts(1), getMobilityWeek(), listUserPrograms()]).then(([active, goals, progress, recent, mobility, programs]) => {
       if (!mounted) return;
       const bests = [...progress.personalBests].sort((a, b) => b.achievedAt.getTime() - a.achievedAt.getTime()).slice(0, 3);
-      setData({ active, goals, weekSets: progress.weekSets, bests, last: recent[0] ?? null });
+      setData({
+        active, goals, weekSets: progress.weekSets, bests, last: recent[0] ?? null,
+        mobilityMinutes: Math.round(mobility.seconds / 60),
+        planned: sessionsForWeekday(programs, new Date().getDay() as Weekday),
+      });
     }).catch(() => undefined);
     return () => { mounted = false; };
   }, []));
@@ -46,6 +56,18 @@ export default function TodayScreen() {
   const week = data.goals?.activeDays.slice(-7) ?? [];
   const todayIndex = (now.getDay() + 6) % 7;
   const { active, goals } = data;
+  const startPlanned = async (program: UserProgram, session: UserProgramSession) => {
+    if (starting) return;
+    setStarting(session.id);
+    try {
+      const workoutId = await startUserProgramSession(program, session);
+      router.push({ pathname: "/workout/[id]", params: { id: workoutId } });
+    } catch {
+      router.push({ pathname: "/program/user/[id]", params: { id: program.id } });
+    } finally {
+      setStarting(null);
+    }
+  };
   const activeMinutes = active ? Math.max(0, Math.round((now.getTime() - active.startedAt.getTime()) / 60000)) : 0;
 
   return (
@@ -80,6 +102,22 @@ export default function TodayScreen() {
           </Text>
         )}
       </View>
+
+      {active ? null : data.planned.map(({ program, session }) => (
+        <Card key={session.id} style={styles.planCard}>
+          <Pressable accessibilityRole="button" onPress={() => router.push({ pathname: "/program/user/[id]", params: { id: program.id } })} style={styles.planCopy}>
+            <Label style={{ color: palette.accentStrong }}>{t("userProgram.todayPlan")}</Label>
+            <Text style={[styles.planName, { color: palette.text }]}>{session.name}</Text>
+            <Body>{program.name} · {t("userProgram.todayMeta", { count: session.exercises.length, sets: sessionSetCount(session) })}</Body>
+          </Pressable>
+          <ActionButton
+            icon="play"
+            label={starting === session.id ? t("programBuilder.starting") : t("userProgram.start")}
+            disabled={starting !== null}
+            onPress={() => void startPlanned(program, session)}
+          />
+        </Card>
+      ))}
 
       <View style={styles.tiles}>
         {poseDetectionAvailable ? (
@@ -123,6 +161,7 @@ export default function TodayScreen() {
         <Stat value={data.weekSets} label={t("home.setsWeek")} />
         <Stat value={goals?.currentStreak ?? 0} label={t("home.streak")} />
         <Stat value={goals?.totalSessions ?? 0} label={t("home.total")} />
+        <Stat value={data.mobilityMinutes} label={t("mobilityStats.todayTile")} />
       </View>
 
       {data.bests.length > 0 ? (
@@ -203,6 +242,9 @@ const baseStyles = StyleSheet.create({
   heroBody: { fontFamily: fonts.body, fontSize: 15, lineHeight: 22, opacity: 0.88 },
   heroLink: { fontFamily: fonts.semibold, fontSize: 15, textAlign: "center", textDecorationLine: "underline", paddingVertical: 2 },
   weekCard: { gap: 16 },
+  planCard: { gap: 14 },
+  planCopy: { gap: 4 },
+  planName: { fontFamily: fonts.display, fontSize: 24, lineHeight: 28 },
   tiles: { flexDirection: "row", gap: 10 },
   tile: { flex: 1, borderRadius: 20, borderWidth: StyleSheet.hairlineWidth, padding: 16, gap: 8, minHeight: 132 },
   tileIcon: { width: 42, height: 42, borderRadius: 14, alignItems: "center", justifyContent: "center" },
