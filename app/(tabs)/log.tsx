@@ -98,10 +98,10 @@ export default function LogScreen() {
                     accessibilityLabel={t('log.calendarDayLabel', { date: date.toLocaleDateString(locale), count })}
                     accessibilityState={{ selected }}
                     onPress={() => setSelectedDate(selected ? null : key)}
-                    style={[styles.day, selected && { backgroundColor: palette.accent }, !inMonth && styles.outsideMonth]}
+                    style={[styles.day, selected && { backgroundColor: palette.accent }]}
                   >
-                    <Text style={{ color: inMonth ? palette.text : palette.textMuted, fontWeight: selected ? '800' : '500' }}>{date.getDate()}</Text>
-                    {count > 0 ? <View style={[styles.dayDot, { backgroundColor: selected ? palette.accentStrong : palette.accentStrong }]} /> : <View style={styles.dayDotPlaceholder} />}
+                    <Text style={{ color: selected ? palette.accentText : inMonth ? palette.text : palette.textMuted, fontWeight: selected ? '800' : '500' }}>{date.getDate()}</Text>
+                    {count > 0 ? <View style={[styles.dayDot, { backgroundColor: selected ? palette.accentText : palette.accentStrong }]} /> : <View style={styles.dayDotPlaceholder} />}
                   </Pressable>
                 );
               })}
@@ -148,7 +148,6 @@ const baseStyles = StyleSheet.create({
   calendarGrid: { flexDirection: 'row', flexWrap: 'wrap' },
   weekday: { width: '14.2857%', height: 32, textAlign: 'center', textAlignVertical: 'center', fontSize: 12, fontWeight: '700' },
   day: { width: '14.2857%', height: 42, alignItems: 'center', justifyContent: 'center', borderRadius: 14 },
-  outsideMonth: { opacity: 0.45 },
   dayDot: { width: 4, height: 4, borderRadius: 2, marginTop: 2 },
   dayDotPlaceholder: { width: 4, height: 4, marginTop: 2 },
   calendarFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', minHeight: 28 },
