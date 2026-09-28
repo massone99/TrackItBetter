@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - app.json
+      - .github/workflows/android-release.yml
   workflow_dispatch:
 
 permissions:
@@ -36,6 +37,11 @@ jobs:
         run: echo "value=$(node -p "require('./app.json').expo.version")" >> "$GITHUB_OUTPUT"
       - name: Build arm64 APK
         run: npm run build:apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: TrackItBetter-${{ steps.version.outputs.value }}-apk
+          path: build/TrackItBetter-${{ steps.version.outputs.value }}.apk
+          if-no-files-found: error
       - name: Verify signing certificate matches v0.2.2
         env:
           GH_TOKEN: ${{ github.token }}
@@ -43,12 +49,17 @@ jobs:
         run: |
           mkdir -p previous
           gh release download v0.2.2 --pattern 'TrackItBetter-0.2.2.apk' --dir previous
-          apksigner=$(find "$ANDROID_HOME/build-tools" -name apksigner -type f | sort -V | tail -n 1)
-          test -n "$apksigner"
-          previous_cert=$("$apksigner" verify --print-certs previous/TrackItBetter-0.2.2.apk | sed -n 's/^Signer #1 certificate SHA-256 digest: //p' | head -n 1)
-          current_cert=$("$apksigner" verify --print-certs "build/TrackItBetter-${VERSION}.apk" | sed -n 's/^Signer #1 certificate SHA-256 digest: //p' | head -n 1)
-          test -n "$previous_cert"
-          test "$previous_cert" = "$current_cert"
+          sdk="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
+          apksigner=$(find "$sdk/build-tools" -name apksigner -type f | sort -V | tail -n 1)
+          if [[ -z "$apksigner" ]]; then echo "::error::apksigner unavailable in $sdk"; exit 1; fi
+          previous_info=$("$apksigner" verify --print-certs previous/TrackItBetter-0.2.2.apk)
+          current_info=$("$apksigner" verify --print-certs "build/TrackItBetter-${VERSION}.apk")
+          echo "Previous APK: $previous_info"
+          echo "Current APK: $current_info"
+          previous_cert=$(echo "$previous_info" | sed -n 's/^Signer #1 certificate SHA-256 digest: //p' | head -n 1)
+          current_cert=$(echo "$current_info" | sed -n 's/^Signer #1 certificate SHA-256 digest: //p' | head -n 1)
+          if [[ -z "$previous_cert" || -z "$current_cert" ]]; then echo "::error::Could not read APK signing certificates"; exit 1; fi
+          if [[ "$previous_cert" != "$current_cert" ]]; then echo "::error::APK signature differs from v0.2.2"; exit 1; fi
       - name: Publish release
         env:
           GH_TOKEN: ${{ github.token }}
