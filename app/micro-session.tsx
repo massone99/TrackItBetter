@@ -1,10 +1,10 @@
 import { useFocusEffect } from 'expo-router';
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Pressable, StyleSheet, TextInput, View } from 'react-native';
 import { Text } from '../src/shared/components/Text';
-import { getLastMicroSessionExercise, listMicroSessionExercises, logMicroSession } from '../src/features/session/microSession';
-import { ActionButton, Body, Card, Heading, Label, PageHeading, Screen, Icon } from '../src/shared/components/ui';
+import { getLastMicroSessionExercise, listMicroSessionExercises, listRecentMicroSessionExerciseIds, logMicroSession, pickRecent } from '../src/features/session/microSession';
+import { ActionButton, Body, Card, Chip, Label, PageHeading, Screen, Icon } from '../src/shared/components/ui';
 import { useTheme } from '../src/shared/theme/ThemeProvider';
 import { useScaledStyles } from '../src/shared/theme/useScaledStyles';
 import { goBack } from '../src/shared/navigation/goBack';
@@ -16,7 +16,8 @@ export default function MicroSessionScreen() {
   const { t } = useTranslation();
   const { palette } = useTheme();
   const [exercises, setExercises] = useState<Exercise[]>([]);
-  const [selectedId, setSelectedId] = useState('');
+  const [selected, setSelected] = useState<Exercise | null>(null);
+  const [recent, setRecent] = useState<Exercise[]>([]);
   const [query, setQuery] = useState('');
   const [value, setValue] = useState('3');
   const [working, setWorking] = useState(false);
@@ -26,21 +27,23 @@ export default function MicroSessionScreen() {
 
   const refresh = useCallback(async () => {
     const requestId = ++requestRef.current;
-    const [items, preferred] = await Promise.all([listMicroSessionExercises(query), getLastMicroSessionExercise()]);
+    const [items, all, recentIds, preferred] = await Promise.all([
+      listMicroSessionExercises(query), listMicroSessionExercises(''), listRecentMicroSessionExerciseIds(5), getLastMicroSessionExercise(),
+    ]);
     if (requestId !== requestRef.current) return;
-    setExercises(items.slice(0, 100));
-    if (!selectedId) setSelectedId(items.some((item) => item.id === preferred) ? preferred! : items[0]?.id ?? '');
-  }, [query, selectedId]);
+    setExercises(items.slice(0, query.trim() ? 50 : 20));
+    setRecent(pickRecent(recentIds, all, 5));
+    setSelected((current) => current ?? all.find((item) => item.id === preferred) ?? all[0] ?? null);
+  }, [query]);
   useFocusEffect(useCallback(() => { void refresh(); }, [refresh]));
 
-  const selected = useMemo(() => exercises.find((exercise) => exercise.id === selectedId), [exercises, selectedId]);
   const timed = selected?.metric === 'time' || selected?.metric === 'time_load';
   const distance = selected?.metric === 'distance';
   const unit = timed ? t('micro.seconds') : distance ? t('micro.meters') : t('micro.reps');
   const increment = distance ? 1 : timed ? 5 : 1;
 
   const selectExercise = (exercise: Exercise) => {
-    setSelectedId(exercise.id);
+    setSelected(exercise);
     const hold = exercise.metric === 'time' || exercise.metric === 'time_load';
     setValue(hold || exercise.metric === 'distance' ? '10' : '3');
     setMessage(null);
@@ -56,6 +59,7 @@ export default function MicroSessionScreen() {
     try {
       await logMicroSession(selected.id, parsed);
       setMessage('done');
+      void refresh();
     } catch {
       setMessage('error');
     } finally {
@@ -64,41 +68,55 @@ export default function MicroSessionScreen() {
     }
   };
 
+  const unitFor = (metric: string) => metric === 'time' || metric === 'time_load' ? t('micro.seconds') : metric === 'distance' ? t('micro.meters') : t('micro.reps');
+
   return (
     <Screen>
       <PageHeading title={t('micro.title')} subtitle={t('micro.subtitle')} />
       <Card>
-        <Body>{t('micro.detail')}</Body>
-        <TextInput accessibilityLabel={t('micro.search')} placeholder={t('micro.search')} placeholderTextColor={palette.textMuted} value={query} onChangeText={setQuery} style={[styles.search, { backgroundColor: palette.surfaceMuted, color: palette.text, borderColor: palette.border }]} />
+        {selected ? <>
+          <Text numberOfLines={1} style={[styles.selectedName, { color: palette.text }]}>{selected.name}</Text>
+          <Body>{t('micro.value')} · {unit}</Body>
+          <View style={styles.targetRow}>
+            <Pressable accessibilityRole="button" accessibilityLabel={t('micro.decrease')} onPress={() => setValue(String(Math.max(increment, Number(value) - increment)))} style={[styles.adjust, { backgroundColor: palette.surfaceMuted }]}><Icon name="remove" size={18} color={palette.text} /></Pressable>
+            <TextInput accessibilityLabel={`${t('micro.value')} ${unit}`} keyboardType="numbers-and-punctuation" value={value} onChangeText={setValue} style={[styles.value, { backgroundColor: palette.surfaceMuted, borderColor: palette.border, color: palette.text }]} />
+            <Pressable accessibilityRole="button" accessibilityLabel={t('micro.increase')} onPress={() => setValue(String(Number(value || 0) + increment))} style={[styles.adjust, { backgroundColor: palette.surfaceMuted }]}><Icon name="add" size={18} color={palette.text} /></Pressable>
+          </View>
+          <ActionButton label={working ? t('micro.working') : t('micro.save')} onPress={() => void log()} />
+          {message === 'done' ? <Body style={{ color: palette.accentStrong }}>{t('micro.done')}</Body> : message === 'error' ? <Body style={{ color: palette.warning }}>{t('micro.error')}</Body> : null}
+        </> : <Body>{t('micro.empty')}</Body>}
+      </Card>
+      {recent.length > 0 && <View style={styles.section}>
+        <Label>{t('micro.recent')}</Label>
+        <View style={styles.chips}>{recent.map((exercise) => <Chip key={exercise.id} label={exercise.name} selected={exercise.id === selected?.id} onPress={() => selectExercise(exercise)} />)}</View>
+      </View>}
+      <View style={styles.section}>
         <Label>{t('micro.choose')}</Label>
-        {exercises.length === 0 ? <Body>{t('micro.empty')}</Body> : exercises.map((exercise) => {
-          const active = exercise.id === selectedId;
-          return <Pressable key={exercise.id} accessibilityRole="button" accessibilityState={{ selected: active }} onPress={() => selectExercise(exercise)} style={[styles.choice, { backgroundColor: active ? palette.accent : palette.surfaceMuted, borderColor: active ? palette.accentStrong : palette.border }]}>
-            <View style={styles.choiceText}><Heading style={{ color: active ? palette.accentText : palette.text }}>{exercise.name}</Heading><Body style={{ color: active ? palette.accentText : palette.textMuted }}>{t(`library.category.${exercise.category}`)} · {t(`metric.${exercise.metric}`)}</Body></View>
-            <Icon name={active ? 'checkmark' : 'add'} size={20} color={active ? palette.accentText : palette.accentStrong} />
+        <TextInput accessibilityLabel={t('micro.search')} placeholder={t('micro.search')} placeholderTextColor={palette.textMuted} value={query} onChangeText={setQuery} style={[styles.search, { backgroundColor: palette.surfaceMuted, color: palette.text, borderColor: palette.border }]} />
+        {exercises.length === 0 ? <Body>{t('micro.empty')}</Body> : exercises.map((exercise, index) => {
+          const active = exercise.id === selected?.id;
+          return <Pressable key={exercise.id} accessibilityRole="button" accessibilityState={{ selected: active }} onPress={() => selectExercise(exercise)} style={[styles.item, index > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: palette.border }]}>
+            <Text numberOfLines={1} style={[styles.itemName, { color: active ? palette.accentStrong : palette.text }]}>{exercise.name}</Text>
+            <Text style={[styles.itemUnit, { color: palette.textMuted }]}>{unitFor(exercise.metric)}</Text>
+            <View style={styles.check}>{active ? <Icon name="checkmark" size={18} color={palette.accentStrong} /> : null}</View>
           </Pressable>;
         })}
-      </Card>
-      {selected ? <Card>
-        <Label>{t('micro.value')} · {unit}</Label>
-        <View style={styles.targetRow}>
-          <Pressable accessibilityRole="button" accessibilityLabel={t('micro.decrease')} onPress={() => setValue(String(Math.max(increment, Number(value) - increment)))} style={[styles.adjust, { backgroundColor: palette.surfaceMuted }]}><Text style={{ color: palette.text, fontSize: 22, fontWeight: '800' }}>−</Text></Pressable>
-          <TextInput accessibilityLabel={`${t('micro.value')} ${unit}`} keyboardType="numbers-and-punctuation" value={value} onChangeText={setValue} style={[styles.value, { backgroundColor: palette.surfaceMuted, borderColor: palette.border, color: palette.text }]} />
-          <Pressable accessibilityRole="button" accessibilityLabel={t('micro.increase')} onPress={() => setValue(String(Number(value || 0) + increment))} style={[styles.adjust, { backgroundColor: palette.surfaceMuted }]}><Text style={{ color: palette.text, fontSize: 22, fontWeight: '800' }}>＋</Text></Pressable>
-        </View>
-        <ActionButton label={working ? t('micro.working') : t('micro.save')} onPress={() => void log()} />
-        {message === 'done' ? <Body style={{ color: palette.accentStrong }}>{t('micro.done')}</Body> : message === 'error' ? <Body style={{ color: palette.warning }}>{t('micro.error')}</Body> : null}
-      </Card> : null}
+      </View>
       <ActionButton label={t('micro.back')} secondary onPress={() => goBack()} />
     </Screen>
   );
 }
 
 const baseStyles = StyleSheet.create({
-  search: { minHeight: 48, borderWidth: 1, borderRadius: 14, paddingHorizontal: 13 },
-  choice: { minHeight: 64, borderWidth: 1, borderRadius: 15, paddingHorizontal: 13, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
-  choiceText: { flex: 1, gap: 3 },
-  targetRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 12 },
-  adjust: { width: 46, height: 46, borderRadius: 15, alignItems: 'center', justifyContent: 'center' },
-  value: { width: 120, height: 52, borderWidth: 1, borderRadius: 15, textAlign: 'center', fontSize: 22, fontWeight: '800' },
+  selectedName: { fontSize: 18, fontFamily: 'Barlow_600SemiBold' },
+  targetRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 12, marginVertical: 10 },
+  adjust: { width: 44, height: 44, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
+  value: { width: 96, height: 46, borderWidth: 1, borderRadius: 14, textAlign: 'center', fontSize: 20, fontWeight: '700' },
+  section: { gap: 8, marginVertical: 8 },
+  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  search: { minHeight: 44, borderWidth: 1, borderRadius: 12, paddingHorizontal: 12 },
+  item: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 10 },
+  itemName: { flex: 1, fontSize: 15 },
+  itemUnit: { fontSize: 13 },
+  check: { width: 18 },
 });
