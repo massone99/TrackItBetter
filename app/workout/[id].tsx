@@ -275,6 +275,12 @@ export default function WorkoutScreen() {
     await recordHold(active.setId, seconds);
   };
 
+  /** Completes a set with its entered value; for holds this skips the timer (a running one is dropped). */
+  const completeHoldManually = async (set: SessionSet) => {
+    if (hold.active?.setId === set.id) hold.stop();
+    await completeRegularSet(set);
+  };
+
   const startHoldFor = (set: SessionSet) => {
     if (hold.active) return;
     skipRest();
@@ -395,7 +401,7 @@ export default function WorkoutScreen() {
             hold={hold.active}
             onChange={changeSet}
             onSetValue={(set, field, value) => void updateSet(set.id, field, value).then(() => refresh(workout.id))}
-            onComplete={(set) => void completeRegularSet(set)}
+            onComplete={(set) => void completeHoldManually(set)}
             onStartHold={startHoldFor}
             onFinishHold={() => void finishCurrentHold()}
             onAddSet={() => void addSet(exercise.entryId).then(() => refresh(workout.id))}
@@ -502,6 +508,7 @@ export default function WorkoutScreen() {
           onClose={() => setSetSheet(null)}
           onChanged={() => refresh(workout.id)}
           onRemoved={(removed) => offerUndo(t('logger.removedSet', { number: sheetSet.index }), removed)}
+          onCompleteManually={() => void completeHoldManually(sheetSet)}
         />
       ) : null}
 
@@ -612,7 +619,12 @@ function ExerciseCard({ exercise, previous, hold, onChange, onSetValue, onComple
                   <Pressable
                     accessibilityRole="button"
                     accessibilityLabel={holding ? t('logger.doneHold') : t('logger.startHold')}
+                    accessibilityHint={holding ? undefined : t('logger.holdLongPressHint')}
+                    accessibilityActions={holding ? undefined : [{ name: 'longpress', label: t('logger.markDoneNoTimer') }]}
+                    onAccessibilityAction={(event) => { if (event.nativeEvent.actionName === 'longpress') onComplete(set); }}
                     onPress={() => holding ? onFinishHold() : onStartHold(set)}
+                    onLongPress={holding ? undefined : () => { tapFeedback(); onComplete(set); }}
+                    delayLongPress={400}
                     style={[styles.checkButton, { backgroundColor: holding ? palette.accent : palette.surfaceMuted }]}
                   >
                     <Icon name={holding ? 'stop' : 'play'} size={18} color={holding ? palette.accentText : palette.text} />
@@ -662,7 +674,7 @@ function ExerciseCard({ exercise, previous, hold, onChange, onSetValue, onComple
 }
 
 /** Per-set details kept out of the row: note, form-check video, removal. */
-function SetSheet({ exercise, set, holdMode, onHoldMode, onClose, onChanged, onRemoved }: {
+function SetSheet({ exercise, set, holdMode, onHoldMode, onClose, onChanged, onRemoved, onCompleteManually }: {
   exercise: SessionExercise;
   set: SessionSet;
   holdMode: HoldMode;
@@ -671,6 +683,8 @@ function SetSheet({ exercise, set, holdMode, onHoldMode, onClose, onChanged, onR
   onChanged: () => Promise<void>;
   /** Called with what was removed when the removal can be undone. */
   onRemoved: (removed: RemovedRows | null) => void;
+  /** Completes a hold with its entered time, skipping the timer. */
+  onCompleteManually: () => void;
 }) {
   const { t } = useTranslation();
   const [note, setNote] = useState(set.note ?? '');
@@ -719,6 +733,17 @@ function SetSheet({ exercise, set, holdMode, onHoldMode, onClose, onChanged, onR
                 options={[{ value: 'free', label: t('logger.holdFree') }, { value: 'target', label: t('logger.holdTarget') }]}
               />
               <Body>{holdMode === 'target' ? t('logger.holdTargetHint', { time: formatClock(set.durationSec ?? 0) }) : t('logger.holdFreeHint')}</Body>
+            </View>
+          ) : null}
+          {timed && !set.completedAt ? (
+            <View style={{ gap: 6 }}>
+              <ActionButton
+                icon="checkmark"
+                label={t('logger.markDoneWithTime', { time: formatClock(set.durationSec ?? 0) })}
+                secondary
+                onPress={() => { close(); onCompleteManually(); }}
+              />
+              <Body>{t('logger.holdLongPressHint')}</Body>
             </View>
           ) : null}
           <RpePicker value={rpe} onChange={(next) => { setRpe(next); void updateSetRpe(set.id, next).then(onChanged); }} />
