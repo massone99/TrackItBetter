@@ -26,6 +26,11 @@ export function pickRecent<T extends { id: string }>(ids: readonly string[], exe
   return [...new Set(ids)].flatMap((id) => byId.get(id) ?? []).slice(0, limit);
 }
 
+/** Default practice target for a metric: 10 for timed/distance holds, 3 reps otherwise. */
+export function defaultMicroTarget(metric: string): string {
+  return metric === 'time' || metric === 'time_load' || metric === 'distance' ? '10' : '3';
+}
+
 export async function listMicroSessionExercises(query: string) {
   return listExercises({ query });
 }

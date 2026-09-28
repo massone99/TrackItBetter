@@ -5,6 +5,7 @@ import { useScaledStyles } from '../../shared/theme/useScaledStyles';
 import type { StatsBar } from './trainingStats';
 
 const CHART_HEIGHT = 56;
+const MIN_COLUMNS = 8;
 
 /** Working sets per period, one hue; tapping a column selects that period. */
 export function PeriodBars({ bars, selectedId, onSelect, describe, firstLabel, lastLabel }: {
@@ -18,13 +19,15 @@ export function PeriodBars({ bars, selectedId, onSelect, describe, firstLabel, l
   const styles = useScaledStyles(baseStyles);
   const { palette } = useTheme();
   const max = Math.max(1, ...bars.map((bar) => bar.sets));
+  const placeholders = Math.max(0, MIN_COLUMNS - bars.length);
   return <View>
     <View style={styles.bars}>
+      {Array.from({ length: placeholders }).map((_, index) => <View key={`placeholder-${index}`} style={styles.column} />)}
       {bars.map((bar) => {
         const selected = bar.id === selectedId;
         const height = bar.sets === 0 ? 2 : Math.max(4, Math.round((bar.sets / max) * CHART_HEIGHT));
         return <Pressable key={bar.id} accessibilityRole="button" accessibilityState={{ selected }} accessibilityLabel={describe(bar)} hitSlop={4} onPress={() => onSelect(bar.id)} style={styles.column}>
-          <View style={[styles.bar, { height, backgroundColor: bar.sets === 0 ? palette.border : selected ? palette.accentStrong : palette.accentSoft }]} />
+          <View style={[styles.bar, { height, backgroundColor: bar.sets === 0 ? (selected ? palette.accentStrong : palette.border) : selected ? palette.accentStrong : palette.accentSoft }]} />
         </Pressable>;
       })}
     </View>
@@ -37,7 +40,7 @@ export function PeriodBars({ bars, selectedId, onSelect, describe, firstLabel, l
 }
 
 const baseStyles = StyleSheet.create({
-  bars: { height: CHART_HEIGHT, flexDirection: 'row', alignItems: 'flex-end', gap: 6 },
+  bars: { height: CHART_HEIGHT, flexDirection: 'row', alignItems: 'flex-end', gap: 2 },
   column: { flex: 1, height: '100%', justifyContent: 'flex-end' },
   bar: { borderTopLeftRadius: 4, borderTopRightRadius: 4 },
   baseline: { height: StyleSheet.hairlineWidth },

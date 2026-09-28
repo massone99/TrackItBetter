@@ -121,7 +121,7 @@ export function ActionButton({ label, onPress, secondary = false, variant, icon,
   );
 }
 
-export function IconButton({ icon, onPress, label, tone = "muted", size = 40, color: colorOverride }: {
+export function IconButton({ icon, onPress, label, tone = "muted", size = 40, color: colorOverride, disabled }: {
   icon: IconName;
   onPress: () => void;
   label: string;
@@ -129,6 +129,7 @@ export function IconButton({ icon, onPress, label, tone = "muted", size = 40, co
   size?: number;
   /** Icon colour for plain buttons drawn on a coloured surface. */
   color?: string;
+  disabled?: boolean;
 }) {
   const styles = useScaledStyles(baseStyles);
   const { palette, scale } = useTheme();
@@ -139,9 +140,11 @@ export function IconButton({ icon, onPress, label, tone = "muted", size = 40, co
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={label}
+      accessibilityState={disabled !== undefined ? { disabled } : undefined}
+      disabled={disabled}
       hitSlop={6}
       onPress={() => { tapFeedback(); onPress(); }}
-      style={({ pressed }) => [styles.iconButton, { width: box, height: box, borderRadius: box / 2.6, backgroundColor: background, opacity: pressed ? 0.7 : 1 }]}
+      style={({ pressed }) => [styles.iconButton, { width: box, height: box, borderRadius: box / 2.6, backgroundColor: background, opacity: disabled ? 0.3 : pressed ? 0.7 : 1 }]}
     >
       <Icon name={icon} size={Math.round(size * 0.5)} color={color} />
     </Pressable>

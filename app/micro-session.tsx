@@ -1,9 +1,9 @@
 import { useFocusEffect } from 'expo-router';
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { Keyboard, Pressable, StyleSheet, TextInput, View } from 'react-native';
 import { Text } from '../src/shared/components/Text';
-import { getLastMicroSessionExercise, listMicroSessionExercises, listRecentMicroSessionExerciseIds, logMicroSession, pickRecent } from '../src/features/session/microSession';
+import { defaultMicroTarget, getLastMicroSessionExercise, listMicroSessionExercises, listRecentMicroSessionExerciseIds, logMicroSession, pickRecent } from '../src/features/session/microSession';
 import { ActionButton, Body, Card, Chip, Label, PageHeading, Screen, Icon } from '../src/shared/components/ui';
 import { useTheme } from '../src/shared/theme/ThemeProvider';
 import { useScaledStyles } from '../src/shared/theme/useScaledStyles';
@@ -15,8 +15,10 @@ export default function MicroSessionScreen() {
   const styles = useScaledStyles(baseStyles);
   const { t } = useTranslation();
   const { palette } = useTheme();
-  const [exercises, setExercises] = useState<Exercise[]>([]);
+  const [all, setAll] = useState<Exercise[]>([]);
+  const [filtered, setFiltered] = useState<Exercise[]>([]);
   const [selected, setSelected] = useState<Exercise | null>(null);
+  const selectedRef = useRef<Exercise | null>(null);
   const [recent, setRecent] = useState<Exercise[]>([]);
   const [query, setQuery] = useState('');
   const [value, setValue] = useState('3');
@@ -25,17 +27,35 @@ export default function MicroSessionScreen() {
   const requestRef = useRef(0);
   const [message, setMessage] = useState<'done' | 'error' | null>(null);
 
-  const refresh = useCallback(async () => {
-    const requestId = ++requestRef.current;
-    const [items, all, recentIds, preferred] = await Promise.all([
-      listMicroSessionExercises(query), listMicroSessionExercises(''), listRecentMicroSessionExerciseIds(5), getLastMicroSessionExercise(),
+  useEffect(() => { selectedRef.current = selected; }, [selected]);
+
+  /** Loads the full exercise list, recent ids and the auto-selected exercise. Run once per focus and after a successful log. */
+  const loadBase = useCallback(async () => {
+    const [allItems, recentIds, preferred] = await Promise.all([
+      listMicroSessionExercises(''), listRecentMicroSessionExerciseIds(5), getLastMicroSessionExercise(),
     ]);
-    if (requestId !== requestRef.current) return;
-    setExercises(items.slice(0, query.trim() ? 50 : 20));
-    setRecent(pickRecent(recentIds, all, 5));
-    setSelected((current) => current ?? all.find((item) => item.id === preferred) ?? all[0] ?? null);
+    setAll(allItems);
+    setRecent(pickRecent(recentIds, allItems, 5));
+    const hadSelection = selectedRef.current !== null;
+    const auto = allItems.find((item) => item.id === preferred) ?? allItems[0] ?? null;
+    setSelected((current) => current ?? auto);
+    if (!hadSelection && auto) setValue(defaultMicroTarget(auto.metric));
+  }, []);
+  useFocusEffect(useCallback(() => { void loadBase(); }, [loadBase]));
+
+  // Query change re-runs only the filtered search; an empty query reuses the already-loaded `all` list.
+  useEffect(() => {
+    const trimmed = query.trim();
+    if (!trimmed) return;
+    let active = true;
+    const requestId = ++requestRef.current;
+    listMicroSessionExercises(query).then((items) => {
+      if (!active || requestId !== requestRef.current) return;
+      setFiltered(items.slice(0, 50));
+    });
+    return () => { active = false; };
   }, [query]);
-  useFocusEffect(useCallback(() => { void refresh(); }, [refresh]));
+  const exercises = query.trim() ? filtered : all.slice(0, 20);
 
   const timed = selected?.metric === 'time' || selected?.metric === 'time_load';
   const distance = selected?.metric === 'distance';
@@ -44,9 +64,9 @@ export default function MicroSessionScreen() {
 
   const selectExercise = (exercise: Exercise) => {
     setSelected(exercise);
-    const hold = exercise.metric === 'time' || exercise.metric === 'time_load';
-    setValue(hold || exercise.metric === 'distance' ? '10' : '3');
+    setValue(defaultMicroTarget(exercise.metric));
     setMessage(null);
+    Keyboard.dismiss();
   };
 
   const log = async () => {
@@ -59,7 +79,7 @@ export default function MicroSessionScreen() {
     try {
       await logMicroSession(selected.id, parsed);
       setMessage('done');
-      void refresh();
+      void loadBase();
     } catch {
       setMessage('error');
     } finally {

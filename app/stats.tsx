@@ -75,7 +75,6 @@ export default function StatsScreen() {
     return (value: T) => {
       setter(value);
       writePreference(key, value);
-      setAnchor(null);
     };
   }
   const changeThreshold = (value: number) => { setThreshold(value); writePreference('stats.threshold', String(value)); };
@@ -99,7 +98,7 @@ export default function StatsScreen() {
           </Pressable>
         </View>)}
       </View>}
-      <SegmentedControl<StatsPeriodKind> value={periodKind} onChange={remember<StatsPeriodKind>('stats.period', setPeriodKind)} options={(['session', 'day', 'week', 'month'] as const).map((value) => ({ value, label: strings[value] }))} />
+      <SegmentedControl<StatsPeriodKind> value={periodKind} onChange={(value) => { remember<StatsPeriodKind>('stats.period', setPeriodKind)(value); setAnchor(null); }} options={(['session', 'day', 'week', 'month'] as const).map((value) => ({ value, label: strings[value] }))} />
     </View>
 
     {!stats ? <Card style={styles.loadingCard}>
@@ -108,13 +107,9 @@ export default function StatsScreen() {
     </Card> : !stats.period ? <Card><Body>{strings.noData}</Body></Card> : <>
       <Card>
         <View style={styles.navigator}>
-          <View style={{ opacity: stats.olderId ? 1 : 0.3 }} pointerEvents={stats.olderId ? 'auto' : 'none'}>
-            <IconButton icon="chevron-back" label={strings.previous} onPress={() => stats.olderId && setAnchor(stats.olderId)} />
-          </View>
+          <IconButton icon="chevron-back" label={strings.previous} disabled={!stats.olderId} onPress={() => stats.olderId && setAnchor(stats.olderId)} />
           <Text numberOfLines={1} accessibilityLiveRegion="polite" style={[styles.periodLabel, { color: palette.text }]}>{formatPeriod(stats.period, periodKind, locale)}</Text>
-          <View style={{ opacity: stats.newerId ? 1 : 0.3 }} pointerEvents={stats.newerId ? 'auto' : 'none'}>
-            <IconButton icon="chevron-forward" label={strings.next} onPress={() => stats.newerId && setAnchor(stats.newerId)} />
-          </View>
+          <IconButton icon="chevron-forward" label={strings.next} disabled={!stats.newerId} onPress={() => stats.newerId && setAnchor(stats.newerId)} />
         </View>
         {stats.newerId && <Pressable accessibilityRole="button" onPress={() => setAnchor(null)} style={styles.latest}>
           <Text style={[styles.latestText, { color: palette.accentStrong }]}>{periodKind === 'session' ? strings.latestSession : strings.today}</Text>
