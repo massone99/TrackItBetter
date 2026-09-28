@@ -35,7 +35,7 @@ type SetTarget = { exercise: SessionExercise; set: SessionSet };
 
 export default function PastWorkoutScreen() {
   const styles = useScaledStyles(baseStyles);
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, edit: openDetails } = useLocalSearchParams<{ id: string; edit?: string }>();
   const { t, i18n } = useTranslation();
   const { palette } = useTheme();
   const [workout, setWorkout] = useState<CompletedWorkout | null>(null);
@@ -45,7 +45,8 @@ export default function PastWorkoutScreen() {
   const [loadError, setLoadError] = useState(false);
   const [setFor, setSetFor] = useState<SetTarget | null>(null);
   const [exerciseFor, setExerciseFor] = useState<SessionExercise | null>(null);
-  const [detailsOpen, setDetailsOpen] = useState(false);
+  // A just-created past workout opens on its details, so its day and time are set first.
+  const [detailsOpen, setDetailsOpen] = useState(openDetails === '1');
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
   // The last removal, offered for a few seconds as "Restore".

@@ -329,6 +329,22 @@ export async function updateCompletedWorkoutDetails(
     .where(and(eq(workouts.id, workoutId), isNotNull(workouts.endedAt)));
 }
 
+/**
+ * Creates an empty, already finished workout in the past (a forgotten or untracked session), to be
+ * filled in with the history editor.
+ */
+export async function createPastWorkout(input: { name: string; startedAt: Date; minutes: number }): Promise<string> {
+  const name = input.name.trim();
+  if (!name || name.length > WORKOUT_NAME_MAX) throw new RangeError('Workout name must be 1–60 characters');
+  const start = input.startedAt.getTime();
+  if (!Number.isFinite(start) || start > Date.now()) throw new RangeError('A past workout cannot start in the future');
+  const minutes = Math.min(600, Math.max(1, Math.round(input.minutes)));
+  await initializeDatabase();
+  const workoutId = id();
+  await db.insert(workouts).values({ id: workoutId, name, startedAt: input.startedAt, endedAt: new Date(start + minutes * 60_000) });
+  return workoutId;
+}
+
 async function completedWorkoutEnd(workoutId: string): Promise<Date> {
   const [workout] = await db.select({ endedAt: workouts.endedAt }).from(workouts).where(eq(workouts.id, workoutId)).limit(1);
   if (!workout?.endedAt) throw new Error('Workout is not finished');

@@ -25,9 +25,11 @@ describe('parseNumberInput', () => {
 });
 
 describe('formatMinutes', () => {
-  it('rounds to whole minutes and switches to hours past 60', () => {
+  it('keeps seconds for short totals and rounds longer ones', () => {
     expect(formatMinutes(0)).toBe('0 min');
-    expect(formatMinutes(89)).toBe('1 min');
+    expect(formatMinutes(10)).toBe('10 s');
+    expect(formatMinutes(90)).toBe('1 min 30 s');
+    expect(formatMinutes(120)).toBe('2 min');
     expect(formatMinutes(725)).toBe('12 min');
     expect(formatMinutes(3900)).toBe('1 h 05 min');
   });

@@ -1,7 +1,7 @@
 import { and, asc, desc, eq, isNotNull } from 'drizzle-orm';
 import { db, initializeDatabase } from '../../db/client';
 import { exerciseEntries, exercises, trainingSets, workouts } from '../../db/schema';
-import { buildExerciseWeek, buildMobilityWeek, mobilitySecondsForWorkout, type ExerciseWeek, type MobilityWeek } from './mobility';
+import { buildExerciseCycle, buildExerciseWeek, buildMobilityCycles, buildMobilityWeek, mobilitySecondsForWorkout, type ExerciseCycle, type ExerciseWeek, type MobilityWeek } from './mobility';
 import { buildProgressSnapshot, detectWorkoutRecords, type CompletedSetRow, type CompletedWorkoutRow, type ProgressSnapshot, type WorkoutRecord } from './summary';
 
 /** Load only finalized workouts and sets, then summarize them in the domain layer. */
@@ -34,6 +34,16 @@ export async function getWorkoutMobilitySeconds(workoutId: string): Promise<numb
 /** Last-7-days sets, sessions and (for holds) time of one exercise. */
 export async function getExerciseWeekStats(exerciseId: string, metric: string, now = new Date()): Promise<ExerciseWeek> {
   return buildExerciseWeek(await loadCompletedSetRows(), exerciseId, metric, now);
+}
+
+/** The exercise's own training week in progress (started the first day it was trained), and the one before. */
+export async function getExerciseCycle(exerciseId: string, now = new Date()): Promise<{ current: ExerciseCycle | null; previous: ExerciseCycle | null }> {
+  return buildExerciseCycle(await loadCompletedSetRows(), exerciseId, now);
+}
+
+/** Mobility exercises whose own training week is in progress. */
+export async function getMobilityCycles(now = new Date()): Promise<ExerciseCycle[]> {
+  return buildMobilityCycles(await loadCompletedSetRows(), now);
 }
 
 async function loadCompletedSetRows(): Promise<CompletedSetRow[]> {

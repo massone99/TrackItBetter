@@ -15,9 +15,16 @@ export function formatClock(seconds: number): string {
   return `${Math.floor(safe / 60)}:${String(safe % 60).padStart(2, "0")}`;
 }
 
-/** Rounded minutes for totals, e.g. "12 min" or "1 h 05 min". */
+/** Time totals, e.g. "45 s", "1 min 30 s", "12 min" or "1 h 05 min" (seconds only under 10 minutes). */
 export function formatMinutes(seconds: number): string {
-  const minutes = Math.max(0, Math.round(seconds / 60));
+  const total = Math.max(0, Math.round(seconds));
+  if (total === 0) return "0 min";
+  if (total < 60) return `${total} s`;
+  if (total < 600) {
+    const rest = total % 60;
+    return rest === 0 ? `${total / 60} min` : `${Math.floor(total / 60)} min ${rest} s`;
+  }
+  const minutes = Math.round(total / 60);
   if (minutes < 60) return `${minutes} min`;
   return `${Math.floor(minutes / 60)} h ${String(minutes % 60).padStart(2, "0")} min`;
 }

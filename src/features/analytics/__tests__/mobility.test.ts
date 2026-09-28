@@ -1,4 +1,4 @@
-import { buildExerciseWeek, buildMobilityWeek, isMobilityTimedSet, mobilitySecondsForWorkout } from '../mobility';
+import { buildExerciseCycle, buildExerciseWeek, buildMobilityCycles, buildMobilityWeek, isMobilityTimedSet, mobilitySecondsForWorkout } from '../mobility';
 import type { CompletedSetRow } from '../summary';
 
 function row(overrides: Partial<CompletedSetRow>): CompletedSetRow {
@@ -68,5 +68,45 @@ describe('buildExerciseWeek', () => {
   it('adds hold time for a timed exercise and ignores older workouts', () => {
     const rows = [row({ durationSec: 40 }), row({ durationSec: 50 }), row({ workoutId: 'old', workoutStartedAt: new Date('2026-09-01T08:00:00Z') })];
     expect(buildExerciseWeek(rows, 'pike-stretch', 'time', now)).toEqual({ sets: 2, sessions: 1, seconds: 90 });
+  });
+});
+
+describe('per-exercise weeks', () => {
+  // Local dates keep these tests independent of the machine's time zone.
+  const at = (day: number, hour = 10) => new Date(2026, 8, day, hour);
+  const today = at(28, 12);
+  const pike = (day: number, durationSec = 60, workoutId = `w${day}`) => row({ workoutId, workoutStartedAt: at(day), durationSec });
+  const split = (day: number, durationSec = 45) => row({ workoutId: `s${day}`, workoutStartedAt: at(day), exerciseId: 'front-split', exerciseName: 'Front split', durationSec });
+
+  it('starts each exercise\'s week on the first day it is trained', () => {
+    const rows = [pike(28), split(26), split(27, 30)];
+    const pikeWeek = buildExerciseCycle(rows, 'pike-stretch', today).current!;
+    const splitWeek = buildExerciseCycle(rows, 'front-split', today).current!;
+    expect(pikeWeek).toMatchObject({ start: new Date(2026, 8, 28), day: 1, seconds: 60, sets: 1, sessions: 1 });
+    expect(splitWeek).toMatchObject({ start: new Date(2026, 8, 26), end: new Date(2026, 9, 3), day: 3, seconds: 75, sessions: 2 });
+  });
+
+  it('opens a new week when the exercise is trained after the old one ended', () => {
+    const rows = [pike(15, 100), pike(20, 50), pike(22, 30), pike(27, 40)];
+    const { current, previous } = buildExerciseCycle(rows, 'pike-stretch', today);
+    // 15–21 is one week; 22 starts the next one, which is still running on the 28th.
+    expect(previous).toMatchObject({ start: new Date(2026, 8, 15), seconds: 150 });
+    expect(current).toMatchObject({ start: new Date(2026, 8, 22), day: 7, seconds: 70 });
+  });
+
+  it('has no current week once seven days have passed', () => {
+    const { current, previous } = buildExerciseCycle([pike(10)], 'pike-stretch', today);
+    expect(current).toBeNull();
+    expect(previous).toMatchObject({ seconds: 60 });
+  });
+
+  it('counts sets without time for rep-based drills', () => {
+    const rows = [row({ ...wristRocks, workoutStartedAt: at(27) }), row({ ...wristRocks, workoutStartedAt: at(27) })];
+    expect(buildExerciseCycle(rows, 'wrist-rocks', today).current).toMatchObject({ sets: 2, sessions: 1, seconds: null });
+  });
+
+  it('lists the mobility weeks in progress, newest first', () => {
+    const rows = [pike(28), split(26), pike(1), row({ exerciseId: 'push-up', category: 'push', workoutStartedAt: at(27) })];
+    expect(buildMobilityCycles(rows, today).map((cycle) => cycle.exerciseId)).toEqual(['pike-stretch', 'front-split']);
   });
 });

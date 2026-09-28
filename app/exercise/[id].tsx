@@ -6,8 +6,8 @@ import type { Exercise } from '../../src/db/schema';
 import { openReferenceVideo, ReferenceLinkSheet } from '../../src/features/exercises/ReferenceLinkSheet';
 import { archiveCustomExercise, getExerciseById, setExerciseFavourite } from '../../src/features/exercises/repository';
 import { addExerciseToWorkout, getActiveWorkout, startWorkout } from '../../src/features/session/repository';
-import { getExerciseWeekStats } from '../../src/features/analytics/repository';
-import type { ExerciseWeek } from '../../src/features/analytics/mobility';
+import { getExerciseCycle, getExerciseWeekStats } from '../../src/features/analytics/repository';
+import type { ExerciseCycle, ExerciseWeek } from '../../src/features/analytics/mobility';
 import { formatMinutes } from '../../src/shared/utils/format';
 import { ActionButton, Body, Icon, IconButton, ListGroup, ListRow, PageHeading, Screen, SectionTitle, Sheet, Text } from '../../src/shared/components/ui';
 import { useTheme } from '../../src/shared/theme/ThemeProvider';
@@ -28,11 +28,12 @@ function readList(value: string): string[] {
 export default function ExerciseRoute() {
   const styles = useScaledStyles(baseStyles);
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { palette } = useTheme();
   const [exercise, setExercise] = useState<Exercise | null>(null);
   const [loading, setLoading] = useState(true);
   const [week, setWeek] = useState<ExerciseWeek | null>(null);
+  const [cycle, setCycle] = useState<{ current: ExerciseCycle | null; previous: ExerciseCycle | null } | null>(null);
   const [editingReference, setEditingReference] = useState(false);
   const [confirmArchive, setConfirmArchive] = useState(false);
 
@@ -40,7 +41,9 @@ export default function ExerciseRoute() {
     const found = await getExerciseById(id);
     setExercise(found);
     setLoading(false);
-    if (found) setWeek(await getExerciseWeekStats(found.id, found.metric).catch(() => null));
+    // Mobility and stretching count their own week from the first day trained; the rest the last 7 days.
+    if (found?.category === 'mobility') setCycle(await getExerciseCycle(found.id).catch(() => null));
+    else if (found) setWeek(await getExerciseWeekStats(found.id, found.metric).catch(() => null));
   }, [id]);
 
   useFocusEffect(useCallback(() => { void reload(); }, [reload]));
@@ -116,6 +119,35 @@ export default function ExerciseRoute() {
         <View style={styles.tags}>
           {muscles.map((muscle) => <Tag key={`m-${muscle}`} icon="body-outline" label={muscle.replaceAll('-', ' ')} />)}
           {equipment.map((item) => <Tag key={`e-${item}`} icon="construct-outline" label={item.replaceAll('-', ' ')} />)}
+        </View>
+      ) : null}
+
+      {cycle ? (
+        <View style={styles.section}>
+          <SectionTitle title={t('exerciseCycle.title')} />
+          {cycle.current ? (
+            <>
+              <Body>{t('exerciseCycle.progress', {
+                day: cycle.current.day,
+                start: cycle.current.start.toLocaleDateString(i18n.language, { weekday: 'short', day: 'numeric', month: 'short' }),
+                end: new Date(cycle.current.end.getTime() - 1).toLocaleDateString(i18n.language, { weekday: 'short', day: 'numeric', month: 'short' }),
+              })}</Body>
+              <View style={[styles.week, { backgroundColor: palette.surface, borderColor: palette.border }]}>
+                {cycle.current.seconds !== null ? <WeekStat value={formatMinutes(cycle.current.seconds)} label={t('mobilityStats.exerciseTime')} /> : null}
+                <WeekStat value={String(cycle.current.sets)} label={t('mobilityStats.exerciseSets', { count: cycle.current.sets })} />
+                <WeekStat value={String(cycle.current.sessions)} label={t('mobilityStats.exerciseSessions', { count: cycle.current.sessions })} />
+              </View>
+            </>
+          ) : (
+            <Body>{t('exerciseCycle.none')}</Body>
+          )}
+          {cycle.previous ? (
+            <Body>{t('exerciseCycle.previous', {
+              start: cycle.previous.start.toLocaleDateString(i18n.language, { day: 'numeric', month: 'short' }),
+              value: cycle.previous.seconds !== null ? formatMinutes(cycle.previous.seconds) : t('exerciseCycle.sets', { count: cycle.previous.sets }),
+              count: cycle.previous.sessions,
+            })}</Body>
+          ) : null}
         </View>
       ) : null}
 

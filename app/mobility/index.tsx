@@ -4,8 +4,8 @@ import { useTranslation } from 'react-i18next';
 import { Platform, Pressable, StyleSheet, View } from 'react-native';
 import { estimateRoutineSeconds } from '../../src/domain/mobilityPlan';
 import { listMobilityRoutines, type MobilityRoutine } from '../../src/features/mobility/routines';
-import { getMobilityWeek } from '../../src/features/analytics/repository';
-import type { MobilityWeek } from '../../src/features/analytics/mobility';
+import { getMobilityCycles, getMobilityWeek } from '../../src/features/analytics/repository';
+import type { ExerciseCycle, MobilityWeek } from '../../src/features/analytics/mobility';
 import { formatMinutes } from '../../src/shared/utils/format';
 import { ActionButton, EmptyState, Icon, IconButton, ListGroup, ListRow, PageHeading, Screen, SectionTitle, Text } from '../../src/shared/components/ui';
 import { useTheme } from '../../src/shared/theme/ThemeProvider';
@@ -14,15 +14,17 @@ import { useScaledStyles } from '../../src/shared/theme/useScaledStyles';
 
 export default function MobilityHubScreen() {
   const styles = useScaledStyles(baseStyles);
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { palette } = useTheme();
   const [routines, setRoutines] = useState<MobilityRoutine[] | null>(null);
   const [week, setWeek] = useState<MobilityWeek | null>(null);
+  const [cycles, setCycles] = useState<ExerciseCycle[]>([]);
 
   useFocusEffect(useCallback(() => {
     let mounted = true;
     void listMobilityRoutines().then((items) => { if (mounted) setRoutines(items); });
     void getMobilityWeek().then((summary) => { if (mounted) setWeek(summary); }).catch(() => undefined);
+    void getMobilityCycles().then((items) => { if (mounted) setCycles(items); }).catch(() => undefined);
     return () => { mounted = false; };
   }, []));
 
@@ -46,6 +48,27 @@ export default function MobilityHubScreen() {
             <Text style={[styles.weekLabel, { color: palette.textMuted }]}>{t('mobilityStats.hubSessions', { count: week.sessions })}</Text>
           </View>
         </View>
+      ) : null}
+
+      {cycles.length > 0 ? (
+        <>
+          <SectionTitle title={t('exerciseCycle.hubTitle')} />
+          <ListGroup>
+            {cycles.map((cycle) => (
+              <ListRow
+                key={cycle.exerciseId}
+                icon={cycle.seconds !== null ? 'timer-outline' : 'repeat'}
+                title={cycle.exerciseName}
+                subtitle={[
+                  cycle.seconds !== null ? formatMinutes(cycle.seconds) : t('exerciseCycle.sets', { count: cycle.sets }),
+                  t('mobilityStats.sessionsCount', { count: cycle.sessions }),
+                  t('exerciseCycle.dayOf', { day: cycle.day, start: cycle.start.toLocaleDateString(i18n.language, { weekday: 'short', day: 'numeric', month: 'short' }) }),
+                ].join(' · ')}
+                onPress={() => router.push({ pathname: '/exercise/[id]', params: { id: cycle.exerciseId } })}
+              />
+            ))}
+          </ListGroup>
+        </>
       ) : null}
 
       <SectionTitle title={t('mobility.routines')} />

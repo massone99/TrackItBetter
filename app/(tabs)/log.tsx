@@ -3,7 +3,7 @@ import { useCallback, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { Text } from '../../src/shared/components/Text';
-import { getActiveWorkout, listRecentWorkouts } from '../../src/features/session/repository';
+import { createPastWorkout, getActiveWorkout, listRecentWorkouts } from '../../src/features/session/repository';
 import type { WorkoutHistoryItem } from '../../src/features/session/repository';
 import { ActionButton, Body, Card, EmptyState, Heading, IconButton, PageHeading, Screen } from '../../src/shared/components/ui';
 import { useTheme } from '../../src/shared/theme/ThemeProvider';
@@ -28,6 +28,20 @@ export default function LogScreen() {
   }, []);
 
   useFocusEffect(useCallback(() => { void refresh(); }, [refresh]));
+
+  /** Creates a finished workout on the chosen day (yesterday by default) and opens it to be filled in. */
+  const logPastWorkout = async (dateKey: string | null) => {
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    const day = dateKey ? new Date(`${dateKey}T18:00:00`) : new Date(yesterday.getFullYear(), yesterday.getMonth(), yesterday.getDate(), 18);
+    // A session "today at 18:00" that has not happened yet is placed an hour ago instead.
+    const startedAt = day.getTime() > Date.now() - 60 * 60_000 ? new Date(Date.now() - 60 * 60_000) : day;
+    const workoutId = await createPastWorkout({ name: t('log.pastName'), startedAt, minutes: 60 });
+    router.push({ pathname: '/workout/history/[id]', params: { id: workoutId, edit: '1' } });
+  };
+  const [todayKey] = useState(() => localDateKey(new Date()));
+  // Date keys are YYYY-MM-DD, so they compare as strings.
+  const selectedIsFuture = selectedDate !== null && selectedDate > todayKey;
 
   const workoutCounts = useMemo(() => {
     const counts = new Map<string, number>();
@@ -56,6 +70,12 @@ export default function LogScreen() {
     <Screen>
       <PageHeading title={t('log.title')} subtitle={t('log.subtitle')} />
       <ActionButton icon={activeWorkoutId ? 'play' : 'add'} label={t(activeWorkoutId ? 'common.resumeWorkout' : 'common.startWorkout')} onPress={() => router.push({ pathname: '/workout/[id]', params: { id: activeWorkoutId ?? 'new' } })} />
+      <ActionButton
+        icon="time-outline"
+        label={selectedDate && !selectedIsFuture ? t('log.addPastOnDate', { date: new Date(`${selectedDate}T12:00:00`).toLocaleDateString(locale, { day: 'numeric', month: 'short' }) }) : t('log.addPast')}
+        secondary
+        onPress={() => void logPastWorkout(selectedIsFuture ? null : selectedDate)}
+      />
       {workouts.length === 0 && !loading ? (
         <EmptyState icon="calendar-clear-outline" title={t('log.empty')} body={t('log.emptyBody')} />
       ) : workouts.length > 0 ? (
