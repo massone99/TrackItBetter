@@ -54,14 +54,19 @@ import {
 } from '../../src/shared/components/ui';
 import { useKeyboardVisible } from '../../src/shared/components/keyboard';
 import { RpePicker } from '../../src/features/session/RpePicker';
+import { DoneTint, PopOnActivate, SwipeableSetRow } from '../../src/features/session/SwipeableSetRow';
+import Animated, { FadeInDown, FadeOutLeft, LayoutAnimationConfig, LinearTransition, ZoomIn } from 'react-native-reanimated';
 import { formatRpe } from '../../src/domain/rpe';
-import { readBooleanPreference, RPE_PROMPT_KEY } from '../../src/shared/settings/preferences';
+import { readBooleanPreference, RPE_PROMPT_KEY, writePreference } from '../../src/shared/settings/preferences';
+
 import { useTheme } from '../../src/shared/theme/ThemeProvider';
 import { fonts } from '../../src/shared/theme/typography';
 import { formatClock, formatNumber } from '../../src/shared/utils/format';
 import { useScaledStyles } from '../../src/shared/theme/useScaledStyles';
 
 const VOICE_CUES_KEY = 'workout.voice_cues.enabled';
+/** Set once the first set has been swiped, which hides the gesture hint. */
+const SWIPE_HINT_KEY = 'workout.swipeHintSeen';
 
 export default function WorkoutScreen() {
   const styles = useScaledStyles(baseStyles);
@@ -287,8 +292,24 @@ export default function WorkoutScreen() {
     hold.start(set.id, holdModeFor(set.id), set.durationSec ?? 30);
   };
 
+  const [swipeHint, setSwipeHint] = useState(() => !readBooleanPreference(SWIPE_HINT_KEY, false));
+  const markSwiped = () => {
+    if (!swipeHint) return;
+    setSwipeHint(false);
+    writePreference(SWIPE_HINT_KEY, 'true');
+  };
+
   const offerUndo = (message: string, removed: RemovedRows | null) => {
     if (removed) setUndo({ message, removed });
+  };
+
+  /** Swiped away: removed at once with "Restore", except a set with clips, which asks in its sheet. */
+  const removeSetFromRow = async (exercise: SessionExercise, set: SessionSet) => {
+    if (!workout) return;
+    if (set.clipCount > 0) { setSetSheet({ exercise, setId: set.id }); return; }
+    if (hold.active?.setId === set.id) hold.stop();
+    offerUndo(t('logger.removedSet', { number: set.index }), await removeSetWithUndo(set.id));
+    await refresh(workout.id);
   };
 
   const confirmFinish = async () => {
@@ -393,9 +414,16 @@ export default function WorkoutScreen() {
           />
         ) : null}
 
+        {swipeHint && workout.exercises.some((exercise) => exercise.sets.length > 0) ? (
+          <Animated.View exiting={FadeOutLeft.duration(200)} style={[styles.swipeHint, { backgroundColor: palette.accentSoft }]}>
+            <Icon name="swap-horizontal" size={18} color={palette.accentStrong} />
+            <Text style={[styles.swipeHintText, { color: palette.accentStrong }]}>{t('logger.swipeHint')}</Text>
+          </Animated.View>
+        ) : null}
+        <LayoutAnimationConfig skipEntering>
         {workout.exercises.map((exercise) => (
+          <Animated.View key={exercise.entryId} entering={FadeInDown.duration(260)} exiting={FadeOutLeft.duration(200)} layout={LinearTransition.springify().damping(20)}>
           <ExerciseCard
-            key={exercise.entryId}
             exercise={exercise}
             previous={previous.get(exercise.exerciseId)}
             hold={hold.active}
@@ -407,20 +435,24 @@ export default function WorkoutScreen() {
             onAddSet={() => void addSet(exercise.entryId).then(() => refresh(workout.id))}
             onSetOptions={(set) => setSetSheet({ exercise, setId: set.id })}
             onUncomplete={(set) => void uncompleteSet(set.id).then(() => refresh(workout.id))}
+            onRemoveSet={(set) => void removeSetFromRow(exercise, set)}
+            onSwiped={markSwiped}
             rpePromptFor={rpePromptFor}
             onRpe={(set, rpe) => void saveRpe(set, rpe)}
             onDismissRpe={() => setRpePromptFor(null)}
             onOptions={() => setOptionsFor(exercise)}
             onSaved={() => refresh(workout.id)}
           />
+          </Animated.View>
         ))}
+        </LayoutAnimationConfig>
 
         {workout.exercises.length > 0 ? (
-          <View style={styles.footerActions}>
+          <Animated.View layout={LinearTransition.springify().damping(20)} style={styles.footerActions}>
             <ActionButton icon="add" label={t('workout.addExercise')} secondary onPress={() => setPickerOpen(true)} />
             <ActionButton icon="flag-outline" label={t('workout.finish')} onPress={() => setFinishOpen(true)} />
             <ActionButton icon="close-circle-outline" label={t('workout.discard')} variant="ghost" onPress={() => setDiscardOpen(true)} />
-          </View>
+          </Animated.View>
         ) : null}
       </Screen>
 
@@ -524,7 +556,7 @@ export default function WorkoutScreen() {
   );
 }
 
-function ExerciseCard({ exercise, previous, hold, onChange, onSetValue, onComplete, onStartHold, onFinishHold, onAddSet, onSetOptions, onUncomplete, rpePromptFor, onRpe, onDismissRpe, onOptions, onSaved }: {
+function ExerciseCard({ exercise, previous, hold, onChange, onSetValue, onComplete, onStartHold, onFinishHold, onAddSet, onSetOptions, onUncomplete, onRemoveSet, onSwiped, rpePromptFor, onRpe, onDismissRpe, onOptions, onSaved }: {
   exercise: SessionExercise;
   previous: PreviousPerformance | undefined;
   hold: ActiveHold | null;
@@ -536,6 +568,8 @@ function ExerciseCard({ exercise, previous, hold, onChange, onSetValue, onComple
   onAddSet: () => void;
   onSetOptions: (set: SessionSet) => void;
   onUncomplete: (set: SessionSet) => void;
+  onRemoveSet: (set: SessionSet) => void;
+  onSwiped: () => void;
   rpePromptFor: string | null;
   onRpe: (set: SessionSet, rpe: number | null) => void;
   onDismissRpe: () => void;
@@ -579,12 +613,23 @@ function ExerciseCard({ exercise, previous, hold, onChange, onSetValue, onComple
         const stored = timed ? set.durationSec ?? 0 : distance ? set.distanceM ?? 0 : set.reps ?? 0;
         const value = holding && hold ? holdDisplay(hold) : timed ? formatClock(stored) : distance ? formatNumber(stored) : String(stored);
         return (
-          <View key={set.id} style={[styles.setBlock, done && { backgroundColor: palette.accentSoft }]}>
+          <Animated.View key={set.id} entering={FadeInDown.duration(220)} exiting={FadeOutLeft.duration(200)} layout={LinearTransition.springify().damping(20)} style={styles.setBlock}>
+            <DoneTint done={done} color={palette.accentSoft} />
+            <SwipeableSetRow
+              done={done}
+              completeLabel={t('logger.swipeComplete')}
+              reopenLabel={t('logger.swipeReopen')}
+              removeLabel={t('logger.swipeRemove')}
+              onSwipeRight={() => { onSwiped(); if (done) onUncomplete(set); else onComplete(set); }}
+              onSwipeLeft={() => { onSwiped(); onRemoveSet(set); }}
+            >
             <View style={styles.setRow}>
               <View style={styles.colSet}>
-                <View style={[styles.setBadge, { backgroundColor: done ? palette.accent : palette.surfaceMuted }]}>
-                  <Text style={[styles.setBadgeText, { color: done ? palette.accentText : palette.text }]}>{set.index}</Text>
-                </View>
+                <PopOnActivate active={done}>
+                  <View style={[styles.setBadge, { backgroundColor: done ? palette.accent : palette.surfaceMuted }]}>
+                    <Text style={[styles.setBadgeText, { color: done ? palette.accentText : palette.text }]}>{set.index}</Text>
+                  </View>
+                </PopOnActivate>
               </View>
               <View style={[styles.colValue, styles.stepper]}>
                 {done ? null : <StepButton icon="remove" label="−" onPress={() => void onChange(set, field, distance ? -0.5 : timed ? -5 : -1)} />}
@@ -606,15 +651,17 @@ function ExerciseCard({ exercise, previous, hold, onChange, onSetValue, onComple
               <View style={[styles.colAction, styles.rowActions]}>
                 <IconButton icon="ellipsis-vertical" label={t('logger.setOptions', { number: set.index })} tone="plain" size={34} onPress={() => onSetOptions(set)} />
                 {done ? (
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel={t('workout.setCompleted')}
-                    accessibilityState={{ checked: true }}
-                    onPress={() => { tapFeedback(); onUncomplete(set); }}
-                    style={[styles.checkButton, { backgroundColor: palette.success }]}
-                  >
-                    <Icon name="checkmark" size={20} color="#FFFFFF" />
-                  </Pressable>
+                  <Animated.View entering={ZoomIn.springify().damping(12)}>
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel={t('workout.setCompleted')}
+                      accessibilityState={{ checked: true }}
+                      onPress={() => { tapFeedback(); onUncomplete(set); }}
+                      style={[styles.checkButton, { backgroundColor: palette.success }]}
+                    >
+                      <Icon name="checkmark" size={20} color="#FFFFFF" />
+                    </Pressable>
+                  </Animated.View>
                 ) : timed ? (
                   <Pressable
                     accessibilityRole="button"
@@ -641,6 +688,7 @@ function ExerciseCard({ exercise, previous, hold, onChange, onSetValue, onComple
                 )}
               </View>
             </View>
+            </SwipeableSetRow>
             {rpePromptFor === set.id && set.completedAt ? (
               <RpePicker inline value={set.rpe} onChange={(rpe) => onRpe(set, rpe)} onDismiss={onDismissRpe} />
             ) : set.note || set.clipCount > 0 || set.rpe !== null ? (
@@ -661,7 +709,7 @@ function ExerciseCard({ exercise, previous, hold, onChange, onSetValue, onComple
                 {set.note ? <Text numberOfLines={2} style={[styles.setNote, { color: palette.textMuted }]}>{set.note}</Text> : null}
               </Pressable>
             ) : null}
-          </View>
+          </Animated.View>
         );
       })}
 
@@ -930,9 +978,11 @@ const baseStyles = StyleSheet.create({
   colValue: { flex: 1, textAlign: 'center' },
   colLoad: { width: 78, alignItems: 'center', textAlign: 'center' },
   colAction: { width: 80 },
-  setBlock: { borderRadius: 12, paddingHorizontal: 4 },
-  setRow: { flexDirection: 'row', alignItems: 'center', minHeight: 56 },
-  setMeta: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingLeft: 44, paddingRight: 8, paddingBottom: 10, marginTop: -4 },
+  setBlock: { borderRadius: 12, overflow: 'hidden' },
+  setRow: { flexDirection: 'row', alignItems: 'center', minHeight: 56, paddingHorizontal: 4 },
+  swipeHint: { flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: 14, paddingHorizontal: 14, paddingVertical: 10 },
+  swipeHintText: { flex: 1, fontFamily: fonts.medium, fontSize: 14 },
+  setMeta: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingLeft: 48, paddingRight: 12, paddingBottom: 10, marginTop: -4 },
   clipChip: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, height: 24, borderRadius: 999 },
   clipChipText: { fontFamily: fonts.semibold, fontSize: 12 },
   setNote: { flex: 1, fontFamily: fonts.body, fontSize: 13, lineHeight: 18 },
