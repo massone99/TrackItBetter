@@ -1,10 +1,30 @@
-import { eq } from 'drizzle-orm';
+import { and, desc, eq, isNotNull } from 'drizzle-orm';
 import { db, initializeDatabase } from '../../db/client';
-import { settings } from '../../db/schema';
+import { exerciseEntries, settings, workouts } from '../../db/schema';
 import { getExerciseById, listExercises } from '../exercises/repository';
 import { addExerciseToWorkout, completeSet, finishWorkout, getActiveWorkout, startWorkout, updateSet } from './repository';
 
 const LAST_EXERCISE_KEY = 'gtg_last_exercise_id';
+
+export const MICRO_SESSION_NAME = 'Grease the Groove';
+
+/** Exercise ids from finished micro-sessions, most recent first, without duplicates. */
+export async function listRecentMicroSessionExerciseIds(limit = 5): Promise<string[]> {
+  await initializeDatabase();
+  const rows = await db.select({ exerciseId: exerciseEntries.exerciseId })
+    .from(exerciseEntries)
+    .innerJoin(workouts, eq(exerciseEntries.workoutId, workouts.id))
+    .where(and(eq(workouts.name, MICRO_SESSION_NAME), isNotNull(workouts.endedAt)))
+    .orderBy(desc(workouts.startedAt))
+    .limit(100);
+  return [...new Set(rows.map((row) => row.exerciseId))].slice(0, limit);
+}
+
+/** Resolves ids to exercises in the given order; ids without an exercise (archived) are skipped. */
+export function pickRecent<T extends { id: string }>(ids: readonly string[], exercises: readonly T[], limit: number): T[] {
+  const byId = new Map(exercises.map((exercise) => [exercise.id, exercise]));
+  return [...new Set(ids)].flatMap((id) => byId.get(id) ?? []).slice(0, limit);
+}
 
 export async function listMicroSessionExercises(query: string) {
   return listExercises({ query });
@@ -22,7 +42,7 @@ export async function logMicroSession(exerciseId: string, value: number): Promis
   const exercise = await getExerciseById(exerciseId);
   if (!exercise) throw new Error('Exercise not found.');
 
-  const workoutId = await startWorkout('Grease the Groove');
+  const workoutId = await startWorkout(MICRO_SESSION_NAME);
   try {
     const entryId = await addExerciseToWorkout(workoutId, exerciseId);
     const setId = await (async () => {
