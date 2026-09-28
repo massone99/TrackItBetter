@@ -3,8 +3,7 @@ import { db, initializeDatabase } from '../../db/client';
 import { exerciseEntries, exercises, trainingSets, workouts } from '../../db/schema';
 import { buildExerciseCycle, buildExerciseWeek, buildMobilityCycles, buildMobilityWeek, mobilitySecondsForWorkout, type ExerciseCycle, type ExerciseWeek, type MobilityWeek } from './mobility';
 import { buildProgressSnapshot, detectWorkoutRecords, type CompletedSetRow, type CompletedWorkoutRow, type ProgressSnapshot, type WorkoutRecord } from './summary';
-import { buildTrainingTotals, type TrainingTotals } from './trainingTotals';
-import { MOVEMENT_TAGS } from '../exercises/movementCatalog';
+import type { StatsSetRow } from './trainingStats';
 
 /** Load only finalized workouts and sets, then summarize them in the domain layer. */
 export async function getProgressSnapshot(now = new Date()): Promise<ProgressSnapshot> {
@@ -48,29 +47,27 @@ export async function getMobilityCycles(now = new Date()): Promise<ExerciseCycle
   return buildMobilityCycles(await loadCompletedSetRows(), now);
 }
 
-/** Daily and rolling seven-day hold/set aggregates keyed to each workout's local start date. */
-export async function getTrainingTotals(selectedDate = new Date(), threshold = 8): Promise<TrainingTotals> {
+/** Completed working sets of finished workouts, flat, for the statistics screen. */
+export async function getTrainingStatsRows(): Promise<StatsSetRow[]> {
   await initializeDatabase();
-  const catalog = await db.select({
-    id: exercises.id,
-    name: exercises.name,
-    metric: exercises.metric,
-    movementTag: exercises.movementTag,
-    movementGroup: exercises.movementGroup,
-  }).from(exercises).orderBy(asc(exercises.name));
-  const sets = await db.select({
-    exerciseId: exercises.id,
+  return db.select({
+    workoutId: workouts.id,
+    workoutName: workouts.name,
     workoutStartedAt: workouts.startedAt,
+    exerciseId: exercises.id,
+    exerciseName: exercises.name,
+    metric: exercises.metric,
+    movementGroup: exercises.movementGroup,
+    movementTag: exercises.movementTag,
+    reps: trainingSets.reps,
     durationSec: trainingSets.durationSec,
+    addedLoadKg: trainingSets.addedLoadKg,
     rpe: trainingSets.rpe,
-    kind: trainingSets.kind,
   }).from(trainingSets)
     .innerJoin(exerciseEntries, eq(trainingSets.entryId, exerciseEntries.id))
     .innerJoin(exercises, eq(exerciseEntries.exerciseId, exercises.id))
     .innerJoin(workouts, eq(exerciseEntries.workoutId, workouts.id))
-    .where(and(isNotNull(workouts.endedAt), isNotNull(trainingSets.completedAt)));
-  const result = buildTrainingTotals(catalog, sets, MOVEMENT_TAGS, selectedDate, threshold);
-  return result;
+    .where(and(isNotNull(workouts.endedAt), isNotNull(trainingSets.completedAt), eq(trainingSets.kind, 'working')));
 }
 
 async function loadCompletedSetRows(): Promise<CompletedSetRow[]> {

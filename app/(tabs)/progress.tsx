@@ -24,7 +24,7 @@ const copy = {
     loading: 'Gathering your training history…', error: 'Your progress could not be loaded. Try again in a moment.',
     bestKind: { reps: 'Most reps', hold: 'Longest hold', load: 'Heaviest load', estimated1rm: 'Estimated 1RM', distance: 'Farthest distance' },
     dateFirst: 'Earlier', dateLatest: 'Latest', shareBest: 'Share record', shareError: 'Could not create or share the record image.', shareUnavailable: 'Image sharing is unavailable here.',
-    trainingTotals: 'Daily training totals',
+    stats: 'Statistics',
   },
   it: {
     week: 'Ultimi 7 giorni', sessions: 'Sessioni', sets: 'Serie completate', volume: 'Volume di allenamento',
@@ -37,7 +37,7 @@ const copy = {
     loading: 'Caricamento dello storico…', error: 'Impossibile caricare i progressi. Riprova tra poco.',
     bestKind: { reps: 'Più ripetizioni', hold: 'Tenuta più lunga', load: 'Carico maggiore', estimated1rm: '1RM stimato', distance: 'Distanza maggiore' },
     dateFirst: 'Prima', dateLatest: 'Ultima', shareBest: 'Condividi record', shareError: 'Impossibile creare o condividere l’immagine del record.', shareUnavailable: 'La condivisione di immagini non è disponibile qui.',
-    trainingTotals: 'Totali giornalieri',
+    stats: 'Statistiche',
   },
 } as const;
 
@@ -63,7 +63,7 @@ export default function ProgressScreen() {
   return (
     <Screen>
       <PageHeading title={t('progress.title')} subtitle={t('progress.subtitle')} />
-      <ActionButton label={strings.trainingTotals} variant="secondary" icon="time-outline" onPress={() => router.push('/training-totals')} />
+      <ActionButton label={strings.stats} variant="secondary" icon="stats-chart-outline" onPress={() => router.push('/stats')} />
       {snapshot ? <>
         <View style={styles.metrics}>
           <MetricCard title={strings.week} label={strings.sessions} value={snapshot.weekSessions} palette={palette} />
