@@ -10,7 +10,7 @@ const icons: Record<string, [IconName, IconName]> = {
   today: ["sunny-outline", "sunny"],
   log: ["calendar-clear-outline", "calendar-clear"],
   progress: ["trending-up-outline", "trending-up"],
-  library: ["barbell-outline", "barbell"],
+  programs: ["barbell-outline", "barbell"],
   profile: ["person-circle-outline", "person-circle"],
 };
 
@@ -39,8 +39,8 @@ export default function TabLayout() {
     >
       <Tabs.Screen name="today" options={{ title: t("tabs.today") }} />
       <Tabs.Screen name="log" options={{ title: t("tabs.log") }} />
+      <Tabs.Screen name="programs" options={{ title: t("tabs.programs") }} />
       <Tabs.Screen name="progress" options={{ title: t("tabs.progress") }} />
-      <Tabs.Screen name="library" options={{ title: t("tabs.library") }} />
       <Tabs.Screen name="profile" options={{ title: t("tabs.profile") }} />
     </Tabs>
   );

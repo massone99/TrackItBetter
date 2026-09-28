@@ -22,7 +22,6 @@ export default function ProfileScreen() {
 
       <SectionTitle title={t("profile.training")} />
       <ListGroup>
-        <ListRow icon="list-outline" title={t("profile.programs")} onPress={() => router.push("/programs")} />
         <ListRow icon="flag-outline" title={t("profile.goals")} onPress={() => router.push("/goals")} />
         <ListRow icon="notifications-outline" title={t("profile.reminders")} onPress={() => router.push("/reminders")} />
       </ListGroup>

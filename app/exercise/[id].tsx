@@ -57,7 +57,7 @@ export default function ExerciseRoute() {
     if (!exercise) return;
     setConfirmArchive(false);
     await archiveCustomExercise(exercise.id);
-    goBack('/(tabs)/library');
+    goBack({ pathname: '/programs', params: { view: 'exercises' } });
   };
 
   if (loading) return <Screen><ActivityIndicator color={palette.accentStrong} /></Screen>;

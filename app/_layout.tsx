@@ -76,7 +76,6 @@ function AppNavigator() {
         <Stack.Screen name="skill/[chainId]" />
         <Stack.Screen name="program/[id]" />
         <Stack.Screen name="program/user/[id]" />
-        <Stack.Screen name="programs" />
         <Stack.Screen name="program-builder" />
         <Stack.Screen name="bodyweight" />
         <Stack.Screen name="data" />

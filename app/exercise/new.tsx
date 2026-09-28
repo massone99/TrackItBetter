@@ -59,7 +59,7 @@ export default function NewExerciseRoute() {
       });
       if (addTo) {
         await addExerciseToWorkout(addTo, id);
-        goBack(addTo ? { pathname: '/workout/[id]', params: { id: addTo } } : '/(tabs)/library');
+        goBack(addTo ? { pathname: '/workout/[id]', params: { id: addTo } } : { pathname: '/programs', params: { view: 'exercises' } });
       } else {
         router.replace({ pathname: '/exercise/[id]', params: { id } });
       }
