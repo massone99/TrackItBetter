@@ -16,7 +16,8 @@
     "test": "jest --passWithNoTests",
     "db:generate": "drizzle-kit generate",
     "postinstall": "patch-package",
-    "build:apk": "scripts/build-apk.sh"
+    "build:apk": "bash scripts/build-apk.sh",
+    "version:bump": "node scripts/bump-version.mjs"
   },
   "dependencies": {
     "@expo-google-fonts/barlow": "^0.4.1",
