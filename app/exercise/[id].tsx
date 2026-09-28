@@ -6,9 +6,11 @@ import type { Exercise } from '../../src/db/schema';
 import { openReferenceVideo, ReferenceLinkSheet } from '../../src/features/exercises/ReferenceLinkSheet';
 import { archiveCustomExercise, getExerciseById, setExerciseFavourite } from '../../src/features/exercises/repository';
 import { addExerciseToWorkout, getActiveWorkout, startWorkout } from '../../src/features/session/repository';
-import { getExerciseCycle, getExerciseWeekStats } from '../../src/features/analytics/repository';
+import { getExerciseCycle, getExerciseEstimate, getExerciseWeekStats } from '../../src/features/analytics/repository';
+import type { ExerciseEstimate } from '../../src/features/analytics/estimates';
 import type { ExerciseCycle, ExerciseWeek } from '../../src/features/analytics/mobility';
-import { formatMinutes } from '../../src/shared/utils/format';
+import { formatMinutes, formatNumber } from '../../src/shared/utils/format';
+import { formatRpe } from '../../src/domain';
 import { ActionButton, Body, Icon, IconButton, ListGroup, ListRow, PageHeading, Screen, SectionTitle, Sheet, Text } from '../../src/shared/components/ui';
 import { useTheme } from '../../src/shared/theme/ThemeProvider';
 import { fonts } from '../../src/shared/theme/typography';
@@ -34,6 +36,7 @@ export default function ExerciseRoute() {
   const [loading, setLoading] = useState(true);
   const [week, setWeek] = useState<ExerciseWeek | null>(null);
   const [cycle, setCycle] = useState<{ current: ExerciseCycle | null; previous: ExerciseCycle | null } | null>(null);
+  const [estimate, setEstimate] = useState<ExerciseEstimate | null>(null);
   const [editingReference, setEditingReference] = useState(false);
   const [confirmArchive, setConfirmArchive] = useState(false);
 
@@ -44,6 +47,7 @@ export default function ExerciseRoute() {
     // Mobility and stretching count their own week from the first day trained; the rest the last 7 days.
     if (found?.category === 'mobility') setCycle(await getExerciseCycle(found.id).catch(() => null));
     else if (found) setWeek(await getExerciseWeekStats(found.id, found.metric).catch(() => null));
+    if (found) setEstimate(await getExerciseEstimate(found.id).catch(() => null));
   }, [id]);
 
   useFocusEffect(useCallback(() => { void reload(); }, [reload]));
@@ -166,6 +170,31 @@ export default function ExerciseRoute() {
         </View>
       ) : null}
 
+      {estimate ? (
+        <View style={styles.section}>
+          <SectionTitle title={t('estimate.title')} />
+          {estimate.latest ? (
+            <>
+              <View style={[styles.week, { backgroundColor: palette.surface, borderColor: palette.border }]}>
+                <WeekStat
+                  value={formatEstimate(estimate.kind, estimate.latest.value)}
+                  label={`${t('estimate.latest')} · ${t(estimate.kind === 'reps' ? 'estimate.sourceReps' : 'estimate.sourceHold', { done: estimate.kind === 'reps' ? estimate.latest.done : formatMinutes(estimate.latest.done), rpe: formatRpe(estimate.latest.rpe) })}`}
+                />
+                {estimate.recentBest ? <WeekStat value={formatEstimate(estimate.kind, estimate.recentBest.value)} label={t('estimate.recentBest')} /> : null}
+              </View>
+              <Body>{t('estimate.body')}</Body>
+              <ListGroup>
+                <ListRow
+                  icon="stats-chart-outline"
+                  title={t('estimate.seeTrend')}
+                  onPress={() => router.push({ pathname: '/stats', params: { exerciseId: exercise.id, metric: estimate.kind === 'reps' ? 'estMaxReps' : 'estMaxHold' } })}
+                />
+              </ListGroup>
+            </>
+          ) : <Body>{t('estimate.hint')}</Body>}
+        </View>
+      ) : null}
+
       <ActionButton icon="add" label={t('exercise.addToWorkout')} onPress={() => void beginWithExercise()} />
       {exercise.isCustom ? (
         <ActionButton icon="archive-outline" label={t('exercise.removeFromLibrary')} variant="danger" onPress={() => setConfirmArchive(true)} />
@@ -188,6 +217,10 @@ export default function ExerciseRoute() {
       </Sheet>
     </Screen>
   );
+}
+
+function formatEstimate(kind: ExerciseEstimate['kind'], value: number): string {
+  return kind === 'reps' ? `${formatNumber(Math.round(value * 2) / 2)} reps` : formatMinutes(value);
 }
 
 function WeekStat({ value, label }: { value: string; label: string }) {
