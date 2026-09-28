@@ -29,3 +29,11 @@ export function readBooleanPreference(key: string, fallback: boolean): boolean {
 
 /** Asks for RPE right after a set is completed (on by default). */
 export const RPE_PROMPT_KEY = "workout.rpePrompt";
+
+export const ANIMATION_PREFERENCE_KEY = "ui.animationSpeed";
+export type AnimationSpeed = "normal" | "fast" | "off";
+
+export function readAnimationPreference(): AnimationSpeed {
+  const value = readPreference(ANIMATION_PREFERENCE_KEY);
+  return value === "fast" || value === "off" ? value : "normal";
+}

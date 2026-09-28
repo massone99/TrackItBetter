@@ -6,6 +6,7 @@ import { KeyboardLift, KeyboardScroll } from "./keyboard";
 import { useAppInsets } from "../layout/useAppInsets";
 import { useTranslation } from "react-i18next";
 import { useTheme } from "../theme/ThemeProvider";
+import { useAnimationSettings } from "../settings/AnimationProvider";
 import { fonts } from "../theme/typography";
 import { Icon, IconName } from "./Icon";
 import { Text } from "./Text";
@@ -373,9 +374,10 @@ export function Sheet({ visible, onClose, title, body, children }: PropsWithChil
   const { t } = useTranslation();
   const { palette } = useTheme();
   const insets = useAppInsets();
+  const { speed, reducedMotion } = useAnimationSettings();
   return (
     // Translucent bars give the keyboard controller correct coordinates inside an edge-to-edge Modal.
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose} statusBarTranslucent navigationBarTranslucent>
+    <Modal visible={visible} transparent animationType={reducedMotion || speed === "off" ? "none" : speed === "fast" ? "fade" : "slide"} onRequestClose={onClose} statusBarTranslucent navigationBarTranslucent>
       <KeyboardLift style={styles.flexFill}>
         <Pressable accessibilityRole="button" accessibilityLabel={t("common.close")} style={[styles.sheetBackdrop, { paddingTop: insets.top + 12 }]} onPress={onClose}>
           <Pressable style={[styles.sheet, { backgroundColor: palette.surface, paddingBottom: insets.bottom + 20, maxHeight: "100%" }]} onPress={() => undefined}>

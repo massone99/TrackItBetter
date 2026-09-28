@@ -18,6 +18,7 @@ import {
 import { getProgressPhotoFile, preparePhotoDirectory } from '../photos/repository';
 import { getPoseCaptureFile, preparePoseCaptureDirectory } from '../pose/repository';
 import { getFormCheckVideoFile } from '../media/formVideos';
+import { MOVEMENT_GROUP_IDS, MOVEMENT_TAGS, canonicalizeMovementTag, normalizeExerciseClassification } from '../exercises/movementCatalog';
 
 const timestamp = z.string().datetime({ offset: true });
 const nullableTimestamp = timestamp.nullable();
@@ -31,6 +32,9 @@ const exerciseSchema = z.object({
   metric: z.enum(['reps', 'time', 'reps_load', 'time_load', 'distance']),
   category: z.string(),
   movementPattern: nullableString,
+  // Added in schema v6; old backups omit both user-editable classifications.
+  movementTag: nullableString.optional().refine((tag) => tag == null || (MOVEMENT_TAGS as readonly string[]).includes(canonicalizeMovementTag(tag) ?? '')),
+  movementGroup: z.enum(MOVEMENT_GROUP_IDS).nullable().optional(),
   primaryMuscles: z.string(),
   secondaryMuscles: z.string(),
   equipment: z.string(),
@@ -375,7 +379,10 @@ export async function importBackup(input: string): Promise<void> {
       await tx.insert(progressionChains).values(rows);
     });
     await insertInChunks(data.exercises, async (rows) => {
-      await tx.insert(exercises).values(rows.map((row) => ({ ...row, createdAt: date(row.createdAt) })));
+      await tx.insert(exercises).values(rows.map((row) => ({
+        ...normalizeExerciseClassification(row),
+        createdAt: date(row.createdAt),
+      })));
     });
     await insertInChunks(data.levelCriteria, async (rows) => {
       await tx.insert(levelCriteria).values(rows);

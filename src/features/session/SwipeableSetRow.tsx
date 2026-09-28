@@ -16,6 +16,7 @@ import { Icon, Text, tapFeedback, type IconName } from '../../shared/components/
 import { useTheme } from '../../shared/theme/ThemeProvider';
 import { fonts } from '../../shared/theme/typography';
 import { useScaledStyles } from '../../shared/theme/useScaledStyles';
+import { useAnimationSettings } from '../../shared/settings/AnimationProvider';
 
 /** How far a row must travel before letting go triggers its action. */
 const TRIGGER = 64;
@@ -95,26 +96,30 @@ function SwipeAction({ progress, align, color, icon, label }: {
 
 /** Springs its child up and back whenever `active` turns on (not on first render). */
 export function PopOnActivate({ active, children }: PropsWithChildren<{ active: boolean }>) {
-  const reduceMotion = useReducedMotion();
+  const systemReduceMotion = useReducedMotion();
+  const { reducedMotion, speed } = useAnimationSettings();
+  const reduceMotion = systemReduceMotion || reducedMotion || speed === 'off';
   const scale = useSharedValue(1);
   const previous = useRef(active);
   useEffect(() => {
     if (active && !previous.current && !reduceMotion) {
-      scale.value = withSequence(withTiming(1.28, { duration: 110 }), withSpring(1, { damping: 9, stiffness: 220 }));
+      scale.value = withSequence(withTiming(1.28, { duration: speed === 'fast' ? 80 : 110 }), withSpring(1, { damping: 9, stiffness: 220 }));
     }
     previous.current = active;
-  }, [active, reduceMotion, scale]);
+  }, [active, reduceMotion, scale, speed]);
   const style = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
   return <Animated.View style={style}>{children}</Animated.View>;
 }
 
 /** Tinted backdrop that fades in when a set is completed, so the row fills rather than flips. */
 export function DoneTint({ done, color }: { done: boolean; color: string }) {
-  const reduceMotion = useReducedMotion();
+  const systemReduceMotion = useReducedMotion();
+  const { reducedMotion, speed } = useAnimationSettings();
+  const reduceMotion = systemReduceMotion || reducedMotion || speed === 'off';
   const progress = useSharedValue(done ? 1 : 0);
   useEffect(() => {
-    progress.value = reduceMotion ? (done ? 1 : 0) : withTiming(done ? 1 : 0, { duration: 260 });
-  }, [done, progress, reduceMotion]);
+    progress.value = reduceMotion ? (done ? 1 : 0) : withTiming(done ? 1 : 0, { duration: speed === 'fast' ? 140 : 260 });
+  }, [done, progress, reduceMotion, speed]);
   const style = useAnimatedStyle(() => ({ opacity: progress.value }));
   return <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: color }, style]} />;
 }

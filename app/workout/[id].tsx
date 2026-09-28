@@ -63,6 +63,7 @@ import { useTheme } from '../../src/shared/theme/ThemeProvider';
 import { fonts } from '../../src/shared/theme/typography';
 import { formatClock, formatNumber } from '../../src/shared/utils/format';
 import { useScaledStyles } from '../../src/shared/theme/useScaledStyles';
+import { useAnimationSettings } from '../../src/shared/settings/AnimationProvider';
 
 const VOICE_CUES_KEY = 'workout.voice_cues.enabled';
 /** Set once the first set has been swiped, which hides the gesture hint. */
@@ -73,6 +74,10 @@ export default function WorkoutScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { t, i18n } = useTranslation();
   const { palette } = useTheme();
+  const { duration } = useAnimationSettings();
+  const exerciseEntering = duration(260) ? FadeInDown.duration(duration(260)) : undefined;
+  const itemExiting = duration(200) ? FadeOutLeft.duration(duration(200)) : undefined;
+  const rowLayout = duration(240) ? LinearTransition.duration(duration(240)) : undefined;
   const [workout, setWorkout] = useState<ActiveWorkout | null>(null);
   const [previous, setPrevious] = useState<Map<string, PreviousPerformance>>(new Map());
   const [loading, setLoading] = useState(true);
@@ -415,14 +420,14 @@ export default function WorkoutScreen() {
         ) : null}
 
         {swipeHint && workout.exercises.some((exercise) => exercise.sets.length > 0) ? (
-          <Animated.View exiting={FadeOutLeft.duration(200)} style={[styles.swipeHint, { backgroundColor: palette.accentSoft }]}>
+          <Animated.View exiting={itemExiting} style={[styles.swipeHint, { backgroundColor: palette.accentSoft }]}>
             <Icon name="swap-horizontal" size={18} color={palette.accentStrong} />
             <Text style={[styles.swipeHintText, { color: palette.accentStrong }]}>{t('logger.swipeHint')}</Text>
           </Animated.View>
         ) : null}
         <LayoutAnimationConfig skipEntering>
         {workout.exercises.map((exercise) => (
-          <Animated.View key={exercise.entryId} entering={FadeInDown.duration(260)} exiting={FadeOutLeft.duration(200)} layout={LinearTransition.springify().damping(20)}>
+          <Animated.View key={exercise.entryId} entering={exerciseEntering} exiting={itemExiting} layout={rowLayout}>
           <ExerciseCard
             exercise={exercise}
             previous={previous.get(exercise.exerciseId)}
@@ -448,7 +453,7 @@ export default function WorkoutScreen() {
         </LayoutAnimationConfig>
 
         {workout.exercises.length > 0 ? (
-          <Animated.View layout={LinearTransition.springify().damping(20)} style={styles.footerActions}>
+          <Animated.View layout={rowLayout} style={styles.footerActions}>
             <ActionButton icon="add" label={t('workout.addExercise')} secondary onPress={() => setPickerOpen(true)} />
             <ActionButton icon="flag-outline" label={t('workout.finish')} onPress={() => setFinishOpen(true)} />
             <ActionButton icon="close-circle-outline" label={t('workout.discard')} variant="ghost" onPress={() => setDiscardOpen(true)} />
@@ -579,6 +584,11 @@ function ExerciseCard({ exercise, previous, hold, onChange, onSetValue, onComple
   const styles = useScaledStyles(baseStyles);
   const { t } = useTranslation();
   const { palette } = useTheme();
+  const { duration } = useAnimationSettings();
+  const setEntering = duration(220) ? FadeInDown.duration(duration(220)) : undefined;
+  const itemExiting = duration(200) ? FadeOutLeft.duration(duration(200)) : undefined;
+  const rowLayout = duration(240) ? LinearTransition.duration(duration(240)) : undefined;
+  const checkEntering = duration(180) ? ZoomIn.duration(duration(180)) : undefined;
   const timed = exercise.metric === 'time' || exercise.metric === 'time_load';
   const distance = exercise.metric === 'distance';
   const loaded = exercise.metric === 'reps_load' || exercise.metric === 'time_load';
@@ -613,7 +623,7 @@ function ExerciseCard({ exercise, previous, hold, onChange, onSetValue, onComple
         const stored = timed ? set.durationSec ?? 0 : distance ? set.distanceM ?? 0 : set.reps ?? 0;
         const value = holding && hold ? holdDisplay(hold) : timed ? formatClock(stored) : distance ? formatNumber(stored) : String(stored);
         return (
-          <Animated.View key={set.id} entering={FadeInDown.duration(220)} exiting={FadeOutLeft.duration(200)} layout={LinearTransition.springify().damping(20)} style={styles.setBlock}>
+          <Animated.View key={set.id} entering={setEntering} exiting={itemExiting} layout={rowLayout} style={styles.setBlock}>
             <DoneTint done={done} color={palette.accentSoft} />
             <SwipeableSetRow
               done={done}
@@ -651,7 +661,7 @@ function ExerciseCard({ exercise, previous, hold, onChange, onSetValue, onComple
               <View style={[styles.colAction, styles.rowActions]}>
                 <IconButton icon="ellipsis-vertical" label={t('logger.setOptions', { number: set.index })} tone="plain" size={34} onPress={() => onSetOptions(set)} />
                 {done ? (
-                  <Animated.View entering={ZoomIn.springify().damping(12)}>
+                  <Animated.View entering={checkEntering}>
                     <Pressable
                       accessibilityRole="button"
                       accessibilityLabel={t('workout.setCompleted')}

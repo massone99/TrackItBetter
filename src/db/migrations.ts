@@ -142,6 +142,18 @@ CREATE INDEX IF NOT EXISTS pose_capture_position_idx ON pose_capture(position_id
 PRAGMA user_version = 5;
 `;
 
+const movementClassificationSchema = `
+ALTER TABLE exercise ADD COLUMN movement_tag TEXT;
+ALTER TABLE exercise ADD COLUMN movement_group TEXT;
+UPDATE exercise SET movement_group = CASE
+  WHEN movement_pattern IN ('horizontal-push', 'vertical-push', 'horizontal-pull', 'vertical-pull', 'squat') THEN movement_pattern
+  WHEN movement_pattern = 'single-leg-squat' THEN 'squat'
+  WHEN id IN ('glute-bridge', 'single-leg-glute-bridge', 'glute-bridge-progression') THEN 'hinge'
+  ELSE NULL
+END;
+PRAGMA user_version = 6;
+`;
+
 /** Applies numbered, local-first SQLite schema migrations once per database. */
 export async function migrateDatabase(database: SQLiteDatabase): Promise<void> {
   await database.execAsync('PRAGMA foreign_keys = ON;');
@@ -176,6 +188,12 @@ export async function migrateDatabase(database: SQLiteDatabase): Promise<void> {
   if (version < 5) {
     await database.withTransactionAsync(async () => {
       await database.execAsync(poseCapturesSchema);
+    });
+  }
+
+  if (version < 6) {
+    await database.withTransactionAsync(async () => {
+      await database.execAsync(movementClassificationSchema);
     });
   }
 }

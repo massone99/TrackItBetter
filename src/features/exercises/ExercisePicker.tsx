@@ -9,6 +9,7 @@ import { useTheme } from '../../shared/theme/ThemeProvider';
 import { fonts } from '../../shared/theme/typography';
 import { useScaledStyles } from '../../shared/theme/useScaledStyles';
 import { listExercises } from './repository';
+import { useAnimationSettings } from '../../shared/settings/AnimationProvider';
 
 export type ExerciseChoice = { id: string; name: string; metric: string; category: string; level: number | null };
 
@@ -28,6 +29,7 @@ export function ExercisePicker({ visible, title, subtitle, initialCategory = nul
   const { t } = useTranslation();
   const { palette } = useTheme();
   const insets = useAppInsets();
+  const { speed, reducedMotion } = useAnimationSettings();
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState<string | null>(initialCategory);
   const [choices, setChoices] = useState<ExerciseChoice[]>([]);
@@ -44,7 +46,7 @@ export function ExercisePicker({ visible, title, subtitle, initialCategory = nul
   const filtered = choices.filter((choice) => !category || choice.category === category).slice(0, 80);
 
   return (
-    <Modal visible={visible} animationType="slide" onRequestClose={onClose} statusBarTranslucent navigationBarTranslucent>
+    <Modal visible={visible} animationType={reducedMotion || speed === 'off' ? 'none' : speed === 'fast' ? 'fade' : 'slide'} onRequestClose={onClose} statusBarTranslucent navigationBarTranslucent>
       <View style={[styles.root, { backgroundColor: palette.background, paddingTop: Math.max(insets.top, 14) + 10 }]}>
         <View style={styles.header}>
           <View style={styles.flex}>

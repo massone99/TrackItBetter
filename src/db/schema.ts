@@ -17,6 +17,8 @@ export const exercises = sqliteTable(
     }).notNull(),
     category: text('category').notNull(),
     movementPattern: text('movement_pattern'),
+    movementTag: text('movement_tag'),
+    movementGroup: text('movement_group'),
     primaryMuscles: text('primary_muscles').notNull().default('[]'),
     secondaryMuscles: text('secondary_muscles').notNull().default('[]'),
     equipment: text('equipment').notNull().default('[]'),

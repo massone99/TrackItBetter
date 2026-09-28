@@ -8,11 +8,13 @@ import { UI_SCALES, type UiScale } from "../../src/shared/theme/scale";
 import i18n, { setAppLanguage } from "../../src/shared/i18n";
 import { useTheme } from "../../src/shared/theme/ThemeProvider";
 import { useScaledStyles } from "../../src/shared/theme/useScaledStyles";
+import { useAnimationSettings } from "../../src/shared/settings/AnimationProvider";
 
 export default function ProfileScreen() {
   const styles = useScaledStyles(baseStyles);
   const { t } = useTranslation();
   const { preference, setMode, palette, scale, setScale } = useTheme();
+  const { speed, setSpeed, reducedMotion } = useAnimationSettings();
   const [rpePrompt, setRpePrompt] = useState(() => readBooleanPreference(RPE_PROMPT_KEY, true));
   const sizeLabels = [t("profile.sizeCompact"), t("profile.sizeSnug"), t("profile.sizeDefault"), t("profile.sizeLarge")];
   const language = i18n.language.startsWith("it") ? "it" : "en";
@@ -47,6 +49,17 @@ export default function ProfileScreen() {
           options={UI_SCALES.map((value, index) => ({ value: String(value), label: sizeLabels[index] }))}
         />
         <Body>{t("profile.interfaceSizeHint")}</Body>
+        <Label style={styles.spaced}>{t("profile.animation")}</Label>
+        <SegmentedControl<string>
+          value={speed}
+          onChange={(next) => setSpeed(next as "normal" | "fast" | "off")}
+          options={[
+            { value: "normal", label: t("profile.animationNormal") },
+            { value: "fast", label: t("profile.animationFast") },
+            { value: "off", label: t("profile.animationOff") },
+          ]}
+        />
+        {reducedMotion ? <Body>{t("profile.animationReducedMotion")}</Body> : null}
       </Card>
       <ListGroup>
         <SwitchRow
