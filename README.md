@@ -49,6 +49,16 @@ npm test -- --ci
 npx expo-doctor
 ```
 
+`npm test` also runs two formal interface checks:
+
+- `src/shared/components/__tests__/uiStandards.test.ts` parses every screen and component and fails when a
+  `Pressable` has no `accessibilityRole`, a `TextInput` has no accessible name, an accessible name is
+  hard-coded instead of translated, a destructive confirmation uses `Alert.alert` instead of `Sheet`, or a
+  pressable `ListRow` shows a trailing icon that ignores taps.
+- `src/shared/i18n/__tests__/resources.test.ts` checks that English and Italian define the same keys, that
+  every `t('…')` key used in the code exists, that counted phrases have singular and plural forms, and that
+  every pose position, joint and reset option is named.
+
 ## Design
 
 "Chalk, steel, birch": a cool chalk background, steel-ink text, gym-mat blue for actions and birch for

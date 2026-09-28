@@ -2,8 +2,10 @@ import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { StyleSheet, useWindowDimensions, View } from 'react-native';
-import { findPosition, nextLevelTarget } from '../../src/domain/pose';
+import { findPosition, nextLevelTarget, POSITIONS, type JointAngleId } from '../../src/domain/pose';
+import { OverlayLegend, useOverlaySettings } from '../../src/features/pose/OverlayLegend';
 import { LevelBadge } from '../../src/features/pose/LevelBadge';
+import { JointPicker, useJointSelection } from '../../src/features/pose/JointPicker';
 import { PoseCanvas } from '../../src/features/pose/PoseCanvas';
 import { deletePoseCapture, listPoseCaptures, type PoseCapture } from '../../src/features/pose/repository';
 import {
@@ -37,6 +39,9 @@ export default function PoseHistoryScreen() {
   const [view, setView] = useState<'latest' | 'compare'>('latest');
   const [deleting, setDeleting] = useState<PoseCapture | null>(null);
   const position = findPosition(positionId);
+  const [jointIds, setJointIds] = useJointSelection(position ?? POSITIONS[0]);
+  const [overlay, setOverlay] = useOverlaySettings();
+  const [focused, setFocused] = useState<JointAngleId | null>(null);
 
   const reload = useCallback(async () => setCaptures(await listPoseCaptures(positionId)), [positionId]);
   useFocusEffect(useCallback(() => { void reload(); }, [reload]));
@@ -59,7 +64,9 @@ export default function PoseHistoryScreen() {
         pose={capture.pose}
         highlight={measurement.angle}
         label={t('pose.degrees', { value: Math.round(capture.value) })}
-        angles={measurement.joints?.map((joint) => ({ ...joint, name: t(`pose.jointsShort.${joint.id}`), value: t('pose.degrees', { value: Math.round(joint.value) }) }))}
+        settings={overlay}
+        focused={focused}
+        angles={measurement.joints?.filter((joint) => jointIds.includes(joint.id)).map((joint) => ({ ...joint, name: t(`pose.jointsShort.${joint.id}`), value: t('pose.degrees', { value: Math.round(joint.value) }) }))}
         maxWidth={width}
         maxHeight={width === contentWidth ? 440 : 300}
         editable={false}
@@ -104,6 +111,7 @@ export default function PoseHistoryScreen() {
             <Trend captures={captures ?? []} better={position.better} />
           </Card>
 
+          <JointPicker position={position} selected={jointIds} onChange={setJointIds} />
           {first ? (
             <SegmentedControl value={view} onChange={setView} options={[{ value: 'latest', label: date(latest) }, { value: 'compare', label: t('pose.compare') }]} />
           ) : null}
@@ -113,6 +121,15 @@ export default function PoseHistoryScreen() {
               <View style={styles.compareItem}>{canvas(latest, (contentWidth - 10) / 2)}<Label style={styles.centerText}>{date(latest)}</Label></View>
             </View>
           ) : canvas(latest, contentWidth)}
+          <OverlayLegend
+            angles={(position.measure(latest.pose, position.sideAware ? (latest.side as 'left' | 'right' | null) : null).joints ?? [])
+              .filter((joint) => jointIds.includes(joint.id))
+              .map((joint) => ({ id: joint.id, name: t(`pose.jointsShort.${joint.id}`), value: t('pose.degrees', { value: Math.round(joint.value) }) }))}
+            settings={overlay}
+            focused={focused}
+            onSettings={setOverlay}
+            onFocus={setFocused}
+          />
 
           <SectionTitle title={t('pose.history')} />
           <ListGroup>

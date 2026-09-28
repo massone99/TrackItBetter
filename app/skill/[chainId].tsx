@@ -70,7 +70,7 @@ export default function SkillScreen() {
               <View style={[styles.marker, { backgroundColor: palette.accent }]}><Text style={{ color: palette.accentText, fontSize: 12, fontWeight: '900' }}>{levelNumber}</Text></View>
                 {index < chain.levels.length - 1 && <View style={[styles.connector, { backgroundColor: palette.border }]} />}
               </View>
-              <Pressable onPress={() => router.push({ pathname: '/exercise/[id]', params: { id: level.id } })} style={styles.levelContent}>
+              <Pressable accessibilityRole="button" onPress={() => router.push({ pathname: '/exercise/[id]', params: { id: level.id } })} style={styles.levelContent}>
                 <Card style={styles.levelCard}>
                   <Label>{t('progression.level', { number: levelNumber })}</Label>
                   <View style={styles.levelTitle}><Heading style={styles.exerciseName}>{level.name}</Heading><Icon name="chevron-forward" size={18} color={palette.textMuted} /></View>

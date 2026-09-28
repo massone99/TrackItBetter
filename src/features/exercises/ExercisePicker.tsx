@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Modal, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { Modal, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Body, Chip, Heading, Icon, IconButton, ListRow } from '../../shared/components/ui';
+import { Body, Chip, Heading, Icon, IconButton, ListRow, tapFeedback } from '../../shared/components/ui';
 import { KeyboardScroll } from '../../shared/components/keyboard';
 import { iconForCategory } from '../../shared/components/categoryIcons';
 import { useTheme } from '../../shared/theme/ThemeProvider';
@@ -77,7 +77,17 @@ export function ExercisePicker({ visible, title, subtitle, initialCategory = nul
               title={exercise.name}
               subtitle={[t(`library.category.${exercise.category}`), t(`metric.${exercise.metric}`), exercise.level ? t('progression.level', { number: exercise.level }) : null].filter(Boolean).join(' · ')}
               onPress={() => onChoose(exercise)}
-              trailing={<Icon name="add-circle" size={24} color={palette.accentStrong} />}
+              // The add icon sits beside the row's touch area, so it needs its own press handler.
+              trailing={(
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={t('logger.addNamed', { name: exercise.name })}
+                  hitSlop={10}
+                  onPress={() => { tapFeedback(); onChoose(exercise); }}
+                >
+                  <Icon name="add-circle" size={28} color={palette.accentStrong} />
+                </Pressable>
+              )}
             />
           ))}
         </KeyboardScroll>
@@ -93,7 +103,7 @@ const baseStyles = StyleSheet.create({
   title: { fontFamily: fonts.display, fontSize: 34, lineHeight: 38 },
   searchBox: { flexDirection: 'row', alignItems: 'center', gap: 10, marginHorizontal: 20, marginTop: 16, paddingHorizontal: 14, borderWidth: 1, borderRadius: 14, minHeight: 50 },
   searchInput: { flex: 1, fontFamily: fonts.body, fontSize: 16, minHeight: 48, outlineWidth: 0 },
-  chipScroll: { flexGrow: 0, marginTop: 12 },
-  chips: { gap: 8, paddingHorizontal: 20 },
+  chipScroll: { flexGrow: 0, flexShrink: 0, marginTop: 12 },
+  chips: { gap: 8, paddingHorizontal: 20, paddingVertical: 4, alignItems: 'center' },
   list: { paddingHorizontal: 8, paddingTop: 8 },
 });

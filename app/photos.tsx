@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { Alert, Image, Pressable, StyleSheet, TextInput, View } from 'react-native';
 import { Text } from '../src/shared/components/Text';
 import { addProgressPhoto, deleteProgressPhoto, listProgressPhotos, type ProgressPhoto } from '../src/features/photos/repository';
-import { ActionButton, Body, Card, Heading, PageHeading, Screen } from '../src/shared/components/ui';
+import { ActionButton, Body, Card, Heading, PageHeading, Screen, Sheet } from '../src/shared/components/ui';
 import { useTheme } from '../src/shared/theme/ThemeProvider';
 import { useScaledStyles } from '../src/shared/theme/useScaledStyles';
 
@@ -25,6 +25,7 @@ export default function ProgressPhotosScreen() {
   const [photos, setPhotos] = useState<ProgressPhoto[]>([]);
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
+  const [deleting, setDeleting] = useState<ProgressPhoto | null>(null);
   const [compareIds, setCompareIds] = useState<string[]>([]);
   const [comparePercent, setComparePercent] = useState(50);
   const [compareWidth, setCompareWidth] = useState(0);
@@ -74,14 +75,7 @@ export default function ProgressPhotosScreen() {
     }
   };
 
-  const confirmDelete = (photo: ProgressPhoto) => Alert.alert(
-    t('photos.deleteTitle'),
-    t('photos.deleteBody'),
-    [
-      { text: t('common.cancel'), style: 'cancel' },
-      { text: t('photos.delete'), style: 'destructive', onPress: () => void deleteProgressPhoto(photo.id).then(refresh) },
-    ],
-  );
+  const confirmDelete = (photo: ProgressPhoto) => setDeleting(photo);
 
   return (
     <Screen>
@@ -146,6 +140,14 @@ export default function ProgressPhotosScreen() {
           ><Text style={{ color: compareIds.includes(photo.id) ? palette.accentText : palette.text, fontWeight: '800' }}>{compareIds.includes(photo.id) ? compareCopy.selected : compareCopy.select}</Text></Pressable> : null}
         </Card>
       ))}
+      <Sheet visible={deleting !== null} onClose={() => setDeleting(null)} title={t('photos.deleteTitle')} body={t('photos.deleteBody')}>
+        <ActionButton icon="trash-outline" label={t('photos.delete')} variant="danger" onPress={() => {
+          const photo = deleting;
+          setDeleting(null);
+          if (photo) void deleteProgressPhoto(photo.id).then(refresh);
+        }} />
+        <ActionButton label={t('common.cancel')} secondary onPress={() => setDeleting(null)} />
+      </Sheet>
     </Screen>
   );
 }

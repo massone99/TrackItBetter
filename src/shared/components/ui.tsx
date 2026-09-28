@@ -1,6 +1,6 @@
 import * as Haptics from "expo-haptics";
 import { router, useSegments } from "expo-router";
-import { PropsWithChildren, ReactNode, useState } from "react";
+import { PropsWithChildren, ReactNode, useEffect, useState } from "react";
 import { Modal, Platform, Pressable, ScrollView, StyleSheet, Switch, TextInput, TextInputProps, TextProps, View, ViewProps } from "react-native";
 import { KeyboardLift, KeyboardScroll } from "./keyboard";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -10,6 +10,7 @@ import { fonts } from "../theme/typography";
 import { Icon, IconName } from "./Icon";
 import { Text } from "./Text";
 import { useScaledStyles } from "../theme/useScaledStyles";
+import { parseNumberInput } from "../utils/format";
 
 export { Text } from "./Text";
 export { Icon } from "./Icon";
@@ -21,18 +22,24 @@ export function tapFeedback(kind: "light" | "success" = "light") {
   else void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => undefined);
 }
 
-export function Screen({ children, contentContainerStyle }: PropsWithChildren<{ contentContainerStyle?: ViewProps["style"] }>) {
+/** Scrolling page. `overlay` is drawn above the scroll view (e.g. a toast), not inside it. */
+export function Screen({ children, contentContainerStyle, overlay }: PropsWithChildren<{ contentContainerStyle?: ViewProps["style"]; overlay?: ReactNode }>) {
   const styles = useScaledStyles(baseStyles);
   const { palette } = useTheme();
   const insets = useSafeAreaInsets();
   return (
-    <KeyboardScroll
-      style={{ backgroundColor: palette.background }}
-      contentContainerStyle={[styles.screen, { paddingTop: Math.max(insets.top, 14) + 10, paddingBottom: insets.bottom + 36 }, contentContainerStyle]}
-      showsVerticalScrollIndicator={false}
-    >
-      <View style={styles.column}>{children}</View>
-    </KeyboardScroll>
+    <View style={[styles.flexFill, { backgroundColor: palette.background }]}>
+      <KeyboardScroll
+        style={{ backgroundColor: palette.background }}
+        contentContainerStyle={[styles.screen, { paddingTop: Math.max(insets.top, 14) + 10, paddingBottom: insets.bottom + 36 }, contentContainerStyle]}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.column}>{children}</View>
+      </KeyboardScroll>
+      {/* The status bar is transparent: this strip keeps scrolled content from showing under its icons. */}
+      <View pointerEvents="none" style={[styles.statusScrim, { height: insets.top, backgroundColor: palette.background }]} />
+      {overlay}
+    </View>
   );
 }
 
@@ -113,18 +120,20 @@ export function ActionButton({ label, onPress, secondary = false, variant, icon,
   );
 }
 
-export function IconButton({ icon, onPress, label, tone = "muted", size = 40 }: {
+export function IconButton({ icon, onPress, label, tone = "muted", size = 40, color: colorOverride }: {
   icon: IconName;
   onPress: () => void;
   label: string;
   tone?: "muted" | "accent" | "plain";
   size?: number;
+  /** Icon colour for plain buttons drawn on a coloured surface. */
+  color?: string;
 }) {
   const styles = useScaledStyles(baseStyles);
   const { palette, scale } = useTheme();
   const box = Math.round(size * scale);
   const background = tone === "accent" ? palette.accent : tone === "muted" ? palette.surfaceMuted : "transparent";
-  const color = tone === "accent" ? palette.accentText : palette.text;
+  const color = colorOverride ?? (tone === "accent" ? palette.accentText : palette.text);
   return (
     <Pressable
       accessibilityRole="button"
@@ -220,11 +229,11 @@ export function Stepper({ label, value, display, step = 1, min = 0, max = 999, l
     <View style={layout === "row" ? styles.stepperRow : styles.stepper}>
       <Text style={[layout === "row" ? styles.stepperRowLabel : styles.stepperLabel, { color: layout === "row" ? palette.text : palette.textMuted }]}>{label}</Text>
       <View style={styles.stepperControls}>
-        <Pressable accessibilityRole="button" accessibilityLabel={`${label} −`} disabled={value <= min} onPress={() => { tapFeedback(); change(-step); }} style={[styles.stepperButton, { backgroundColor: palette.surfaceMuted, opacity: value <= min ? 0.4 : 1 }]}>
+        <Pressable accessibilityRole="button" accessibilityLabel={`${label} −`} hitSlop={8} disabled={value <= min} onPress={() => { tapFeedback(); change(-step); }} style={[styles.stepperButton, { backgroundColor: palette.surfaceMuted, opacity: value <= min ? 0.4 : 1 }]}>
           <Icon name="remove" size={15} color={palette.text} />
         </Pressable>
         <Text style={styles.stepperValue}>{display ?? String(value)}</Text>
-        <Pressable accessibilityRole="button" accessibilityLabel={`${label} +`} disabled={value >= max} onPress={() => { tapFeedback(); change(step); }} style={[styles.stepperButton, { backgroundColor: palette.surfaceMuted, opacity: value >= max ? 0.4 : 1 }]}>
+        <Pressable accessibilityRole="button" accessibilityLabel={`${label} +`} hitSlop={8} disabled={value >= max} onPress={() => { tapFeedback(); change(step); }} style={[styles.stepperButton, { backgroundColor: palette.surfaceMuted, opacity: value >= max ? 0.4 : 1 }]}>
           <Icon name="add" size={15} color={palette.text} />
         </Pressable>
       </View>
@@ -254,6 +263,42 @@ export function SwitchRow({ icon, title, subtitle, value, onChange }: { icon?: I
   );
 }
 
+/** List row that toggles a checkbox; the whole row is the touch target. */
+export function CheckRow({ icon, title, subtitle, checked, onChange, tint }: {
+  icon?: IconName;
+  title: string;
+  subtitle?: string;
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+  tint?: string;
+}) {
+  const styles = useScaledStyles(baseStyles);
+  const { palette } = useTheme();
+  const accent = tint ?? palette.accent;
+  return (
+    <Pressable
+      accessibilityRole="checkbox"
+      accessibilityState={{ checked }}
+      accessibilityLabel={subtitle ? `${title}, ${subtitle}` : title}
+      onPress={() => { tapFeedback(); onChange(!checked); }}
+      style={({ pressed }) => [styles.listRow, { backgroundColor: pressed ? palette.surfaceMuted : "transparent" }]}
+    >
+      {icon ? (
+        <View style={[styles.listIcon, { backgroundColor: tint ? `${tint}22` : palette.accentSoft }]}>
+          <Icon name={icon} size={18} color={tint ?? palette.accentStrong} />
+        </View>
+      ) : null}
+      <View style={styles.listCopy}>
+        <Text style={[styles.listTitle, { color: palette.text }]}>{title}</Text>
+        {subtitle ? <Text style={[styles.listSubtitle, { color: palette.textMuted }]} numberOfLines={3}>{subtitle}</Text> : null}
+      </View>
+      <View style={[styles.checkbox, { backgroundColor: checked ? accent : "transparent", borderColor: checked ? accent : palette.border }]}>
+        {checked ? <Icon name="checkmark" size={16} color="#FFFFFF" /> : null}
+      </View>
+    </Pressable>
+  );
+}
+
 /** Groups rows into one surface separated by hairlines. */
 export function ListGroup({ children }: PropsWithChildren) {
   const styles = useScaledStyles(baseStyles);
@@ -276,6 +321,7 @@ export function Chip({ label, selected = false, onPress, icon }: { label: string
     <Pressable
       accessibilityRole="button"
       accessibilityState={{ selected }}
+      hitSlop={4}
       onPress={() => { tapFeedback(); onPress?.(); }}
       style={[styles.chip, { backgroundColor: selected ? palette.accent : palette.surface, borderColor: selected ? palette.accent : palette.border }]}
     >
@@ -324,14 +370,15 @@ export function SegmentedControl<T extends string>({ value, options, onChange }:
 /** Bottom sheet for confirmations and short choices; works the same on web and native. */
 export function Sheet({ visible, onClose, title, body, children }: PropsWithChildren<{ visible: boolean; onClose: () => void; title: string; body?: string }>) {
   const styles = useScaledStyles(baseStyles);
+  const { t } = useTranslation();
   const { palette } = useTheme();
   const insets = useSafeAreaInsets();
   return (
     // Translucent bars give the keyboard controller correct coordinates inside an edge-to-edge Modal.
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose} statusBarTranslucent navigationBarTranslucent>
       <KeyboardLift style={styles.flexFill}>
-        <Pressable accessibilityLabel={title} style={styles.sheetBackdrop} onPress={onClose}>
-          <Pressable style={[styles.sheet, { backgroundColor: palette.surface, paddingBottom: insets.bottom + 20, maxHeight: "92%" }]} onPress={() => undefined}>
+        <Pressable accessibilityRole="button" accessibilityLabel={t("common.close")} style={[styles.sheetBackdrop, { paddingTop: insets.top + 12 }]} onPress={onClose}>
+          <Pressable style={[styles.sheet, { backgroundColor: palette.surface, paddingBottom: insets.bottom + 20, maxHeight: "100%" }]} onPress={() => undefined}>
             <View style={[styles.sheetHandle, { backgroundColor: palette.border }]} />
             <ScrollView bounces={false} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} contentContainerStyle={styles.sheetContent}>
               <Heading style={styles.sheetTitle}>{title}</Heading>
@@ -342,6 +389,98 @@ export function Sheet({ visible, onClose, title, body, children }: PropsWithChil
         </Pressable>
       </KeyboardLift>
     </Modal>
+  );
+}
+
+/**
+ * A number shown as text that turns into a numeric field when tapped, so a value can be typed
+ * instead of stepped. With `clock`, "1:30" is accepted as 90 seconds. Invalid input is discarded.
+ */
+export function NumberEdit({ value, display, label, onCommit, clock = false, allowNegative = false, disabled = false, style }: {
+  value: number;
+  /** Text shown while not editing, e.g. "1:05". */
+  display: string;
+  /** Accessible name, e.g. "Reps, set 2". */
+  label: string;
+  onCommit: (value: number) => void;
+  clock?: boolean;
+  allowNegative?: boolean;
+  disabled?: boolean;
+  style?: TextProps["style"];
+}) {
+  const styles = useScaledStyles(baseStyles);
+  const { palette } = useTheme();
+  const [draft, setDraft] = useState<string | null>(null);
+  const commit = () => {
+    if (draft === null) return;
+    const parsed = parseNumberInput(draft, clock);
+    setDraft(null);
+    if (parsed === null || (!allowNegative && parsed < 0) || parsed === value) return;
+    onCommit(parsed);
+  };
+  if (draft !== null) {
+    return (
+      <TextInput
+        accessibilityLabel={label}
+        autoFocus
+        selectTextOnFocus
+        keyboardType={clock ? "numbers-and-punctuation" : allowNegative ? "numbers-and-punctuation" : "decimal-pad"}
+        value={draft}
+        onChangeText={setDraft}
+        onBlur={commit}
+        onSubmitEditing={commit}
+        returnKeyType="done"
+        style={[styles.numberInput, { color: palette.text, backgroundColor: palette.surfaceMuted, borderColor: palette.accentStrong }, style]}
+      />
+    );
+  }
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      accessibilityHint={disabled ? undefined : display}
+      disabled={disabled}
+      hitSlop={6}
+      onPress={() => { tapFeedback(); setDraft(clock ? display : String(value)); }}
+    >
+      <Text style={style}>{display}</Text>
+    </Pressable>
+  );
+}
+
+/**
+ * Short message at the bottom of the screen with an optional action (e.g. "Restore"). It stays clear
+ * of the navigation bar and of any bar the screen shows above it (`bottomOffset`), and hides itself
+ * after a few seconds.
+ */
+export function Toast({ message, actionLabel, onAction, onHide, bottomOffset = 0 }: {
+  message: string | null;
+  actionLabel?: string;
+  onAction?: () => void;
+  onHide: () => void;
+  bottomOffset?: number;
+}) {
+  const styles = useScaledStyles(baseStyles);
+  const { palette } = useTheme();
+  const insets = useSafeAreaInsets();
+  useEffect(() => {
+    if (message === null) return;
+    const timer = setTimeout(onHide, 8000);
+    return () => clearTimeout(timer);
+  }, [message, onHide]);
+  if (message === null) return null;
+  return (
+    <View
+      accessibilityLiveRegion="polite"
+      style={[styles.toast, { bottom: insets.bottom + 16 + bottomOffset, backgroundColor: palette.text }]}
+    >
+      <Text style={[styles.toastText, { color: palette.background }]}>{message}</Text>
+      {actionLabel && onAction ? (
+        <Pressable accessibilityRole="button" hitSlop={10} onPress={() => { tapFeedback(); onAction(); onHide(); }} style={styles.toastAction}>
+          <Text style={[styles.toastActionText, { color: palette.accentSoft }]}>{actionLabel}</Text>
+        </Pressable>
+      ) : null}
+    </View>
   );
 }
 
@@ -375,6 +514,12 @@ export function TextField({ label, hint, error, style, multiline, onFocus, onBlu
 
 const baseStyles = StyleSheet.create({
   flexFill: { flex: 1 },
+  toast: { position: "absolute", left: 16, right: 16, minHeight: 52, borderRadius: 16, paddingHorizontal: 16, paddingVertical: 10, flexDirection: "row", alignItems: "center", gap: 12, elevation: 6, shadowColor: "#000", shadowOpacity: 0.2, shadowRadius: 10, shadowOffset: { width: 0, height: 4 } },
+  toastText: { flex: 1, fontFamily: fonts.medium, fontSize: 15 },
+  toastAction: { paddingHorizontal: 6, paddingVertical: 6 },
+  toastActionText: { fontFamily: fonts.semibold, fontSize: 15 },
+  numberInput: { minWidth: 64, height: 40, borderRadius: 10, borderWidth: 2, textAlign: "center", fontFamily: fonts.display, fontSize: 22, paddingHorizontal: 6, paddingVertical: 0 },
+  statusScrim: { position: "absolute", top: 0, left: 0, right: 0 },
   stepper: { gap: 4, alignItems: "center" },
   stepperLabel: { fontFamily: fonts.medium, fontSize: 12 },
   stepperRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12, minHeight: 40 },
@@ -414,6 +559,7 @@ const baseStyles = StyleSheet.create({
   listTrailing: { paddingRight: 14, paddingLeft: 4 },
   listIcon: { width: 34, height: 34, borderRadius: 10, alignItems: "center", justifyContent: "center" },
   listCopy: { flex: 1, gap: 2 },
+  checkbox: { width: 26, height: 26, borderRadius: 8, borderWidth: 2, alignItems: "center", justifyContent: "center" },
   listTitle: { fontFamily: fonts.medium, fontSize: 16 },
   listSubtitle: { fontFamily: fonts.body, fontSize: 13, lineHeight: 18 },
   chip: { minHeight: 36, paddingHorizontal: 14, borderRadius: 999, borderWidth: 1, flexDirection: "row", alignItems: "center", gap: 6 },

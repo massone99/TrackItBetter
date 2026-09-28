@@ -3,18 +3,22 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
-import { findPosition, LOW_CONFIDENCE, POSITIONS, levelFor, nextLevelTarget, type Pose, type PoseSide, type PositionId } from '../../src/domain/pose';
+import { findPosition, LOW_CONFIDENCE, levelFor, nextLevelTarget, type JointAngleId, type Pose, type PoseSide, type PositionId } from '../../src/domain/pose';
 import { detectPose, poseDetectionAvailable } from '../../src/features/pose/detectPose';
 import { extractFrames, normalizeImage, type PoseImage, type VideoFrame } from '../../src/features/pose/media';
 import { PoseCanvas } from '../../src/features/pose/PoseCanvas';
 import { savePoseCapture } from '../../src/features/pose/repository';
-import { ActionButton, Body, Card, Chip, Icon, Label, Numeral, PageHeading, Screen, SegmentedControl, Text, TextField } from '../../src/shared/components/ui';
+import { ActionButton, Body, Card, Icon, Label, Numeral, PageHeading, Screen, SegmentedControl, Text, TextField } from '../../src/shared/components/ui';
+import { OverlayLegend, useOverlaySettings } from '../../src/features/pose/OverlayLegend';
+import { PositionPicker } from '../../src/features/pose/PositionPicker';
 import { LevelBadge } from '../../src/features/pose/LevelBadge';
+import { JointPicker, useJointSelection } from '../../src/features/pose/JointPicker';
 import { useTheme } from '../../src/shared/theme/ThemeProvider';
 import { fonts } from '../../src/shared/theme/typography';
 import { useScaledStyles } from '../../src/shared/theme/useScaledStyles';
 
-type Analysis = { image: PoseImage; pose: Pose; kind: 'photo' | 'frame' };
+/** `detected` is the model's own result, kept so manual corrections can be reset. */
+type Analysis = { image: PoseImage; pose: Pose; detected: Pose; kind: 'photo' | 'frame' };
 
 export default function NewPoseCheckScreen() {
   const styles = useScaledStyles(baseStyles);
@@ -32,8 +36,15 @@ export default function NewPoseCheckScreen() {
   const [error, setError] = useState<string | null>(null);
   const [note, setNote] = useState('');
   const position = findPosition(positionId)!;
+  const [jointIds, setJointIds] = useJointSelection(position);
+  const [overlay, setOverlay] = useOverlaySettings();
+  const [focused, setFocused] = useState<JointAngleId | null>(null);
+  // Poses before each drag, most recent last, for "undo last change".
+  const [undo, setUndo] = useState<Pose[]>([]);
 
   const measurement = useMemo(() => (analysis ? position.measure(analysis.pose, position.sideAware ? side : null) : null), [analysis, position, side]);
+  const joints = measurement?.joints?.filter((joint) => jointIds.includes(joint.id)) ?? [];
+  const legendAngles = joints.map((joint) => ({ id: joint.id, name: t(`pose.jointsShort.${joint.id}`), value: t('pose.degrees', { value: Math.round(joint.value) }) }));
   const level = measurement ? levelFor(position, measurement.value) : null;
   const target = measurement ? nextLevelTarget(position, measurement.value) : null;
   const uncertain = analysis ? analysis.pose.some((point) => point.score < LOW_CONFIDENCE) : false;
@@ -51,7 +62,8 @@ export default function NewPoseCheckScreen() {
     setError(null);
     try {
       const { pose } = await detectPose(image.uri);
-      setAnalysis({ image, pose, kind });
+      setAnalysis({ image, pose, detected: pose, kind });
+      setUndo([]);
     } catch {
       setError(t('pose.error'));
     } finally {
@@ -116,7 +128,8 @@ export default function NewPoseCheckScreen() {
     setBusy(null);
     if (!best) { setError(t('pose.noPerson')); return; }
     setSelectedFrame(best.index);
-    setAnalysis({ image: frames[best.index], pose: best.pose, kind: 'frame' });
+    setAnalysis({ image: frames[best.index], pose: best.pose, detected: best.pose, kind: 'frame' });
+    setUndo([]);
   };
 
   const save = async () => {
@@ -151,14 +164,11 @@ export default function NewPoseCheckScreen() {
     <Screen>
       <PageHeading title={t('pose.newCheck')} subtitle={t(`pose.positions.${positionId}.how`)} />
 
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips} style={styles.chipRow}>
-        {POSITIONS.map((item) => (
-          <Chip key={item.id} label={t(`pose.positions.${item.id}.name`)} selected={item.id === positionId} onPress={() => setPositionId(item.id)} />
-        ))}
-      </ScrollView>
+      <PositionPicker value={position} onChange={(id) => { setPositionId(id); setFocused(null); }} />
       {position.sideAware ? (
         <SegmentedControl<PoseSide> value={side} onChange={setSide} options={[{ value: 'left', label: t('pose.sideLeft') }, { value: 'right', label: t('pose.sideRight') }]} />
       ) : null}
+      <JointPicker position={position} selected={jointIds} onChange={setJointIds} />
 
       <View style={styles.sources}>
         <SourceButton icon="camera-outline" label={t('pose.takePhoto')} onPress={() => void pick('camera')} />
@@ -195,10 +205,27 @@ export default function NewPoseCheckScreen() {
             pose={analysis.pose}
             highlight={measurement.angle}
             label={t('pose.degrees', { value: Math.round(measurement.value) })}
-            angles={measurement.joints?.map((joint) => ({ ...joint, name: t(`pose.jointsShort.${joint.id}`), value: t('pose.degrees', { value: Math.round(joint.value) }) }))}
+            angles={legendAngles.map((angle, index) => ({ ...joints[index], ...angle }))}
+            settings={overlay}
+            focused={focused}
             maxWidth={canvasWidth}
+            onDragStart={() => setUndo((stack) => [...stack.slice(-19), analysis.pose])}
             onChange={(pose) => setAnalysis({ ...analysis, pose })}
           />
+          <OverlayLegend angles={legendAngles} settings={overlay} focused={focused} onSettings={setOverlay} onFocus={setFocused} />
+          {undo.length > 0 ? (
+            <View style={styles.editRow}>
+              <ActionButton icon="arrow-undo-outline" label={t('pose.undoMove')} secondary onPress={() => {
+                const previous = undo[undo.length - 1];
+                setUndo(undo.slice(0, -1));
+                setAnalysis({ ...analysis, pose: previous });
+              }} />
+              <ActionButton icon="refresh" label={t('pose.resetDetection')} variant="ghost" onPress={() => {
+                setUndo([]);
+                setAnalysis({ ...analysis, pose: analysis.detected });
+              }} />
+            </View>
+          ) : null}
           <Body style={styles.center}>{noPerson ? t('pose.noPerson') : uncertain ? t('pose.uncertain') : t('pose.adjustHint')}</Body>
           <Card style={styles.result}>
             <View style={styles.resultRow}>
@@ -211,10 +238,10 @@ export default function NewPoseCheckScreen() {
             </View>
             <Body>{target === null ? t('pose.topLevel') : t('pose.nextTarget', { value: target })}</Body>
             {measurement.warning ? <Text style={[styles.warning, { color: palette.warning }]}>{t(`pose.warnings.${measurement.warning}`)}</Text> : null}
-            {measurement.joints ? (
+            {joints.length > 0 ? (
               <View style={styles.joints}>
                 <Label>{t('pose.jointAngles')}</Label>
-                {measurement.joints.map((joint, index) => (
+                {joints.map((joint, index) => (
                   <View key={joint.id} style={styles.jointRow}>
                     <Body style={index === 0 ? styles.jointStrong : undefined}>{t(`pose.joints.${joint.id}`)}</Body>
                     <Body style={index === 0 ? styles.jointStrong : undefined}>{t('pose.degrees', { value: Math.round(joint.value) })}</Body>
@@ -243,8 +270,7 @@ function SourceButton({ icon, label, onPress }: { icon: 'camera-outline' | 'imag
 }
 
 const baseStyles = StyleSheet.create({
-  chipRow: { marginHorizontal: -20 },
-  chips: { gap: 8, paddingHorizontal: 20 },
+  editRow: { gap: 8 },
   sources: { flexDirection: 'row', gap: 10 },
   source: { flex: 1, alignItems: 'center', gap: 8, paddingVertical: 14, paddingHorizontal: 6, borderRadius: 18, borderWidth: StyleSheet.hairlineWidth },
   sourceLabel: { fontFamily: fonts.medium, fontSize: 13, textAlign: 'center' },

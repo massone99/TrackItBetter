@@ -8,7 +8,7 @@ import { addExerciseToWorkout, addSet, startWorkout, updateSet } from '../src/fe
 import { listExercises } from '../src/features/exercises/repository';
 import type { Exercise } from '../src/db/schema';
 import { deleteUserProgram, listUserPrograms, saveUserProgram, type UserProgram, type UserProgramExercise, type UserProgramSession, type Weekday } from '../src/features/programs/userPrograms';
-import { ActionButton, Body, Card, Label, PageHeading, Screen, SectionTitle } from '../src/shared/components/ui';
+import { ActionButton, Body, Card, Label, PageHeading, Screen, SectionTitle, Sheet } from '../src/shared/components/ui';
 import { useTheme } from '../src/shared/theme/ThemeProvider';
 import { useScaledStyles } from '../src/shared/theme/useScaledStyles';
 
@@ -29,6 +29,7 @@ export default function ProgramBuilderScreen() {
   const [pickerSession, setPickerSession] = useState<string | null>(null);
   const [starting, setStarting] = useState<string | null>(null);
   const [error, setError] = useState('');
+  const [deleting, setDeleting] = useState<UserProgram | null>(null);
 
   const refresh = async () => {
     const [saved, catalog] = await Promise.all([listUserPrograms(), listExercises()]);
@@ -98,14 +99,7 @@ export default function ProgramBuilderScreen() {
     }
   };
 
-  const removeProgram = (program: UserProgram) => Alert.alert(
-    t('programBuilder.deleteTitle'),
-    t('programBuilder.deleteBody', { name: program.name }),
-    [
-      { text: t('common.cancel'), style: 'cancel' },
-      { text: t('programBuilder.delete'), style: 'destructive', onPress: () => void deleteUserProgram(program.id).then(refresh) },
-    ],
-  );
+  const removeProgram = (program: UserProgram) => setDeleting(program);
 
   const startSession = async (program: UserProgram, session: UserProgramSession) => {
     if (starting) return;
@@ -147,7 +141,7 @@ export default function ProgramBuilderScreen() {
           {program.sessions.slice().sort((a, b) => weekdays.indexOf(a.weekday) - weekdays.indexOf(b.weekday)).map((session) => (
             <View key={session.id} style={[styles.savedSession, { borderColor: palette.border }]}>
               <View style={styles.flex}><Label>{t(`reminders.weekdays.${weekdayKey(session.weekday)}`)}</Label><Text style={[styles.sessionName, { color: palette.text }]}>{session.name}</Text><Body>{t('programBuilder.exerciseCount', { count: session.exercises.length })}</Body></View>
-              <Pressable disabled={starting !== null} onPress={() => void startSession(program, session)} style={[styles.startButton, { backgroundColor: palette.accent }]}><Text style={{ color: palette.accentText, fontWeight: '800' }}>{starting === session.id ? t('programBuilder.starting') : t('programBuilder.startDay')}</Text></Pressable>
+              <Pressable accessibilityRole="button" accessibilityState={{ disabled: starting !== null }} disabled={starting !== null} onPress={() => void startSession(program, session)} style={[styles.startButton, { backgroundColor: palette.accent }]}><Text style={{ color: palette.accentText, fontWeight: '800' }}>{starting === session.id ? t('programBuilder.starting') : t('programBuilder.startDay')}</Text></Pressable>
             </View>
           ))}
           <Pressable onPress={() => editProgram(program)} accessibilityRole="button"><Text style={[styles.editLink, { color: palette.accentStrong }]}>{t('programBuilder.edit')}</Text></Pressable>
@@ -164,7 +158,7 @@ export default function ProgramBuilderScreen() {
           </View>
           {sessions.map((session) => <Card key={session.id} style={[styles.dayCard, { backgroundColor: palette.surfaceMuted, borderColor: palette.border }]}>
             <View style={styles.field}>
-              <View style={styles.rowBetween}><Label>{t('programBuilder.trainingDay')}</Label><Pressable onPress={() => setSessions((all) => all.filter((item) => item.id !== session.id))}><Text style={{ color: palette.warning, fontWeight: '700' }}>{t('programBuilder.removeDay')}</Text></Pressable></View>
+              <View style={styles.rowBetween}><Label>{t('programBuilder.trainingDay')}</Label><Pressable accessibilityRole="button" hitSlop={10} onPress={() => setSessions((all) => all.filter((item) => item.id !== session.id))}><Text style={{ color: palette.warning, fontWeight: '700' }}>{t('programBuilder.removeDay')}</Text></Pressable></View>
               <TextInput accessibilityLabel={t('programBuilder.sessionName')} value={session.name} onChangeText={(value) => updateSession(session.id, { name: value })} placeholder={t('programBuilder.sessionDefault')} placeholderTextColor={palette.textMuted} style={[styles.input, { backgroundColor: palette.surface, borderColor: palette.border, color: palette.text }]} />
               <View style={styles.choices}>{weekdays.map((day) => <Choice key={day} label={t(`reminders.weekdaysShort.${weekdayKey(day)}`)} selected={session.weekday === day} onPress={() => updateSession(session.id, { weekday: day })} />)}</View>
             </View>
@@ -172,7 +166,7 @@ export default function ProgramBuilderScreen() {
               const exercise = exercises.find((item) => item.id === prescription.exerciseId);
               const metric = exercise?.metric ?? 'reps';
               return <View key={prescription.id} style={[styles.prescription, { borderColor: palette.border }]}>
-                <View style={styles.rowBetween}><Text style={[styles.exerciseName, { color: palette.text }]}>{exercise?.name ?? prescription.exerciseId}</Text><Pressable onPress={() => updateSession(session.id, { exercises: session.exercises.filter((item) => item.id !== prescription.id) })}><Text style={{ color: palette.warning }}>{t('programBuilder.removeExercise')}</Text></Pressable></View>
+                <View style={styles.rowBetween}><Text style={[styles.exerciseName, { color: palette.text }]}>{exercise?.name ?? prescription.exerciseId}</Text><Pressable accessibilityRole="button" hitSlop={10} onPress={() => updateSession(session.id, { exercises: session.exercises.filter((item) => item.id !== prescription.id) })}><Text style={{ color: palette.warning }}>{t('programBuilder.removeExercise')}</Text></Pressable></View>
                 <View style={styles.values}>
                   <NumberField label={t('programBuilder.sets')} value={prescription.sets} onChange={(value) => updatePrescription(session.id, prescription.id, { sets: value })} />
                   <NumberField label={targetLabel(metric, t)} value={prescription.target} onChange={(value) => updatePrescription(session.id, prescription.id, { target: value })} />
@@ -183,7 +177,7 @@ export default function ProgramBuilderScreen() {
             <ActionButton label={t('programBuilder.addExercise')} onPress={() => { setPickerSession(pickerSession === session.id ? null : session.id); setSearch(''); }} />
             {pickerSession === session.id ? <View style={styles.picker}>
               <TextInput accessibilityLabel={t('programBuilder.search')} value={search} onChangeText={setSearch} placeholder={t('programBuilder.search')} placeholderTextColor={palette.textMuted} style={[styles.input, { backgroundColor: palette.surface, borderColor: palette.border, color: palette.text }]} />
-              {filteredExercises.map((exercise) => <Pressable key={exercise.id} onPress={() => {
+              {filteredExercises.map((exercise) => <Pressable key={exercise.id} accessibilityRole="button" onPress={() => {
                 const metric = exercise.metric;
                 const target = metric === 'time' || metric === 'time_load' ? 20 : metric === 'distance' ? 100 : 8;
                 updateSession(session.id, { exercises: [...session.exercises, { id: Crypto.randomUUID(), exerciseId: exercise.id, sets: 3, target, restSeconds: 90 }] });
@@ -198,6 +192,19 @@ export default function ProgramBuilderScreen() {
           <Pressable onPress={() => { setSessions([]); setEditingId(undefined); setName(''); setError(''); }} accessibilityRole="button"><Text style={[styles.cancel, { color: palette.textMuted }]}>{t('programBuilder.closeEditor')}</Text></Pressable>
         </Card>
       </> : null}
+      <Sheet
+        visible={deleting !== null}
+        onClose={() => setDeleting(null)}
+        title={t('programBuilder.deleteTitle')}
+        body={deleting ? t('programBuilder.deleteBody', { name: deleting.name }) : undefined}
+      >
+        <ActionButton icon="trash-outline" label={t('programBuilder.delete')} variant="danger" onPress={() => {
+          const target = deleting;
+          setDeleting(null);
+          if (target) void deleteUserProgram(target.id).then(refresh);
+        }} />
+        <ActionButton label={t('common.cancel')} secondary onPress={() => setDeleting(null)} />
+      </Sheet>
     </Screen>
   );
 }

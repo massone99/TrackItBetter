@@ -1,15 +1,24 @@
 import { AlphaType, ColorType, Skia } from '@shopify/react-native-skia';
+import { Asset } from 'expo-asset';
 import { loadTensorflowModel, type TfliteModel } from 'react-native-fast-tflite';
 import type { Pose } from '../../domain/pose';
 
 const INPUT_SIZE = 256;
 let modelPromise: Promise<TfliteModel> | null = null;
 
-/** Loads MoveNet Thunder once; later calls reuse it. */
+/**
+ * Loads MoveNet Thunder once; later calls reuse it. The model is copied to a local file first:
+ * fast-tflite only reads URLs, and in a release build a bundled asset is an Android resource name,
+ * not a URL.
+ */
 function getModel(): Promise<TfliteModel> {
-  // Bundled assets can only be referenced through require().
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  modelPromise ??= loadTensorflowModel(require('../../../assets/models/movenet_thunder.tflite'), []).catch((error: unknown) => {
+  modelPromise ??= (async () => {
+    // Bundled assets can only be referenced through require().
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const [asset] = await Asset.loadAsync(require('../../../assets/models/movenet_thunder.tflite'));
+    if (!asset.localUri) throw new Error('Could not load the pose model');
+    return loadTensorflowModel({ url: asset.localUri }, []);
+  })().catch((error: unknown) => {
     modelPromise = null;
     throw error;
   });

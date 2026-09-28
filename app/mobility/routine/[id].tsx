@@ -2,12 +2,13 @@ import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
-import { estimateRoutineSeconds, type MobilityStep } from '../../../src/domain/mobilityPlan';
+import { DEFAULT_PREP_SEC, estimateRoutineSeconds, type MobilityStep } from '../../../src/domain/mobilityPlan';
 import { ExercisePicker } from '../../../src/features/exercises/ExercisePicker';
 import { listExercises } from '../../../src/features/exercises/repository';
 import { deleteMobilityRoutine, getMobilityRoutine, newStep, saveMobilityRoutine } from '../../../src/features/mobility/routines';
 import {
   ActionButton,
+  Body,
   Card,
   EmptyState,
   IconButton,
@@ -37,6 +38,7 @@ export default function RoutineBuilderScreen() {
   const [loaded, setLoaded] = useState(isNew);
   const [name, setName] = useState('');
   const [transitionSec, setTransitionSec] = useState(10);
+  const [prepSec, setPrepSec] = useState(DEFAULT_PREP_SEC);
   const [steps, setSteps] = useState<MobilityStep[]>([]);
   const [exerciseInfo, setExerciseInfo] = useState<Map<string, ExerciseInfo>>(new Map());
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -56,6 +58,7 @@ export default function RoutineBuilderScreen() {
         if (routine) {
           setName(routine.name);
           setTransitionSec(routine.transitionSec);
+          setPrepSec(routine.prepSec);
           setSteps(routine.steps);
         }
         setLoaded(true);
@@ -79,7 +82,7 @@ export default function RoutineBuilderScreen() {
   const save = async () => {
     if (!name.trim() || steps.length === 0) { setError(t('mobility.invalid')); return; }
     try {
-      await saveMobilityRoutine({ id: isNew ? undefined : id, name, transitionSec, steps });
+      await saveMobilityRoutine({ id: isNew ? undefined : id, name, transitionSec, prepSec, steps });
       goBack('/mobility');
     } catch {
       setError(t('mobility.invalid'));
@@ -88,12 +91,14 @@ export default function RoutineBuilderScreen() {
 
   if (!loaded) return <Screen><ActivityIndicator color={palette.accentStrong} /></Screen>;
 
-  const minutes = Math.max(1, Math.round(estimateRoutineSeconds({ transitionSec, steps }) / 60));
+  const minutes = Math.max(1, Math.round(estimateRoutineSeconds({ transitionSec, prepSec, steps }) / 60));
   return (
     <Screen>
       <PageHeading title={isNew ? t('mobility.builderNew') : name || t('mobility.builderTitle')} subtitle={steps.length ? t('mobility.estimated', { count: minutes }) : undefined} />
       <TextField label={t('mobility.name')} value={name} onChangeText={(value) => { setName(value); setError(null); }} placeholder={t('mobility.namePlaceholder')} maxLength={60} />
       <Card style={styles.transitionCard}>
+        <Stepper layout="row" label={t('mobility.prep')} value={prepSec} display={prepSec === 0 ? t('mobility.prepOff') : t('mobility.seconds', { count: prepSec })} step={1} min={0} max={30} onChange={setPrepSec} />
+        <Body style={styles.prepHint}>{t('mobility.prepHint')}</Body>
         <Stepper layout="row" label={t('mobility.transition')} value={transitionSec} display={t('mobility.seconds', { count: transitionSec })} step={5} min={0} max={60} onChange={setTransitionSec} />
       </Card>
 
@@ -161,6 +166,7 @@ export default function RoutineBuilderScreen() {
 const baseStyles = StyleSheet.create({
   flex: { flex: 1 },
   transitionCard: { paddingVertical: 8 },
+  prepHint: { fontSize: 13, lineHeight: 18, marginTop: -4 },
   stepCard: { gap: 12, paddingBottom: 6 },
   stepHeader: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   stepNumber: { width: 28, height: 28, borderRadius: 9, alignItems: 'center', justifyContent: 'center', marginRight: 4 },

@@ -28,8 +28,9 @@ export function RpePicker({ value, onChange, inline = false, onDismiss }: {
       <Pressable
         key={rpe}
         accessibilityRole="button"
-        accessibilityLabel={`RPE ${formatRpe(rpe)}`}
+        accessibilityLabel={t('logger.rpeTag', { value: formatRpe(rpe) })}
         accessibilityState={{ selected }}
+        hitSlop={6}
         onPress={() => { tapFeedback(); onChange(selected ? null : rpe); }}
         style={[inline ? styles.stripChip : styles.chip, { backgroundColor: selected ? palette.accent : palette.surface, borderColor: selected ? palette.accent : palette.border }]}
       >

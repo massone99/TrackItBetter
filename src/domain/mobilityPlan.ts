@@ -17,23 +17,45 @@ export interface MobilityStep {
 
 export interface MobilityRoutineShape {
   transitionSec: number;
+  /** Countdown before every drill starts, so there is time to get into position. */
+  prepSec?: number;
   steps: MobilityStep[];
 }
 
 export type MobilitySegment =
   | { kind: 'work'; stepIndex: number; round: number; side: MobilitySide | null; mode: MobilityMode; durationSec: number | null; reps: number | null }
-  | { kind: 'switch' | 'rest' | 'transition'; stepIndex: number; durationSec: number };
+  | { kind: 'switch' | 'rest' | 'transition' | 'prep'; stepIndex: number; durationSec: number };
 
 /** Seconds the side switch takes when a drill is done per side. */
 export const SIDE_SWITCH_SEC = 5;
+/** Default countdown before each drill. */
+export const DEFAULT_PREP_SEC = 5;
 /** Rough time per rep, only used to estimate a routine's length. */
 export const ESTIMATED_SEC_PER_REP = 3;
 
 /**
  * Expands a routine into the ordered segments the guided player walks through. `stepIndex` on
- * rest/switch/transition segments points at the drill that comes next.
+ * rest/switch/transition/prep segments points at the drill that comes next. With `prepSec`, every
+ * drill is preceded by a countdown of at least that long: a switch, rest or transition right before
+ * it is stretched to fit, otherwise a `prep` segment is added.
  */
 export function expandRoutine(routine: MobilityRoutineShape): MobilitySegment[] {
+  const prepSec = Math.max(0, Math.round(routine.prepSec ?? 0));
+  const segments = expandWork(routine);
+  if (prepSec === 0) return segments;
+  const withPrep: MobilitySegment[] = [];
+  for (const segment of segments) {
+    const before = withPrep[withPrep.length - 1];
+    if (segment.kind === 'work') {
+      if (before && before.kind !== 'work') before.durationSec = Math.max(before.durationSec, prepSec);
+      else withPrep.push({ kind: 'prep', stepIndex: segment.stepIndex, durationSec: prepSec });
+    }
+    withPrep.push(segment);
+  }
+  return withPrep;
+}
+
+function expandWork(routine: MobilityRoutineShape): MobilitySegment[] {
   const segments: MobilitySegment[] = [];
   routine.steps.forEach((step, stepIndex) => {
     const rounds = Math.max(1, Math.floor(step.rounds));

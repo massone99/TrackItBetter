@@ -291,6 +291,75 @@ export async function finishWorkout(workoutId: string): Promise<void> {
     .where(and(eq(workouts.id, workoutId), isNull(workouts.endedAt)));
 }
 
+/**
+ * Deletes a workout (in progress or finished) with its exercises, sets and form-check clips. Used
+ * both to discard a session that should not count and to remove a logged one from history.
+ */
+export async function deleteWorkout(workoutId: string): Promise<void> {
+  await initializeDatabase();
+  const sets = await db.select({ id: trainingSets.id })
+    .from(trainingSets)
+    .innerJoin(exerciseEntries, eq(trainingSets.entryId, exerciseEntries.id))
+    .where(eq(exerciseEntries.workoutId, workoutId));
+  await deleteFormCheckVideosForSets(sets.map((set) => set.id));
+  await db.transaction(async (tx) => {
+    const entries = await tx.select({ id: exerciseEntries.id }).from(exerciseEntries).where(eq(exerciseEntries.workoutId, workoutId));
+    if (entries.length > 0) await tx.delete(trainingSets).where(inArray(trainingSets.entryId, entries.map((entry) => entry.id)));
+    await tx.delete(exerciseEntries).where(eq(exerciseEntries.workoutId, workoutId));
+    await tx.delete(workouts).where(eq(workouts.id, workoutId));
+  });
+}
+
+export const WORKOUT_NAME_MAX = 60;
+
+/** Renames a finished workout and moves its start and end, keeping it finished. */
+export async function updateCompletedWorkoutDetails(
+  workoutId: string,
+  details: { name: string; startedAt: Date; endedAt: Date },
+): Promise<void> {
+  const name = details.name.trim();
+  if (!name || name.length > WORKOUT_NAME_MAX) throw new RangeError('Workout name must be 1–60 characters');
+  const start = details.startedAt.getTime();
+  const end = details.endedAt.getTime();
+  if (!Number.isFinite(start) || !Number.isFinite(end) || end < start) throw new RangeError('A workout must end after it starts');
+  if (start > Date.now()) throw new RangeError('A finished workout cannot start in the future');
+  await initializeDatabase();
+  await db.update(workouts)
+    .set({ name, startedAt: details.startedAt, endedAt: details.endedAt })
+    .where(and(eq(workouts.id, workoutId), isNotNull(workouts.endedAt)));
+}
+
+async function completedWorkoutEnd(workoutId: string): Promise<Date> {
+  const [workout] = await db.select({ endedAt: workouts.endedAt }).from(workouts).where(eq(workouts.id, workoutId)).limit(1);
+  if (!workout?.endedAt) throw new Error('Workout is not finished');
+  return workout.endedAt;
+}
+
+/** Adds a set to an exercise of a finished workout, already marked as done. */
+export async function addSetToCompletedWorkout(workoutId: string, entryId: string): Promise<string> {
+  await initializeDatabase();
+  const endedAt = await completedWorkoutEnd(workoutId);
+  const setId = await addSet(entryId);
+  await db.update(trainingSets).set({ completedAt: endedAt }).where(eq(trainingSets.id, setId));
+  return setId;
+}
+
+/** Adds an exercise with one completed set to a finished workout. */
+export async function addExerciseToCompletedWorkout(workoutId: string, exerciseId: string): Promise<string> {
+  await initializeDatabase();
+  const endedAt = await completedWorkoutEnd(workoutId);
+  const entryId = await addExerciseToWorkout(workoutId, exerciseId);
+  await db.update(trainingSets).set({ completedAt: endedAt }).where(eq(trainingSets.entryId, entryId));
+  return entryId;
+}
+
+/** Marks a set of a finished workout as done (at the workout's end) or not done. */
+export async function setCompletedWorkoutSetDone(workoutId: string, setId: string, done: boolean): Promise<void> {
+  await initializeDatabase();
+  const endedAt = await completedWorkoutEnd(workoutId);
+  await db.update(trainingSets).set({ completedAt: done ? endedAt : null }).where(eq(trainingSets.id, setId));
+}
+
 export async function listRecentWorkouts(limit = 365): Promise<WorkoutHistoryItem[]> {
   await initializeDatabase();
   const rows = await db
@@ -359,6 +428,54 @@ export async function removeExerciseEntry(entryId: string): Promise<void> {
   const sets = await db.select({ id: trainingSets.id }).from(trainingSets).where(eq(trainingSets.entryId, entryId));
   await deleteFormCheckVideosForSets(sets.map((set) => set.id));
   await db.delete(exerciseEntries).where(eq(exerciseEntries.id, entryId));
+}
+
+/** What a removal took away, kept briefly so it can be put back ("Restore" in the undo toast). */
+export interface RemovedRows {
+  entry: typeof exerciseEntries.$inferSelect | null;
+  sets: (typeof trainingSets.$inferSelect)[];
+}
+
+/** Removes a set and returns a snapshot that `restoreRemoved` can put back (clips are not kept). */
+export async function removeSetWithUndo(setId: string): Promise<RemovedRows | null> {
+  await initializeDatabase();
+  const [row] = await db.select().from(trainingSets).where(eq(trainingSets.id, setId)).limit(1);
+  if (!row) return null;
+  await removeSet(setId);
+  return { entry: null, sets: [row] };
+}
+
+/** Removes an exercise with its sets and returns a snapshot that `restoreRemoved` can put back. */
+export async function removeExerciseEntryWithUndo(entryId: string): Promise<RemovedRows | null> {
+  await initializeDatabase();
+  const [entry] = await db.select().from(exerciseEntries).where(eq(exerciseEntries.id, entryId)).limit(1);
+  if (!entry) return null;
+  const sets = await db.select().from(trainingSets).where(eq(trainingSets.entryId, entryId)).orderBy(asc(trainingSets.index));
+  await removeExerciseEntry(entryId);
+  return { entry, sets };
+}
+
+/**
+ * Puts removed rows back. A single restored set takes its old number again and the sets after it
+ * move down one, so the order is what it was before the removal.
+ */
+export async function restoreRemoved(removed: RemovedRows): Promise<void> {
+  await initializeDatabase();
+  await db.transaction(async (tx) => {
+    if (removed.entry) {
+      await tx.insert(exerciseEntries).values(removed.entry);
+      if (removed.sets.length > 0) await tx.insert(trainingSets).values(removed.sets);
+      return;
+    }
+    for (const set of removed.sets) {
+      const later = await tx.select({ id: trainingSets.id, index: trainingSets.index }).from(trainingSets)
+        .where(eq(trainingSets.entryId, set.entryId)).orderBy(desc(trainingSets.index));
+      for (const row of later) {
+        if (row.index >= set.index) await tx.update(trainingSets).set({ index: row.index + 1 }).where(eq(trainingSets.id, row.id));
+      }
+      await tx.insert(trainingSets).values(set);
+    }
+  });
 }
 
 export interface PreviousPerformance {

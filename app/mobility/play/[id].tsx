@@ -16,9 +16,9 @@ import { useTheme } from '../../../src/shared/theme/ThemeProvider';
 import { fonts } from '../../../src/shared/theme/typography';
 import { useScaledStyles } from '../../../src/shared/theme/useScaledStyles';
 import { formatClock } from '../../../src/shared/utils/format';
+import { playBeep } from '../../../src/shared/audio/beeps';
 import { goBack } from '../../../src/shared/navigation/goBack';
 
-const GET_READY_SEC = 5;
 const VOICE_KEY = 'mobility.voice';
 
 type DrillInfo = { name: string; cue: string | null; demoUrl: string | null };
@@ -51,6 +51,7 @@ export default function MobilityPlayerScreen() {
   const [voice, setVoice] = useState(() => readBooleanPreference(VOICE_KEY, true));
   const startedAt = useRef(new Date());
   const finished = useRef(false);
+  const started = useRef(false);
 
   useEffect(() => {
     let mounted = true;
@@ -65,16 +66,12 @@ export default function MobilityPlayerScreen() {
       }));
       if (!mounted) return;
       setDrills(infos);
-      startedAt.current = new Date();
-      setEndsAt(Date.now() + GET_READY_SEC * 1000);
     })();
     return () => { mounted = false; void Speech.stop(); };
   }, [id]);
 
-  // The first segment is a short "get ready" countdown before the first drill.
-  const segments = useMemo<MobilitySegment[]>(() => (
-    routine ? [{ kind: 'transition', stepIndex: 0, durationSec: GET_READY_SEC }, ...expandRoutine(routine)] : []
-  ), [routine]);
+  // Every drill starts after the routine's countdown, the first one included.
+  const segments = useMemo<MobilitySegment[]>(() => (routine ? expandRoutine(routine) : []), [routine]);
   const segment = segments[index] as MobilitySegment | undefined;
   const paused = pausedRemaining !== null;
   const remainingMs = paused ? pausedRemaining : endsAt === null ? null : Math.max(0, endsAt - now);
@@ -120,7 +117,8 @@ export default function MobilityPlayerScreen() {
     const seconds = target.kind === 'work' ? target.durationSec ?? 0 : target.durationSec;
     setEndsAt(timed ? Date.now() + seconds * 1000 : null);
     setNow(Date.now());
-    tapFeedback(target.kind === 'work' ? 'success' : 'light');
+    // A drill starting gets the "go" beep; breaks between drills only a light tap.
+    if (target.kind === 'work') playBeep('go'); else tapFeedback();
     if (target.kind === 'work') {
       const drill = drills[target.stepIndex];
       const side = target.side === 'left' ? t('mobility.left') : target.side === 'right' ? t('mobility.right') : '';
@@ -129,8 +127,19 @@ export default function MobilityPlayerScreen() {
       speak(t('mobility.switchLabel'));
     } else if (target.kind === 'rest') {
       speak(t('mobility.restLabel'));
+    } else {
+      // A countdown before a drill names what comes next, so there is time to get into position.
+      speak(t('mobility.getReadyFor', { name: drills[target.stepIndex]?.name ?? '' }));
     }
   }, [segments, drills, finish, speak, t]);
+
+  // Starts the first segment once the drill names are known, so the first cue can name the drill.
+  useEffect(() => {
+    if (started.current || segments.length === 0 || drills.length === 0) return;
+    started.current = true;
+    startedAt.current = new Date();
+    goTo(0, new Map());
+  }, [segments, drills, goTo]);
 
   const completeCurrent = useCallback((records: Map<number, Performed>) => {
     if (!segment) return records;
@@ -148,11 +157,14 @@ export default function MobilityPlayerScreen() {
     goTo(index + 1, records);
   }, [segment, paused, remainingMs, completeCurrent, performed, goTo, index]);
 
-  // A light tick for the last three seconds of each countdown.
+  // A light tick for the last three seconds of each countdown, spoken aloud before a drill starts.
   const secondsLeft = remainingMs === null ? null : Math.ceil(remainingMs / 1000);
+  const countingIn = segment !== undefined && segment.kind !== 'work';
   useEffect(() => {
-    if (secondsLeft !== null && secondsLeft > 0 && secondsLeft <= 3 && !paused) tapFeedback();
-  }, [secondsLeft, paused]);
+    if (secondsLeft === null || secondsLeft <= 0 || secondsLeft > 3 || paused) return;
+    playBeep('tick');
+    if (countingIn) speak(String(secondsLeft));
+  }, [secondsLeft, paused, countingIn, speak]);
 
   const togglePause = () => {
     if (remainingMs === null) return;
@@ -199,7 +211,7 @@ export default function MobilityPlayerScreen() {
   const workSegments = segments.map((item, position) => ({ item, position })).filter(({ item }) => item.kind === 'work');
   const drill = drills[segment.stepIndex];
   const step = routine.steps[segment.stepIndex];
-  const label = index === 0
+  const label = segment.kind === 'prep'
     ? t('mobility.getReady')
     : segment.kind === 'work'
       ? (segment.mode === 'hold' ? t('mobility.holdLabel') : t('mobility.repsLabel'))
@@ -218,9 +230,9 @@ export default function MobilityPlayerScreen() {
   return (
     <View style={[styles.root, { backgroundColor: background, paddingTop: Math.max(insets.top, 14) + 6, paddingBottom: insets.bottom + 18 }]}>
       <View style={styles.topBar}>
-        <IconButton icon="close" label={t('mobility.endTitle')} tone="plain" onPress={() => setEnding(true)} />
+        <IconButton icon="close" label={t('mobility.endTitle')} tone="plain" color={ink} onPress={() => setEnding(true)} />
         <Text style={[styles.routineName, { color: soft }]} numberOfLines={1}>{routine.name}</Text>
-        <IconButton icon={voice ? 'volume-high' : 'volume-mute-outline'} label={t('mobility.voice')} tone="plain" onPress={toggleVoice} />
+        <IconButton icon={voice ? 'volume-high' : 'volume-mute-outline'} label={t('mobility.voice')} tone="plain" color={ink} onPress={toggleVoice} />
       </View>
 
       <View style={styles.segmentsBar}>
@@ -246,7 +258,7 @@ export default function MobilityPlayerScreen() {
         ) : (
           <Text accessibilityLiveRegion="polite" style={[styles.timer, { color: ink }]}>{formatClock((remainingMs ?? 0) / 1000 + 0.999)}</Text>
         )}
-        {drill?.cue && isWork ? <Text style={[styles.cue, { color: soft }]}>{drill.cue}</Text> : null}
+        {drill?.cue && (isWork || segment.kind === 'prep') ? <Text style={[styles.cue, { color: soft }]}>{drill.cue}</Text> : null}
         {drill?.demoUrl ? (
           <Pressable accessibilityRole="link" onPress={() => openReferenceVideo(drill.demoUrl!)} style={styles.reference}>
             <Icon name="play-circle-outline" size={18} color={ink} />

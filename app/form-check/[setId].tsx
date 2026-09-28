@@ -7,7 +7,7 @@ import { ActivityIndicator, Alert, Pressable, StyleSheet, View, Platform } from 
 import { Text } from '../../src/shared/components/Text';
 import { addFormCheckVideo, deleteFormCheckVideo, getFormCheckSetContext, listFormCheckVideos } from '../../src/features/media/formVideos';
 import type { FormCheckSetContext, FormCheckVideo } from '../../src/features/media/formVideos';
-import { ActionButton, Body, Card, Heading, PageHeading, Screen, Icon } from '../../src/shared/components/ui';
+import { ActionButton, Body, Card, Heading, PageHeading, Screen, Icon, Sheet } from '../../src/shared/components/ui';
 import { useTheme } from '../../src/shared/theme/ThemeProvider';
 import { useScaledStyles } from '../../src/shared/theme/useScaledStyles';
 import { goBack } from '../../src/shared/navigation/goBack';
@@ -24,6 +24,7 @@ export default function FormCheckScreen() {
   const [compareId, setCompareId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
+  const [deleting, setDeleting] = useState<FormCheckVideo | null>(null);
 
   const refresh = useCallback(async () => {
     const next = await getFormCheckSetContext(setId);
@@ -64,19 +65,16 @@ export default function FormCheckScreen() {
     }
   };
 
-  const confirmDelete = (video: FormCheckVideo) => Alert.alert(
-    t('formCheck.deleteTitle'),
-    t('formCheck.deleteBody'),
-    [
-      { text: t('common.cancel'), style: 'cancel' },
-      { text: t('formCheck.delete'), style: 'destructive', onPress: () => {
-        void deleteFormCheckVideo(video.id).then(() => {
-          if (compareId === video.id) setCompareId(null);
-          return refresh();
-        });
-      } },
-    ],
-  );
+  const confirmDelete = (video: FormCheckVideo) => setDeleting(video);
+  const deleteConfirmed = () => {
+    const video = deleting;
+    setDeleting(null);
+    if (!video) return;
+    void deleteFormCheckVideo(video.id).then(() => {
+      if (compareId === video.id) setCompareId(null);
+      return refresh();
+    });
+  };
 
   if (loading) return <Screen><ActivityIndicator color={palette.accentStrong} /></Screen>;
   if (!context) return <Screen><PageHeading title={t('formCheck.title')} subtitle={t('formCheck.missingSet')} /><ActionButton label={t('formCheck.back')} secondary onPress={() => goBack()} /></Screen>;
@@ -136,6 +134,10 @@ export default function FormCheckScreen() {
         </>
       )}
       <ActionButton label={t('formCheck.back')} secondary onPress={() => goBack()} />
+      <Sheet visible={deleting !== null} onClose={() => setDeleting(null)} title={t('formCheck.deleteTitle')} body={t('formCheck.deleteBody')}>
+        <ActionButton icon="trash-outline" label={t('formCheck.delete')} variant="danger" onPress={deleteConfirmed} />
+        <ActionButton label={t('common.cancel')} secondary onPress={() => setDeleting(null)} />
+      </Sheet>
     </Screen>
   );
 }

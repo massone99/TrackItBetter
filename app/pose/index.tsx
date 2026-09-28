@@ -1,15 +1,16 @@
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { POSITIONS } from '../../src/domain/pose';
 import { poseDetectionAvailable } from '../../src/features/pose/detectPose';
 import { LevelBadge } from '../../src/features/pose/LevelBadge';
+import { PositionAccordion } from '../../src/features/pose/PositionPicker';
 import { listPoseCaptures, type PoseCapture } from '../../src/features/pose/repository';
-import { ActionButton, ListGroup, ListRow, PageHeading, Screen } from '../../src/shared/components/ui';
+import { findPosition } from '../../src/domain/pose';
+import { ActionButton, PageHeading, Screen } from '../../src/shared/components/ui';
 
 export default function PoseOverviewScreen() {
   const { t, i18n } = useTranslation();
-  const [latest, setLatest] = useState<Map<string, PoseCapture>>(new Map());
+  const [latest, setLatest] = useState<Map<string, PoseCapture> | null>(null);
 
   useFocusEffect(useCallback(() => {
     if (!poseDetectionAvailable) return;
@@ -24,29 +25,29 @@ export default function PoseOverviewScreen() {
   }, []));
 
   if (!poseDetectionAvailable) return <Screen><PageHeading title={t('pose.title')} subtitle={t('pose.unavailable')} /></Screen>;
+  // Wait for the captures so groups that already have checks can open straight away.
+  if (!latest) return <Screen><PageHeading title={t('pose.title')} subtitle={t('pose.subtitle')} /></Screen>;
+
+  const measuredGroups = [...new Set([...latest.keys()].flatMap((id) => findPosition(id)?.group ?? []))];
 
   return (
     <Screen>
       <PageHeading title={t('pose.title')} subtitle={t('pose.subtitle')} />
       <ActionButton icon="scan-outline" label={t('pose.newCheck')} onPress={() => router.push('/pose/new')} />
-      <ListGroup>
-        {POSITIONS.map((position) => {
+      <PositionAccordion
+        initiallyOpen={measuredGroups}
+        subtitle={(position) => {
           const capture = latest.get(position.id);
-          const subtitle = capture
+          return capture
             ? `${t('pose.degrees', { value: Math.round(capture.value) })} · ${capture.capturedAt.toLocaleDateString(i18n.language, { day: 'numeric', month: 'short' })}`
             : t(`pose.positions.${position.id}.how`);
-          return (
-            <ListRow
-              key={position.id}
-              icon="body-outline"
-              title={t(`pose.positions.${position.id}.name`)}
-              subtitle={subtitle}
-              onPress={() => router.push({ pathname: '/pose/[positionId]', params: { positionId: position.id } })}
-              trailing={capture ? <LevelBadge level={capture.level} compact /> : undefined}
-            />
-          );
-        })}
-      </ListGroup>
+        }}
+        trailing={(position) => {
+          const capture = latest.get(position.id);
+          return capture ? <LevelBadge level={capture.level} compact /> : undefined;
+        }}
+        onSelect={(id) => router.push({ pathname: '/pose/[positionId]', params: { positionId: id } })}
+      />
     </Screen>
   );
 }

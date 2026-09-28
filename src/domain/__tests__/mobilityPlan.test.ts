@@ -25,6 +25,15 @@ describe('expandRoutine', () => {
     expect(estimateRoutineSeconds({ transitionSec: 10, steps: [step({}), step({ mode: 'reps', reps: 10 })] })).toBe(30 + 10 + 30);
   });
 
+  it('gives every drill a countdown, stretching short breaks and adding one where there is none', () => {
+    const segments = expandRoutine({ transitionSec: 10, prepSec: 5, steps: [step({ id: 'a', perSide: true, rounds: 2 }), step({ id: 'b' })] });
+    expect(segments.map((segment) => `${segment.kind}:${segment.kind === 'work' ? segment.side : segment.durationSec}`)).toEqual([
+      'prep:5', 'work:left', 'switch:5', 'work:right', 'prep:5', 'work:left', 'switch:5', 'work:right', 'transition:10', 'work:null',
+    ]);
+    const long = expandRoutine({ transitionSec: 0, prepSec: 8, steps: [step({ perSide: true })] });
+    expect(long.map((segment) => segment.kind === 'work' ? 'work' : `${segment.kind}:${segment.durationSec}`)).toEqual(['prep:8', 'work', 'switch:8', 'work']);
+  });
+
   it('treats invalid rounds as one round', () => {
     expect(expandRoutine({ transitionSec: 0, steps: [step({ rounds: 0 })] })).toHaveLength(1);
   });

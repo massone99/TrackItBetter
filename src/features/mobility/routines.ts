@@ -3,13 +3,15 @@ import * as Crypto from 'expo-crypto';
 import { z } from 'zod';
 import { db, initializeDatabase } from '../../db/client';
 import { settings } from '../../db/schema';
-import type { MobilityStep } from '../../domain/mobilityPlan';
+import { DEFAULT_PREP_SEC, type MobilityStep } from '../../domain/mobilityPlan';
 
 export interface MobilityRoutine {
   id: string;
   name: string;
   /** Seconds to get into the next drill. */
   transitionSec: number;
+  /** Countdown before every drill starts. */
+  prepSec: number;
   steps: MobilityStep[];
   updatedAt: string;
 }
@@ -31,6 +33,8 @@ const routineSchema = z.object({
   id: z.string().min(1),
   name: z.string().trim().min(1).max(60),
   transitionSec: z.number().int().min(0).max(60),
+  // Routines saved before the countdown existed get the default one.
+  prepSec: z.number().int().min(0).max(30).default(DEFAULT_PREP_SEC),
   steps: z.array(stepSchema).min(1).max(40),
   updatedAt: z.string(),
 });

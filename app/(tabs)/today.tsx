@@ -1,12 +1,14 @@
 import { router, useFocusEffect } from "expo-router";
 import { useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { StyleSheet, View } from "react-native";
+import { Pressable, StyleSheet, View } from "react-native";
 import { getProgressSnapshot } from "../../src/features/analytics/repository";
 import type { PersonalBest } from "../../src/features/analytics/summary";
 import { getGoalSnapshot, GoalSnapshot } from "../../src/features/goals/repository";
 import { ActiveWorkout, getActiveWorkout, listRecentWorkouts, WorkoutHistoryItem } from "../../src/features/session/repository";
-import { ActionButton, Body, Card, Icon, Label, ListGroup, ListRow, Numeral, Screen, SectionTitle, Text, Title } from "../../src/shared/components/ui";
+import { ActionButton, Body, Card, Icon, Label, ListGroup, ListRow, Numeral, Screen, SectionTitle, tapFeedback, Text, Title } from "../../src/shared/components/ui";
+import type { IconName } from "../../src/shared/components/ui";
+import { poseDetectionAvailable } from "../../src/features/pose/detectPose";
 import { useTheme } from "../../src/shared/theme/ThemeProvider";
 import { fonts } from "../../src/shared/theme/typography";
 import { formatBestValue } from "../../src/shared/utils/format";
@@ -79,6 +81,13 @@ export default function TodayScreen() {
         )}
       </View>
 
+      <View style={styles.tiles}>
+        {poseDetectionAvailable ? (
+          <Tile icon="scan-outline" title={t("home.pose")} body={t("home.poseBody")} onPress={() => router.push("/pose")} />
+        ) : null}
+        <Tile icon="body-outline" title={t("home.mobility")} body={t("home.mobilityBody")} onPress={() => router.push("/mobility")} />
+      </View>
+
       <Card style={styles.weekCard}>
         <View style={styles.weekHeader}>
           <View>
@@ -137,7 +146,6 @@ export default function TodayScreen() {
       <SectionTitle title={t("home.quick")} />
       <ListGroup>
         <ListRow icon="flash-outline" title={t("home.micro")} subtitle={t("home.microBody")} onPress={() => router.push("/micro-session")} />
-        <ListRow icon="body-outline" title={t("home.mobility")} subtitle={t("home.mobilityBody")} onPress={() => router.push("/mobility")} />
         <ListRow icon="scale-outline" title={t("home.bodyweight")} subtitle={t("home.bodyweightBody")} onPress={() => router.push("/bodyweight")} />
         {data.last ? (
           <ListRow
@@ -149,6 +157,26 @@ export default function TodayScreen() {
         ) : null}
       </ListGroup>
     </Screen>
+  );
+}
+
+/** A large shortcut to one of the guided tools. */
+function Tile({ icon, title, body, onPress }: { icon: IconName; title: string; body: string; onPress: () => void }) {
+  const styles = useScaledStyles(baseStyles);
+  const { palette } = useTheme();
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={`${title}. ${body}`}
+      onPress={() => { tapFeedback(); onPress(); }}
+      style={({ pressed }) => [styles.tile, { backgroundColor: palette.surface, borderColor: palette.border, opacity: pressed ? 0.85 : 1, transform: [{ scale: pressed ? 0.985 : 1 }] }]}
+    >
+      <View style={[styles.tileIcon, { backgroundColor: palette.accentSoft }]}>
+        <Icon name={icon} size={22} color={palette.accentStrong} />
+      </View>
+      <Text style={[styles.tileTitle, { color: palette.text }]}>{title}</Text>
+      <Text style={[styles.tileBody, { color: palette.textMuted }]} numberOfLines={3}>{body}</Text>
+    </Pressable>
   );
 }
 
@@ -175,6 +203,11 @@ const baseStyles = StyleSheet.create({
   heroBody: { fontFamily: fonts.body, fontSize: 15, lineHeight: 22, opacity: 0.88 },
   heroLink: { fontFamily: fonts.semibold, fontSize: 15, textAlign: "center", textDecorationLine: "underline", paddingVertical: 2 },
   weekCard: { gap: 16 },
+  tiles: { flexDirection: "row", gap: 10 },
+  tile: { flex: 1, borderRadius: 20, borderWidth: StyleSheet.hairlineWidth, padding: 16, gap: 8, minHeight: 132 },
+  tileIcon: { width: 42, height: 42, borderRadius: 14, alignItems: "center", justifyContent: "center" },
+  tileTitle: { fontFamily: fonts.display, fontSize: 21, lineHeight: 24 },
+  tileBody: { fontFamily: fonts.body, fontSize: 13, lineHeight: 18 },
   weekHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" },
   weekCount: { flexDirection: "row", alignItems: "baseline", gap: 8, marginTop: 2 },
   days: { flexDirection: "row", justifyContent: "space-between" },

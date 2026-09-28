@@ -1,12 +1,13 @@
 import { useState } from "react";
-import { Alert, StyleSheet, View } from "react-native";
+import { router } from "expo-router";
+import { StyleSheet, View } from "react-native";
 import { useTranslation } from "react-i18next";
 import * as DocumentPicker from "expo-document-picker";
-import { File, Paths } from "expo-file-system";
-import * as Sharing from "expo-sharing";
-import { ActionButton, Body, Card, Heading, PageHeading, Screen, Icon } from "../src/shared/components/ui";
+import { File } from "expo-file-system";
+import { ActionButton, Body, Card, Heading, Icon, PageHeading, Screen, Sheet } from "../src/shared/components/ui";
 import { useTheme } from "../src/shared/theme/ThemeProvider";
-import { exportBackup, importBackup } from "../src/features/data/backup";
+import { importBackup } from "../src/features/data/backup";
+import { shareBackupFile } from "../src/features/data/shareBackup";
 import { useScaledStyles } from "../src/shared/theme/useScaledStyles";
 
 export default function DataScreen() {
@@ -15,28 +16,15 @@ export default function DataScreen() {
   const { palette } = useTheme();
   const [working, setWorking] = useState(false);
   const [message, setMessage] = useState("");
+  // Contents of a picked backup, waiting for the user to confirm the replacement.
+  const [pending, setPending] = useState<string | null>(null);
 
   const createBackupFile = async () => {
     setWorking(true);
     setMessage("");
     try {
-      const contents = await exportBackup();
-      const filename = `trackitbetter-backup-${new Date().toISOString().slice(0, 10)}.json`;
-      const file = new File(Paths.cache, filename);
-      await file.create({ overwrite: true });
-      await file.write(contents);
-
-      if (!(await Sharing.isAvailableAsync())) {
-        setMessage(t("data.exportUnavailable"));
-        return;
-      }
-
-      await Sharing.shareAsync(file.uri, {
-        mimeType: "application/json",
-        dialogTitle: t("data.exportAction"),
-        UTI: "public.json",
-      });
-      setMessage(t("data.exportReady"));
+      const result = await shareBackupFile(t("data.exportAction"));
+      setMessage(result === "shared" ? t("data.exportReady") : t("data.exportUnavailable"));
     } catch {
       setMessage(t("data.exportError"));
     } finally {
@@ -54,30 +42,24 @@ export default function DataScreen() {
         multiple: false,
       });
       if (result.canceled) return;
-
-      const file = new File(result.assets[0].uri);
-      const contents = await file.text();
-      Alert.alert(
-        t("data.replaceTitle"),
-        t("data.replaceBody"),
-        [
-          { text: t("data.cancel"), style: "cancel" },
-          {
-            text: t("data.replaceAction"),
-            style: "destructive",
-            onPress: () => {
-              setWorking(true);
-              void importBackup(contents).then(
-                () => setMessage(t("data.importSuccess")),
-                () => setMessage(t("data.importInvalid")),
-              ).finally(() => setWorking(false));
-            },
-          },
-        ],
-        { cancelable: true },
-      );
+      setPending(await new File(result.assets[0].uri).text());
     } catch {
       setMessage(t("data.importReadError"));
+    } finally {
+      setWorking(false);
+    }
+  };
+
+  const confirmImport = async () => {
+    const contents = pending;
+    setPending(null);
+    if (contents === null) return;
+    setWorking(true);
+    try {
+      await importBackup(contents);
+      setMessage(t("data.importSuccess"));
+    } catch {
+      setMessage(t("data.importInvalid"));
     } finally {
       setWorking(false);
     }
@@ -93,7 +75,7 @@ export default function DataScreen() {
         </View>
         <Heading>{t("data.exportTitle")}</Heading>
         <Body>{t("data.exportBody")}</Body>
-        <ActionButton label={working ? t("data.working") : t("data.exportAction")} onPress={() => void createBackupFile()} />
+        <ActionButton label={working ? t("data.working") : t("data.exportAction")} disabled={working} onPress={() => void createBackupFile()} />
       </Card>
 
       <Card style={styles.card}>
@@ -102,12 +84,26 @@ export default function DataScreen() {
         </View>
         <Heading>{t("data.importTitle")}</Heading>
         <Body>{t("data.importBody")}</Body>
-        <ActionButton label={working ? t("data.working") : t("data.importAction")} secondary onPress={() => void chooseBackupFile()} />
+        <ActionButton label={working ? t("data.working") : t("data.importAction")} secondary disabled={working} onPress={() => void chooseBackupFile()} />
       </Card>
 
       {message ? <Body accessibilityLiveRegion="polite" style={{ color: palette.text }}>{message}</Body> : null}
       <Body style={{ color: palette.warning }}>{t("data.privacy")}</Body>
       <Body>{t("data.videoBackupBoundary")}</Body>
+
+      <Card style={[styles.card, { borderColor: palette.warning }]}>
+        <View style={[styles.icon, { backgroundColor: palette.surfaceMuted }]}>
+          <Icon name="refresh-circle-outline" size={20} color={palette.warning} />
+        </View>
+        <Heading>{t("reset.cardTitle")}</Heading>
+        <Body>{t("reset.cardBody")}</Body>
+        <ActionButton icon="trash-outline" label={t("reset.open")} variant="danger" disabled={working} onPress={() => router.push("/reset")} />
+      </Card>
+
+      <Sheet visible={pending !== null} onClose={() => setPending(null)} title={t("data.replaceTitle")} body={t("data.replaceBody")}>
+        <ActionButton icon="download-outline" label={t("data.replaceAction")} variant="danger" onPress={() => void confirmImport()} />
+        <ActionButton label={t("data.cancel")} secondary onPress={() => setPending(null)} />
+      </Sheet>
     </Screen>
   );
 }

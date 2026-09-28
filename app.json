@@ -3,15 +3,17 @@
     "name": "TrackItBetter",
     "slug": "track-it-better",
     "scheme": "trackitbetter",
-    "version": "0.1.0",
+    "version": "0.2.0",
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.trackitbetter.app"
+      "bundleIdentifier": "com.trackitbetter.app",
+      "buildNumber": "2"
     },
     "android": {
       "package": "com.trackitbetter.app",
+      "versionCode": 2,
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#2F45C8"
@@ -45,7 +47,12 @@
           "backgroundColor": "#2F45C8"
         }
       ],
-      "react-native-fast-tflite"
+      "react-native-fast-tflite",
+      "expo-asset",
+      [
+        "expo-audio",
+        { "microphonePermission": false, "recordAudioAndroid": false, "enableBackgroundPlayback": false }
+      ]
     ],
     "experiments": {
       "typedRoutes": true

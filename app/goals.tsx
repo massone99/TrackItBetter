@@ -78,12 +78,12 @@ export default function GoalsScreen() {
         <Card>
           <SectionTitle title={strings.weeklyGoal} />
           <View style={styles.targetRow}>
-            <Pressable accessibilityRole="button" accessibilityLabel={language === 'it' ? 'Riduci obiettivo settimanale' : 'Decrease weekly goal'} accessibilityState={{ disabled: snapshot.weeklyTarget <= 1 || saving }} disabled={snapshot.weeklyTarget <= 1 || saving} onPress={() => void changeTarget(-1)} style={[styles.adjustButton, { backgroundColor: palette.surfaceMuted, opacity: snapshot.weeklyTarget <= 1 ? 0.45 : 1 }]}><Text style={[styles.adjustText, { color: palette.text }]}>−</Text></Pressable>
+            <Pressable accessibilityRole="button" accessibilityLabel={t('goals.decreaseTarget')} accessibilityState={{ disabled: snapshot.weeklyTarget <= 1 || saving }} disabled={snapshot.weeklyTarget <= 1 || saving} onPress={() => void changeTarget(-1)} style={[styles.adjustButton, { backgroundColor: palette.surfaceMuted, opacity: snapshot.weeklyTarget <= 1 ? 0.45 : 1 }]}><Text style={[styles.adjustText, { color: palette.text }]}>−</Text></Pressable>
             <View style={styles.targetText}>
               <Heading>{t('goals.target', { count: snapshot.weeklyTarget })}</Heading>
               <Body>{t('goals.progress', { done: Math.min(snapshot.thisWeekSessions, snapshot.weeklyTarget), target: snapshot.weeklyTarget })}</Body>
             </View>
-            <Pressable accessibilityRole="button" accessibilityLabel={language === 'it' ? 'Aumenta obiettivo settimanale' : 'Increase weekly goal'} accessibilityState={{ disabled: snapshot.weeklyTarget >= 7 || saving }} disabled={snapshot.weeklyTarget >= 7 || saving} onPress={() => void changeTarget(1)} style={[styles.adjustButton, { backgroundColor: palette.surfaceMuted, opacity: snapshot.weeklyTarget >= 7 ? 0.45 : 1 }]}><Text style={[styles.adjustText, { color: palette.text }]}>+</Text></Pressable>
+            <Pressable accessibilityRole="button" accessibilityLabel={t('goals.increaseTarget')} accessibilityState={{ disabled: snapshot.weeklyTarget >= 7 || saving }} disabled={snapshot.weeklyTarget >= 7 || saving} onPress={() => void changeTarget(1)} style={[styles.adjustButton, { backgroundColor: palette.surfaceMuted, opacity: snapshot.weeklyTarget >= 7 ? 0.45 : 1 }]}><Text style={[styles.adjustText, { color: palette.text }]}>+</Text></Pressable>
           </View>
           <View accessibilityRole="progressbar" accessibilityLabel={strings.weeklyGoal} accessibilityValue={{ min: 0, max: snapshot.weeklyTarget, now: Math.min(snapshot.thisWeekSessions, snapshot.weeklyTarget) }} style={[styles.progressTrack, { backgroundColor: palette.surfaceMuted }]}>
             <View style={[styles.progressFill, { width: `${Math.min(100, snapshot.thisWeekSessions / snapshot.weeklyTarget * 100)}%`, backgroundColor: palette.accentStrong }]} />

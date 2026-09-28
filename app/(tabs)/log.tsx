@@ -98,7 +98,7 @@ export default function LogScreen() {
           ) : visibleWorkouts.map((workout) => {
         const duration = Math.max(0, Math.round((workout.endedAt.getTime() - workout.startedAt.getTime()) / 60_000));
         return (
-          <Pressable key={workout.id} accessibilityRole="button" accessibilityLabel={`Edit ${workout.name}`} onPress={() => router.push({ pathname: '/workout/history/[id]', params: { id: workout.id } })}>
+          <Pressable key={workout.id} accessibilityRole="button" accessibilityLabel={t('log.openWorkout', { name: workout.name })} onPress={() => router.push({ pathname: '/workout/history/[id]', params: { id: workout.id } })}>
           <Card style={styles.workout}>
             <View style={styles.workoutTop}>
               <Heading>{workout.name}</Heading>

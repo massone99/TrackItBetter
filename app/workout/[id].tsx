@@ -14,18 +14,25 @@ import {
   addExerciseToWorkout,
   addSet,
   completeSet,
+  deleteWorkout,
   finishWorkout,
   getActiveWorkout,
   getPreviousPerformance,
   removeExerciseEntry,
+  removeExerciseEntryWithUndo,
   removeSet,
+  removeSetWithUndo,
+  restoreRemoved,
   uncompleteSet,
   updateSetNote,
   updateSetRpe,
   updateWorkoutReadiness,
   updateSet,
 } from '../../src/features/session/repository';
-import type { ActiveWorkout, PreviousPerformance, SessionExercise, SessionSet } from '../../src/features/session/repository';
+import type { ActiveWorkout, PreviousPerformance, RemovedRows, SessionExercise, SessionSet } from '../../src/features/session/repository';
+import { defaultHoldMode, rememberHoldMode, useHoldTimer, type ActiveHold } from '../../src/features/session/useHoldTimer';
+import type { HoldMode } from '../../src/domain/holdTimer';
+import { playBeep } from '../../src/shared/audio/beeps';
 import {
   ActionButton,
   Body,
@@ -35,11 +42,14 @@ import {
   Icon,
   IconButton,
   Label,
+  NumberEdit,
   PageHeading,
   Screen,
+  SegmentedControl,
   Sheet,
   Text,
   TextField,
+  Toast,
   tapFeedback,
 } from '../../src/shared/components/ui';
 import { useKeyboardVisible } from '../../src/shared/components/keyboard';
@@ -64,12 +74,18 @@ export default function WorkoutScreen() {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [restSeconds, setRestSeconds] = useState<number | null>(null);
   const [restEndsAt, setRestEndsAt] = useState<number | null>(null);
-  const [holdTimer, setHoldTimer] = useState<{ setId: string; startedAt: number; elapsed: number } | null>(null);
+  // Hold mode chosen per set during this session; unset sets use the last mode picked.
+  const [holdModes, setHoldModes] = useState<Map<string, HoldMode>>(new Map());
+  const holdModeFor = (setId: string) => holdModes.get(setId) ?? defaultHoldMode();
+  // The last removal, offered for a few seconds as "Restore".
+  const [undo, setUndo] = useState<{ message: string; removed: RemovedRows } | null>(null);
+  const hideUndo = useCallback(() => setUndo(null), []);
   const [clockNow, setClockNow] = useState<number | null>(null);
   const [voiceCues, setVoiceCues] = useState(false);
   const [voicePreferenceLoaded, setVoicePreferenceLoaded] = useState(false);
   const [readinessOpen, setReadinessOpen] = useState(false);
   const [finishOpen, setFinishOpen] = useState(false);
+  const [discardOpen, setDiscardOpen] = useState(false);
   const [optionsFor, setOptionsFor] = useState<SessionExercise | null>(null);
   const [referenceFor, setReferenceFor] = useState<SessionExercise | null>(null);
   const [removeExerciseFor, setRemoveExerciseFor] = useState<SessionExercise | null>(null);
@@ -130,20 +146,18 @@ export default function WorkoutScreen() {
       if (remaining === 0) {
         setRestSeconds(null);
         setRestEndsAt(null);
-        tapFeedback('success');
+        playBeep('done');
         return;
       }
       if (voiceCues && (remaining === 10 || remaining === 3 || remaining === 2 || remaining === 1)) {
         const language = i18n.resolvedLanguage === 'it' ? 'it-IT' : 'en-US';
-        const prompt = remaining === 1
-          ? (language === 'it-IT' ? 'Uno. Inizia la prossima serie.' : 'One. Start the next set.')
-          : String(remaining);
+        const prompt = remaining === 1 ? t('workout.restLastSecond') : String(remaining);
         Speech.speak(prompt, { language, rate: 0.95 });
       }
       setRestSeconds(remaining);
     }, 1000);
     return () => clearInterval(timer);
-  }, [isResting, restEndsAt, voiceCues, i18n.resolvedLanguage]);
+  }, [isResting, restEndsAt, voiceCues, i18n.resolvedLanguage, t]);
 
   const toggleVoiceCues = async () => {
     const enabled = !voiceCues;
@@ -158,13 +172,6 @@ export default function WorkoutScreen() {
       setVoiceCues(!enabled);
     }
   };
-
-  const isHolding = holdTimer !== null;
-  useEffect(() => {
-    if (!isHolding) return;
-    const timer = setInterval(() => setHoldTimer((current) => current ? { ...current, elapsed: Math.floor((Date.now() - current.startedAt) / 1000) } : null), 250);
-    return () => clearInterval(timer);
-  }, [isHolding]);
 
   useEffect(() => {
     const updateClock = () => setClockNow(Date.now());
@@ -191,12 +198,7 @@ export default function WorkoutScreen() {
     const duration = Math.max(1, Math.floor(seconds));
     setRestSeconds(duration);
     setRestEndsAt(Date.now() + duration * 1000);
-    const italian = (i18n.resolvedLanguage ?? i18n.language).startsWith('it');
-    void scheduleRestFinishedNotification(
-      duration,
-      italian ? 'Recupero terminato' : 'Rest timer complete',
-      italian ? 'È il momento della prossima serie.' : 'Time for your next set.',
-    ).catch(() => undefined);
+    void scheduleRestFinishedNotification(duration, t('workout.restDoneTitle'), t('workout.restDoneBody')).catch(() => undefined);
   };
 
   const extendRest = () => {
@@ -251,16 +253,36 @@ export default function WorkoutScreen() {
     if (workout) await refresh(workout.id);
   };
 
-  const finishCurrentHold = async () => {
-    if (!holdTimer) return;
+  /** Saves a finished hold as the set's time, completes it and starts the rest. */
+  const recordHold = async (setId: string, seconds: number) => {
     tapFeedback('success');
-    await updateSet(holdTimer.setId, 'durationSec', holdTimer.elapsed);
-    await completeSet(holdTimer.setId);
-    const configuredRest = workout?.exercises.flatMap((exercise) => exercise.sets).find((set) => set.id === holdTimer.setId)?.restSec;
-    if (readBooleanPreference(RPE_PROMPT_KEY, true)) setRpePromptFor(holdTimer.setId);
-    setHoldTimer(null);
+    await updateSet(setId, 'durationSec', seconds);
+    await completeSet(setId);
+    const configuredRest = workout?.exercises.flatMap((exercise) => exercise.sets).find((set) => set.id === setId)?.restSec;
+    if (readBooleanPreference(RPE_PROMPT_KEY, true)) setRpePromptFor(setId);
     startRestTimer(configuredRest ?? 90);
     if (workout) await refresh(workout.id);
+  };
+
+  // A target hold that reaches its time records itself.
+  const hold = useHoldTimer((setId, seconds) => void recordHold(setId, seconds));
+
+  /** Stop pressed: during the countdown this cancels, afterwards it records the time held. */
+  const finishCurrentHold = async () => {
+    const active = hold.active;
+    const seconds = hold.stop();
+    if (!active || seconds === 0) return;
+    await recordHold(active.setId, seconds);
+  };
+
+  const startHoldFor = (set: SessionSet) => {
+    if (hold.active) return;
+    skipRest();
+    hold.start(set.id, holdModeFor(set.id), set.durationSec ?? 30);
+  };
+
+  const offerUndo = (message: string, removed: RemovedRows | null) => {
+    if (removed) setUndo({ message, removed });
   };
 
   const confirmFinish = async () => {
@@ -272,10 +294,29 @@ export default function WorkoutScreen() {
     router.replace({ pathname: '/workout/summary/[id]', params: { id: workout.id } });
   };
 
+  const confirmDiscard = async () => {
+    if (!workout) return;
+    setDiscardOpen(false);
+    hold.stop();
+    skipRest();
+    void Speech.stop();
+    await deleteWorkout(workout.id);
+    router.replace('/(tabs)/today');
+  };
+
   const removeExercise = async (exercise: SessionExercise) => {
     setRemoveExerciseFor(null);
     if (!workout) return;
     await removeExerciseEntry(exercise.entryId);
+    await refresh(workout.id);
+  };
+
+  /** Without clips a removal can be undone, so it happens at once with a "Restore" toast. */
+  const removeExerciseOrConfirm = async (exercise: SessionExercise) => {
+    setOptionsFor(null);
+    if (!workout) return;
+    if (exercise.sets.some((set) => set.clipCount > 0)) { setRemoveExerciseFor(exercise); return; }
+    offerUndo(t('logger.removedExercise', { name: exercise.name }), await removeExerciseEntryWithUndo(exercise.entryId));
     await refresh(workout.id);
   };
 
@@ -337,7 +378,12 @@ export default function WorkoutScreen() {
             icon="barbell-outline"
             title={t('workout.addFirst')}
             body={t('workout.savedDescription')}
-            action={<View style={styles.emptyAction}><ActionButton icon="add" label={t('workout.addExercise')} onPress={() => setPickerOpen(true)} /></View>}
+            action={(
+              <View style={styles.emptyAction}>
+                <ActionButton icon="add" label={t('workout.addExercise')} onPress={() => setPickerOpen(true)} />
+                <ActionButton icon="close-circle-outline" label={t('workout.discard')} variant="ghost" onPress={() => setDiscardOpen(true)} />
+              </View>
+            )}
           />
         ) : null}
 
@@ -346,10 +392,11 @@ export default function WorkoutScreen() {
             key={exercise.entryId}
             exercise={exercise}
             previous={previous.get(exercise.exerciseId)}
-            holdTimer={holdTimer}
+            hold={hold.active}
             onChange={changeSet}
+            onSetValue={(set, field, value) => void updateSet(set.id, field, value).then(() => refresh(workout.id))}
             onComplete={(set) => void completeRegularSet(set)}
-            onStartHold={(set) => { tapFeedback(); setHoldTimer({ setId: set.id, startedAt: Date.now(), elapsed: 0 }); }}
+            onStartHold={startHoldFor}
             onFinishHold={() => void finishCurrentHold()}
             onAddSet={() => void addSet(exercise.entryId).then(() => refresh(workout.id))}
             onSetOptions={(set) => setSetSheet({ exercise, setId: set.id })}
@@ -366,16 +413,28 @@ export default function WorkoutScreen() {
           <View style={styles.footerActions}>
             <ActionButton icon="add" label={t('workout.addExercise')} secondary onPress={() => setPickerOpen(true)} />
             <ActionButton icon="flag-outline" label={t('workout.finish')} onPress={() => setFinishOpen(true)} />
+            <ActionButton icon="close-circle-outline" label={t('workout.discard')} variant="ghost" onPress={() => setDiscardOpen(true)} />
           </View>
         ) : null}
       </Screen>
 
       <TimerBar
-        holdElapsed={holdTimer?.elapsed ?? null}
+        hold={hold.active}
         restSeconds={restSeconds}
         onFinishHold={() => void finishCurrentHold()}
         onExtend={extendRest}
         onSkip={skipRest}
+      />
+
+      <Toast
+        message={undo?.message ?? null}
+        actionLabel={t('logger.restore')}
+        onAction={() => {
+          const removed = undo?.removed;
+          if (removed) void restoreRemoved(removed).then(() => refresh(workout.id));
+        }}
+        onHide={hideUndo}
+        bottomOffset={hold.active || restSeconds !== null ? 110 : 0}
       />
 
       <Sheet
@@ -386,6 +445,19 @@ export default function WorkoutScreen() {
       >
         {completedCount > 0 ? <ActionButton icon="flag" label={t('workout.finish')} onPress={() => void confirmFinish()} /> : null}
         <ActionButton label={t('logger.keepGoing')} secondary onPress={() => setFinishOpen(false)} />
+        {completedCount === 0 ? (
+          <ActionButton icon="close-circle-outline" label={t('workout.discard')} variant="danger" onPress={() => { setFinishOpen(false); setDiscardOpen(true); }} />
+        ) : null}
+      </Sheet>
+
+      <Sheet
+        visible={discardOpen}
+        onClose={() => setDiscardOpen(false)}
+        title={t('workout.discardTitle')}
+        body={completedCount > 0 ? t('workout.discardBody', { count: completedCount }) : t('workout.discardBodyEmpty')}
+      >
+        <ActionButton icon="trash-outline" label={t('workout.discardConfirm')} variant="danger" onPress={() => void confirmDiscard()} />
+        <ActionButton label={t('logger.keepGoing')} secondary onPress={() => setDiscardOpen(false)} />
       </Sheet>
 
       <Sheet visible={optionsFor !== null} onClose={() => setOptionsFor(null)} title={optionsFor?.name ?? t('logger.options')}>
@@ -395,7 +467,7 @@ export default function WorkoutScreen() {
           secondary
           onPress={() => { setReferenceFor(optionsFor); setOptionsFor(null); }}
         />
-        <ActionButton icon="trash-outline" label={t('logger.removeExercise')} variant="danger" onPress={() => { setRemoveExerciseFor(optionsFor); setOptionsFor(null); }} />
+        <ActionButton icon="trash-outline" label={t('logger.removeExercise')} variant="danger" onPress={() => { if (optionsFor) void removeExerciseOrConfirm(optionsFor); }} />
       </Sheet>
 
       <Sheet
@@ -425,8 +497,11 @@ export default function WorkoutScreen() {
           key={sheetSet.id}
           exercise={sheetExercise}
           set={sheetSet}
+          holdMode={holdModeFor(sheetSet.id)}
+          onHoldMode={(mode) => { rememberHoldMode(mode); setHoldModes((current) => new Map(current).set(sheetSet.id, mode)); }}
           onClose={() => setSetSheet(null)}
           onChanged={() => refresh(workout.id)}
+          onRemoved={(removed) => offerUndo(t('logger.removedSet', { number: sheetSet.index }), removed)}
         />
       ) : null}
 
@@ -442,11 +517,12 @@ export default function WorkoutScreen() {
   );
 }
 
-function ExerciseCard({ exercise, previous, holdTimer, onChange, onComplete, onStartHold, onFinishHold, onAddSet, onSetOptions, onUncomplete, rpePromptFor, onRpe, onDismissRpe, onOptions, onSaved }: {
+function ExerciseCard({ exercise, previous, hold, onChange, onSetValue, onComplete, onStartHold, onFinishHold, onAddSet, onSetOptions, onUncomplete, rpePromptFor, onRpe, onDismissRpe, onOptions, onSaved }: {
   exercise: SessionExercise;
   previous: PreviousPerformance | undefined;
-  holdTimer: { setId: string; elapsed: number } | null;
+  hold: ActiveHold | null;
   onChange: (set: SessionSet, field: 'reps' | 'durationSec' | 'distanceM' | 'addedLoadKg', delta: number) => Promise<void>;
+  onSetValue: (set: SessionSet, field: 'reps' | 'durationSec' | 'distanceM', value: number) => void;
   onComplete: (set: SessionSet) => void;
   onStartHold: (set: SessionSet) => void;
   onFinishHold: () => void;
@@ -492,8 +568,9 @@ function ExerciseCard({ exercise, previous, holdTimer, onChange, onComplete, onS
 
       {exercise.sets.map((set) => {
         const done = Boolean(set.completedAt);
-        const holding = holdTimer?.setId === set.id;
-        const value = timed ? formatClock(holding ? holdTimer.elapsed : set.durationSec ?? 0) : distance ? formatNumber(set.distanceM ?? 0) : String(set.reps ?? 0);
+        const holding = hold?.setId === set.id;
+        const stored = timed ? set.durationSec ?? 0 : distance ? set.distanceM ?? 0 : set.reps ?? 0;
+        const value = holding && hold ? holdDisplay(hold) : timed ? formatClock(stored) : distance ? formatNumber(stored) : String(stored);
         return (
           <View key={set.id} style={[styles.setBlock, done && { backgroundColor: palette.accentSoft }]}>
             <View style={styles.setRow}>
@@ -504,7 +581,18 @@ function ExerciseCard({ exercise, previous, holdTimer, onChange, onComplete, onS
               </View>
               <View style={[styles.colValue, styles.stepper]}>
                 {done ? null : <StepButton icon="remove" label="−" onPress={() => void onChange(set, field, distance ? -0.5 : timed ? -5 : -1)} />}
-                <Text style={[styles.setValue, { color: holding ? palette.accentStrong : palette.text }]}>{value}</Text>
+                {done || holding ? (
+                  <Text style={[styles.setValue, { color: holding ? palette.accentStrong : palette.text }]}>{value}</Text>
+                ) : (
+                  <NumberEdit
+                    value={stored}
+                    display={value}
+                    clock={timed}
+                    label={t('logger.editValue', { number: set.index })}
+                    onCommit={(next) => onSetValue(set, field, timed || field === 'reps' ? Math.round(next) : next)}
+                    style={[styles.setValue, { color: palette.text }]}
+                  />
+                )}
                 {done ? null : <StepButton icon="add" label="+" onPress={() => void onChange(set, field, distance ? 0.5 : timed ? 5 : 1)} />}
               </View>
               {loaded ? <View style={styles.colLoad}><LoadEditor key={`${set.id}:${set.addedLoadKg}`} setId={set.id} value={set.addedLoadKg} disabled={done} onSaved={onSaved} /></View> : null}
@@ -574,17 +662,23 @@ function ExerciseCard({ exercise, previous, holdTimer, onChange, onComplete, onS
 }
 
 /** Per-set details kept out of the row: note, form-check video, removal. */
-function SetSheet({ exercise, set, onClose, onChanged }: {
+function SetSheet({ exercise, set, holdMode, onHoldMode, onClose, onChanged, onRemoved }: {
   exercise: SessionExercise;
   set: SessionSet;
+  holdMode: HoldMode;
+  onHoldMode: (mode: HoldMode) => void;
   onClose: () => void;
   onChanged: () => Promise<void>;
+  /** Called with what was removed when the removal can be undone. */
+  onRemoved: (removed: RemovedRows | null) => void;
 }) {
   const { t } = useTranslation();
   const [note, setNote] = useState(set.note ?? '');
   const [rpe, setRpe] = useState(set.rpe);
   const [confirming, setConfirming] = useState(false);
-  const needsConfirm = Boolean(set.completedAt) || set.clipCount > 0;
+  // Clips cannot be restored, so only a set with clips asks first; any other removal can be undone.
+  const needsConfirm = set.clipCount > 0;
+  const timed = exercise.metric === 'time' || exercise.metric === 'time_load';
 
   const saveNote = async () => {
     if ((set.note ?? '') === note.trim()) return;
@@ -602,7 +696,8 @@ function SetSheet({ exercise, set, onClose, onChanged }: {
   const remove = async () => {
     if (needsConfirm && !confirming) { setConfirming(true); return; }
     onClose();
-    await removeSet(set.id);
+    if (needsConfirm) await removeSet(set.id);
+    else onRemoved(await removeSetWithUndo(set.id));
     await onChanged();
   };
 
@@ -615,6 +710,17 @@ function SetSheet({ exercise, set, onClose, onChanged }: {
     >
       {confirming ? null : (
         <>
+          {timed ? (
+            <View style={{ gap: 6 }}>
+              <Label>{t('logger.holdMode')}</Label>
+              <SegmentedControl<HoldMode>
+                value={holdMode}
+                onChange={onHoldMode}
+                options={[{ value: 'free', label: t('logger.holdFree') }, { value: 'target', label: t('logger.holdTarget') }]}
+              />
+              <Body>{holdMode === 'target' ? t('logger.holdTargetHint', { time: formatClock(set.durationSec ?? 0) }) : t('logger.holdFreeHint')}</Body>
+            </View>
+          ) : null}
           <RpePicker value={rpe} onChange={(next) => { setRpe(next); void updateSetRpe(set.id, next).then(onChanged); }} />
           <TextField
             label={t('logger.noteLabel')}
@@ -651,8 +757,15 @@ function describeSet(set: PreviousPerformance['sets'][number], metric: string): 
   return set.rpe !== null ? `${withLoad} (RPE ${formatRpe(set.rpe)})` : withLoad;
 }
 
-function TimerBar({ holdElapsed, restSeconds, onFinishHold, onExtend, onSkip }: {
-  holdElapsed: number | null;
+/** Value shown in the set row and timer bar while a hold runs. */
+function holdDisplay(hold: ActiveHold): string {
+  if (hold.phase.phase === 'countdown') return String(hold.phase.secondsLeft);
+  if (hold.phase.phase === 'running' && hold.phase.remaining !== null) return formatClock(hold.phase.remaining);
+  return formatClock(hold.phase.elapsed);
+}
+
+function TimerBar({ hold, restSeconds, onFinishHold, onExtend, onSkip }: {
+  hold: ActiveHold | null;
   restSeconds: number | null;
   onFinishHold: () => void;
   onExtend: () => void;
@@ -664,16 +777,24 @@ function TimerBar({ holdElapsed, restSeconds, onFinishHold, onExtend, onSkip }: 
   const insets = useSafeAreaInsets();
   // The bar floats over the list; while typing it would sit on top of the focused input.
   const keyboardVisible = useKeyboardVisible();
-  if (keyboardVisible || (holdElapsed === null && restSeconds === null)) return null;
-  const holding = holdElapsed !== null;
+  if (keyboardVisible || (hold === null && restSeconds === null)) return null;
+  const holding = hold !== null;
+  const countingDown = hold?.phase.phase === 'countdown';
+  const label = !hold
+    ? t('logger.resting')
+    : countingDown
+      ? t('logger.getReady')
+      : hold.mode === 'target'
+        ? t('logger.holdingTarget', { time: formatClock(hold.targetSec) })
+        : t('logger.holding');
   return (
     <View style={[styles.timerBar, { backgroundColor: palette.hero, paddingBottom: insets.bottom + 14 }]}>
       <View style={styles.flex}>
-        <Text style={[styles.timerLabel, { color: palette.heroText }]}>{holding ? t('logger.holding') : t('logger.resting')}</Text>
-        <Text accessibilityLiveRegion="polite" style={[styles.timerValue, { color: palette.heroText }]}>{formatClock(holding ? holdElapsed : restSeconds ?? 0)}</Text>
+        <Text style={[styles.timerLabel, { color: palette.heroText }]}>{label}</Text>
+        <Text accessibilityLiveRegion="polite" style={[styles.timerValue, { color: palette.heroText }]}>{hold ? holdDisplay(hold) : formatClock(restSeconds ?? 0)}</Text>
       </View>
       {holding ? (
-        <TimerAction label={t('logger.doneHold')} filled onPress={onFinishHold} />
+        <TimerAction label={countingDown ? t('common.cancel') : t('logger.doneHold')} filled onPress={onFinishHold} />
       ) : (
         <View style={styles.timerActions}>
           <TimerAction label={t('logger.addTime')} onPress={onExtend} />
@@ -705,7 +826,7 @@ function StepButton({ icon, label, onPress }: { icon: 'add' | 'remove'; label: s
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={label}
-      hitSlop={4}
+      hitSlop={8}
       onPress={() => { tapFeedback(); onPress(); }}
       style={({ pressed }) => [styles.stepButton, { backgroundColor: palette.surfaceMuted, opacity: pressed ? 0.6 : 1 }]}
     >
@@ -738,6 +859,7 @@ function ReadinessRow({ label, value, onChange }: { label: string; value: number
 
 function LoadEditor({ setId, value, disabled, onSaved }: { setId: string; value: number; disabled: boolean; onSaved: () => Promise<void> }) {
   const styles = useScaledStyles(baseStyles);
+  const { t } = useTranslation();
   const { palette } = useTheme();
   const [draft, setDraft] = useState(String(value));
   const save = async () => {
@@ -750,7 +872,7 @@ function LoadEditor({ setId, value, disabled, onSaved }: { setId: string; value:
 
   return (
     <TextInput
-      accessibilityLabel="Added or assisted load in kilograms"
+      accessibilityLabel={t('history.addedLoad')}
       value={draft}
       editable={!disabled}
       onChangeText={setDraft}
@@ -774,7 +896,7 @@ const baseStyles = StyleSheet.create({
   readinessOptions: { flexDirection: 'row', gap: 6 },
   readinessOption: { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
   readinessValue: { fontFamily: fonts.display, fontSize: 18 },
-  emptyAction: { alignSelf: 'stretch', marginTop: 6 },
+  emptyAction: { alignSelf: 'stretch', marginTop: 6, gap: 8 },
   exerciseCard: { paddingHorizontal: 14, paddingBottom: 12, gap: 6 },
   exerciseHeader: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, paddingHorizontal: 4, marginBottom: 4 },
   exerciseName: { fontFamily: fonts.display, fontSize: 24, lineHeight: 28 },

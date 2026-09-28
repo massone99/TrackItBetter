@@ -48,7 +48,7 @@ export function midpoint(a: Keypoint, b: Keypoint): Keypoint {
 export type PoseSide = 'left' | 'right';
 export type PositionId =
   | 'front_split' | 'middle_split' | 'pike' | 'pancake' | 'bridge' | 'shoulder_flexion' | 'deep_squat' | 'handstand_line'
-  | 'tuck_planche' | 'full_planche';
+  | 'tuck_planche' | 'full_planche' | 'pseudo_planche_pushup' | 'tuck_front_lever' | 'front_lever' | 'back_lever' | 'l_sit';
 
 export interface PoseMeasurement {
   /** Primary value in degrees. */
@@ -74,13 +74,22 @@ export interface JointAngle {
   c: Keypoint;
 }
 
+/** Families positions are grouped in when picking one, in display order. */
+export const POSITION_GROUPS = ['splits', 'folds', 'shoulders', 'balance', 'planche', 'levers'] as const;
+export type PositionGroup = (typeof POSITION_GROUPS)[number];
+
 export interface PositionDefinition {
   id: PositionId;
+  group: PositionGroup;
   /** Asks which side (leg forward / arm measured) the capture shows. */
   sideAware: boolean;
   better: 'higher' | 'lower';
   /** Four thresholds splitting levels 1–5, ordered from easiest to hardest. */
   thresholds: [number, number, number, number];
+  /** Joint angles the user can add to the analysis, in display order. */
+  joints: JointAngleId[];
+  /** Joint angles shown until the user picks their own. */
+  defaultJoints: JointAngleId[];
   measure: (pose: Pose, side: PoseSide | null) => PoseMeasurement;
 }
 
@@ -106,8 +115,51 @@ const HIP: [number, number] = [KP.leftHip, KP.rightHip];
 const KNEE: [number, number] = [KP.leftKnee, KP.rightKnee];
 const ANKLE: [number, number] = [KP.leftAnkle, KP.rightAnkle];
 
+type SidePair = [number, number];
+
+/** The three joints (per side) whose angle each joint id reports; `lean` is computed separately. */
+const JOINT_TRIPLES: Record<Exclude<JointAngleId, 'lean'>, [SidePair, SidePair, SidePair]> = {
+  hip: [SHOULDER, HIP, KNEE],
+  shoulder: [ELBOW, SHOULDER, HIP],
+  elbow: [SHOULDER, ELBOW, WRIST],
+  knee: [HIP, KNEE, ANKLE],
+};
+
+/** How far the shoulders sit past the hands: the wrist–shoulder line's angle from vertical. */
+function leanAngle(pose: Pose, side: PoseSide): JointAngle {
+  const wrist = pick(pose, side, ...WRIST);
+  const shoulder = pick(pose, side, ...SHOULDER);
+  const up = { x: wrist.x, y: wrist.y - Math.hypot(shoulder.x - wrist.x, shoulder.y - wrist.y), score: wrist.score };
+  return { id: 'lean', value: jointAngle(shoulder, wrist, up), a: shoulder, vertex: wrist, c: up };
+}
+
+/** The requested joint angles on one side of the body, in the order asked for. */
+export function sideJoints(pose: Pose, side: PoseSide, ids: readonly JointAngleId[]): JointAngle[] {
+  return ids.map((id) => {
+    if (id === 'lean') return leanAngle(pose, side);
+    const { a, vertex, c, value } = triple(pose, side, ...JOINT_TRIPLES[id]);
+    return { id, value, a, vertex, c };
+  });
+}
+
+/** A position's core measurement, plus the side it was read from so joint angles match it. */
+type Core = Omit<PoseMeasurement, 'joints'> & { side: PoseSide };
+
+function position(
+  definition: Omit<PositionDefinition, 'measure'> & { core: (pose: Pose, side: PoseSide | null) => Core },
+): PositionDefinition {
+  const { core, ...rest } = definition;
+  return {
+    ...rest,
+    measure: (pose, side) => {
+      const { side: measuredSide, ...result } = core(pose, side);
+      return { ...result, joints: sideJoints(pose, measuredSide, definition.joints) };
+    },
+  };
+}
+
 /** Angle between the two legs, measured at the centre of the hips (straight line = 180°). */
-function legSpread(pose: Pose): PoseMeasurement {
+function legSpread(pose: Pose, side: PoseSide | null): Core {
   const hip = midpoint(pose[KP.leftHip], pose[KP.rightHip]);
   const left = pose[KP.leftAnkle].score >= LOW_CONFIDENCE ? pose[KP.leftAnkle] : pose[KP.leftKnee];
   const right = pose[KP.rightAnkle].score >= LOW_CONFIDENCE ? pose[KP.rightAnkle] : pose[KP.rightKnee];
@@ -118,14 +170,15 @@ function legSpread(pose: Pose): PoseMeasurement {
     angle: { a: left, vertex: hip, c: right },
     confidence: (left.score + hip.score + right.score) / 3,
     warning: kneesStraight ? undefined : 'kneesBent',
+    side: side ?? clearerSide(pose, [HIP, KNEE, ANKLE]),
   };
 }
 
-function hipFold(pose: Pose): PoseMeasurement {
+function hipFold(pose: Pose): Core {
   const side = clearerSide(pose, [SHOULDER, HIP, KNEE]);
   const fold = triple(pose, side, SHOULDER, HIP, KNEE);
   const knee = triple(pose, side, HIP, KNEE, ANKLE);
-  return { value: fold.value, angle: fold, confidence: fold.confidence, warning: knee.value < 160 ? 'kneesBent' : undefined };
+  return { value: fold.value, angle: fold, confidence: fold.confidence, warning: knee.value < 160 ? 'kneesBent' : undefined, side };
 }
 
 /**
@@ -133,7 +186,7 @@ function hipFold(pose: Pose): PoseMeasurement {
  * `ignoreAbove`, a `to` higher than `from` counts as level (0°). The angle is drawn against a
  * horizontal reference point at `from`.
  */
-function tiltFromHorizontal(from: Keypoint, to: Keypoint, ignoreAbove = false): Omit<PoseMeasurement, 'confidence' | 'warning'> {
+function tiltFromHorizontal(from: Keypoint, to: Keypoint, ignoreAbove = false): Pick<PoseMeasurement, 'value' | 'angle'> {
   const dx = to.x - from.x;
   // Image y grows downwards, so a positive angle means `to` sits below `from`.
   const signed = (Math.atan2(to.y - from.y, Math.abs(dx)) * 180) / Math.PI;
@@ -141,89 +194,125 @@ function tiltFromHorizontal(from: Keypoint, to: Keypoint, ignoreAbove = false): 
   return { value: ignoreAbove ? Math.max(0, signed) : Math.abs(signed), angle: { a: to, vertex: from, c: level } };
 }
 
-/**
- * Planche positions are filmed side-on: measure the clearer side, check the arms are locked and
- * report every joint angle, starting with the hip (torso to thigh).
- */
-function planche(pose: Pose, measure: (side: PoseSide) => { value: number; angle: PoseMeasurement['angle']; confidence: number }): PoseMeasurement {
+/** Straight-arm skills are filmed side-on: measure the clearer side and check the arms are locked. */
+function straightArm(pose: Pose, measure: (side: PoseSide) => Omit<Core, 'side' | 'warning'>): Core {
   const side = clearerSide(pose, [WRIST, SHOULDER, HIP]);
-  const joint = (id: JointAngleId, a: [number, number], b: [number, number], c: [number, number]): JointAngle => {
-    const { a: ka, vertex, c: kc, value } = triple(pose, side, a, b, c);
-    return { id, value, a: ka, vertex, c: kc };
-  };
-  const elbow = joint('elbow', SHOULDER, ELBOW, WRIST);
-  // Lean: how far the shoulders sit past the hands, as the wrist–shoulder line's angle from vertical.
-  const wrist = pick(pose, side, ...WRIST);
-  const shoulder = pick(pose, side, ...SHOULDER);
-  const up = { x: wrist.x, y: wrist.y - Math.hypot(shoulder.x - wrist.x, shoulder.y - wrist.y), score: wrist.score };
-  const lean: JointAngle = { id: 'lean', value: jointAngle(shoulder, wrist, up), a: shoulder, vertex: wrist, c: up };
-  return {
-    ...measure(side),
-    warning: elbow.value < 160 ? 'elbowsBent' : undefined,
-    joints: [joint('hip', SHOULDER, HIP, KNEE), joint('shoulder', ELBOW, SHOULDER, HIP), elbow, joint('knee', HIP, KNEE, ANKLE), lean],
-  };
+  const elbow = triple(pose, side, SHOULDER, ELBOW, WRIST);
+  return { ...measure(side), warning: elbow.value < 160 ? 'elbowsBent' : undefined, side };
 }
 
+/** How far the shoulder–hip line tilts from horizontal. */
+function backAngle(pose: Pose, side: PoseSide, ignoreAbove: boolean) {
+  const shoulder = pick(pose, side, ...SHOULDER);
+  const hip = pick(pose, side, ...HIP);
+  return { ...tiltFromHorizontal(shoulder, hip, ignoreAbove), confidence: (shoulder.score + hip.score) / 2 };
+}
+
+/** Total bend away from a horizontal shoulder–hip–ankle line: body tilt plus hip pike or sag. */
+function bodyLine(pose: Pose, side: PoseSide) {
+  const shoulder = pick(pose, side, ...SHOULDER);
+  const ankle = pick(pose, side, ...ANKLE);
+  const hip = triple(pose, side, SHOULDER, HIP, ANKLE);
+  const tilt = tiltFromHorizontal(shoulder, ankle);
+  return { value: tilt.value + (180 - hip.value), angle: tilt.angle, confidence: (shoulder.score + ankle.score + hip.vertex.score) / 3 };
+}
+
+const LIMBS: JointAngleId[] = ['hip', 'shoulder', 'elbow', 'knee'];
+const SUPPORT: JointAngleId[] = ['hip', 'shoulder', 'elbow', 'knee', 'lean'];
+
 export const POSITIONS: PositionDefinition[] = [
-  { id: 'front_split', sideAware: true, better: 'higher', thresholds: [120, 140, 160, 175], measure: legSpread },
-  { id: 'middle_split', sideAware: false, better: 'higher', thresholds: [110, 130, 150, 170], measure: legSpread },
-  { id: 'pike', sideAware: false, better: 'lower', thresholds: [110, 90, 70, 50], measure: hipFold },
-  { id: 'pancake', sideAware: false, better: 'lower', thresholds: [120, 100, 80, 60], measure: hipFold },
-  {
-    id: 'bridge', sideAware: false, better: 'higher', thresholds: [120, 140, 155, 170],
-    measure: (pose) => {
+  position({ id: 'front_split', group: 'splits', sideAware: true, better: 'higher', thresholds: [120, 140, 160, 175], joints: ['hip', 'knee'], defaultJoints: [], core: legSpread }),
+  position({ id: 'middle_split', group: 'splits', sideAware: false, better: 'higher', thresholds: [110, 130, 150, 170], joints: ['hip', 'knee'], defaultJoints: [], core: legSpread }),
+  position({ id: 'pike', group: 'folds', sideAware: false, better: 'lower', thresholds: [110, 90, 70, 50], joints: ['knee', 'shoulder', 'elbow'], defaultJoints: [], core: hipFold }),
+  position({ id: 'pancake', group: 'folds', sideAware: false, better: 'lower', thresholds: [120, 100, 80, 60], joints: ['knee', 'shoulder', 'elbow'], defaultJoints: [], core: hipFold }),
+  position({
+    id: 'bridge', group: 'shoulders', sideAware: false, better: 'higher', thresholds: [120, 140, 155, 170], joints: ['hip', 'elbow', 'knee'], defaultJoints: [],
+    core: (pose) => {
       const side = clearerSide(pose, [WRIST, SHOULDER, HIP]);
       const opening = triple(pose, side, WRIST, SHOULDER, HIP);
       const elbow = triple(pose, side, SHOULDER, ELBOW, WRIST);
-      return { value: opening.value, angle: opening, confidence: opening.confidence, warning: elbow.value < 160 ? 'elbowsBent' : undefined };
+      return { value: opening.value, angle: opening, confidence: opening.confidence, warning: elbow.value < 160 ? 'elbowsBent' : undefined, side };
     },
-  },
-  {
-    id: 'shoulder_flexion', sideAware: true, better: 'higher', thresholds: [140, 155, 165, 175],
-    measure: (pose, side) => {
-      const flexion = triple(pose, side ?? clearerSide(pose, [HIP, SHOULDER, ELBOW]), HIP, SHOULDER, ELBOW);
-      return { value: flexion.value, angle: flexion, confidence: flexion.confidence };
+  }),
+  position({
+    id: 'shoulder_flexion', group: 'shoulders', sideAware: true, better: 'higher', thresholds: [140, 155, 165, 175], joints: ['elbow', 'hip'], defaultJoints: [],
+    core: (pose, side) => {
+      const measured = side ?? clearerSide(pose, [HIP, SHOULDER, ELBOW]);
+      const flexion = triple(pose, measured, HIP, SHOULDER, ELBOW);
+      return { value: flexion.value, angle: flexion, confidence: flexion.confidence, side: measured };
     },
-  },
-  {
-    id: 'deep_squat', sideAware: false, better: 'lower', thresholds: [110, 90, 70, 50],
-    measure: (pose) => {
-      const knee = triple(pose, clearerSide(pose, [HIP, KNEE, ANKLE]), HIP, KNEE, ANKLE);
-      return { value: knee.value, angle: knee, confidence: knee.confidence };
+  }),
+  position({
+    id: 'deep_squat', group: 'folds', sideAware: false, better: 'lower', thresholds: [110, 90, 70, 50], joints: ['hip', 'shoulder'], defaultJoints: [],
+    core: (pose) => {
+      const side = clearerSide(pose, [HIP, KNEE, ANKLE]);
+      const knee = triple(pose, side, HIP, KNEE, ANKLE);
+      return { value: knee.value, angle: knee, confidence: knee.confidence, side };
     },
-  },
-  {
-    id: 'handstand_line', sideAware: false, better: 'lower', thresholds: [40, 30, 20, 10],
-    measure: (pose) => {
+  }),
+  position({
+    id: 'handstand_line', group: 'balance', sideAware: false, better: 'lower', thresholds: [40, 30, 20, 10], joints: LIMBS, defaultJoints: [],
+    core: (pose) => {
       const side = clearerSide(pose, [WRIST, SHOULDER, HIP, ANKLE]);
       const shoulder = triple(pose, side, WRIST, SHOULDER, HIP);
       const hip = triple(pose, side, SHOULDER, HIP, ANKLE);
       // Total bend away from a straight wrist–shoulder–hip–ankle line.
       const deviation = (180 - shoulder.value) + (180 - hip.value);
-      return { value: deviation, angle: hip, confidence: (shoulder.confidence + hip.confidence) / 2 };
+      return { value: deviation, angle: hip, confidence: (shoulder.confidence + hip.confidence) / 2, side };
     },
-  },
-  {
-    // Back angle: 0° when the hips are level with (or above) the shoulders.
-    id: 'tuck_planche', sideAware: false, better: 'lower', thresholds: [40, 30, 20, 10],
-    measure: (pose) => planche(pose, (side) => {
-      const shoulder = pick(pose, side, ...SHOULDER);
+  }),
+  // Back angle: 0° when the hips are level with (or above) the shoulders.
+  position({
+    id: 'tuck_planche', group: 'planche', sideAware: false, better: 'lower', thresholds: [40, 30, 20, 10], joints: SUPPORT, defaultJoints: SUPPORT,
+    core: (pose) => straightArm(pose, (side) => backAngle(pose, side, true)),
+  }),
+  position({
+    id: 'full_planche', group: 'planche', sideAware: false, better: 'lower', thresholds: [40, 30, 20, 10], joints: SUPPORT, defaultJoints: SUPPORT,
+    core: (pose) => straightArm(pose, (side) => bodyLine(pose, side)),
+  }),
+  // Lean: how far the shoulders travel past the hands, read at the top with locked arms.
+  position({
+    id: 'pseudo_planche_pushup', group: 'planche', sideAware: false, better: 'higher', thresholds: [15, 25, 35, 45],
+    joints: ['elbow', 'shoulder', 'hip', 'knee'], defaultJoints: ['elbow', 'hip'],
+    core: (pose) => straightArm(pose, (side) => {
+      const { a, vertex, c, value } = leanAngle(pose, side);
+      return { value, angle: { a, vertex, c }, confidence: (a.score + vertex.score) / 2 };
+    }),
+  }),
+  // A tucked lever wants a flat back: hips neither above nor below the shoulders.
+  position({
+    id: 'tuck_front_lever', group: 'levers', sideAware: false, better: 'lower', thresholds: [40, 30, 20, 10], joints: LIMBS, defaultJoints: LIMBS,
+    core: (pose) => straightArm(pose, (side) => backAngle(pose, side, false)),
+  }),
+  position({
+    id: 'front_lever', group: 'levers', sideAware: false, better: 'lower', thresholds: [40, 30, 20, 10], joints: LIMBS, defaultJoints: LIMBS,
+    core: (pose) => straightArm(pose, (side) => bodyLine(pose, side)),
+  }),
+  position({
+    id: 'back_lever', group: 'levers', sideAware: false, better: 'lower', thresholds: [40, 30, 20, 10], joints: LIMBS, defaultJoints: LIMBS,
+    core: (pose) => straightArm(pose, (side) => bodyLine(pose, side)),
+  }),
+  // Leg angle below horizontal; legs above horizontal (a V-sit) count as level.
+  position({
+    id: 'l_sit', group: 'balance', sideAware: false, better: 'lower', thresholds: [40, 25, 15, 5],
+    joints: ['hip', 'knee', 'elbow', 'shoulder'], defaultJoints: ['hip', 'knee'],
+    core: (pose) => {
+      const side = clearerSide(pose, [HIP, KNEE, ANKLE]);
       const hip = pick(pose, side, ...HIP);
-      return { ...tiltFromHorizontal(shoulder, hip, true), confidence: (shoulder.score + hip.score) / 2 };
-    }),
-  },
-  {
-    // Total bend away from a horizontal shoulder–hip–ankle line: body tilt plus hip pike or sag.
-    id: 'full_planche', sideAware: false, better: 'lower', thresholds: [40, 30, 20, 10],
-    measure: (pose) => planche(pose, (side) => {
-      const shoulder = pick(pose, side, ...SHOULDER);
       const ankle = pick(pose, side, ...ANKLE);
-      const hip = triple(pose, side, SHOULDER, HIP, ANKLE);
-      const tilt = tiltFromHorizontal(shoulder, ankle);
-      return { value: tilt.value + (180 - hip.value), angle: tilt.angle, confidence: (shoulder.score + ankle.score + hip.vertex.score) / 3 };
-    }),
-  },
+      const knee = triple(pose, side, HIP, KNEE, ANKLE);
+      const elbow = triple(pose, side, SHOULDER, ELBOW, WRIST);
+      const warning = knee.value < 160 ? 'kneesBent' : elbow.value < 160 ? 'elbowsBent' : undefined;
+      return { ...tiltFromHorizontal(hip, ankle, true), confidence: (hip.score + ankle.score) / 2, warning, side };
+    },
+  }),
 ];
+
+/** Joint ids to show for a position: the user's saved choice, limited to what the position offers. */
+export function selectedJoints(position: PositionDefinition, saved: readonly string[] | null): JointAngleId[] {
+  if (saved === null) return position.defaultJoints;
+  return position.joints.filter((id) => saved.includes(id));
+}
 
 export function findPosition(id: string): PositionDefinition | undefined {
   return POSITIONS.find((position) => position.id === id);

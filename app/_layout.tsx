@@ -7,7 +7,7 @@ import * as SplashScreen from "expo-splash-screen";
 import { useEffect, useState } from "react";
 import { View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
-import { SafeAreaProvider } from "react-native-safe-area-context";
+import { initialWindowMetrics, SafeAreaProvider } from "react-native-safe-area-context";
 import { KeyboardRoot } from "../src/shared/components/keyboard";
 import { ActionButton, Body, Card, Heading, Screen } from "../src/shared/components/ui";
 import { initializeDatabase } from "../src/db/client";
@@ -79,6 +79,7 @@ function AppNavigator() {
         <Stack.Screen name="program-builder" />
         <Stack.Screen name="bodyweight" />
         <Stack.Screen name="data" />
+        <Stack.Screen name="reset" options={{ gestureEnabled: false }} />
         <Stack.Screen name="reminders" />
         <Stack.Screen name="photos" />
         <Stack.Screen name="measurements" />
@@ -99,7 +100,8 @@ export default function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <KeyboardRoot>
-        <SafeAreaProvider>
+        {/* Known insets on the first frame, so headers never start under the status bar. */}
+        <SafeAreaProvider initialMetrics={initialWindowMetrics}>
           <ThemeProvider>
             <AppNavigator />
           </ThemeProvider>
