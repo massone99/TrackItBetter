@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Modal, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useAppInsets } from '../../shared/layout/useAppInsets';
 import { Body, Chip, Heading, Icon, IconButton, ListRow, tapFeedback } from '../../shared/components/ui';
 import { KeyboardScroll } from '../../shared/components/keyboard';
 import { iconForCategory } from '../../shared/components/categoryIcons';
@@ -27,7 +27,7 @@ export function ExercisePicker({ visible, title, subtitle, initialCategory = nul
   const styles = useScaledStyles(baseStyles);
   const { t } = useTranslation();
   const { palette } = useTheme();
-  const insets = useSafeAreaInsets();
+  const insets = useAppInsets();
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState<string | null>(initialCategory);
   const [choices, setChoices] = useState<ExerciseChoice[]>([]);

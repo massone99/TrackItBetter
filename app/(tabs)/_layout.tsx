@@ -1,6 +1,6 @@
 import { Tabs } from "expo-router";
 import { useTranslation } from "react-i18next";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useAppInsets } from "../../src/shared/layout/useAppInsets";
 import { Icon, IconName } from "../../src/shared/components/Icon";
 import { Text } from "../../src/shared/components/Text";
 import { useTheme } from "../../src/shared/theme/ThemeProvider";
@@ -17,7 +17,7 @@ const icons: Record<string, [IconName, IconName]> = {
 export default function TabLayout() {
   const { palette, scale } = useTheme();
   const { t } = useTranslation();
-  const insets = useSafeAreaInsets();
+  const insets = useAppInsets();
   return (
     <Tabs
       screenOptions={({ route }) => ({

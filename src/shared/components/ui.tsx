@@ -3,7 +3,7 @@ import { router, useSegments } from "expo-router";
 import { PropsWithChildren, ReactNode, useEffect, useState } from "react";
 import { Modal, Platform, Pressable, ScrollView, StyleSheet, Switch, TextInput, TextInputProps, TextProps, View, ViewProps } from "react-native";
 import { KeyboardLift, KeyboardScroll } from "./keyboard";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useAppInsets } from "../layout/useAppInsets";
 import { useTranslation } from "react-i18next";
 import { useTheme } from "../theme/ThemeProvider";
 import { fonts } from "../theme/typography";
@@ -26,7 +26,7 @@ export function tapFeedback(kind: "light" | "success" = "light") {
 export function Screen({ children, contentContainerStyle, overlay }: PropsWithChildren<{ contentContainerStyle?: ViewProps["style"]; overlay?: ReactNode }>) {
   const styles = useScaledStyles(baseStyles);
   const { palette } = useTheme();
-  const insets = useSafeAreaInsets();
+  const insets = useAppInsets();
   return (
     <View style={[styles.flexFill, { backgroundColor: palette.background }]}>
       <KeyboardScroll
@@ -372,7 +372,7 @@ export function Sheet({ visible, onClose, title, body, children }: PropsWithChil
   const styles = useScaledStyles(baseStyles);
   const { t } = useTranslation();
   const { palette } = useTheme();
-  const insets = useSafeAreaInsets();
+  const insets = useAppInsets();
   return (
     // Translucent bars give the keyboard controller correct coordinates inside an edge-to-edge Modal.
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose} statusBarTranslucent navigationBarTranslucent>
@@ -462,7 +462,7 @@ export function Toast({ message, actionLabel, onAction, onHide, bottomOffset = 0
 }) {
   const styles = useScaledStyles(baseStyles);
   const { palette } = useTheme();
-  const insets = useSafeAreaInsets();
+  const insets = useAppInsets();
   useEffect(() => {
     if (message === null) return;
     const timer = setTimeout(onHide, 8000);

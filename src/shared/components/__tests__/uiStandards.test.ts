@@ -88,7 +88,7 @@ describe('interface standards', () => {
       const name = path.slice(ROOT.length + 1);
       const problems: string[] = [];
       // A translucent modal draws under the system bars, so its file must read the safe-area insets.
-      if (/statusBarTranslucent/.test(text) && !/useSafeAreaInsets/.test(text)) problems.push(`${name} translucent Modal without safe-area insets`);
+      if (/statusBarTranslucent/.test(text) && !/useSafeAreaInsets|useAppInsets/.test(text)) problems.push(`${name} translucent Modal without safe-area insets`);
       // Anything pinned to the bottom edge must lift itself above the navigation bar.
       // (Overlays stretched top to bottom inside an image are not pinned to the screen edge.)
       const pinned = [...text.matchAll(/\{[^{}]*position:\s*['"]absolute['"][^{}]*\}/g)]

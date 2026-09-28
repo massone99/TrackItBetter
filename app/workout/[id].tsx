@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { eq } from 'drizzle-orm';
 import { ActivityIndicator, Pressable, StyleSheet, TextInput, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useAppInsets } from '../../src/shared/layout/useAppInsets';
 import { ExercisePicker, type ExerciseChoice } from '../../src/features/exercises/ExercisePicker';
 import { openReferenceVideo, ReferenceLinkSheet } from '../../src/features/exercises/ReferenceLinkSheet';
 import { db, initializeDatabase } from '../../src/db/client';
@@ -847,7 +847,7 @@ function TimerBar({ hold, restSeconds, onFinishHold, onExtend, onSkip }: {
   const styles = useScaledStyles(baseStyles);
   const { t } = useTranslation();
   const { palette } = useTheme();
-  const insets = useSafeAreaInsets();
+  const insets = useAppInsets();
   // The bar floats over the list; while typing it would sit on top of the focused input.
   const keyboardVisible = useKeyboardVisible();
   if (keyboardVisible || (hold === null && restSeconds === null)) return null;

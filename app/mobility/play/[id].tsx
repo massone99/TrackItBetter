@@ -4,7 +4,7 @@ import * as Speech from 'expo-speech';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useAppInsets } from '../../../src/shared/layout/useAppInsets';
 import { expandRoutine, type MobilitySegment, type MobilitySide } from '../../../src/domain/mobilityPlan';
 import { openReferenceVideo } from '../../../src/features/exercises/ReferenceLinkSheet';
 import { getExerciseById } from '../../../src/features/exercises/repository';
@@ -39,7 +39,7 @@ export default function MobilityPlayerScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { t, i18n } = useTranslation();
   const { palette } = useTheme();
-  const insets = useSafeAreaInsets();
+  const insets = useAppInsets();
   const [routine, setRoutine] = useState<MobilityRoutine | null | undefined>(undefined);
   const [drills, setDrills] = useState<DrillInfo[]>([]);
   const [index, setIndex] = useState(0);
