@@ -1,8 +1,8 @@
 import * as Haptics from "expo-haptics";
 import { router, useSegments } from "expo-router";
-import { Children, PropsWithChildren, ReactNode, useEffect, useState } from "react";
+import { Children, PropsWithChildren, ReactNode, Ref, useEffect, useState } from "react";
 import { Modal, Platform, Pressable, ScrollView, StyleSheet, Switch, TextInput, TextInputProps, TextProps, View, ViewProps } from "react-native";
-import { KeyboardLift, KeyboardScroll } from "./keyboard";
+import { KeyboardLift, KeyboardScroll, type ScrollHandle } from "./keyboard";
 import { useAppInsets } from "../layout/useAppInsets";
 import { useTranslation } from "react-i18next";
 import { useTheme } from "../theme/ThemeProvider";
@@ -24,13 +24,14 @@ export function tapFeedback(kind: "light" | "success" = "light") {
 }
 
 /** Scrolling page. `overlay` is drawn above the scroll view (e.g. a toast), not inside it. */
-export function Screen({ children, contentContainerStyle, overlay }: PropsWithChildren<{ contentContainerStyle?: ViewProps["style"]; overlay?: ReactNode }>) {
+export function Screen({ children, contentContainerStyle, overlay, scrollRef }: PropsWithChildren<{ contentContainerStyle?: ViewProps["style"]; overlay?: ReactNode; scrollRef?: Ref<ScrollHandle> }>) {
   const styles = useScaledStyles(baseStyles);
   const { palette } = useTheme();
   const insets = useAppInsets();
   return (
     <View style={[styles.flexFill, { backgroundColor: palette.background }]}>
       <KeyboardScroll
+        scrollRef={scrollRef}
         style={{ backgroundColor: palette.background }}
         contentContainerStyle={[styles.screen, { paddingTop: Math.max(insets.top, 14) + 10, paddingBottom: insets.bottom + 36 }, contentContainerStyle]}
         showsVerticalScrollIndicator={false}

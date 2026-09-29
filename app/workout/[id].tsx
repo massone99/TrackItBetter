@@ -11,6 +11,9 @@ import { db, initializeDatabase } from '../../src/db/client';
 import { settings as preferenceSettings } from '../../src/db/schema';
 import { cancelRestFinishedNotification, scheduleRestFinishedNotification } from '../../src/features/session/restNotifications';
 import { restForSet } from '../../src/features/session/restDefaults';
+import { supersetStep } from '../../src/features/session/superset';
+import { SupersetFields } from '../../src/features/session/SupersetFields';
+import type { ScrollHandle } from '../../src/shared/components/keyboard';
 import { getSessionRecords } from '../../src/features/analytics/repository';
 import type { RecordKind } from '../../src/features/analytics/records';
 import { ExerciseRestFields } from '../../src/features/session/ExerciseRestFields';
@@ -216,6 +219,11 @@ export default function WorkoutScreen() {
     return `${Math.floor(minutes / 60)}h ${String(minutes % 60).padStart(2, '0')}m`;
   }, [workout, clockNow]);
 
+  const supersetLetters = new Map<string, string>();
+  for (const exercise of workout?.exercises ?? []) {
+    if (exercise.groupId && !supersetLetters.has(exercise.groupId)) supersetLetters.set(exercise.groupId, String.fromCharCode(65 + supersetLetters.size));
+  }
+
   const completedCount = workout?.exercises.reduce((total, exercise) => total + exercise.sets.filter((set) => set.completedAt).length, 0) ?? 0;
 
   const saveReadiness = async (field: 'sleep' | 'energy' | 'soreness', value: number) => {
@@ -284,10 +292,28 @@ export default function WorkoutScreen() {
     if (workout) await refresh(workout.id);
   };
 
+  const scrollRef = useRef<ScrollHandle>(null);
+  const cardTops = useRef(new Map<string, number>());
+
+  /**
+   * Starts the right rest after a set and, in a superset, scrolls to the exercise that comes next:
+   * no rest (or the short one) between exercises, the full rest at the end of the round.
+   */
+  const afterSetDone = (setId: string) => {
+    const exercise = workout?.exercises.find((item) => item.sets.some((set) => set.id === setId));
+    const marked = workout?.exercises.map((item) => ({ ...item, sets: item.sets.map((set) => set.id === setId ? { ...set, completedAt: new Date() } : set) })) ?? [];
+    const step = exercise ? supersetStep(marked, exercise.entryId) : null;
+    if (!step || step.endOfRound) startRestTimer(restAfter(setId));
+    else if (step.mode === 'between' && step.betweenSec > 0) startRestTimer(step.betweenSec);
+    else skipRest();
+    const top = step?.nextEntryId && step.nextEntryId !== exercise?.entryId ? cardTops.current.get(step.nextEntryId) : undefined;
+    if (top !== undefined) scrollRef.current?.scrollTo({ y: Math.max(0, top - 16), animated: true });
+  };
+
   const completeRegularSet = async (set: SessionSet) => {
     tapFeedback('success');
     await completeSet(set.id);
-    startRestTimer(restAfter(set.id));
+    afterSetDone(set.id);
     if (readBooleanPreference(RPE_PROMPT_KEY, true)) setRpePromptFor(set.id);
     if (workout) await refresh(workout.id);
   };
@@ -304,7 +330,7 @@ export default function WorkoutScreen() {
     await updateSet(setId, 'durationSec', seconds);
     await completeSet(setId);
     if (readBooleanPreference(RPE_PROMPT_KEY, true)) setRpePromptFor(setId);
-    startRestTimer(restAfter(setId));
+    afterSetDone(setId);
     if (workout) await refresh(workout.id);
   };
 
@@ -403,7 +429,7 @@ export default function WorkoutScreen() {
 
   return (
     <View style={[styles.root, { backgroundColor: palette.background }]}>
-      <Screen contentContainerStyle={{ paddingBottom: 150 }}>
+      <Screen scrollRef={scrollRef} contentContainerStyle={{ paddingBottom: 150 }}>
         <PageHeading
           title={workout.name}
           subtitle={t('workout.inProgress', { elapsed })}
@@ -461,7 +487,7 @@ export default function WorkoutScreen() {
         ) : null}
         <LayoutAnimationConfig skipEntering>
         {workout.exercises.map((exercise) => (
-          <Animated.View key={exercise.entryId} entering={exerciseEntering} exiting={itemExiting} layout={rowLayout}>
+          <Animated.View key={exercise.entryId} entering={exerciseEntering} exiting={itemExiting} layout={rowLayout} onLayout={(event) => { cardTops.current.set(exercise.entryId, event.nativeEvent.layout.y); }}>
           <ExerciseCard
             exercise={exercise}
             previous={previous.get(exercise.exerciseId)}
@@ -476,6 +502,7 @@ export default function WorkoutScreen() {
             onToggleWarmup={(set) => void toggleWarmup(set)}
             setRecords={records.sets}
             volumeRecord={records.volume.has(exercise.exerciseId)}
+            supersetLabel={exercise.groupId ? t('superset.label', { letter: supersetLetters.get(exercise.groupId) ?? 'A' }) : null}
             onCopyPrevious={(set, values) => { tapFeedback(); void copyValuesToSet(set.id, values).then(() => refresh(workout.id)); }}
             onUncomplete={(set) => void uncompleteSet(set.id).then(() => refresh(workout.id))}
             onRemoveSet={(set) => void removeSetFromRow(exercise, set)}
@@ -544,6 +571,14 @@ export default function WorkoutScreen() {
       <Sheet visible={optionsFor !== null} onClose={() => setOptionsFor(null)} title={optionsFor?.name ?? t('logger.options')}>
         {optionsFor ? (
           <ExerciseNoteField key={optionsFor.entryId} entryId={optionsFor.entryId} initial={optionsFor.notes} onSaved={() => void refresh(workout.id)} />
+        ) : null}
+        {optionsFor ? (
+          <SupersetFields
+            key={`superset-${optionsFor.entryId}-${optionsFor.groupId ?? ''}`}
+            exercise={optionsFor}
+            hasNext={workout.exercises.findIndex((item) => item.entryId === optionsFor.entryId) < workout.exercises.length - 1}
+            onChanged={() => { setOptionsFor(null); void refresh(workout.id); }}
+          />
         ) : null}
         {optionsFor ? (
           <ExerciseRestFields key={`rest-${optionsFor.entryId}`} entryId={optionsFor.entryId} exerciseId={optionsFor.exerciseId} onSaved={() => void refresh(workout.id)} />
@@ -616,7 +651,7 @@ export default function WorkoutScreen() {
   );
 }
 
-function ExerciseCard({ exercise, previous, hold, onChange, onSetValue, onComplete, onStartHold, onFinishHold, onAddSet, onSetOptions, onUncomplete, onRemoveSet, onSwiped, rpePromptFor, onRpe, onDismissRpe, onOptions, onSaved, onToggleWarmup, onCopyPrevious, setRecords, volumeRecord }: {
+function ExerciseCard({ exercise, previous, hold, onChange, onSetValue, onComplete, onStartHold, onFinishHold, onAddSet, onSetOptions, onUncomplete, onRemoveSet, onSwiped, rpePromptFor, onRpe, onDismissRpe, onOptions, onSaved, onToggleWarmup, onCopyPrevious, setRecords, volumeRecord, supersetLabel }: {
   exercise: SessionExercise;
   previous: PreviousPerformance | undefined;
   hold: ActiveHold | null;
@@ -639,6 +674,7 @@ function ExerciseCard({ exercise, previous, hold, onChange, onSetValue, onComple
   onCopyPrevious: (set: SessionSet, values: PreviousSetValues) => void;
   setRecords: ReadonlyMap<string, RecordKind[]>;
   volumeRecord: boolean;
+  supersetLabel: string | null;
 }) {
   const styles = useScaledStyles(baseStyles);
   const { t } = useTranslation();
@@ -657,9 +693,10 @@ function ExerciseCard({ exercise, previous, hold, onChange, onSetValue, onComple
     : null;
 
   return (
-    <Card style={styles.exerciseCard}>
+    <Card style={[styles.exerciseCard, supersetLabel ? { borderLeftWidth: 4, borderLeftColor: palette.accent } : null]}>
       <View style={styles.exerciseHeader}>
         <View style={styles.flex}>
+          {supersetLabel ? <Label style={{ color: palette.accentStrong }}>{supersetLabel}</Label> : null}
           <Heading style={styles.exerciseName}>{exercise.name}</Heading>
           <Label>{previousText ? t('logger.lastTime', { value: previousText }) : t('logger.firstTime')}</Label>
           {exercise.notes ? <Text numberOfLines={3} style={[styles.exerciseNote, { color: palette.textMuted }]}>{exercise.notes}</Text> : null}

@@ -1,10 +1,11 @@
-import { and, asc, count, desc, eq, inArray, isNotNull, isNull, max } from 'drizzle-orm';
+import { and, asc, count, desc, eq, gt, inArray, isNotNull, isNull, max, or } from 'drizzle-orm';
 import * as Crypto from 'expo-crypto';
 import { db, initializeDatabase } from '../../db/client';
 import { bodyMeasurements, exerciseEntries, exercises, formCheckVideos, trainingSets, workouts } from '../../db/schema';
 import { deleteFormCheckVideosForSets } from '../media/formVideos';
 import { isValidRpe } from '../../domain/rpe';
 import type { SetKind } from './restDefaults';
+import { formatSupersetType, type SupersetRest } from './superset';
 
 export interface SessionSet {
   id: string;
@@ -33,6 +34,9 @@ export interface SessionExercise {
   demoUrl: string | null;
   /** Free-text note for this exercise within the workout. */
   notes: string | null;
+  /** Exercises sharing a group id form a superset; the type holds its rest mode (see superset.ts). */
+  groupId: string | null;
+  groupType: string | null;
   sets: SessionSet[];
 }
 
@@ -139,6 +143,8 @@ async function loadSessionExercises(workoutId: string): Promise<SessionExercise[
       metric: exercise.metric,
       demoUrl: exercise.demoUrl,
       notes: entry.notes,
+      groupId: entry.groupId,
+      groupType: entry.groupType,
       sets: sets.map((set) => ({
         id: set.id,
         index: set.index,
@@ -660,4 +666,38 @@ export async function logCompletedWorkout(input: {
     }
   });
   return workoutId;
+}
+
+/** Puts an exercise in a superset with the one after it, joining whichever superset either is in. */
+export async function linkWithNext(entryId: string): Promise<void> {
+  await initializeDatabase();
+  const [current] = await db.select().from(exerciseEntries).where(eq(exerciseEntries.id, entryId)).limit(1);
+  if (!current) return;
+  const [next] = await db.select().from(exerciseEntries)
+    .where(and(eq(exerciseEntries.workoutId, current.workoutId), gt(exerciseEntries.order, current.order)))
+    .orderBy(asc(exerciseEntries.order)).limit(1);
+  if (!next) return;
+  const groupId = current.groupId ?? next.groupId ?? id();
+  const groupType = current.groupType ?? next.groupType ?? formatSupersetType({ mode: 'round', betweenSec: 0 });
+  const oldGroups = [current.groupId, next.groupId].filter((value): value is string => value !== null);
+  await db.update(exerciseEntries).set({ groupId, groupType }).where(or(
+    inArray(exerciseEntries.id, [current.id, next.id]),
+    oldGroups.length ? and(eq(exerciseEntries.workoutId, current.workoutId), inArray(exerciseEntries.groupId, oldGroups)) : undefined,
+  ));
+}
+
+/** Takes an exercise out of its superset; a superset left with one exercise is dissolved. */
+export async function unlinkEntry(entryId: string): Promise<void> {
+  await initializeDatabase();
+  const [current] = await db.select().from(exerciseEntries).where(eq(exerciseEntries.id, entryId)).limit(1);
+  if (!current?.groupId) return;
+  await db.update(exerciseEntries).set({ groupId: null, groupType: null }).where(eq(exerciseEntries.id, entryId));
+  const rest = await db.select({ id: exerciseEntries.id }).from(exerciseEntries)
+    .where(and(eq(exerciseEntries.workoutId, current.workoutId), eq(exerciseEntries.groupId, current.groupId)));
+  if (rest.length === 1) await db.update(exerciseEntries).set({ groupId: null, groupType: null }).where(eq(exerciseEntries.id, rest[0].id));
+}
+
+export async function setSupersetRest(groupId: string, rest: SupersetRest): Promise<void> {
+  await initializeDatabase();
+  await db.update(exerciseEntries).set({ groupType: formatSupersetType(rest) }).where(eq(exerciseEntries.groupId, groupId));
 }

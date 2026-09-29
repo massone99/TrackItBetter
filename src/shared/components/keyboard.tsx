@@ -1,4 +1,4 @@
-import type { PropsWithChildren } from "react";
+import type { PropsWithChildren, Ref } from "react";
 import type { ScrollViewProps, ViewProps } from "react-native";
 import {
   KeyboardAvoidingView,
@@ -18,8 +18,11 @@ export function KeyboardRoot({ children }: PropsWithChildren) {
 }
 
 /** Scroll view that keeps the focused input above the keyboard. */
-export function KeyboardScroll(props: ScrollViewProps) {
-  return <KeyboardAwareScrollView bottomOffset={28} keyboardShouldPersistTaps="handled" {...props} />;
+/** What a screen needs to scroll programmatically, e.g. to the next exercise of a superset. */
+export type ScrollHandle = { scrollTo: (options: { y: number; animated?: boolean }) => void };
+
+export function KeyboardScroll({ scrollRef, ...props }: ScrollViewProps & { scrollRef?: Ref<ScrollHandle> }) {
+  return <KeyboardAwareScrollView bottomOffset={28} ref={scrollRef as never} keyboardShouldPersistTaps="handled" {...props} />;
 }
 
 /** Lifts its content (e.g. a bottom sheet) by the keyboard height. */
