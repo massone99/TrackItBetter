@@ -7,6 +7,7 @@ import { listExercises } from '../../../src/features/exercises/repository';
 import { describePrescription } from '../../../src/features/programs/describe';
 import { startUserProgramSession } from '../../../src/features/programs/startUserSession';
 import { deleteUserProgram, duplicateUserProgram, getUserProgram } from '../../../src/features/programs/userPrograms';
+import { WorkoutInProgressSheet } from '../../../src/features/session/WorkoutInProgressSheet';
 import { getActiveWorkout, listRecentWorkoutNames } from '../../../src/features/session/repository';
 import { ActionButton, Body, Card, IconButton, Label, PageHeading, Screen, SectionTitle, Sheet, Text } from '../../../src/shared/components/ui';
 import { goBack } from '../../../src/shared/navigation/goBack';
@@ -29,6 +30,7 @@ export default function UserProgramScreen() {
   const [error, setError] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [active, setActive] = useState<{ id: string; name: string } | null>(null);
+  const [blockedBy, setBlockedBy] = useState<{ id: string; name: string } | null>(null);
   const [recentNames, setRecentNames] = useState<string[]>([]);
 
   useFocusEffect(useCallback(() => {
@@ -59,6 +61,7 @@ export default function UserProgramScreen() {
 
   const start = async (session: UserProgramSession) => {
     if (starting) return;
+    if (active) { setBlockedBy(active); return; }
     setStarting(session.id);
     setError(null);
     try {
@@ -111,24 +114,17 @@ export default function UserProgramScreen() {
               <Text style={[styles.target, { color: palette.textMuted }]}>{describePrescription(prescription, metricById.get(prescription.exerciseId), t)}</Text>
             </View>
           ))}
-          {active ? (
-            <ActionButton
-              icon="play"
-              label={t('userProgram.resume', { name: active.name })}
-              secondary={session.id !== nextId}
-              onPress={() => router.push({ pathname: '/workout/[id]', params: { id: active.id } })}
-            />
-          ) : (
-            <ActionButton
-              icon="play"
-              label={starting === session.id ? t('programBuilder.starting') : t('userProgram.start')}
-              secondary={session.id !== nextId}
-              disabled={starting !== null}
-              onPress={() => void start(session)}
-            />
-          )}
+          <ActionButton
+            icon="play"
+            label={starting === session.id ? t('programBuilder.starting') : t('userProgram.start')}
+            secondary={session.id !== nextId}
+            disabled={starting !== null}
+            onPress={() => void start(session)}
+          />
         </Card>
       ))}
+
+      <WorkoutInProgressSheet active={blockedBy} onClose={() => setBlockedBy(null)} />
 
       <ActionButton icon="trash-outline" label={t('programBuilder.delete')} variant="danger" onPress={() => setConfirmDelete(true)} />
 

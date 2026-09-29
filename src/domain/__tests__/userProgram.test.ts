@@ -2,6 +2,7 @@ import {
   duplicateSession,
   estimateSessionSeconds,
   moveItem,
+  newPrescription,
   nextSessionInRotation,
   plannedLoads,
   replaceExercise,
@@ -136,5 +137,13 @@ describe('replaceExercise', () => {
 
   it('keeps the load between weighted exercises of different measures only when both carry load', () => {
     expect(replaceExercise(exercise({ target: 8, loadKg: 5 }), 'hold', 'reps_load', 'time_load').loadKg).toBe(5);
+  });
+});
+
+describe('newPrescription', () => {
+  it('starts with one set and a target that fits the measure', () => {
+    expect(newPrescription('a', 'reps', () => 'x')).toEqual({ id: 'x', exerciseId: 'a', sets: 1, target: 8, restSeconds: 90, loadKg: null });
+    expect(newPrescription('a', 'time_load', () => 'x')).toMatchObject({ sets: 1, target: 30 });
+    expect(newPrescription('a', 'distance', () => 'x')).toMatchObject({ sets: 1, target: 100 });
   });
 });

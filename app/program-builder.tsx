@@ -9,6 +9,7 @@ import {
   isLoadMetric,
   isTimedMetric,
   moveItem,
+  newPrescription,
   replaceExercise,
   sessionSetCount,
   validateUserProgram,
@@ -72,8 +73,7 @@ export default function ProgramEditorScreen() {
   const clearError = (match: (error: ProgramError) => boolean) => setErrors((current) => current.filter((error) => !match(error)));
 
   const addExercise = (sessionId: string, exerciseId: string, metric: string) => {
-    const target = isTimedMetric(metric) ? 30 : metric === 'distance' ? 100 : 8;
-    const prescription: UserProgramExercise = { id: Crypto.randomUUID(), exerciseId, sets: 3, target, restSeconds: 90, loadKg: null };
+    const prescription = newPrescription(exerciseId, metric, () => Crypto.randomUUID());
     setSessions((current) => current.map((session) => (session.id === sessionId ? { ...session, exercises: [...session.exercises, prescription] } : session)));
     clearError((error) => error.sessionId === sessionId && error.code === 'sessionEmpty');
   };

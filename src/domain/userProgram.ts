@@ -92,6 +92,11 @@ export function measureOf(metric: string | undefined): 'time' | 'distance' | 're
 
 const DEFAULT_TARGET = { time: 30, distance: 100, reps: 8 } as const;
 
+/** A movement freshly added to a workout of a program: one set, to be raised as needed. */
+export function newPrescription(exerciseId: string, metric: string | undefined, newId: () => string): UserProgramExercise {
+  return { id: newId(), exerciseId, sets: 1, target: DEFAULT_TARGET[measureOf(metric)], restSeconds: 90, loadKg: null };
+}
+
 /**
  * The same prescription for another exercise: sets and rest stay; the target restarts at the new
  * exercise's default when the measure changes, and a load is kept only if the new exercise carries one.
