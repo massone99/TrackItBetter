@@ -22,9 +22,9 @@ export interface UserProgramExercise {
   loadKg?: number | null;
 }
 
+/** One workout of a program; programs rotate through them in order, on whatever days suit the user. */
 export interface UserProgramSession {
   id: string;
-  weekday: Weekday;
   name: string;
   exercises: UserProgramExercise[];
 }
@@ -85,29 +85,23 @@ export function moveItem<T>(list: readonly T[], index: number, delta: number): T
   return next;
 }
 
-/** Copy of a day with fresh ids, placed on the next free weekday. */
-export function duplicateSession(
-  session: UserProgramSession,
-  all: readonly UserProgramSession[],
-  newId: () => string,
-): UserProgramSession {
-  return {
-    ...session,
-    id: newId(),
-    weekday: nextFreeWeekday(all, session.weekday),
-    exercises: session.exercises.map((exercise) => ({ ...exercise, id: newId() })),
-  };
+/** Copy of a workout with fresh ids. */
+export function duplicateSession(session: UserProgramSession, newId: () => string): UserProgramSession {
+  return { ...session, id: newId(), exercises: session.exercises.map((exercise) => ({ ...exercise, id: newId() })) };
 }
 
-/** First weekday after `after` (Monday-first order, wrapping) that has no session; falls back to `after`'s next day. */
-export function nextFreeWeekday(sessions: readonly Pick<UserProgramSession, 'weekday'>[], after?: Weekday): Weekday {
-  const used = new Set(sessions.map((session) => session.weekday));
-  const start = after === undefined ? 0 : WEEK_ORDER.indexOf(after) + 1;
-  for (let offset = 0; offset < 7; offset += 1) {
-    const day = WEEK_ORDER[(start + offset) % 7];
-    if (!used.has(day)) return day;
+/** Name given to a workout started from a program session; also how the rotation recognises it. */
+export function programSessionWorkoutName(program: Pick<UserProgram, 'name'>, session: Pick<UserProgramSession, 'name'>): string {
+  return `${program.name} · ${session.name}`;
+}
+
+/** The session after the latest one done (`recentWorkoutNames` newest first), wrapping; the first when none was done. */
+export function nextSessionInRotation(program: UserProgram, recentWorkoutNames: readonly string[]): UserProgramSession {
+  for (const name of recentWorkoutNames) {
+    const index = program.sessions.findIndex((session) => programSessionWorkoutName(program, session) === name);
+    if (index >= 0) return program.sessions[(index + 1) % program.sessions.length];
   }
-  return WEEK_ORDER[start % 7];
+  return program.sessions[0];
 }
 
 export function sessionSetCount(session: Pick<UserProgramSession, 'exercises'>): number {
@@ -128,21 +122,6 @@ export function estimateSessionSeconds(session: Pick<UserProgramSession, 'exerci
     lastRest = exercise.restSeconds;
   }
   return Math.max(0, total - lastRest);
-}
-
-/** Sessions of every program planned on `weekday`, with their program. */
-export function sessionsForWeekday(programs: readonly UserProgram[], weekday: Weekday): { program: UserProgram; session: UserProgramSession }[] {
-  return programs.flatMap((program) => program.sessions
-    .filter((session) => session.weekday === weekday)
-    .map((session) => ({ program, session })));
-}
-
-/** Sessions sorted Monday first, keeping the entered order within a day. */
-export function sortByWeekday<T extends Pick<UserProgramSession, 'weekday'>>(sessions: readonly T[]): T[] {
-  return sessions
-    .map((session, index) => ({ session, index }))
-    .sort((a, b) => WEEK_ORDER.indexOf(a.session.weekday) - WEEK_ORDER.indexOf(b.session.weekday) || a.index - b.index)
-    .map(({ session }) => session);
 }
 
 /** Per set loads for a new session: the planned load when set, otherwise last time's load at the same set index (or its last set). */

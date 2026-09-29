@@ -2,7 +2,9 @@ import { router } from "expo-router";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { StyleSheet, View } from "react-native";
-import { Body, Card, Label, ListGroup, ListRow, PageHeading, Screen, SectionTitle, SegmentedControl, SwitchRow } from "../../src/shared/components/ui";
+import { Body, Card, Label, ListGroup, ListRow, PageHeading, Screen, SectionTitle, SegmentedControl, Stepper, SwitchRow } from "../../src/shared/components/ui";
+import { readDefaultRest, writeDefaultRest } from "../../src/features/session/restDefaults";
+import { formatClock } from "../../src/shared/utils/format";
 import { readBooleanPreference, RPE_PROMPT_KEY, writePreference } from "../../src/shared/settings/preferences";
 import { UI_SCALES, type UiScale } from "../../src/shared/theme/scale";
 import i18n, { setAppLanguage } from "../../src/shared/i18n";
@@ -16,6 +18,8 @@ export default function ProfileScreen() {
   const { preference, setMode, palette, scale, setScale } = useTheme();
   const { speed, setSpeed, reducedMotion } = useAnimationSettings();
   const [rpePrompt, setRpePrompt] = useState(() => readBooleanPreference(RPE_PROMPT_KEY, true));
+  const [rest, setRest] = useState(() => ({ working: readDefaultRest("working"), warmup: readDefaultRest("warmup") }));
+  const changeRest = (kind: "working" | "warmup", seconds: number) => { setRest((current) => ({ ...current, [kind]: seconds })); writeDefaultRest(kind, seconds); };
   const sizeLabels = [t("profile.sizeCompact"), t("profile.sizeSnug"), t("profile.sizeDefault"), t("profile.sizeLarge")];
   const language = i18n.language.startsWith("it") ? "it" : "en";
   return (
@@ -70,6 +74,11 @@ export default function ProfileScreen() {
           onChange={(next) => { setRpePrompt(next); writePreference(RPE_PROMPT_KEY, String(next)); }}
         />
       </ListGroup>
+      <Card>
+        <Stepper layout="row" label={t("logger.restWorking")} value={rest.working} display={formatClock(rest.working)} step={15} min={0} max={600} onChange={(value) => changeRest("working", value)} />
+        <Stepper layout="row" label={t("logger.restWarmup")} value={rest.warmup} display={formatClock(rest.warmup)} step={15} min={0} max={600} onChange={(value) => changeRest("warmup", value)} />
+        <Body>{t("profile.restHint")}</Body>
+      </Card>
 
       <SectionTitle title={t("profile.data")} />
       <ListGroup>

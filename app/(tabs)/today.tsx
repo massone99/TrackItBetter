@@ -3,12 +3,12 @@ import { useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Pressable, StyleSheet, View } from "react-native";
 import { getMobilityWeek, getProgressSnapshot } from "../../src/features/analytics/repository";
-import { sessionSetCount, sessionsForWeekday, type UserProgram, type UserProgramSession, type Weekday } from "../../src/domain/userProgram";
+import { nextSessionInRotation, sessionSetCount, type UserProgram, type UserProgramSession } from "../../src/domain/userProgram";
 import { startUserProgramSession } from "../../src/features/programs/startUserSession";
 import { listUserPrograms } from "../../src/features/programs/userPrograms";
 import type { PersonalBest } from "../../src/features/analytics/summary";
 import { getGoalSnapshot, GoalSnapshot } from "../../src/features/goals/repository";
-import { ActiveWorkout, getActiveWorkout, listRecentWorkouts, WorkoutHistoryItem } from "../../src/features/session/repository";
+import { ActiveWorkout, getActiveWorkout, listRecentWorkoutNames, listRecentWorkouts, repeatWorkout, WorkoutHistoryItem } from "../../src/features/session/repository";
 import { ActionButton, Body, Card, Icon, Label, ListGroup, ListRow, Numeral, Screen, SectionTitle, tapFeedback, Text, Title } from "../../src/shared/components/ui";
 import type { IconName } from "../../src/shared/components/ui";
 import { poseDetectionAvailable } from "../../src/features/pose/detectPose";
@@ -36,13 +36,13 @@ export default function TodayScreen() {
 
   useFocusEffect(useCallback(() => {
     let mounted = true;
-    void Promise.all([getActiveWorkout(), getGoalSnapshot(), getProgressSnapshot(), listRecentWorkouts(1), getMobilityWeek(), listUserPrograms()]).then(([active, goals, progress, recent, mobility, programs]) => {
+    void Promise.all([getActiveWorkout(), getGoalSnapshot(), getProgressSnapshot(), listRecentWorkouts(1), getMobilityWeek(), listUserPrograms(), listRecentWorkoutNames()]).then(([active, goals, progress, recent, mobility, programs, names]) => {
       if (!mounted) return;
       const bests = [...progress.personalBests].sort((a, b) => b.achievedAt.getTime() - a.achievedAt.getTime()).slice(0, 3);
       setData({
         active, goals, weekSets: progress.weekSets, bests, last: recent[0] ?? null,
         mobilityMinutes: Math.round(mobility.seconds / 60),
-        planned: sessionsForWeekday(programs, new Date().getDay() as Weekday),
+        planned: programs.map((program) => ({ program, session: nextSessionInRotation(program, names) })),
       });
     }).catch(() => undefined);
     return () => { mounted = false; };
@@ -192,6 +192,14 @@ export default function TodayScreen() {
             title={t("home.lastWorkout")}
             subtitle={t("home.lastWorkoutBody", { date: data.last.startedAt.toLocaleDateString(i18n.language, { weekday: "short", day: "numeric", month: "short" }), count: data.last.setCount })}
             onPress={() => router.push({ pathname: "/workout/history/[id]", params: { id: data.last!.id } })}
+          />
+        ) : null}
+        {data.last && !active ? (
+          <ListRow
+            icon="repeat"
+            title={t("home.repeatLast")}
+            subtitle={data.last.name}
+            onPress={() => void repeatWorkout(data.last!.id).then((workoutId) => router.push({ pathname: "/workout/[id]", params: { id: workoutId } })).catch(() => undefined)}
           />
         ) : null}
       </ListGroup>

@@ -9,11 +9,8 @@ import {
   isLoadMetric,
   isTimedMetric,
   moveItem,
-  nextFreeWeekday,
   sessionSetCount,
   validateUserProgram,
-  WEEK_ORDER,
-  weekdayKey,
   type ProgramError,
   type UserProgramExercise,
   type UserProgramSession,
@@ -24,7 +21,6 @@ import { getUserProgram, saveUserProgram } from '../src/features/programs/userPr
 import {
   ActionButton,
   Card,
-  Chip,
   EmptyState,
   IconButton,
   Label,
@@ -54,7 +50,7 @@ export default function ProgramEditorScreen() {
   const { t } = useTranslation();
   const { palette } = useTheme();
   const navigation = useNavigation();
-  const [initial] = useState<Draft>(() => ({ name: '', sessions: id ? [] : [newSession([], t('programBuilder.sessionDefault'))] }));
+  const [initial] = useState<Draft>(() => ({ name: '', sessions: id ? [] : [newSession(t('programBuilder.sessionDefault'))] }));
   const [loaded, setLoaded] = useState(!id);
   const [name, setName] = useState(initial.name);
   const [sessions, setSessions] = useState<UserProgramSession[]>(initial.sessions);
@@ -175,7 +171,7 @@ export default function ProgramEditorScreen() {
               <IconButton icon="chevron-up" label={t('userProgram.moveDayUp')} tone="plain" size={34} onPress={() => setSessions((current) => moveItem(current, index, -1))} />
               <IconButton icon="chevron-down" label={t('userProgram.moveDayDown')} tone="plain" size={34} onPress={() => setSessions((current) => moveItem(current, index, 1))} />
               <IconButton icon="copy-outline" label={t('userProgram.duplicateDay')} tone="plain" size={34} onPress={() => setSessions((current) => {
-                const copy = duplicateSession(session, current, () => Crypto.randomUUID());
+                const copy = duplicateSession(session, () => Crypto.randomUUID());
                 return [...current.slice(0, index + 1), copy, ...current.slice(index + 1)];
               })} />
               <IconButton icon="trash-outline" label={t('programBuilder.removeDay')} tone="plain" size={34} onPress={() => removeWithUndo(
@@ -192,15 +188,6 @@ export default function ProgramEditorScreen() {
               maxLength={40}
               error={sessionErrors.some((error) => error.code === 'sessionNameMissing') ? t('userProgram.errors.sessionNameMissing') : null}
             />
-            <View style={styles.field}>
-              <Label>{t('userProgram.weekday')}</Label>
-              <View style={styles.chips}>
-                {WEEK_ORDER.map((day) => (
-                  <Chip key={day} label={t(`reminders.weekdaysShort.${weekdayKey(day)}`)} selected={session.weekday === day} onPress={() => updateSession(session.id, { weekday: day })} />
-                ))}
-              </View>
-            </View>
-
             {session.exercises.map((prescription, exerciseIndex) => {
               const info = exerciseInfo.get(prescription.exerciseId);
               const metric = info?.metric ?? 'reps';
@@ -256,7 +243,7 @@ export default function ProgramEditorScreen() {
         );
       })}
       <ActionButton icon="add" label={t('programBuilder.addDay')} variant="ghost" onPress={() => {
-        setSessions((current) => [...current, newSession(current, t('programBuilder.sessionDefault'))]);
+        setSessions((current) => [...current, newSession(t('programBuilder.sessionDefault'))]);
         clearError((error) => error.code === 'noSessions');
       }} />
 
@@ -299,8 +286,8 @@ function TargetStepper({ metric, value, onChange }: { metric: string; value: num
   return <Stepper layout="row" label={t('programBuilder.reps')} value={value} step={1} min={1} max={100} onChange={onChange} />;
 }
 
-function newSession(existing: readonly UserProgramSession[], name: string): UserProgramSession {
-  return { id: Crypto.randomUUID(), weekday: nextFreeWeekday(existing), name, exercises: [] };
+function newSession(name: string): UserProgramSession {
+  return { id: Crypto.randomUUID(), name, exercises: [] };
 }
 
 const baseStyles = StyleSheet.create({
@@ -311,7 +298,6 @@ const baseStyles = StyleSheet.create({
   numberText: { fontFamily: fonts.display, fontSize: 16 },
   dayTitle: { fontFamily: fonts.display, fontSize: 21, lineHeight: 24 },
   field: { gap: 8 },
-  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   exercise: { borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 12, gap: 2 },
   exerciseName: { fontFamily: fonts.semibold, fontSize: 16 },
   error: { fontFamily: fonts.medium, fontSize: 14 },

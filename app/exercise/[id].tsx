@@ -7,7 +7,9 @@ import { openReferenceVideo, ReferenceLinkSheet } from '../../src/features/exerc
 import { movementTagLabel } from '../../src/features/exercises/ClassificationChoices';
 import { archiveCustomExercise, getExerciseById, setExerciseFavourite } from '../../src/features/exercises/repository';
 import { addExerciseToWorkout, getActiveWorkout, startWorkout } from '../../src/features/session/repository';
-import { getExerciseCycle, getExerciseEstimate, getExerciseWeekStats } from '../../src/features/analytics/repository';
+import { getExerciseCycle, getExerciseEstimate, getExerciseRecordSummary, getExerciseWeekStats } from '../../src/features/analytics/repository';
+import type { ExerciseRecordSummary } from '../../src/features/analytics/records';
+import { formatRecordValue } from '../../src/features/analytics/recordLabels';
 import type { ExerciseEstimate } from '../../src/features/analytics/estimates';
 import type { ExerciseCycle, ExerciseWeek } from '../../src/features/analytics/mobility';
 import { formatMinutes, formatNumber } from '../../src/shared/utils/format';
@@ -38,6 +40,7 @@ export default function ExerciseRoute() {
   const [week, setWeek] = useState<ExerciseWeek | null>(null);
   const [cycle, setCycle] = useState<{ current: ExerciseCycle | null; previous: ExerciseCycle | null } | null>(null);
   const [estimate, setEstimate] = useState<ExerciseEstimate | null>(null);
+  const [records, setRecords] = useState<ExerciseRecordSummary | null>(null);
   const [editingReference, setEditingReference] = useState(false);
   const [confirmArchive, setConfirmArchive] = useState(false);
 
@@ -49,6 +52,7 @@ export default function ExerciseRoute() {
     if (found && [found.category, ...readList(found.extraCategories)].includes('mobility')) setCycle(await getExerciseCycle(found.id).catch(() => null));
     else if (found) setWeek(await getExerciseWeekStats(found.id, found.metric).catch(() => null));
     if (found) setEstimate(await getExerciseEstimate(found.id).catch(() => null));
+    if (found) setRecords(await getExerciseRecordSummary(found.id).catch(() => null));
   }, [id]);
 
   useFocusEffect(useCallback(() => { void reload(); }, [reload]));
@@ -175,6 +179,23 @@ export default function ExerciseRoute() {
               {week.seconds !== null ? <WeekStat value={formatMinutes(week.seconds)} label={t('mobilityStats.exerciseTime')} /> : null}
             </View>
           )}
+        </View>
+      ) : null}
+
+      {records && exercise.metric !== 'distance' && records.bestAmount !== null ? (
+        <View style={styles.section}>
+          <SectionTitle title={t('records.title')} />
+          <View style={[styles.week, { backgroundColor: palette.surface, borderColor: palette.border }]}>
+            <WeekStat
+              value={formatRecordValue(exercise.metric === 'time' || exercise.metric === 'time_load' ? 'holdAtLoad' : 'repsAtLoad', records.bestAmount, exercise.metric, t)}
+              label={t('records.bestAmount')}
+            />
+            {records.bestE1rm !== null ? <WeekStat value={formatRecordValue('e1rm', records.bestE1rm, exercise.metric, t)} label={t('records.bestE1rm')} /> : null}
+            {records.bestVolume !== null ? <WeekStat value={formatRecordValue('volume', records.bestVolume, exercise.metric, t)} label={t('records.bestVolume')} /> : null}
+          </View>
+          {records.repMaxes.length > 0 ? (
+            <Body>{t('records.repMaxes')}: {records.repMaxes.map((item) => t('records.repMax', { reps: item.reps, load: formatNumber(item.loadKg) })).join(' · ')}</Body>
+          ) : null}
         </View>
       ) : null}
 

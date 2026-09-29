@@ -2,7 +2,8 @@ import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { StyleSheet, View } from 'react-native';
-import { sortByWeekday, weekdayKey } from '../../src/domain/userProgram';
+import { nextSessionInRotation } from '../../src/domain/userProgram';
+import { listRecentWorkoutNames } from '../../src/features/session/repository';
 import { LibraryView } from '../../src/features/exercises/LibraryView';
 import { programTemplates } from '../../src/features/programs/catalog';
 import { listHiddenTemplates, setHiddenTemplates } from '../../src/features/programs/hiddenTemplates';
@@ -25,15 +26,17 @@ export default function ProgramsTab() {
   const view: ProgramsView = params.view === 'exercises' ? 'exercises' : 'programs';
   const [mine, setMine] = useState<UserProgram[] | null>(null);
   const [hidden, setHidden] = useState<string[]>([]);
+  const [recentNames, setRecentNames] = useState<string[]>([]);
   const [undo, setUndo] = useState<{ message: string; previous: string[] } | null>(null);
   const hideUndo = useCallback(() => setUndo(null), []);
   const language = i18n.language.startsWith('it') ? 'it' : 'en';
 
   useFocusEffect(useCallback(() => {
     let mounted = true;
-    void Promise.all([listUserPrograms(), listHiddenTemplates()]).then(([programs, hiddenIds]) => {
+    void Promise.all([listUserPrograms(), listHiddenTemplates(), listRecentWorkoutNames()]).then(([programs, hiddenIds, names]) => {
       if (!mounted) return;
       setMine(programs);
+      setRecentNames(names);
       setHidden(hiddenIds);
     });
     return () => { mounted = false; };
@@ -45,7 +48,6 @@ export default function ProgramsTab() {
     void setHiddenTemplates(next);
   };
 
-  const today = new Date().getDay();
   const templates = programTemplates.filter((template) => !hidden.includes(template.id));
   const hiddenCount = programTemplates.length - templates.length;
 
@@ -87,14 +89,13 @@ export default function ProgramsTab() {
           {mine && mine.length > 0 ? (
             <ListGroup>
               {mine.map((program) => {
-                const plannedToday = program.sessions.find((session) => session.weekday === today);
-                const days = sortByWeekday(program.sessions).map((session) => t(`reminders.weekdaysShort.${weekdayKey(session.weekday)}`)).join(' · ');
+                const next = nextSessionInRotation(program, recentNames);
                 return (
                   <ListRow
                     key={program.id}
                     icon="calendar"
                     title={program.name}
-                    subtitle={plannedToday ? `${t('userProgram.todayPlan')}: ${plannedToday.name} · ${days}` : days}
+                    subtitle={`${t('userProgram.nextShort', { name: next.name })} · ${t('userProgram.daysPerWeek', { count: program.sessions.length })}`}
                     onPress={() => router.push({ pathname: '/program/user/[id]', params: { id: program.id } })}
                   />
                 );

@@ -20,7 +20,7 @@ const copy = {
     pattern: 'Pattern', exercise: 'Exercise', groups: 'Groups', tags: 'Tags',
     session: 'Session', day: 'Day', week: 'Week', month: 'Month',
     previous: 'Previous period', next: 'Next period', today: 'Today', latestSession: 'Latest',
-    set: 'set', sets: 'sets', reps: 'reps', threshold: 'RPE threshold',
+    set: 'set', sets: 'sets', reps: 'reps', threshold: 'RPE threshold', allSets: 'All sets',
     empty: 'No working sets in this period.', noData: 'Finish a workout to see statistics here.',
     other: 'Other movements', untagged: 'No tag', loading: 'Loading statistics…', error: 'Statistics could not be loaded.', retry: 'Retry',
   },
@@ -29,7 +29,7 @@ const copy = {
     pattern: 'Pattern', exercise: 'Esercizio', groups: 'Gruppi', tags: 'Tag',
     session: 'Sessione', day: 'Giorno', week: 'Sett.', month: 'Mese',
     previous: 'Periodo precedente', next: 'Periodo successivo', today: 'Oggi', latestSession: 'Ultima',
-    set: 'serie', sets: 'serie', reps: 'rip', threshold: 'Soglia RPE',
+    set: 'serie', sets: 'serie', reps: 'rip', threshold: 'Soglia RPE', allSets: 'Tutte le serie',
     empty: 'Nessuna serie di lavoro in questo periodo.', noData: 'Completa un allenamento per vedere qui le statistiche.',
     other: 'Altri movimenti', untagged: 'Senza tag', loading: 'Caricamento statistiche…', error: 'Impossibile caricare le statistiche.', retry: 'Riprova',
   },
@@ -58,6 +58,7 @@ export default function StatsScreen() {
     const stored = Number(readPreference('stats.threshold'));
     return stored >= 6 && stored <= 10 ? stored : 8;
   });
+  const [rpeOnly, setRpeOnly] = useState(() => readPreference('stats.rpeOnly') === 'true');
   const [anchor, setAnchor] = useState<string | null>(null);
 
   const load = useCallback(() => {
@@ -69,7 +70,7 @@ export default function StatsScreen() {
   useFocusEffect(load);
 
   const dimension: StatsDimension = view === 'exercise' ? 'exercise' : patternKind;
-  const stats = useMemo(() => rows ? buildTrainingStats(rows, { dimension, period: periodKind, anchor, threshold }) : null, [rows, dimension, periodKind, anchor, threshold]);
+  const stats = useMemo(() => rows ? buildTrainingStats(rows, { dimension, period: periodKind, anchor, threshold, rpeOnly }) : null, [rows, dimension, periodKind, anchor, threshold, rpeOnly]);
 
   function remember<T extends string>(key: string, setter: (value: T) => void) {
     return (value: T) => {
@@ -78,6 +79,8 @@ export default function StatsScreen() {
     };
   }
   const changeThreshold = (value: number) => { setThreshold(value); writePreference('stats.threshold', String(value)); };
+  const changeRpeOnly = (value: 'all' | 'rpe') => { setRpeOnly(value === 'rpe'); writePreference('stats.rpeOnly', String(value === 'rpe')); };
+  const rpeLabel = `RPE ≥ ${formatNumber(threshold)}`;
 
   const itemName = (id: string, name: string) => {
     if (dimension === 'exercise') return name;
@@ -99,6 +102,8 @@ export default function StatsScreen() {
         </View>)}
       </View>}
       <SegmentedControl<StatsPeriodKind> value={periodKind} onChange={(value) => { remember<StatsPeriodKind>('stats.period', setPeriodKind)(value); setAnchor(null); }} options={(['session', 'day', 'week', 'month'] as const).map((value) => ({ value, label: strings[value] }))} />
+      <SegmentedControl<'all' | 'rpe'> value={rpeOnly ? 'rpe' : 'all'} onChange={changeRpeOnly} options={[{ value: 'all', label: strings.allSets }, { value: 'rpe', label: rpeLabel }]} />
+      {rpeOnly && <Stepper layout="row" label={strings.threshold} value={threshold} step={0.5} min={6} max={10} onChange={changeThreshold} />}
     </View>
 
     {!stats ? <Card style={styles.loadingCard}>
@@ -126,7 +131,7 @@ export default function StatsScreen() {
           <Text style={[styles.summaryValue, { color: palette.text }]}>{stats.summary.sets}</Text>
           <Text style={[styles.summaryUnit, { color: palette.textMuted }]}>{stats.summary.sets === 1 ? strings.set : strings.sets}</Text>
         </View>
-        {detail(stats.summary, threshold, strings) ? <Body>{detail(stats.summary, threshold, strings)}</Body> : null}
+        {detail(stats.summary, threshold, strings, rpeOnly) ? <Body>{detail(stats.summary, threshold, strings, rpeOnly)}</Body> : null}
       </Card>
 
       <Card>
@@ -136,21 +141,20 @@ export default function StatsScreen() {
             <Text style={[styles.rowValue, { color: palette.text }]}>{item.metrics.sets}</Text>
           </View>
           <View style={[styles.rowBar, { width: `${Math.max(3, (item.metrics.sets / maxSets) * 100)}%`, backgroundColor: palette.accentSoft }]} />
-          {detail(item.metrics, threshold, strings) ? <Text style={[styles.rowDetail, { color: palette.textMuted }]}>{detail(item.metrics, threshold, strings)}</Text> : null}
+          {detail(item.metrics, threshold, strings, rpeOnly) ? <Text style={[styles.rowDetail, { color: palette.textMuted }]}>{detail(item.metrics, threshold, strings, rpeOnly)}</Text> : null}
         </View>)}
       </Card>
 
-      <Stepper layout="row" label={strings.threshold} value={threshold} step={0.5} min={6} max={10} onChange={changeThreshold} />
     </>}
   </Screen>;
 }
 
 /** Only the non-zero parts, e.g. "48 rip · 2 ≥ RPE 8 · 120 kg·rep". Empty string when nothing to add. */
-function detail(metrics: StatsMetrics, threshold: number, strings: Strings): string {
+function detail(metrics: StatsMetrics, threshold: number, strings: Strings, rpeOnly: boolean): string {
   return [
     metrics.reps > 0 ? `${metrics.reps} ${strings.reps}` : null,
     metrics.holdSeconds > 0 ? formatDuration(metrics.holdSeconds) : null,
-    metrics.setsAtThreshold > 0 ? `${metrics.setsAtThreshold} ≥ RPE ${formatNumber(threshold)}` : null,
+    !rpeOnly && metrics.setsAtThreshold > 0 ? `${metrics.setsAtThreshold} ≥ RPE ${formatNumber(threshold)}` : null,
     metrics.loadRepsKg > 0 ? `${formatNumber(metrics.loadRepsKg)} kg·rep` : null,
     metrics.loadSecondsKg > 0 ? `${formatNumber(metrics.loadSecondsKg)} kg·s` : null,
   ].filter((part): part is string => part !== null).join(' · ');

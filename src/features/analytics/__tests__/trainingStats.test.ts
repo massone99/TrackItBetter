@@ -103,4 +103,22 @@ describe('buildTrainingStats', () => {
     ], { dimension: 'exercise', period: 'day', anchor: null, threshold: 8, now });
     expect(stats.summary).toEqual({ sets: 3, setsAtThreshold: 0, reps: 10, holdSeconds: 0, loadRepsKg: 0, loadSecondsKg: 0 });
   });
+
+  it('counts only sets at or above the RPE threshold when filtering', () => {
+    const stats = buildTrainingStats(weekRows, { dimension: 'group', period: 'week', anchor: null, threshold: 9, rpeOnly: true, now });
+    expect(stats.summary.sets).toBe(2);
+    expect(stats.items.map((item) => [item.id, item.metrics.sets])).toEqual([['vertical-pull', 2]]);
+    expect(stats.history[stats.history.length - 1].sets).toBe(2);
+    expect(stats.history[stats.history.length - 2].sets).toBe(0);
+    expect(stats.olderId).toBe('2026-09-21');
+  });
+
+  it('keeps every session navigable when filtering by RPE', () => {
+    const older = buildTrainingStats(weekRows, { dimension: 'group', period: 'session', anchor: 'w0', threshold: 8, rpeOnly: true, now });
+    expect(older.period?.id).toBe('w0');
+    expect(older.summary.sets).toBe(0);
+    expect(older.newerId).toBe('w1');
+    const latest = buildTrainingStats(weekRows, { dimension: 'group', period: 'session', anchor: null, threshold: 8, rpeOnly: true, now });
+    expect(latest.history.map((bar) => bar.sets)).toEqual([0, 3]);
+  });
 });

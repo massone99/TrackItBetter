@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, isNotNull } from 'drizzle-orm';
+import { and, asc, desc, eq, isNotNull, or } from 'drizzle-orm';
 import { db, initializeDatabase } from '../../db/client';
 import { exerciseEntries, exercises, trainingSets, workouts } from '../../db/schema';
 import { buildExerciseCycle, buildExerciseWeek, buildMobilityCycles, buildMobilityWeek, mobilitySecondsForWorkout, type ExerciseCycle, type ExerciseWeek, type MobilityWeek } from './mobility';
@@ -6,6 +6,8 @@ import { buildExerciseEstimate, type ExerciseEstimate } from './estimates';
 import type { ExploreData } from './explore';
 import { buildProgressSnapshot, detectWorkoutRecords, type CompletedSetRow, type CompletedWorkoutRow, type ProgressSnapshot, type WorkoutRecord } from './summary';
 import type { StatsSetRow } from './trainingStats';
+import { detectSetRecords, detectVolumeRecords, exerciseRecordSummary, type ExerciseRecordSummary, type RecordRow, type SetRecord, type VolumeRecord } from './records';
+import { getEffectiveLoad } from './summary';
 
 /** Load only finalized workouts and sets, then summarize them in the domain layer. */
 export async function getProgressSnapshot(now = new Date()): Promise<ProgressSnapshot> {
@@ -126,4 +128,58 @@ async function loadCompletedSetRows(): Promise<CompletedSetRow[]> {
     .innerJoin(workouts, eq(exerciseEntries.workoutId, workouts.id))
     .where(and(isNotNull(workouts.endedAt), isNotNull(trainingSets.completedAt), eq(trainingSets.kind, 'working')))
     .orderBy(asc(trainingSets.completedAt));
+}
+
+/**
+ * Completed working sets in chronological order, from finished workouts plus `includeWorkoutId`
+ * (the one in progress). Rest before a set is the rest set on the previous completed working set of the exercise.
+ */
+async function loadRecordRows(includeWorkoutId?: string): Promise<RecordRow[]> {
+  await initializeDatabase();
+  const workoutFilter = includeWorkoutId ? or(isNotNull(workouts.endedAt), eq(workouts.id, includeWorkoutId)) : isNotNull(workouts.endedAt);
+  const rows = await db
+    .select({
+      setId: trainingSets.id,
+      entryId: exerciseEntries.id,
+      workoutId: workouts.id,
+      bodyweightKg: workouts.bodyweightKg,
+      exerciseId: exercises.id,
+      metric: exercises.metric,
+      leverageFactor: exercises.leverageFactor,
+      kind: trainingSets.kind,
+      reps: trainingSets.reps,
+      durationSec: trainingSets.durationSec,
+      addedLoadKg: trainingSets.addedLoadKg,
+      restSec: trainingSets.restSec,
+    })
+    .from(trainingSets)
+    .innerJoin(exerciseEntries, eq(trainingSets.entryId, exerciseEntries.id))
+    .innerJoin(exercises, eq(exerciseEntries.exerciseId, exercises.id))
+    .innerJoin(workouts, eq(exerciseEntries.workoutId, workouts.id))
+    .where(and(workoutFilter, isNotNull(trainingSets.completedAt)))
+    .orderBy(asc(workouts.startedAt), asc(exerciseEntries.order), asc(trainingSets.index));
+  const result: RecordRow[] = [];
+  let previous: (typeof rows)[number] | null = null;
+  for (const row of rows) {
+    // Rest after a warm-up is not comparable with rest between working sets.
+    const restBeforeSec = previous?.entryId === row.entryId && previous.kind === 'working' ? previous.restSec : null;
+    previous = row;
+    if (row.kind !== 'working') continue;
+    const effectiveLoadKg = getEffectiveLoad({ ...row, distanceM: null, completedAt: null } as never) ?? null;
+    result.push({
+      setId: row.setId, workoutId: row.workoutId, exerciseId: row.exerciseId, metric: row.metric,
+      reps: row.reps, durationSec: row.durationSec, addedLoadKg: row.addedLoadKg, effectiveLoadKg, restBeforeSec,
+    });
+  }
+  return result;
+}
+
+/** PRs and volume mini PRs of a workout, in progress or finished. */
+export async function getSessionRecords(workoutId: string): Promise<{ sets: SetRecord[]; volume: VolumeRecord[] }> {
+  const rows = await loadRecordRows(workoutId);
+  return { sets: detectSetRecords(rows, workoutId), volume: detectVolumeRecords(rows, workoutId) };
+}
+
+export async function getExerciseRecordSummary(exerciseId: string): Promise<ExerciseRecordSummary> {
+  return exerciseRecordSummary(await loadRecordRows(), exerciseId);
 }

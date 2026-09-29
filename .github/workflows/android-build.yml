@@ -1,0 +1,30 @@
+name: Android build
+
+# Compiles the APK on pull requests that change native code or config, so a broken native
+# build is caught before it reaches main and the release workflow.
+on:
+  pull_request:
+    paths: [modules/**, app.json, package.json, package-lock.json, patches/**, .github/workflows/android-build.yml]
+  push:
+    branches: ['claude/**']
+    paths: [modules/**, app.json, package.json, package-lock.json, patches/**, .github/workflows/android-build.yml]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Build arm64 APK
+        run: npm run build:apk

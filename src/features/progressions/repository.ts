@@ -96,7 +96,7 @@ export async function getProgressionChain(chainId: string) {
     .from(exerciseEntries)
     .innerJoin(exercises, eq(exerciseEntries.exerciseId, exercises.id))
     .innerJoin(workouts, eq(exerciseEntries.workoutId, workouts.id))
-    .leftJoin(trainingSets, eq(trainingSets.entryId, exerciseEntries.id))
+    .leftJoin(trainingSets, and(eq(trainingSets.entryId, exerciseEntries.id), eq(trainingSets.kind, 'working')))
     .where(and(eq(exercises.chainId, chainId), isNotNull(workouts.endedAt)))
     .orderBy(desc(workouts.startedAt), asc(trainingSets.index));
 

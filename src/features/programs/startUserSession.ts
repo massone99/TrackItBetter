@@ -1,4 +1,4 @@
-import { isLoadMetric, isTimedMetric, plannedLoads, type UserProgram, type UserProgramSession } from '../../domain/userProgram';
+import { isLoadMetric, isTimedMetric, plannedLoads, programSessionWorkoutName, type UserProgram, type UserProgramSession } from '../../domain/userProgram';
 import { addExerciseToWorkout, addSet, getActiveWorkout, getPreviousPerformance, startWorkout, updateSet } from '../session/repository';
 
 /**
@@ -7,7 +7,7 @@ import { addExerciseToWorkout, addSet, getActiveWorkout, getPreviousPerformance,
  * the load used last time when the program leaves it open. Returns the new workout id.
  */
 export async function startUserProgramSession(program: UserProgram, session: UserProgramSession): Promise<string> {
-  const workoutId = await startWorkout(`${program.name} · ${session.name}`);
+  const workoutId = await startWorkout(programSessionWorkoutName(program, session));
   const entries: { entryId: string; index: number }[] = [];
   for (const [index, prescription] of session.exercises.entries()) {
     entries.push({ entryId: await addExerciseToWorkout(workoutId, prescription.exerciseId), index });

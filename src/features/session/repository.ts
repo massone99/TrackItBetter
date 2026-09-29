@@ -1,13 +1,17 @@
-import { and, asc, count, desc, eq, inArray, isNotNull, isNull, max } from 'drizzle-orm';
+import { and, asc, count, desc, eq, gt, inArray, isNotNull, isNull, max, or } from 'drizzle-orm';
 import * as Crypto from 'expo-crypto';
 import { db, initializeDatabase } from '../../db/client';
 import { bodyMeasurements, exerciseEntries, exercises, formCheckVideos, trainingSets, workouts } from '../../db/schema';
 import { deleteFormCheckVideosForSets } from '../media/formVideos';
 import { isValidRpe } from '../../domain/rpe';
+import type { SetKind } from './restDefaults';
+import { formatSupersetType, type SupersetRest } from './superset';
 
 export interface SessionSet {
   id: string;
   index: number;
+  /** Warm-ups stay out of statistics, records and previous values, and use their own rest. */
+  kind: SetKind;
   reps: number | null;
   durationSec: number | null;
   distanceM: number | null;
@@ -30,6 +34,9 @@ export interface SessionExercise {
   demoUrl: string | null;
   /** Free-text note for this exercise within the workout. */
   notes: string | null;
+  /** Exercises sharing a group id form a superset; the type holds its rest mode (see superset.ts). */
+  groupId: string | null;
+  groupType: string | null;
   sets: SessionSet[];
 }
 
@@ -136,9 +143,12 @@ async function loadSessionExercises(workoutId: string): Promise<SessionExercise[
       metric: exercise.metric,
       demoUrl: exercise.demoUrl,
       notes: entry.notes,
+      groupId: entry.groupId,
+      groupType: entry.groupType,
       sets: sets.map((set) => ({
         id: set.id,
         index: set.index,
+        kind: set.kind === 'warmup' ? 'warmup' as const : 'working' as const,
         reps: set.reps,
         durationSec: set.durationSec,
         distanceM: set.distanceM,
@@ -250,11 +260,16 @@ export async function addSet(entryId: string): Promise<string> {
     id: setId,
     entryId,
     index: (previous?.index ?? 0) + 1,
+    kind: previous?.kind ?? 'working',
     reps: previous?.reps ?? ('reps' in initialValue ? initialValue.reps : null),
     durationSec: previous?.durationSec ?? ('durationSec' in initialValue ? initialValue.durationSec : null),
     distanceM: previous?.distanceM ?? ('distanceM' in initialValue ? initialValue.distanceM : null),
     addedLoadKg: previous?.addedLoadKg ?? 0,
     restSec: previous?.restSec ?? null,
+    band: previous?.band ?? null,
+    rpe: previous?.rpe ?? null,
+    side: previous?.side ?? 'both',
+    note: previous?.note ?? null,
   });
   return setId;
 }
@@ -379,6 +394,14 @@ export async function setCompletedWorkoutSetDone(workoutId: string, setId: strin
   await db.update(trainingSets).set({ completedAt: done ? endedAt : null }).where(eq(trainingSets.id, setId));
 }
 
+/** Names of finished workouts, newest first; programs use them to know which session comes next. */
+export async function listRecentWorkoutNames(limit = 200): Promise<string[]> {
+  await initializeDatabase();
+  const rows = await db.select({ name: workouts.name }).from(workouts)
+    .where(isNotNull(workouts.endedAt)).orderBy(desc(workouts.startedAt)).limit(limit);
+  return rows.map((row) => row.name);
+}
+
 export async function listRecentWorkouts(limit = 365): Promise<WorkoutHistoryItem[]> {
   await initializeDatabase();
   const rows = await db
@@ -425,6 +448,19 @@ export async function updateEntryNote(entryId: string, note: string): Promise<vo
   await initializeDatabase();
   const trimmed = note.trim().slice(0, 1000);
   await db.update(exerciseEntries).set({ notes: trimmed || null }).where(eq(exerciseEntries.id, entryId));
+}
+
+/** Switches a set between warm-up and working; its own rest is cleared so the kind's rest applies. */
+export async function setSetKind(setId: string, kind: SetKind): Promise<void> {
+  await initializeDatabase();
+  await db.update(trainingSets).set({ kind, restSec: null }).where(eq(trainingSets.id, setId));
+}
+
+/** Sets the rest after every not-yet-completed set of one kind in an exercise. */
+export async function setEntryRest(entryId: string, kind: SetKind, seconds: number): Promise<void> {
+  await initializeDatabase();
+  await db.update(trainingSets).set({ restSec: seconds })
+    .where(and(eq(trainingSets.entryId, entryId), eq(trainingSets.kind, kind), isNull(trainingSets.completedAt)));
 }
 
 /** Saves (or clears, with null) the RPE of a set. */
@@ -506,7 +542,48 @@ export async function restoreRemoved(removed: RemovedRows): Promise<void> {
 
 export interface PreviousPerformance {
   workoutStartedAt: Date;
-  sets: Pick<SessionSet, 'reps' | 'durationSec' | 'distanceM' | 'addedLoadKg' | 'rpe'>[];
+  sets: PreviousSetValues[];
+}
+
+export type PreviousSetValues = Pick<SessionSet, 'reps' | 'durationSec' | 'distanceM' | 'addedLoadKg' | 'rpe' | 'note'>;
+
+/** Fills an open set with the values of a set from last time, note included. */
+export async function copyValuesToSet(setId: string, values: PreviousSetValues): Promise<void> {
+  await initializeDatabase();
+  const { reps, durationSec, distanceM, addedLoadKg, rpe, note } = values;
+  await db.update(trainingSets).set({ reps, durationSec, distanceM, addedLoadKg, rpe, note }).where(eq(trainingSets.id, setId));
+}
+
+/** Repeats a finished workout unless another one is in progress, whose name is returned instead. */
+export async function repeatWorkoutIfIdle(sourceId: string): Promise<{ workoutId: string } | { activeName: string }> {
+  const active = await getActiveWorkout();
+  if (active) return { activeName: active.name };
+  return { workoutId: await repeatWorkout(sourceId) };
+}
+
+/**
+ * Starts a new workout with the same name, exercises and completed sets (kind, values, rest, notes) as
+ * a finished one. Exercises without completed sets are left out. Returns the new workout id.
+ */
+export async function repeatWorkout(sourceId: string): Promise<string> {
+  await initializeDatabase();
+  const [source] = await db.select({ name: workouts.name }).from(workouts).where(eq(workouts.id, sourceId)).limit(1);
+  if (!source) throw new Error('Workout not found');
+  const entries = await db.select().from(exerciseEntries).where(eq(exerciseEntries.workoutId, sourceId)).orderBy(asc(exerciseEntries.order));
+  const workoutId = await startWorkout(source.name);
+  let order = 0;
+  for (const entry of entries) {
+    const sets = await db.select().from(trainingSets)
+      .where(and(eq(trainingSets.entryId, entry.id), isNotNull(trainingSets.completedAt))).orderBy(asc(trainingSets.index));
+    if (sets.length === 0) continue;
+    order += 1;
+    const entryId = id();
+    await db.insert(exerciseEntries).values({ id: entryId, workoutId, exerciseId: entry.exerciseId, order, notes: entry.notes, groupId: entry.groupId, groupType: entry.groupType });
+    await db.insert(trainingSets).values(sets.map((set, index) => ({
+      ...set, id: id(), entryId, index: index + 1, completedAt: null,
+    })));
+  }
+  return workoutId;
 }
 
 /** Completed sets from the most recent finished workout that included each exercise. */
@@ -524,11 +601,12 @@ export async function getPreviousPerformance(exerciseIds: string[], excludeWorko
       distanceM: trainingSets.distanceM,
       addedLoadKg: trainingSets.addedLoadKg,
       rpe: trainingSets.rpe,
+      note: trainingSets.note,
     })
     .from(trainingSets)
     .innerJoin(exerciseEntries, eq(trainingSets.entryId, exerciseEntries.id))
     .innerJoin(workouts, eq(exerciseEntries.workoutId, workouts.id))
-    .where(and(inArray(exerciseEntries.exerciseId, exerciseIds), isNotNull(workouts.endedAt), isNotNull(trainingSets.completedAt)))
+    .where(and(inArray(exerciseEntries.exerciseId, exerciseIds), isNotNull(workouts.endedAt), isNotNull(trainingSets.completedAt), eq(trainingSets.kind, 'working')))
     .orderBy(desc(workouts.startedAt), asc(trainingSets.index));
   const latestWorkout = new Map<string, string>();
   for (const row of rows) {
@@ -537,7 +615,7 @@ export async function getPreviousPerformance(exerciseIds: string[], excludeWorko
     if (chosen && chosen !== row.workoutId) continue;
     latestWorkout.set(row.exerciseId, row.workoutId);
     const entry = result.get(row.exerciseId) ?? { workoutStartedAt: row.startedAt, sets: [] };
-    entry.sets.push({ reps: row.reps, durationSec: row.durationSec, distanceM: row.distanceM, addedLoadKg: row.addedLoadKg, rpe: row.rpe });
+    entry.sets.push({ reps: row.reps, durationSec: row.durationSec, distanceM: row.distanceM, addedLoadKg: row.addedLoadKg, rpe: row.rpe, note: row.note });
     result.set(row.exerciseId, entry);
   }
   return result;
@@ -588,4 +666,38 @@ export async function logCompletedWorkout(input: {
     }
   });
   return workoutId;
+}
+
+/** Puts an exercise in a superset with the one after it, joining whichever superset either is in. */
+export async function linkWithNext(entryId: string): Promise<void> {
+  await initializeDatabase();
+  const [current] = await db.select().from(exerciseEntries).where(eq(exerciseEntries.id, entryId)).limit(1);
+  if (!current) return;
+  const [next] = await db.select().from(exerciseEntries)
+    .where(and(eq(exerciseEntries.workoutId, current.workoutId), gt(exerciseEntries.order, current.order)))
+    .orderBy(asc(exerciseEntries.order)).limit(1);
+  if (!next) return;
+  const groupId = current.groupId ?? next.groupId ?? id();
+  const groupType = current.groupType ?? next.groupType ?? formatSupersetType({ mode: 'round', betweenSec: 0 });
+  const oldGroups = [current.groupId, next.groupId].filter((value): value is string => value !== null);
+  await db.update(exerciseEntries).set({ groupId, groupType }).where(or(
+    inArray(exerciseEntries.id, [current.id, next.id]),
+    oldGroups.length ? and(eq(exerciseEntries.workoutId, current.workoutId), inArray(exerciseEntries.groupId, oldGroups)) : undefined,
+  ));
+}
+
+/** Takes an exercise out of its superset; a superset left with one exercise is dissolved. */
+export async function unlinkEntry(entryId: string): Promise<void> {
+  await initializeDatabase();
+  const [current] = await db.select().from(exerciseEntries).where(eq(exerciseEntries.id, entryId)).limit(1);
+  if (!current?.groupId) return;
+  await db.update(exerciseEntries).set({ groupId: null, groupType: null }).where(eq(exerciseEntries.id, entryId));
+  const rest = await db.select({ id: exerciseEntries.id }).from(exerciseEntries)
+    .where(and(eq(exerciseEntries.workoutId, current.workoutId), eq(exerciseEntries.groupId, current.groupId)));
+  if (rest.length === 1) await db.update(exerciseEntries).set({ groupId: null, groupType: null }).where(eq(exerciseEntries.id, rest[0].id));
+}
+
+export async function setSupersetRest(groupId: string, rest: SupersetRest): Promise<void> {
+  await initializeDatabase();
+  await db.update(exerciseEntries).set({ groupType: formatSupersetType(rest) }).where(eq(exerciseEntries.groupId, groupId));
 }
