@@ -28,17 +28,17 @@ export default function UserProgramScreen() {
   const [starting, setStarting] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
-  const [activeName, setActiveName] = useState<string | null>(null);
+  const [active, setActive] = useState<{ id: string; name: string } | null>(null);
   const [recentNames, setRecentNames] = useState<string[]>([]);
 
   useFocusEffect(useCallback(() => {
     let mounted = true;
-    void Promise.all([getUserProgram(id), listExercises(), getActiveWorkout(), listRecentWorkoutNames()]).then(([found, exercises, active, names]) => {
+    void Promise.all([getUserProgram(id), listExercises(), getActiveWorkout(), listRecentWorkoutNames()]).then(([found, exercises, activeWorkout, names]) => {
       if (!mounted) return;
       setRecentNames(names);
       setProgram(found);
       setInfo(new Map(exercises.map((exercise) => [exercise.id, { name: exercise.name, metric: exercise.metric }])));
-      setActiveName(active?.name ?? null);
+      setActive(activeWorkout ? { id: activeWorkout.id, name: activeWorkout.name } : null);
       setLoading(false);
     });
     return () => { mounted = false; };
@@ -64,8 +64,8 @@ export default function UserProgramScreen() {
     try {
       const workoutId = await startUserProgramSession(program, session);
       router.replace({ pathname: '/workout/[id]', params: { id: workoutId } });
-    } catch {
-      setError(t('programBuilder.startError'));
+    } catch (reason) {
+      setError(`${t('programBuilder.startError')} (${reason instanceof Error ? reason.message : String(reason)})`);
     } finally {
       setStarting(null);
     }
@@ -89,7 +89,7 @@ export default function UserProgramScreen() {
         }
       />
 
-      {activeName ? <Body>{t('userProgram.activeWorkout', { name: activeName })}</Body> : null}
+      {active ? <Body>{t('userProgram.activeWorkout', { name: active.name })}</Body> : null}
       {error ? <Text style={[styles.error, { color: palette.warning }]}>{error}</Text> : null}
 
       <Body>{t('userProgram.rotationHelp')}</Body>
@@ -111,13 +111,22 @@ export default function UserProgramScreen() {
               <Text style={[styles.target, { color: palette.textMuted }]}>{describePrescription(prescription, metricById.get(prescription.exerciseId), t)}</Text>
             </View>
           ))}
-          <ActionButton
-            icon="play"
-            label={starting === session.id ? t('programBuilder.starting') : t('userProgram.start')}
-            secondary={session.id !== nextId}
-            disabled={starting !== null || activeName !== null}
-            onPress={() => void start(session)}
-          />
+          {active ? (
+            <ActionButton
+              icon="play"
+              label={t('userProgram.resume', { name: active.name })}
+              secondary={session.id !== nextId}
+              onPress={() => router.push({ pathname: '/workout/[id]', params: { id: active.id } })}
+            />
+          ) : (
+            <ActionButton
+              icon="play"
+              label={starting === session.id ? t('programBuilder.starting') : t('userProgram.start')}
+              secondary={session.id !== nextId}
+              disabled={starting !== null}
+              onPress={() => void start(session)}
+            />
+          )}
         </Card>
       ))}
 
