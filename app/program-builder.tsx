@@ -9,6 +9,7 @@ import {
   isLoadMetric,
   isTimedMetric,
   moveItem,
+  replaceExercise,
   sessionSetCount,
   validateUserProgram,
   type ProgramError,
@@ -57,6 +58,8 @@ export default function ProgramEditorScreen() {
   const [snapshot, setSnapshot] = useState<string>(() => JSON.stringify(initial));
   const [exerciseInfo, setExerciseInfo] = useState<Map<string, ExerciseInfo>>(new Map());
   const [pickerFor, setPickerFor] = useState<string | null>(null);
+  // Prescription whose exercise is being replaced, with its session.
+  const [replacing, setReplacing] = useState<{ sessionId: string; exerciseId: string } | null>(null);
   const [errors, setErrors] = useState<ProgramError[]>([]);
   const [saving, setSaving] = useState(false);
   const [undo, setUndo] = useState<{ message: string; previous: UserProgramSession[] } | null>(null);
@@ -111,6 +114,16 @@ export default function ProgramEditorScreen() {
     setSessions(next);
   };
 
+  const replaceExerciseIn = (sessionId: string, prescriptionId: string, exerciseId: string, metric: string) => {
+    setSessions((current) => current.map((session) => (session.id !== sessionId ? session : {
+      ...session,
+      exercises: session.exercises.map((item) => (item.id === prescriptionId
+        ? replaceExercise(item, exerciseId, exerciseInfo.get(item.exerciseId)?.metric, metric)
+        : item)),
+    })));
+    clearError((error) => error.exerciseId === prescriptionId);
+  };
+
   const addExercise = (sessionId: string, exerciseId: string, metric: string) => {
     const target = isTimedMetric(metric) ? 30 : metric === 'distance' ? 100 : 8;
     const prescription: UserProgramExercise = { id: Crypto.randomUUID(), exerciseId, sets: 3, target, restSeconds: 90, loadKg: null };
@@ -140,6 +153,8 @@ export default function ProgramEditorScreen() {
   const metricById = new Map([...exerciseInfo].map(([exerciseId, info]) => [exerciseId, info.metric]));
   const nameError = errors.some((error) => error.code === 'nameMissing') ? t('userProgram.errors.nameMissing') : null;
   const pickerSession = sessions.find((session) => session.id === pickerFor);
+  const replacingPrescription = replacing ? sessions.find((session) => session.id === replacing.sessionId)?.exercises.find((item) => item.id === replacing.exerciseId) : undefined;
+  const replacingName = replacingPrescription ? exerciseInfo.get(replacingPrescription.exerciseId)?.name : undefined;
 
   return (
     <Screen overlay={<Toast message={undo?.message ?? null} actionLabel={t('userProgram.undo')} onAction={() => { if (undo) setSessions(undo.previous); }} onHide={() => setUndo(null)} />}>
@@ -202,6 +217,7 @@ export default function ProgramEditorScreen() {
                     </View>
                     <IconButton icon="chevron-up" label={t('userProgram.moveExerciseUp', { name: exerciseName })} tone="plain" size={32} onPress={() => updateSession(session.id, { exercises: moveItem(session.exercises, exerciseIndex, -1) })} />
                     <IconButton icon="chevron-down" label={t('userProgram.moveExerciseDown', { name: exerciseName })} tone="plain" size={32} onPress={() => updateSession(session.id, { exercises: moveItem(session.exercises, exerciseIndex, 1) })} />
+                    <IconButton icon="swap-horizontal" label={t('userProgram.replaceExercise', { name: exerciseName })} tone="plain" size={32} onPress={() => setReplacing({ sessionId: session.id, exerciseId: prescription.id })} />
                     <IconButton icon="close" label={t('userProgram.removeExercise', { name: exerciseName })} tone="plain" size={32} onPress={() => removeWithUndo(
                       t('userProgram.exerciseRemoved', { name: exerciseName }),
                       sessions.map((item) => (item.id === session.id ? { ...item, exercises: item.exercises.filter((exercise) => exercise.id !== prescription.id) } : item)),
@@ -251,15 +267,17 @@ export default function ProgramEditorScreen() {
       <ActionButton icon="checkmark" label={saving ? t('programBuilder.saving') : t('programBuilder.save')} disabled={saving} onPress={() => void save()} />
 
       <ExercisePicker
-        visible={pickerFor !== null}
-        title={t('programBuilder.addExercise')}
-        subtitle={pickerSession ? pickerSession.name : undefined}
+        visible={pickerFor !== null || replacing !== null}
+        title={replacing ? t('userProgram.replaceTitle') : t('programBuilder.addExercise')}
+        subtitle={replacing ? replacingName : pickerSession ? pickerSession.name : undefined}
         onChoose={(choice) => {
-          if (pickerFor) addExercise(pickerFor, choice.id, choice.metric);
+          if (replacing) replaceExerciseIn(replacing.sessionId, replacing.exerciseId, choice.id, choice.metric);
+          else if (pickerFor) addExercise(pickerFor, choice.id, choice.metric);
           setPickerFor(null);
+          setReplacing(null);
         }}
-        onCreate={() => { setPickerFor(null); router.push('/exercise/new'); }}
-        onClose={() => setPickerFor(null)}
+        onCreate={replacing ? undefined : () => { setPickerFor(null); router.push('/exercise/new'); }}
+        onClose={() => { setPickerFor(null); setReplacing(null); }}
       />
 
       <Sheet visible={leaveAction !== null} onClose={() => setLeaveAction(null)} title={t('userProgram.unsavedTitle')} body={t('userProgram.unsavedBody')}>

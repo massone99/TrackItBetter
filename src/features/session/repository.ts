@@ -4,6 +4,7 @@ import { db, initializeDatabase } from '../../db/client';
 import { bodyMeasurements, exerciseEntries, exercises, formCheckVideos, trainingSets, workouts } from '../../db/schema';
 import { deleteFormCheckVideosForSets } from '../media/formVideos';
 import { isValidRpe } from '../../domain/rpe';
+import { isLoadMetric, measureOf } from '../../domain/userProgram';
 import type { SetKind } from './restDefaults';
 import { formatSupersetType, type SupersetRest } from './superset';
 
@@ -666,6 +667,29 @@ export async function logCompletedWorkout(input: {
     }
   });
   return workoutId;
+}
+
+/**
+ * Swaps the exercise of an entry, keeping its sets, notes and superset. Sets keep their values when the
+ * new exercise is measured the same way (reps, hold or distance); otherwise they restart at that
+ * measure's default. The load is kept only when the new exercise carries one.
+ */
+export async function replaceEntryExercise(entryId: string, exerciseId: string): Promise<void> {
+  await initializeDatabase();
+  const [current] = await db.select({ metric: exercises.metric }).from(exerciseEntries)
+    .innerJoin(exercises, eq(exerciseEntries.exerciseId, exercises.id)).where(eq(exerciseEntries.id, entryId)).limit(1);
+  const [next] = await db.select({ metric: exercises.metric }).from(exercises).where(eq(exercises.id, exerciseId)).limit(1);
+  if (!current || !next) throw new Error('Exercise not found');
+  await db.update(exerciseEntries).set({ exerciseId }).where(eq(exerciseEntries.id, entryId));
+  if (measureOf(current.metric) !== measureOf(next.metric)) {
+    const measure = measureOf(next.metric);
+    await db.update(trainingSets).set({
+      reps: measure === 'reps' ? 8 : null,
+      durationSec: measure === 'time' ? 10 : null,
+      distanceM: measure === 'distance' ? 10 : null,
+    }).where(eq(trainingSets.entryId, entryId));
+  }
+  if (!isLoadMetric(next.metric)) await db.update(trainingSets).set({ addedLoadKg: 0 }).where(eq(trainingSets.entryId, entryId));
 }
 
 /** Puts an exercise in a superset with the one after it, joining whichever superset either is in. */

@@ -1,6 +1,6 @@
 import { migrateDatabase } from '../../../db/migrations';
 import { seedCatalogIfEmpty } from '../../../db/seed/import';
-import { addExerciseToWorkout, addSet, getActiveWorkout, getPreviousPerformance, setEntryRest, setSetKind, startWorkout, updateSet, updateSetNote, updateSetRpe } from '../repository';
+import { addExerciseToWorkout, addSet, getActiveWorkout, getPreviousPerformance, replaceEntryExercise, setEntryRest, setSetKind, startWorkout, updateSet, updateSetNote, updateSetRpe } from '../repository';
 
 jest.mock('../../../db/client', () => {
   const { createRealDatabase } = jest.requireActual('../../../test/realDatabase');
@@ -88,5 +88,34 @@ describe('setEntryRest', () => {
 
     const rows = real.sqlite.prepare('SELECT id, rest_sec FROM training_set WHERE entry_id = ? ORDER BY set_index').all(entryId);
     expect(rows).toEqual([{ id: warmId, rest_sec: null }, { id: doneId, rest_sec: null }, { id: openId, rest_sec: 150 }]);
+  });
+});
+
+describe('replaceEntryExercise', () => {
+  it('swaps the exercise of an entry and keeps sets of the same measure', async () => {
+    const workoutId = await startWorkout('Swap');
+    const entryId = await addExerciseToWorkout(workoutId, 'push-up');
+    const { id: setId } = real.sqlite.prepare('SELECT id FROM training_set WHERE entry_id = ?').get(entryId) as { id: string };
+    await updateSet(setId, 'reps', 12);
+    await updateSetNote(setId, 'tenuta');
+
+    await replaceEntryExercise(entryId, 'pull-up');
+
+    const [exercise] = (await getActiveWorkout(workoutId))!.exercises;
+    expect(exercise.exerciseId).toBe('pull-up');
+    expect(exercise.sets[0]).toMatchObject({ reps: 12, note: 'tenuta' });
+  });
+
+  it('turns reps into a default hold when the new exercise is timed, and drops the load', async () => {
+    const workoutId = await startWorkout('Swap timed');
+    const entryId = await addExerciseToWorkout(workoutId, 'push-up');
+    const { id: setId } = real.sqlite.prepare('SELECT id FROM training_set WHERE entry_id = ?').get(entryId) as { id: string };
+    await updateSet(setId, 'reps', 12);
+    await updateSet(setId, 'addedLoadKg', 5);
+    const [timed] = real.sqlite.prepare("SELECT id FROM exercise WHERE metric = 'time' LIMIT 1").all() as { id: string }[];
+
+    await replaceEntryExercise(entryId, timed.id);
+
+    expect(real.sqlite.prepare('SELECT reps, duration_sec, added_load_kg FROM training_set WHERE id = ?').get(setId)).toEqual({ reps: null, duration_sec: 10, added_load_kg: 0 });
   });
 });

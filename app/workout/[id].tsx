@@ -22,6 +22,7 @@ import {
   addSet,
   completeSet,
   copyValuesToSet,
+  replaceEntryExercise,
   deleteWorkout,
   finishWorkout,
   getActiveWorkout,
@@ -92,6 +93,8 @@ export default function WorkoutScreen() {
   const [previous, setPrevious] = useState<Map<string, PreviousPerformance>>(new Map());
   const [loading, setLoading] = useState(true);
   const [pickerOpen, setPickerOpen] = useState(false);
+  // Entry whose exercise is being replaced; null when the picker adds an exercise instead.
+  const [replacing, setReplacing] = useState<SessionExercise | null>(null);
   const [restSeconds, setRestSeconds] = useState<number | null>(null);
   const [restEndsAt, setRestEndsAt] = useState<number | null>(null);
   // Hold mode chosen per set during this session; unset sets use the last mode picked.
@@ -274,7 +277,12 @@ export default function WorkoutScreen() {
 
   const chooseExercise = async (exercise: ExerciseChoice) => {
     if (!workout) return;
-    await addExerciseToWorkout(workout.id, exercise.id);
+    if (replacing) {
+      if (exercise.id !== replacing.exerciseId) await replaceEntryExercise(replacing.entryId, exercise.id);
+      setReplacing(null);
+    } else {
+      await addExerciseToWorkout(workout.id, exercise.id);
+    }
     setPickerOpen(false);
     await refresh(workout.id);
   };
@@ -584,6 +592,12 @@ export default function WorkoutScreen() {
           <ExerciseRestFields key={`rest-${optionsFor.entryId}`} entryId={optionsFor.entryId} exerciseId={optionsFor.exerciseId} onSaved={() => void refresh(workout.id)} />
         ) : null}
         <ActionButton
+          icon="swap-horizontal"
+          label={t('logger.replaceExercise')}
+          secondary
+          onPress={() => { setReplacing(optionsFor); setOptionsFor(null); setPickerOpen(true); }}
+        />
+        <ActionButton
           icon="construct-outline"
           label={t('logger.editExercise')}
           secondary
@@ -641,11 +655,11 @@ export default function WorkoutScreen() {
 
       <ExercisePicker
         visible={pickerOpen}
-        title={t('workout.addExercise')}
-        subtitle={t('workout.pickerSubtitle')}
+        title={replacing ? t('logger.replaceExercise') : t('workout.addExercise')}
+        subtitle={replacing ? t('logger.replaceSubtitle', { name: replacing.name }) : t('workout.pickerSubtitle')}
         onChoose={(choice) => void chooseExercise(choice)}
-        onCreate={createExercise}
-        onClose={() => setPickerOpen(false)}
+        onCreate={replacing ? undefined : createExercise}
+        onClose={() => { setPickerOpen(false); setReplacing(null); }}
       />
     </View>
   );

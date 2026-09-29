@@ -85,6 +85,27 @@ export function moveItem<T>(list: readonly T[], index: number, delta: number): T
   return next;
 }
 
+/** Reps, holds and distances are different measures: a target in one means nothing in another. */
+export function measureOf(metric: string | undefined): 'time' | 'distance' | 'reps' {
+  return isTimedMetric(metric) ? 'time' : metric === 'distance' ? 'distance' : 'reps';
+}
+
+const DEFAULT_TARGET = { time: 30, distance: 100, reps: 8 } as const;
+
+/**
+ * The same prescription for another exercise: sets and rest stay; the target restarts at the new
+ * exercise's default when the measure changes, and a load is kept only if the new exercise carries one.
+ */
+export function replaceExercise(prescription: UserProgramExercise, exerciseId: string, oldMetric: string | undefined, newMetric: string | undefined): UserProgramExercise {
+  const sameMeasure = measureOf(oldMetric) === measureOf(newMetric);
+  return {
+    ...prescription,
+    exerciseId,
+    target: sameMeasure ? prescription.target : DEFAULT_TARGET[measureOf(newMetric)],
+    loadKg: isLoadMetric(newMetric) ? prescription.loadKg ?? null : null,
+  };
+}
+
 /** Copy of a workout with fresh ids. */
 export function duplicateSession(session: UserProgramSession, newId: () => string): UserProgramSession {
   return { ...session, id: newId(), exercises: session.exercises.map((exercise) => ({ ...exercise, id: newId() })) };
