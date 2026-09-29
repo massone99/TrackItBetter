@@ -1,4 +1,4 @@
-import { and, desc, eq, isNotNull } from 'drizzle-orm';
+import { and, count, desc, eq, isNotNull, like, or } from 'drizzle-orm';
 import { db, initializeDatabase } from '../../db/client';
 import { exerciseEntries, settings, workouts } from '../../db/schema';
 import { getExerciseById, listExercises } from '../exercises/repository';
@@ -6,7 +6,17 @@ import { addExerciseToWorkout, completeSet, finishWorkout, getActiveWorkout, sta
 
 const LAST_EXERCISE_KEY = 'gtg_last_exercise_id';
 
-export const MICRO_SESSION_NAME = 'Grease the Groove';
+/** Name of micro-sessions saved before they were numbered. */
+const LEGACY_MICRO_SESSION_NAME = 'Grease the Groove';
+const MICRO_SESSION_PREFIX = 'Mini-session';
+const isMicroSession = or(eq(workouts.name, LEGACY_MICRO_SESSION_NAME), like(workouts.name, `${MICRO_SESSION_PREFIX} %`));
+
+/** "Mini-session N", N counting every micro-session saved so far plus this one. */
+async function nextMicroSessionName(): Promise<string> {
+  await initializeDatabase();
+  const [row] = await db.select({ value: count() }).from(workouts).where(isMicroSession);
+  return `${MICRO_SESSION_PREFIX} ${(row?.value ?? 0) + 1}`;
+}
 
 /** Exercise ids from finished micro-sessions, most recent first, without duplicates. */
 export async function listRecentMicroSessionExerciseIds(limit = 5): Promise<string[]> {
@@ -14,7 +24,7 @@ export async function listRecentMicroSessionExerciseIds(limit = 5): Promise<stri
   const rows = await db.select({ exerciseId: exerciseEntries.exerciseId })
     .from(exerciseEntries)
     .innerJoin(workouts, eq(exerciseEntries.workoutId, workouts.id))
-    .where(and(eq(workouts.name, MICRO_SESSION_NAME), isNotNull(workouts.endedAt)))
+    .where(and(isMicroSession, isNotNull(workouts.endedAt)))
     .orderBy(desc(workouts.startedAt))
     .limit(100);
   return [...new Set(rows.map((row) => row.exerciseId))].slice(0, limit);
@@ -47,7 +57,7 @@ export async function logMicroSession(exerciseId: string, value: number): Promis
   const exercise = await getExerciseById(exerciseId);
   if (!exercise) throw new Error('Exercise not found.');
 
-  const workoutId = await startWorkout(MICRO_SESSION_NAME);
+  const workoutId = await startWorkout(await nextMicroSessionName());
   try {
     const entryId = await addExerciseToWorkout(workoutId, exerciseId);
     const setId = await (async () => {
