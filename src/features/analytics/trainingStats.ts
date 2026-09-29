@@ -36,7 +36,12 @@ export interface TrainingStats {
   olderId: string | null;
   newerId: string | null;
 }
-export interface StatsOptions { dimension: StatsDimension; period: StatsPeriodKind; anchor: string | null; threshold: number; now?: Date }
+export interface StatsOptions { dimension: StatsDimension; period: StatsPeriodKind; anchor: string | null; threshold: number; rpeOnly?: boolean; now?: Date }
+
+/** With `rpeOnly`, only sets at or above the threshold count; periods and sessions stay navigable. */
+function counts(row: StatsSetRow, { threshold, rpeOnly }: StatsOptions): boolean {
+  return !rpeOnly || (row.rpe != null && row.rpe >= threshold);
+}
 
 function localDateKey(date: Date): string {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
@@ -79,12 +84,13 @@ export function buildTrainingStats(rows: readonly StatsSetRow[], options: StatsO
   const anchor = options.anchor && options.anchor <= latest ? options.anchor : latest;
   const idOf = (row: StatsSetRow) => periodId(row.workoutStartedAt, kind);
   const setsByPeriod = new Map<string, number>();
-  for (const row of rows) setsByPeriod.set(idOf(row), (setsByPeriod.get(idOf(row)) ?? 0) + 1);
+  const counted = rows.filter((row) => counts(row, options));
+  for (const row of counted) setsByPeriod.set(idOf(row), (setsByPeriod.get(idOf(row)) ?? 0) + 1);
   const start = dateFromKey(anchor);
   const history = Array.from({ length: HISTORY_LENGTH }, (_, index) => shiftPeriod(anchor, kind, index - (HISTORY_LENGTH - 1)));
   return {
     period: { id: anchor, start, end: periodEnd(start, kind), workoutName: null },
-    ...aggregate(rows.filter((row) => idOf(row) === anchor), options),
+    ...aggregate(counted.filter((row) => idOf(row) === anchor), options),
     history: history.map((id) => ({ id, start: dateFromKey(id), sets: setsByPeriod.get(id) ?? 0 })),
     olderId: rows.some((row) => idOf(row) < anchor) ? shiftPeriod(anchor, kind, -1) : null,
     newerId: anchor < latest ? shiftPeriod(anchor, kind, 1) : null,
@@ -94,9 +100,10 @@ export function buildTrainingStats(rows: readonly StatsSetRow[], options: StatsO
 function buildSessionStats(rows: readonly StatsSetRow[], options: StatsOptions): TrainingStats {
   const sessions = new Map<string, { start: Date; name: string; sets: number }>();
   for (const row of rows) {
+    const add = counts(row, options) ? 1 : 0;
     const session = sessions.get(row.workoutId);
-    if (session) session.sets += 1;
-    else sessions.set(row.workoutId, { start: row.workoutStartedAt, name: row.workoutName, sets: 1 });
+    if (session) session.sets += add;
+    else sessions.set(row.workoutId, { start: row.workoutStartedAt, name: row.workoutName, sets: add });
   }
   const ordered = [...sessions].sort(([, a], [, b]) => a.start.getTime() - b.start.getTime());
   if (ordered.length === 0) return { period: null, ...aggregate([], options), history: [], olderId: null, newerId: null };
@@ -105,7 +112,7 @@ function buildSessionStats(rows: readonly StatsSetRow[], options: StatsOptions):
   const [id, session] = ordered[index];
   return {
     period: { id, start: session.start, end: session.start, workoutName: session.name },
-    ...aggregate(rows.filter((row) => row.workoutId === id), options),
+    ...aggregate(rows.filter((row) => row.workoutId === id && counts(row, options)), options),
     history: ordered.slice(Math.max(0, index - HISTORY_LENGTH + 1), index + 1).map(([barId, bar]) => ({ id: barId, start: bar.start, sets: bar.sets })),
     olderId: index > 0 ? ordered[index - 1][0] : null,
     newerId: index < ordered.length - 1 ? ordered[index + 1][0] : null,

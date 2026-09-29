@@ -255,6 +255,10 @@ export async function addSet(entryId: string): Promise<string> {
     distanceM: previous?.distanceM ?? ('distanceM' in initialValue ? initialValue.distanceM : null),
     addedLoadKg: previous?.addedLoadKg ?? 0,
     restSec: previous?.restSec ?? null,
+    band: previous?.band ?? null,
+    rpe: previous?.rpe ?? null,
+    side: previous?.side ?? 'both',
+    note: previous?.note ?? null,
   });
   return setId;
 }
