@@ -20,6 +20,11 @@ export interface CreateCustomExerciseInput {
   movementGroup?: MovementGroupId | null;
 }
 
+/** Extra categories without duplicates or the main category itself. */
+function cleanExtraCategories(input: Pick<CreateCustomExerciseInput, 'category' | 'extraCategories'>): ExerciseCategory[] {
+  return [...new Set(input.extraCategories ?? [])].filter((item) => item !== input.category);
+}
+
 /** Save a user-created movement in the local exercise catalog. */
 export async function createCustomExercise(input: CreateCustomExerciseInput): Promise<string> {
   const movementTag = canonicalizeMovementTag(input.movementTag);
@@ -34,7 +39,7 @@ export async function createCustomExercise(input: CreateCustomExerciseInput): Pr
     aliases: '[]',
     metric: input.metric,
     category: input.category,
-    extraCategories: JSON.stringify(input.extraCategories ?? []),
+    extraCategories: JSON.stringify(cleanExtraCategories(input)),
     primaryMuscles: '[]',
     secondaryMuscles: '[]',
     equipment: JSON.stringify(input.equipment),
@@ -63,7 +68,7 @@ export async function updateExercise(id: string, input: CreateCustomExerciseInpu
     name: input.name.trim(),
     metric: input.metric,
     category: input.category,
-    extraCategories: JSON.stringify(input.extraCategories ?? []),
+    extraCategories: JSON.stringify(cleanExtraCategories(input)),
     equipment: JSON.stringify(input.equipment),
     cues: JSON.stringify(input.cues),
     demoUrl: input.demoUrl ?? null,

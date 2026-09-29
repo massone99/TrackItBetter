@@ -317,13 +317,14 @@ export function ListGroup({ children }: PropsWithChildren) {
   );
 }
 
-export function Chip({ label, selected = false, onPress, icon }: { label: string; selected?: boolean; onPress?: () => void; icon?: IconName }) {
+export function Chip({ label, selected = false, onPress, icon, accessibilityLabel }: { label: string; selected?: boolean; onPress?: () => void; icon?: IconName; accessibilityLabel?: string }) {
   const styles = useScaledStyles(baseStyles);
   const { palette } = useTheme();
   const color = selected ? palette.accentText : palette.text;
   return (
     <Pressable
       accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel}
       accessibilityState={{ selected }}
       hitSlop={4}
       onPress={() => { tapFeedback(); onPress?.(); }}
