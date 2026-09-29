@@ -8,7 +8,7 @@ import { startUserProgramSession } from "../../src/features/programs/startUserSe
 import { listUserPrograms } from "../../src/features/programs/userPrograms";
 import type { PersonalBest } from "../../src/features/analytics/summary";
 import { getGoalSnapshot, GoalSnapshot } from "../../src/features/goals/repository";
-import { ActiveWorkout, getActiveWorkout, listRecentWorkoutNames, listRecentWorkouts, WorkoutHistoryItem } from "../../src/features/session/repository";
+import { ActiveWorkout, getActiveWorkout, listRecentWorkoutNames, listRecentWorkouts, repeatWorkout, WorkoutHistoryItem } from "../../src/features/session/repository";
 import { ActionButton, Body, Card, Icon, Label, ListGroup, ListRow, Numeral, Screen, SectionTitle, tapFeedback, Text, Title } from "../../src/shared/components/ui";
 import type { IconName } from "../../src/shared/components/ui";
 import { poseDetectionAvailable } from "../../src/features/pose/detectPose";
@@ -192,6 +192,14 @@ export default function TodayScreen() {
             title={t("home.lastWorkout")}
             subtitle={t("home.lastWorkoutBody", { date: data.last.startedAt.toLocaleDateString(i18n.language, { weekday: "short", day: "numeric", month: "short" }), count: data.last.setCount })}
             onPress={() => router.push({ pathname: "/workout/history/[id]", params: { id: data.last!.id } })}
+          />
+        ) : null}
+        {data.last && !active ? (
+          <ListRow
+            icon="repeat"
+            title={t("home.repeatLast")}
+            subtitle={data.last.name}
+            onPress={() => void repeatWorkout(data.last!.id).then((workoutId) => router.push({ pathname: "/workout/[id]", params: { id: workoutId } })).catch(() => undefined)}
           />
         ) : null}
       </ListGroup>

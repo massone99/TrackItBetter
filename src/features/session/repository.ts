@@ -536,7 +536,48 @@ export async function restoreRemoved(removed: RemovedRows): Promise<void> {
 
 export interface PreviousPerformance {
   workoutStartedAt: Date;
-  sets: Pick<SessionSet, 'reps' | 'durationSec' | 'distanceM' | 'addedLoadKg' | 'rpe'>[];
+  sets: PreviousSetValues[];
+}
+
+export type PreviousSetValues = Pick<SessionSet, 'reps' | 'durationSec' | 'distanceM' | 'addedLoadKg' | 'rpe' | 'note'>;
+
+/** Fills an open set with the values of a set from last time, note included. */
+export async function copyValuesToSet(setId: string, values: PreviousSetValues): Promise<void> {
+  await initializeDatabase();
+  const { reps, durationSec, distanceM, addedLoadKg, rpe, note } = values;
+  await db.update(trainingSets).set({ reps, durationSec, distanceM, addedLoadKg, rpe, note }).where(eq(trainingSets.id, setId));
+}
+
+/** Repeats a finished workout unless another one is in progress, whose name is returned instead. */
+export async function repeatWorkoutIfIdle(sourceId: string): Promise<{ workoutId: string } | { activeName: string }> {
+  const active = await getActiveWorkout();
+  if (active) return { activeName: active.name };
+  return { workoutId: await repeatWorkout(sourceId) };
+}
+
+/**
+ * Starts a new workout with the same name, exercises and completed sets (kind, values, rest, notes) as
+ * a finished one. Exercises without completed sets are left out. Returns the new workout id.
+ */
+export async function repeatWorkout(sourceId: string): Promise<string> {
+  await initializeDatabase();
+  const [source] = await db.select({ name: workouts.name }).from(workouts).where(eq(workouts.id, sourceId)).limit(1);
+  if (!source) throw new Error('Workout not found');
+  const entries = await db.select().from(exerciseEntries).where(eq(exerciseEntries.workoutId, sourceId)).orderBy(asc(exerciseEntries.order));
+  const workoutId = await startWorkout(source.name);
+  let order = 0;
+  for (const entry of entries) {
+    const sets = await db.select().from(trainingSets)
+      .where(and(eq(trainingSets.entryId, entry.id), isNotNull(trainingSets.completedAt))).orderBy(asc(trainingSets.index));
+    if (sets.length === 0) continue;
+    order += 1;
+    const entryId = id();
+    await db.insert(exerciseEntries).values({ id: entryId, workoutId, exerciseId: entry.exerciseId, order, notes: entry.notes, groupId: entry.groupId, groupType: entry.groupType });
+    await db.insert(trainingSets).values(sets.map((set, index) => ({
+      ...set, id: id(), entryId, index: index + 1, completedAt: null,
+    })));
+  }
+  return workoutId;
 }
 
 /** Completed sets from the most recent finished workout that included each exercise. */
@@ -554,6 +595,7 @@ export async function getPreviousPerformance(exerciseIds: string[], excludeWorko
       distanceM: trainingSets.distanceM,
       addedLoadKg: trainingSets.addedLoadKg,
       rpe: trainingSets.rpe,
+      note: trainingSets.note,
     })
     .from(trainingSets)
     .innerJoin(exerciseEntries, eq(trainingSets.entryId, exerciseEntries.id))
@@ -567,7 +609,7 @@ export async function getPreviousPerformance(exerciseIds: string[], excludeWorko
     if (chosen && chosen !== row.workoutId) continue;
     latestWorkout.set(row.exerciseId, row.workoutId);
     const entry = result.get(row.exerciseId) ?? { workoutStartedAt: row.startedAt, sets: [] };
-    entry.sets.push({ reps: row.reps, durationSec: row.durationSec, distanceM: row.distanceM, addedLoadKg: row.addedLoadKg, rpe: row.rpe });
+    entry.sets.push({ reps: row.reps, durationSec: row.durationSec, distanceM: row.distanceM, addedLoadKg: row.addedLoadKg, rpe: row.rpe, note: row.note });
     result.set(row.exerciseId, entry);
   }
   return result;

@@ -16,6 +16,7 @@ import {
   addExerciseToWorkout,
   addSet,
   completeSet,
+  copyValuesToSet,
   deleteWorkout,
   finishWorkout,
   getActiveWorkout,
@@ -32,7 +33,7 @@ import {
   updateWorkoutReadiness,
   updateSet,
 } from '../../src/features/session/repository';
-import type { ActiveWorkout, PreviousPerformance, RemovedRows, SessionExercise, SessionSet } from '../../src/features/session/repository';
+import type { ActiveWorkout, PreviousPerformance, PreviousSetValues, RemovedRows, SessionExercise, SessionSet } from '../../src/features/session/repository';
 import { defaultHoldMode, rememberHoldMode, useHoldTimer, type ActiveHold } from '../../src/features/session/useHoldTimer';
 import type { HoldMode } from '../../src/domain/holdTimer';
 import { playBeep } from '../../src/shared/audio/beeps';
@@ -458,6 +459,7 @@ export default function WorkoutScreen() {
             onAddSet={() => void addSet(exercise.entryId).then(() => refresh(workout.id))}
             onSetOptions={(set) => setSetSheet({ exercise, setId: set.id })}
             onToggleWarmup={(set) => void toggleWarmup(set)}
+            onCopyPrevious={(set, values) => { tapFeedback(); void copyValuesToSet(set.id, values).then(() => refresh(workout.id)); }}
             onUncomplete={(set) => void uncompleteSet(set.id).then(() => refresh(workout.id))}
             onRemoveSet={(set) => void removeSetFromRow(exercise, set)}
             onSwiped={markSwiped}
@@ -597,7 +599,7 @@ export default function WorkoutScreen() {
   );
 }
 
-function ExerciseCard({ exercise, previous, hold, onChange, onSetValue, onComplete, onStartHold, onFinishHold, onAddSet, onSetOptions, onUncomplete, onRemoveSet, onSwiped, rpePromptFor, onRpe, onDismissRpe, onOptions, onSaved, onToggleWarmup }: {
+function ExerciseCard({ exercise, previous, hold, onChange, onSetValue, onComplete, onStartHold, onFinishHold, onAddSet, onSetOptions, onUncomplete, onRemoveSet, onSwiped, rpePromptFor, onRpe, onDismissRpe, onOptions, onSaved, onToggleWarmup, onCopyPrevious }: {
   exercise: SessionExercise;
   previous: PreviousPerformance | undefined;
   hold: ActiveHold | null;
@@ -617,6 +619,7 @@ function ExerciseCard({ exercise, previous, hold, onChange, onSetValue, onComple
   onOptions: () => void;
   onSaved: () => Promise<void>;
   onToggleWarmup: (set: SessionSet) => void;
+  onCopyPrevious: (set: SessionSet, values: PreviousSetValues) => void;
 }) {
   const styles = useScaledStyles(baseStyles);
   const { t } = useTranslation();
@@ -658,6 +661,8 @@ function ExerciseCard({ exercise, previous, hold, onChange, onSetValue, onComple
       {exercise.sets.map((set) => {
         const done = Boolean(set.completedAt);
         const workingNumber = exercise.sets.filter((item) => item.kind === 'working' && item.index <= set.index).length;
+        // Last time's working set at the same position; tapping it copies its values and note.
+        const lastTime = set.kind === 'working' ? previous?.sets[workingNumber - 1] ?? null : null;
         const holding = hold?.setId === set.id;
         const stored = timed ? set.durationSec ?? 0 : distance ? set.distanceM ?? 0 : set.reps ?? 0;
         const value = holding && hold ? holdDisplay(hold) : timed ? formatClock(stored) : distance ? formatNumber(stored) : String(stored);
@@ -745,6 +750,19 @@ function ExerciseCard({ exercise, previous, hold, onChange, onSetValue, onComple
               </View>
             </View>
             </SwipeableSetRow>
+            {!done && lastTime ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={t('logger.copyPrevious', { value: describeSet(lastTime, exercise.metric) })}
+                onPress={() => onCopyPrevious(set, lastTime)}
+                style={styles.previousRow}
+              >
+                <Icon name="arrow-undo-outline" size={13} color={palette.accentStrong} />
+                <Text numberOfLines={1} style={[styles.previousText, { color: palette.textMuted }]}>
+                  {t('logger.previousShort', { value: describeSet(lastTime, exercise.metric) })}{lastTime.note ? ` · ${lastTime.note}` : ''}
+                </Text>
+              </Pressable>
+            ) : null}
             {rpePromptFor === set.id && set.completedAt ? (
               <RpePicker inline value={set.rpe} onChange={(rpe) => onRpe(set, rpe)} onDismiss={onDismissRpe} />
             ) : set.note || set.clipCount > 0 || set.rpe !== null ? (
@@ -1038,6 +1056,8 @@ const baseStyles = StyleSheet.create({
   setRow: { flexDirection: 'row', alignItems: 'center', minHeight: 56, paddingHorizontal: 4 },
   swipeHint: { flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: 14, paddingHorizontal: 14, paddingVertical: 10 },
   swipeHintText: { flex: 1, fontFamily: fonts.medium, fontSize: 14 },
+  previousRow: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingLeft: 48, paddingRight: 12, paddingBottom: 8, marginTop: -4 },
+  previousText: { flex: 1, fontFamily: fonts.body, fontSize: 12 },
   setMeta: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingLeft: 48, paddingRight: 12, paddingBottom: 10, marginTop: -4 },
   clipChip: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, height: 24, borderRadius: 999 },
   clipChipText: { fontFamily: fonts.semibold, fontSize: 12 },
