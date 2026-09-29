@@ -2,7 +2,9 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
-import { getWorkoutMobilitySeconds, getWorkoutRecords } from '../../../src/features/analytics/repository';
+import { getSessionRecords, getWorkoutMobilitySeconds, getWorkoutRecords } from '../../../src/features/analytics/repository';
+import type { SetRecord, VolumeRecord } from '../../../src/features/analytics/records';
+import { formatRecordValue } from '../../../src/features/analytics/recordLabels';
 import type { WorkoutRecord } from '../../../src/features/analytics/summary';
 import { CompletedWorkout, getCompletedWorkout } from '../../../src/features/session/repository';
 import { ActionButton, Body, Icon, Label, ListGroup, ListRow, Numeral, Screen, SectionTitle, tapFeedback, Text, Title } from '../../../src/shared/components/ui';
@@ -19,18 +21,22 @@ export default function WorkoutSummaryScreen() {
   const { palette } = useTheme();
   const [workout, setWorkout] = useState<CompletedWorkout | null>(null);
   const [records, setRecords] = useState<WorkoutRecord[]>([]);
+  const [prs, setPrs] = useState<{ sets: SetRecord[]; volume: VolumeRecord[] }>({ sets: [], volume: [] });
   const [loading, setLoading] = useState(true);
   const [mobilitySeconds, setMobilitySeconds] = useState(0);
 
   useEffect(() => {
     let mounted = true;
-    void Promise.all([getCompletedWorkout(id), getWorkoutRecords(id), getWorkoutMobilitySeconds(id)]).then(([completed, found, mobility]) => {
+    void Promise.all([getCompletedWorkout(id), getWorkoutRecords(id), getWorkoutMobilitySeconds(id), getSessionRecords(id)]).then(([completed, found, mobility, session]) => {
       if (!mounted) return;
       setMobilitySeconds(mobility);
       setWorkout(completed);
-      setRecords(found);
+      // Distance bests come from the older summary; every other record from the per-set comparison.
+      const distance = found.filter((record) => record.kind === 'distance');
+      setRecords(distance);
+      setPrs(session);
       setLoading(false);
-      if (found.length > 0) tapFeedback('success');
+      if (distance.length + session.sets.length + session.volume.length > 0) tapFeedback('success');
     }).catch(() => { if (mounted) setLoading(false); });
     return () => { mounted = false; };
   }, [id]);
@@ -43,13 +49,27 @@ export default function WorkoutSummaryScreen() {
   const completedSets = workout.exercises.flatMap((exercise) => exercise.sets.filter((set) => set.completedAt));
   const avgRpe = averageRpe(completedSets.map((set) => set.rpe));
   const minutes = Math.max(1, Math.round((workout.endedAt.getTime() - workout.startedAt.getTime()) / 60_000));
+  const exerciseById = new Map(workout.exercises.map((exercise) => [exercise.exerciseId, exercise]));
+  // One line per exercise and record kind: the best of the session (shortest, for rest).
+  const bestPrs = new Map<string, SetRecord>();
+  for (const record of prs.sets) {
+    const key = `${record.exerciseId}:${record.kind}`;
+    const current = bestPrs.get(key);
+    const better = !current || (record.kind === 'shorterRest' ? record.value < current.value : record.value > current.value);
+    if (better) bestPrs.set(key, record);
+  }
+  const prLines = [
+    ...[...bestPrs.values()].map((record) => ({ key: `${record.exerciseId}:${record.kind}`, exerciseId: record.exerciseId, kind: record.kind, value: record.value, previous: record.previous })),
+    ...prs.volume.map((record) => ({ key: `${record.exerciseId}:volume`, exerciseId: record.exerciseId, kind: 'volume' as const, value: record.value, previous: record.previous })),
+  ];
+  const hasRecords = records.length + prLines.length > 0;
   const exercisesDone = workout.exercises.filter((exercise) => exercise.sets.some((set) => set.completedAt)).length;
 
   return (
     <Screen>
       <View style={styles.header}>
-        <View style={[styles.badge, { backgroundColor: records.length ? palette.recordSoft : palette.accentSoft }]}>
-          <Icon name={records.length ? 'trophy' : 'checkmark-done'} size={30} color={records.length ? palette.record : palette.accentStrong} />
+        <View style={[styles.badge, { backgroundColor: hasRecords ? palette.recordSoft : palette.accentSoft }]}>
+          <Icon name={hasRecords ? 'trophy' : 'checkmark-done'} size={30} color={hasRecords ? palette.record : palette.accentStrong} />
         </View>
         <Title>{t('summary.title')}</Title>
         <Body style={styles.subtitle}>{workout.name}</Body>
@@ -75,10 +95,24 @@ export default function WorkoutSummaryScreen() {
         ) : null}
       </View>
 
-      {records.length > 0 ? (
+      {hasRecords ? (
         <>
           <SectionTitle title={t('summary.recordsTitle')} />
           <View style={styles.records}>
+            {prLines.map((line) => {
+              const exercise = exerciseById.get(line.exerciseId);
+              const metric = exercise?.metric ?? 'reps';
+              return (
+                <View key={line.key} style={[styles.record, { backgroundColor: palette.recordSoft }]}>
+                  <Icon name={line.kind === 'volume' ? 'trophy-outline' : 'trophy'} size={20} color={palette.record} />
+                  <View style={styles.recordCopy}>
+                    <Text style={styles.recordName}>{exercise?.name ?? ''}</Text>
+                    <Label>{t(`records.kinds.${line.kind}`)} · {t('summary.previous', { value: formatRecordValue(line.kind, line.previous, metric, t) })}</Label>
+                  </View>
+                  <Text style={[styles.recordValue, { color: palette.record }]}>{formatRecordValue(line.kind, line.value, metric, t)}</Text>
+                </View>
+              );
+            })}
             {records.map((record) => (
               <View key={`${record.exerciseId}-${record.kind}`} style={[styles.record, { backgroundColor: palette.recordSoft }]}>
                 <Icon name="trophy" size={20} color={palette.record} />
@@ -125,6 +159,6 @@ const baseStyles = StyleSheet.create({
   record: { flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 18, padding: 16 },
   recordCopy: { flex: 1, gap: 2 },
   recordName: { fontFamily: fonts.semibold, fontSize: 16 },
-  recordValue: { fontFamily: fonts.display, fontSize: 28 },
+  recordValue: { fontFamily: fonts.display, fontSize: 22 },
   noRecords: { textAlign: 'center', paddingHorizontal: 12 },
 });

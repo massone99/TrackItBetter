@@ -1,7 +1,7 @@
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import * as Speech from 'expo-speech';
 import { useTranslation } from 'react-i18next';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { eq } from 'drizzle-orm';
 import { ActivityIndicator, Pressable, StyleSheet, TextInput, View } from 'react-native';
 import { useAppInsets } from '../../src/shared/layout/useAppInsets';
@@ -11,6 +11,8 @@ import { db, initializeDatabase } from '../../src/db/client';
 import { settings as preferenceSettings } from '../../src/db/schema';
 import { cancelRestFinishedNotification, scheduleRestFinishedNotification } from '../../src/features/session/restNotifications';
 import { restForSet } from '../../src/features/session/restDefaults';
+import { getSessionRecords } from '../../src/features/analytics/repository';
+import type { RecordKind } from '../../src/features/analytics/records';
 import { ExerciseRestFields } from '../../src/features/session/ExerciseRestFields';
 import {
   addExerciseToWorkout,
@@ -102,6 +104,9 @@ export default function WorkoutScreen() {
   const [finishOpen, setFinishOpen] = useState(false);
   const [discardOpen, setDiscardOpen] = useState(false);
   const [optionsFor, setOptionsFor] = useState<SessionExercise | null>(null);
+  // PRs set so far in this workout: record kinds per set, and exercises with a volume mini PR.
+  const recordCount = useRef<number | null>(null);
+  const [records, setRecords] = useState<{ sets: Map<string, RecordKind[]>; volume: Set<string> }>(() => ({ sets: new Map(), volume: new Set() }));
   const [referenceFor, setReferenceFor] = useState<SessionExercise | null>(null);
   const [removeExerciseFor, setRemoveExerciseFor] = useState<SessionExercise | null>(null);
   const [setSheet, setSetSheet] = useState<{ exercise: SessionExercise; setId: string } | null>(null);
@@ -129,7 +134,17 @@ export default function WorkoutScreen() {
   const refresh = useCallback(async (workoutId: string) => {
     const next = await getActiveWorkout(workoutId);
     setWorkout(next);
-    if (next) setPrevious(await getPreviousPerformance(next.exercises.map((exercise) => exercise.exerciseId), next.id));
+    if (!next) return;
+    setPrevious(await getPreviousPerformance(next.exercises.map((exercise) => exercise.exerciseId), next.id));
+    const found = await getSessionRecords(next.id).catch(() => null);
+    if (!found) return;
+    const bySet = new Map<string, RecordKind[]>();
+    for (const record of found.sets) bySet.set(record.setId, [...(bySet.get(record.setId) ?? []), record.kind]);
+    const count = bySet.size + found.volume.length;
+    // Celebrate a new record, but not the ones already there when the workout is reopened.
+    if (recordCount.current !== null && count > recordCount.current) tapFeedback('success');
+    recordCount.current = count;
+    setRecords({ sets: bySet, volume: new Set(found.volume.map((record) => record.exerciseId)) });
   }, []);
 
   useEffect(() => {
@@ -459,6 +474,8 @@ export default function WorkoutScreen() {
             onAddSet={() => void addSet(exercise.entryId).then(() => refresh(workout.id))}
             onSetOptions={(set) => setSetSheet({ exercise, setId: set.id })}
             onToggleWarmup={(set) => void toggleWarmup(set)}
+            setRecords={records.sets}
+            volumeRecord={records.volume.has(exercise.exerciseId)}
             onCopyPrevious={(set, values) => { tapFeedback(); void copyValuesToSet(set.id, values).then(() => refresh(workout.id)); }}
             onUncomplete={(set) => void uncompleteSet(set.id).then(() => refresh(workout.id))}
             onRemoveSet={(set) => void removeSetFromRow(exercise, set)}
@@ -599,7 +616,7 @@ export default function WorkoutScreen() {
   );
 }
 
-function ExerciseCard({ exercise, previous, hold, onChange, onSetValue, onComplete, onStartHold, onFinishHold, onAddSet, onSetOptions, onUncomplete, onRemoveSet, onSwiped, rpePromptFor, onRpe, onDismissRpe, onOptions, onSaved, onToggleWarmup, onCopyPrevious }: {
+function ExerciseCard({ exercise, previous, hold, onChange, onSetValue, onComplete, onStartHold, onFinishHold, onAddSet, onSetOptions, onUncomplete, onRemoveSet, onSwiped, rpePromptFor, onRpe, onDismissRpe, onOptions, onSaved, onToggleWarmup, onCopyPrevious, setRecords, volumeRecord }: {
   exercise: SessionExercise;
   previous: PreviousPerformance | undefined;
   hold: ActiveHold | null;
@@ -620,6 +637,8 @@ function ExerciseCard({ exercise, previous, hold, onChange, onSetValue, onComple
   onSaved: () => Promise<void>;
   onToggleWarmup: (set: SessionSet) => void;
   onCopyPrevious: (set: SessionSet, values: PreviousSetValues) => void;
+  setRecords: ReadonlyMap<string, RecordKind[]>;
+  volumeRecord: boolean;
 }) {
   const styles = useScaledStyles(baseStyles);
   const { t } = useTranslation();
@@ -644,6 +663,12 @@ function ExerciseCard({ exercise, previous, hold, onChange, onSetValue, onComple
           <Heading style={styles.exerciseName}>{exercise.name}</Heading>
           <Label>{previousText ? t('logger.lastTime', { value: previousText }) : t('logger.firstTime')}</Label>
           {exercise.notes ? <Text numberOfLines={3} style={[styles.exerciseNote, { color: palette.textMuted }]}>{exercise.notes}</Text> : null}
+          {volumeRecord ? (
+            <View style={[styles.recordChip, { backgroundColor: palette.recordSoft }]}>
+              <Icon name="trophy-outline" size={13} color={palette.record} />
+              <Text style={[styles.clipChipText, { color: palette.record }]}>{t('records.kinds.volume')}</Text>
+            </View>
+          ) : null}
         </View>
         {exercise.demoUrl ? (
           <IconButton icon="play-circle-outline" label={t('logger.referenceOpen')} tone="plain" onPress={() => openReferenceVideo(exercise.demoUrl!)} />
@@ -765,8 +790,17 @@ function ExerciseCard({ exercise, previous, hold, onChange, onSetValue, onComple
             ) : null}
             {rpePromptFor === set.id && set.completedAt ? (
               <RpePicker inline value={set.rpe} onChange={(rpe) => onRpe(set, rpe)} onDismiss={onDismissRpe} />
-            ) : set.note || set.clipCount > 0 || set.rpe !== null ? (
+            ) : set.note || set.clipCount > 0 || set.rpe !== null || setRecords.has(set.id) ? (
               <Pressable accessibilityRole="button" onPress={() => onSetOptions(set)} style={styles.setMeta}>
+                {setRecords.has(set.id) ? (
+                  <View
+                    accessibilityLabel={setRecords.get(set.id)!.map((kind) => t(`records.kinds.${kind}`)).join(', ')}
+                    style={[styles.clipChip, { backgroundColor: palette.recordSoft }]}
+                  >
+                    <Icon name="trophy" size={13} color={palette.record} />
+                    <Text style={[styles.clipChipText, { color: palette.record }]}>{t('records.pr')}</Text>
+                  </View>
+                ) : null}
                 {set.rpe !== null ? (
                   <View style={[styles.clipChip, { backgroundColor: palette.surface }]}>
                     <Icon name="speedometer-outline" size={13} color={palette.accentStrong} />
@@ -1056,6 +1090,7 @@ const baseStyles = StyleSheet.create({
   setRow: { flexDirection: 'row', alignItems: 'center', minHeight: 56, paddingHorizontal: 4 },
   swipeHint: { flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: 14, paddingHorizontal: 14, paddingVertical: 10 },
   swipeHintText: { flex: 1, fontFamily: fonts.medium, fontSize: 14 },
+  recordChip: { flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-start', borderRadius: 10, paddingHorizontal: 8, paddingVertical: 3, marginTop: 4 },
   previousRow: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingLeft: 48, paddingRight: 12, paddingBottom: 8, marginTop: -4 },
   previousText: { flex: 1, fontFamily: fonts.body, fontSize: 12 },
   setMeta: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingLeft: 48, paddingRight: 12, paddingBottom: 10, marginTop: -4 },
