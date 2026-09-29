@@ -116,4 +116,26 @@ describe('statistics drill-down', () => {
     await screen.findByText(t('stats.breakdown.pattern'));
     expect(breakdownRow(t('stats.noPattern'))).toBeTruthy();
   });
+
+  it('marks the current filter in the dropdown and offers "all" first', async () => {
+    renderScreen();
+    await screen.findByText(t('stats.breakdown.category'));
+    fireEvent.press(breakdownRow(t('library.category.push')));
+    await screen.findByText(t('stats.breakdown.pattern'));
+
+    fireEvent.press(screen.getByRole('button', { name: t('library.category.push') }));
+    const choice = (label: string) => screen.getByRole('button', { name: new RegExp(`^${label}, .*${t('stats.metrics.sets').toLowerCase()}`) });
+    expect(choice(t('library.category.push')).props.accessibilityState).toMatchObject({ selected: true });
+    expect(choice(t('library.category.pull')).props.accessibilityState).toMatchObject({ selected: false });
+    expect(screen.getByRole('button', { name: t('stats.any') }).props.accessibilityState).toMatchObject({ selected: false });
+  });
+
+  it('says so when a search finds nothing in the dropdown', async () => {
+    renderScreen();
+    await screen.findByText(t('stats.breakdown.category'));
+    fireEvent.press(screen.getByRole('button', { name: new RegExp(`${t('stats.exercise')}:`) }));
+    fireEvent.changeText(screen.getByPlaceholderText(t('stats.search')), 'zzzz');
+    expect(await screen.findByText(t('stats.noMatches'))).toBeTruthy();
+  });
 });
+

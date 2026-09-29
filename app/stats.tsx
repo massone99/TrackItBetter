@@ -153,6 +153,8 @@ export default function StatsScreen() {
   const options = data && (sheet === 'category' || sheet === 'pattern' || sheet === 'exercise')
     ? scopeOptions(data, scope, sheet).filter((option) => levelLabel(sheet, option.key, option.name).toLowerCase().includes(search.trim().toLowerCase()))
     : [];
+  const choiceLevel: BreakdownLevel | null = sheet === 'category' || sheet === 'pattern' || sheet === 'exercise' ? sheet : null;
+  const currentChoice = choiceLevel === 'category' ? scope.category : choiceLevel === 'pattern' ? scope.pattern : choiceLevel === 'exercise' ? scope.exerciseId : undefined;
   const bucketWorkouts = data && bucket ? data.workouts.filter((workout) => bucket.workoutIds.includes(workout.id)).sort((a, b) => b.startedAt.getTime() - a.startedAt.getTime()) : [];
 
   return (
@@ -168,8 +170,8 @@ export default function StatsScreen() {
       ) : <>
         <SegmentedControl value={granularity} options={GRANULARITIES.map((value) => ({ value, label: t(`stats.granularity.${value}`) }))} onChange={(value) => { setGranularity(value); resetView(); }} />
 
-        {trail.length > 0 ? <View style={styles.chips}><Chip icon="arrow-back" label={t('stats.up')} onPress={stepBack} /></View> : null}
         <View style={styles.chips}>
+          {trail.length > 0 ? <IconButton icon="arrow-back" label={t('stats.up')} size={36} onPress={stepBack} /> : null}
           {KINDS.map((kind) => <Chip key={kind} label={t(`stats.kind.${kind}`)} selected={scope.kind === kind} onPress={() => changeScope({ kind })} />)}
         </View>
         <View style={styles.chips}>
@@ -281,17 +283,21 @@ export default function StatsScreen() {
 
       <Sheet visible={sheet === 'category' || sheet === 'pattern' || sheet === 'exercise'} onClose={() => { setSheet(null); setSearch(''); }} title={sheet ? t(`stats.${sheet === 'metric' || sheet === 'secondary' ? 'metric' : sheet}`) : ''}>
         <TextField placeholder={t('stats.search')} value={search} onChangeText={setSearch} />
-        <ListGroup>
-          <ListRow icon="close-circle-outline" title={t('stats.clear')} onPress={() => sheet && sheet !== 'metric' && sheet !== 'secondary' && narrow(sheet, undefined)} />
-          {options.map((option) => (
-            <ListRow
-              key={option.key}
-              title={sheet && sheet !== 'metric' && sheet !== 'secondary' ? levelLabel(sheet, option.key, option.name) : option.name}
-              subtitle={`${option.sets} ${t('stats.metrics.sets').toLowerCase()}`}
-              onPress={() => sheet && sheet !== 'metric' && sheet !== 'secondary' && narrow(sheet, option.key)}
-            />
-          ))}
-        </ListGroup>
+        {choiceLevel ? (
+          <ListGroup>
+            <ListRow title={t('stats.any')} selected={!currentChoice} onPress={() => narrow(choiceLevel, undefined)} />
+            {options.map((option) => (
+              <ListRow
+                key={option.key}
+                title={levelLabel(choiceLevel, option.key, option.name)}
+                subtitle={`${option.sets} ${t('stats.metrics.sets').toLowerCase()}`}
+                selected={option.key === currentChoice}
+                onPress={() => narrow(choiceLevel, option.key)}
+              />
+            ))}
+          </ListGroup>
+        ) : null}
+        {options.length === 0 && search.trim() ? <Body>{t('stats.noMatches')}</Body> : null}
       </Sheet>
 
       <Sheet visible={sheet === 'metric' || sheet === 'secondary'} onClose={() => setSheet(null)} title={sheet === 'secondary' ? t('stats.compare') : t('stats.metric')} body={scope.exerciseId ? undefined : t('stats.performanceHint')}>
