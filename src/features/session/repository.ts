@@ -4,10 +4,13 @@ import { db, initializeDatabase } from '../../db/client';
 import { bodyMeasurements, exerciseEntries, exercises, formCheckVideos, trainingSets, workouts } from '../../db/schema';
 import { deleteFormCheckVideosForSets } from '../media/formVideos';
 import { isValidRpe } from '../../domain/rpe';
+import type { SetKind } from './restDefaults';
 
 export interface SessionSet {
   id: string;
   index: number;
+  /** Warm-ups stay out of statistics, records and previous values, and use their own rest. */
+  kind: SetKind;
   reps: number | null;
   durationSec: number | null;
   distanceM: number | null;
@@ -139,6 +142,7 @@ async function loadSessionExercises(workoutId: string): Promise<SessionExercise[
       sets: sets.map((set) => ({
         id: set.id,
         index: set.index,
+        kind: set.kind === 'warmup' ? 'warmup' as const : 'working' as const,
         reps: set.reps,
         durationSec: set.durationSec,
         distanceM: set.distanceM,
@@ -250,6 +254,7 @@ export async function addSet(entryId: string): Promise<string> {
     id: setId,
     entryId,
     index: (previous?.index ?? 0) + 1,
+    kind: previous?.kind ?? 'working',
     reps: previous?.reps ?? ('reps' in initialValue ? initialValue.reps : null),
     durationSec: previous?.durationSec ?? ('durationSec' in initialValue ? initialValue.durationSec : null),
     distanceM: previous?.distanceM ?? ('distanceM' in initialValue ? initialValue.distanceM : null),
@@ -439,6 +444,19 @@ export async function updateEntryNote(entryId: string, note: string): Promise<vo
   await db.update(exerciseEntries).set({ notes: trimmed || null }).where(eq(exerciseEntries.id, entryId));
 }
 
+/** Switches a set between warm-up and working; its own rest is cleared so the kind's rest applies. */
+export async function setSetKind(setId: string, kind: SetKind): Promise<void> {
+  await initializeDatabase();
+  await db.update(trainingSets).set({ kind, restSec: null }).where(eq(trainingSets.id, setId));
+}
+
+/** Sets the rest after every not-yet-completed set of one kind in an exercise. */
+export async function setEntryRest(entryId: string, kind: SetKind, seconds: number): Promise<void> {
+  await initializeDatabase();
+  await db.update(trainingSets).set({ restSec: seconds })
+    .where(and(eq(trainingSets.entryId, entryId), eq(trainingSets.kind, kind), isNull(trainingSets.completedAt)));
+}
+
 /** Saves (or clears, with null) the RPE of a set. */
 export async function updateSetRpe(setId: string, rpe: number | null): Promise<void> {
   if (rpe !== null && !isValidRpe(rpe)) throw new RangeError('RPE must be between 6 and 10 in half steps');
@@ -540,7 +558,7 @@ export async function getPreviousPerformance(exerciseIds: string[], excludeWorko
     .from(trainingSets)
     .innerJoin(exerciseEntries, eq(trainingSets.entryId, exerciseEntries.id))
     .innerJoin(workouts, eq(exerciseEntries.workoutId, workouts.id))
-    .where(and(inArray(exerciseEntries.exerciseId, exerciseIds), isNotNull(workouts.endedAt), isNotNull(trainingSets.completedAt)))
+    .where(and(inArray(exerciseEntries.exerciseId, exerciseIds), isNotNull(workouts.endedAt), isNotNull(trainingSets.completedAt), eq(trainingSets.kind, 'working')))
     .orderBy(desc(workouts.startedAt), asc(trainingSets.index));
   const latestWorkout = new Map<string, string>();
   for (const row of rows) {

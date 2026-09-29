@@ -10,6 +10,8 @@ import { openReferenceVideo, ReferenceLinkSheet } from '../../src/features/exerc
 import { db, initializeDatabase } from '../../src/db/client';
 import { settings as preferenceSettings } from '../../src/db/schema';
 import { cancelRestFinishedNotification, scheduleRestFinishedNotification } from '../../src/features/session/restNotifications';
+import { restForSet } from '../../src/features/session/restDefaults';
+import { ExerciseRestFields } from '../../src/features/session/ExerciseRestFields';
 import {
   addExerciseToWorkout,
   addSet,
@@ -25,6 +27,7 @@ import {
   restoreRemoved,
   uncompleteSet,
   updateSetNote,
+  setSetKind,
   updateSetRpe,
   updateWorkoutReadiness,
   updateSet,
@@ -252,10 +255,23 @@ export default function WorkoutScreen() {
     await refresh(workout.id);
   };
 
+  /** Rest after a set: its own, else the exercise's rest for warm-ups or working sets. */
+  const restAfter = (setId: string) => {
+    const exercise = workout?.exercises.find((item) => item.sets.some((set) => set.id === setId));
+    const set = exercise?.sets.find((item) => item.id === setId);
+    return exercise && set ? restForSet(exercise.exerciseId, set) : 90;
+  };
+
+  const toggleWarmup = async (set: SessionSet) => {
+    tapFeedback();
+    await setSetKind(set.id, set.kind === 'warmup' ? 'working' : 'warmup');
+    if (workout) await refresh(workout.id);
+  };
+
   const completeRegularSet = async (set: SessionSet) => {
     tapFeedback('success');
     await completeSet(set.id);
-    startRestTimer(set.restSec ?? 90);
+    startRestTimer(restAfter(set.id));
     if (readBooleanPreference(RPE_PROMPT_KEY, true)) setRpePromptFor(set.id);
     if (workout) await refresh(workout.id);
   };
@@ -271,9 +287,8 @@ export default function WorkoutScreen() {
     tapFeedback('success');
     await updateSet(setId, 'durationSec', seconds);
     await completeSet(setId);
-    const configuredRest = workout?.exercises.flatMap((exercise) => exercise.sets).find((set) => set.id === setId)?.restSec;
     if (readBooleanPreference(RPE_PROMPT_KEY, true)) setRpePromptFor(setId);
-    startRestTimer(configuredRest ?? 90);
+    startRestTimer(restAfter(setId));
     if (workout) await refresh(workout.id);
   };
 
@@ -442,6 +457,7 @@ export default function WorkoutScreen() {
             onFinishHold={() => void finishCurrentHold()}
             onAddSet={() => void addSet(exercise.entryId).then(() => refresh(workout.id))}
             onSetOptions={(set) => setSetSheet({ exercise, setId: set.id })}
+            onToggleWarmup={(set) => void toggleWarmup(set)}
             onUncomplete={(set) => void uncompleteSet(set.id).then(() => refresh(workout.id))}
             onRemoveSet={(set) => void removeSetFromRow(exercise, set)}
             onSwiped={markSwiped}
@@ -509,6 +525,9 @@ export default function WorkoutScreen() {
       <Sheet visible={optionsFor !== null} onClose={() => setOptionsFor(null)} title={optionsFor?.name ?? t('logger.options')}>
         {optionsFor ? (
           <ExerciseNoteField key={optionsFor.entryId} entryId={optionsFor.entryId} initial={optionsFor.notes} onSaved={() => void refresh(workout.id)} />
+        ) : null}
+        {optionsFor ? (
+          <ExerciseRestFields key={`rest-${optionsFor.entryId}`} entryId={optionsFor.entryId} exerciseId={optionsFor.exerciseId} onSaved={() => void refresh(workout.id)} />
         ) : null}
         <ActionButton
           icon="construct-outline"
@@ -578,7 +597,7 @@ export default function WorkoutScreen() {
   );
 }
 
-function ExerciseCard({ exercise, previous, hold, onChange, onSetValue, onComplete, onStartHold, onFinishHold, onAddSet, onSetOptions, onUncomplete, onRemoveSet, onSwiped, rpePromptFor, onRpe, onDismissRpe, onOptions, onSaved }: {
+function ExerciseCard({ exercise, previous, hold, onChange, onSetValue, onComplete, onStartHold, onFinishHold, onAddSet, onSetOptions, onUncomplete, onRemoveSet, onSwiped, rpePromptFor, onRpe, onDismissRpe, onOptions, onSaved, onToggleWarmup }: {
   exercise: SessionExercise;
   previous: PreviousPerformance | undefined;
   hold: ActiveHold | null;
@@ -597,6 +616,7 @@ function ExerciseCard({ exercise, previous, hold, onChange, onSetValue, onComple
   onDismissRpe: () => void;
   onOptions: () => void;
   onSaved: () => Promise<void>;
+  onToggleWarmup: (set: SessionSet) => void;
 }) {
   const styles = useScaledStyles(baseStyles);
   const { t } = useTranslation();
@@ -637,6 +657,7 @@ function ExerciseCard({ exercise, previous, hold, onChange, onSetValue, onComple
 
       {exercise.sets.map((set) => {
         const done = Boolean(set.completedAt);
+        const workingNumber = exercise.sets.filter((item) => item.kind === 'working' && item.index <= set.index).length;
         const holding = hold?.setId === set.id;
         const stored = timed ? set.durationSec ?? 0 : distance ? set.distanceM ?? 0 : set.reps ?? 0;
         const value = holding && hold ? holdDisplay(hold) : timed ? formatClock(stored) : distance ? formatNumber(stored) : String(stored);
@@ -654,9 +675,16 @@ function ExerciseCard({ exercise, previous, hold, onChange, onSetValue, onComple
             <View style={styles.setRow}>
               <View style={styles.colSet}>
                 <PopOnActivate active={done}>
-                  <View style={[styles.setBadge, { backgroundColor: done ? palette.accent : palette.surfaceMuted }]}>
-                    <Text style={[styles.setBadgeText, { color: done ? palette.accentText : palette.text }]}>{set.index}</Text>
-                  </View>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={set.kind === 'warmup' ? t('logger.warmupOn') : t('logger.warmupOff', { number: workingNumber })}
+                    accessibilityHint={t('logger.warmupHint')}
+                    hitSlop={6}
+                    onPress={() => onToggleWarmup(set)}
+                    style={[styles.setBadge, { backgroundColor: done ? palette.accent : palette.surfaceMuted }, set.kind === 'warmup' && { borderWidth: 1, borderStyle: 'dashed', borderColor: done ? palette.accentText : palette.textMuted }]}
+                  >
+                    <Text style={[styles.setBadgeText, { color: done ? palette.accentText : set.kind === 'warmup' ? palette.textMuted : palette.text }]}>{set.kind === 'warmup' ? 'W' : workingNumber}</Text>
+                  </Pressable>
                 </PopOnActivate>
               </View>
               <View style={[styles.colValue, styles.stepper]}>
