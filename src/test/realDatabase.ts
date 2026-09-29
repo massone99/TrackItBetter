@@ -16,7 +16,9 @@ export function createRealDatabase() {
       statement.run(...args);
       return { rows: [] };
     }
-    const rows = statement.all(...args).map((row) => Object.values(row));
+    // Arrays, not objects: a join selects several columns with the same name (id, name).
+    statement.setReturnArrays(true);
+    const rows = statement.all(...args) as unknown[][];
     return { rows: method === 'get' ? rows[0] : rows };
   };
   const db = drizzle(async (sql, params, method) => run(sql, params, method), { schema });

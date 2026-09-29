@@ -1,9 +1,9 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useTranslation } from 'react-i18next';
-import { ActivityIndicator, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, BackHandler, Pressable, StyleSheet, View } from 'react-native';
 import { Text } from '../src/shared/components/Text';
-import { Body, Card, Chip, EmptyState, Heading, IconButton, Label, ListGroup, ListRow, PageHeading, Screen, SectionTitle, SegmentedControl, Sheet, TextField } from '../src/shared/components/ui';
+import { Body, Card, Chip, EmptyState, Heading, Icon, IconButton, Label, ListGroup, ListRow, PageHeading, Screen, SectionTitle, SegmentedControl, Sheet, TextField } from '../src/shared/components/ui';
 import { getExploreData } from '../src/features/analytics/repository';
 import {
   availableMetrics,
@@ -12,6 +12,7 @@ import {
   METRIC_BY_ID,
   METRICS,
   nextLevel,
+  scopeForExercise,
   scopeOptions,
   type BreakdownLevel,
   type Bucket,
@@ -54,6 +55,8 @@ export default function StatsScreen() {
   const [failed, setFailed] = useState(false);
   const [granularity, setGranularity] = useState<Granularity>(params.exerciseId ? 'workout' : 'week');
   const [scope, setScope] = useState<Scope>({ kind: 'all' });
+  // Scopes left by drilling down, so back steps up one level instead of leaving the screen.
+  const [trail, setTrail] = useState<Scope[]>([]);
   const [metric, setMetric] = useState<MetricId>('sets');
   const [secondary, setSecondary] = useState<MetricId | null>(null);
   const [page, setPage] = useState(0);
@@ -73,7 +76,7 @@ export default function StatsScreen() {
       appliedParams.current = true;
       const row = params.exerciseId ? result.rows.find((candidate) => candidate.exerciseId === params.exerciseId) : undefined;
       if (!row) return;
-      setScope({ kind: 'all', category: row.category, pattern: row.movementPattern ?? undefined, exerciseId: row.exerciseId });
+      setScope(scopeForExercise({ kind: 'all' }, row));
       if (params.metric && params.metric in METRIC_BY_ID) setMetric(params.metric as MetricId);
     }).catch(() => { if (active) setFailed(true); });
     return () => { active = false; };
@@ -109,16 +112,37 @@ export default function StatsScreen() {
   const valueText = (id: MetricId, value: number | null | undefined) => (value == null ? t('stats.noValue') : formatMetric(id, value));
   const categoryLabel = (key: string) => t(`library.category.${key}`, { defaultValue: humanize(key) });
   const patternLabel = (key: string) => t(`movementPattern.${key}`, { defaultValue: humanize(key) });
-  const levelLabel = (kind: BreakdownLevel, key: string, name: string) => (kind === 'category' ? categoryLabel(key) : kind === 'pattern' ? (key ? patternLabel(key) : t('stats.noValue')) : name);
+  const levelLabel = (kind: BreakdownLevel, key: string, name: string) => (kind === 'category' ? categoryLabel(key) : kind === 'pattern' ? (key ? patternLabel(key) : t('stats.noPattern')) : name);
 
   const resetView = () => { setPage(0); setSelected(null); };
-  const changeScope = (next: Scope) => { setScope(next); resetView(); };
+  /** A new starting point (training kind): nothing to step back to. */
+  const changeScope = (next: Scope) => { setScope(next); setTrail([]); resetView(); };
+  /** A step down (category, pattern, exercise): remembered so back can undo it. */
+  const drillTo = (next: Scope) => {
+    if (JSON.stringify(next) !== JSON.stringify(scope)) setTrail((steps) => [...steps, scope]);
+    setScope(next);
+    resetView();
+  };
+  const stepBack = useCallback(() => {
+    const previous = trail[trail.length - 1];
+    if (!previous) return false;
+    setTrail(trail.slice(0, -1));
+    setScope(previous);
+    setPage(0);
+    setSelected(null);
+    return true;
+  }, [trail]);
+  // The phone's back button climbs the drill-down first and only then leaves the screen.
+  useFocusEffect(useCallback(() => {
+    const subscription = BackHandler.addEventListener('hardwareBackPress', stepBack);
+    return () => subscription.remove();
+  }, [stepBack]));
   const narrow = (kind: BreakdownLevel, key: string | undefined) => {
-    if (kind === 'category') changeScope({ kind: scope.kind, category: key });
-    else if (kind === 'pattern') changeScope({ kind: scope.kind, category: scope.category, pattern: key });
+    if (kind === 'category') drillTo({ kind: scope.kind, category: key });
+    else if (kind === 'pattern') drillTo({ kind: scope.kind, category: scope.category, pattern: key });
     else {
       const row = key ? data?.rows.find((candidate) => candidate.exerciseId === key) : undefined;
-      changeScope(row ? { kind: scope.kind, category: row.category, pattern: row.movementPattern ?? undefined, exerciseId: key } : { kind: scope.kind, category: scope.category, pattern: scope.pattern });
+      drillTo(row ? scopeForExercise(scope, row) : { kind: scope.kind, category: scope.category, pattern: scope.pattern });
     }
     setSheet(null);
     setSearch('');
@@ -129,6 +153,8 @@ export default function StatsScreen() {
   const options = data && (sheet === 'category' || sheet === 'pattern' || sheet === 'exercise')
     ? scopeOptions(data, scope, sheet).filter((option) => levelLabel(sheet, option.key, option.name).toLowerCase().includes(search.trim().toLowerCase()))
     : [];
+  const choiceLevel: BreakdownLevel | null = sheet === 'category' || sheet === 'pattern' || sheet === 'exercise' ? sheet : null;
+  const currentChoice = choiceLevel === 'category' ? scope.category : choiceLevel === 'pattern' ? scope.pattern : choiceLevel === 'exercise' ? scope.exerciseId : undefined;
   const bucketWorkouts = data && bucket ? data.workouts.filter((workout) => bucket.workoutIds.includes(workout.id)).sort((a, b) => b.startedAt.getTime() - a.startedAt.getTime()) : [];
 
   return (
@@ -145,6 +171,7 @@ export default function StatsScreen() {
         <SegmentedControl value={granularity} options={GRANULARITIES.map((value) => ({ value, label: t(`stats.granularity.${value}`) }))} onChange={(value) => { setGranularity(value); resetView(); }} />
 
         <View style={styles.chips}>
+          {trail.length > 0 ? <IconButton icon="arrow-back" label={t('stats.up')} size={36} onPress={stepBack} /> : null}
           {KINDS.map((kind) => <Chip key={kind} label={t(`stats.kind.${kind}`)} selected={scope.kind === kind} onPress={() => changeScope({ kind })} />)}
         </View>
         <View style={styles.chips}>
@@ -213,19 +240,29 @@ export default function StatsScreen() {
 
             {level && breakdown.length > 0 ? <>
               <SectionTitle title={t(`stats.breakdown.${level}`)} />
-              {breakdown.map((item) => (
-                <View key={item.key} style={styles.breakdownRow}>
-                  <Text accessibilityRole="button" onPress={item.key ? () => narrow(level, item.key) : undefined} numberOfLines={1} style={[styles.breakdownName, { color: palette.text }]}>
-                    {levelLabel(level, item.key, item.name)}
-                  </Text>
-                  <View style={[styles.breakdownTrack, { backgroundColor: palette.surfaceMuted }]}>
-                    <View style={[styles.breakdownFill, { width: `${Math.max(4, (item.value / breakdown[0].value) * 100)}%`, backgroundColor: palette.accent }]} />
-                  </View>
-                  <Text style={[styles.breakdownValue, { color: palette.text }]}>
-                    {formatMetric(primary, item.value)}{item.share != null ? ` · ${Math.round(item.share * 100)}%` : ''}
-                  </Text>
-                </View>
-              ))}
+              {breakdown.map((item) => {
+                const label = levelLabel(level, item.key, item.name);
+                const value = `${formatMetric(primary, item.value)}${item.share != null ? ` · ${Math.round(item.share * 100)}%` : ''}`;
+                const open = Boolean(item.key);
+                return (
+                  <Pressable
+                    key={item.key}
+                    accessibilityRole="button"
+                    accessibilityLabel={`${label}: ${value}`}
+                    accessibilityState={{ disabled: !open }}
+                    disabled={!open}
+                    onPress={() => narrow(level, item.key)}
+                    style={({ pressed }) => [styles.breakdownRow, { opacity: pressed ? 0.6 : 1 }]}
+                  >
+                    <Text numberOfLines={2} style={[styles.breakdownName, { color: palette.text }]}>{label}</Text>
+                    <View style={[styles.breakdownTrack, { backgroundColor: palette.surfaceMuted }]}>
+                      <View style={[styles.breakdownFill, { width: `${Math.max(4, (item.value / breakdown[0].value) * 100)}%`, backgroundColor: palette.accent }]} />
+                    </View>
+                    <Text style={[styles.breakdownValue, { color: palette.text }]}>{value}</Text>
+                    <View style={styles.breakdownChevron}>{open ? <Icon name="chevron-forward" size={16} color={palette.textMuted} /> : null}</View>
+                  </Pressable>
+                );
+              })}
             </> : null}
 
             <SectionTitle title={t('stats.workouts')} />
@@ -246,17 +283,21 @@ export default function StatsScreen() {
 
       <Sheet visible={sheet === 'category' || sheet === 'pattern' || sheet === 'exercise'} onClose={() => { setSheet(null); setSearch(''); }} title={sheet ? t(`stats.${sheet === 'metric' || sheet === 'secondary' ? 'metric' : sheet}`) : ''}>
         <TextField placeholder={t('stats.search')} value={search} onChangeText={setSearch} />
-        <ListGroup>
-          <ListRow icon="close-circle-outline" title={t('stats.clear')} onPress={() => sheet && sheet !== 'metric' && sheet !== 'secondary' && narrow(sheet, undefined)} />
-          {options.map((option) => (
-            <ListRow
-              key={option.key}
-              title={sheet && sheet !== 'metric' && sheet !== 'secondary' ? levelLabel(sheet, option.key, option.name) : option.name}
-              subtitle={`${option.sets} ${t('stats.metrics.sets').toLowerCase()}`}
-              onPress={() => sheet && sheet !== 'metric' && sheet !== 'secondary' && narrow(sheet, option.key)}
-            />
-          ))}
-        </ListGroup>
+        {choiceLevel ? (
+          <ListGroup>
+            <ListRow title={t('stats.any')} selected={!currentChoice} onPress={() => narrow(choiceLevel, undefined)} />
+            {options.map((option) => (
+              <ListRow
+                key={option.key}
+                title={levelLabel(choiceLevel, option.key, option.name)}
+                subtitle={`${option.sets} ${t('stats.metrics.sets').toLowerCase()}`}
+                selected={option.key === currentChoice}
+                onPress={() => narrow(choiceLevel, option.key)}
+              />
+            ))}
+          </ListGroup>
+        ) : null}
+        {options.length === 0 && search.trim() ? <Body>{t('stats.noMatches')}</Body> : null}
       </Sheet>
 
       <Sheet visible={sheet === 'metric' || sheet === 'secondary'} onClose={() => setSheet(null)} title={sheet === 'secondary' ? t('stats.compare') : t('stats.metric')} body={scope.exerciseId ? undefined : t('stats.performanceHint')}>
@@ -317,10 +358,11 @@ const baseStyles = StyleSheet.create({
   total: { gap: 2 },
   totalValue: { fontSize: 26, fontWeight: '800' },
   totalLabel: { fontSize: 12 },
-  breakdownRow: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 36 },
-  breakdownName: { width: '36%', fontSize: 13, fontWeight: '600', textDecorationLine: 'underline' },
+  breakdownRow: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 44 },
+  breakdownName: { width: '34%', fontSize: 13, fontWeight: '600' },
   breakdownTrack: { flex: 1, height: 8, borderRadius: 4, overflow: 'hidden' },
   breakdownFill: { height: '100%', borderRadius: 4 },
-  breakdownValue: { minWidth: 70, textAlign: 'right', fontSize: 12, fontWeight: '700' },
+  breakdownValue: { minWidth: 64, textAlign: 'right', fontSize: 12, fontWeight: '700' },
+  breakdownChevron: { width: 16, alignItems: 'center' },
   family: { gap: 6, marginBottom: 6 },
 });

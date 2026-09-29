@@ -6,6 +6,7 @@ import {
   matchesScope,
   nextLevel,
   periodStart,
+  scopeForExercise,
   scopeOptions,
   type ExploreData,
   type ExploreWorkout,
@@ -226,3 +227,46 @@ describe('availableMetrics', () => {
     expect(availableMetrics(data, { kind: 'mobility' })).not.toContain('mobilityHoldSec');
   });
 });
+
+describe('exercises in more than one category', () => {
+  const tuckPlanche = { exerciseId: 'tuck-planche', exerciseName: 'Tuck Planche', category: 'skill', extraCategories: '["push"]', movementPattern: 'horizontal-push', metric: 'time', reps: null, durationSec: 12 };
+  const planche = { rows: [set('w1', w1.startedAt, tuckPlanche), set('w1', w1.startedAt, tuckPlanche), set('w1', w1.startedAt, { ...pushUp, reps: 20 })], workouts: [w1] } satisfies ExploreData;
+
+  it('matches the category filter through the main or an extra category', () => {
+    const [plancheSet, , pushUpSet] = planche.rows;
+    expect(matchesScope(plancheSet, { kind: 'all', category: 'skill' })).toBe(true);
+    expect(matchesScope(plancheSet, { kind: 'all', category: 'push' })).toBe(true);
+    expect(matchesScope(plancheSet, { kind: 'all', category: 'pull' })).toBe(false);
+    expect(matchesScope(pushUpSet, { kind: 'all', category: 'skill' })).toBe(false);
+  });
+
+  it('counts sets of the exercise under every category it belongs to', () => {
+    const options = scopeOptions(planche, { kind: 'all' }, 'category');
+    expect(options).toEqual(expect.arrayContaining([{ key: 'push', name: 'push', sets: 3 }, { key: 'skill', name: 'skill', sets: 2 }]));
+  });
+
+  it('splits a bucket by category with the shared exercise in both', () => {
+    const items = buildBreakdown(planche, { kind: 'all' }, 'sets', { workoutIds: ['w1'] });
+    expect(Object.fromEntries(items.map((item) => [item.key, item.value]))).toEqual({ push: 3, skill: 2 });
+  });
+
+  it('ignores a malformed extra category list', () => {
+    const [plancheSet] = planche.rows;
+    expect(matchesScope({ ...plancheSet, extraCategories: 'not json' }, { kind: 'all', category: 'push' })).toBe(false);
+  });
+
+  it('shares are of the period total, not of the sum of overlapping categories', () => {
+    const items = buildBreakdown(planche, { kind: 'all' }, 'sets', { workoutIds: ['w1'] });
+    const share = Object.fromEntries(items.map((item) => [item.key, item.share]));
+    expect(share.push).toBe(1);
+    expect(share.skill).toBeCloseTo(2 / 3);
+  });
+
+  it('keeps the chosen category when narrowing to an exercise that also belongs to it', () => {
+    const [plancheSet] = planche.rows;
+    expect(scopeForExercise({ kind: 'all', category: 'push' }, plancheSet)).toEqual({ kind: 'all', category: 'push', pattern: 'horizontal-push', exerciseId: 'tuck-planche' });
+    expect(scopeForExercise({ kind: 'all' }, plancheSet)).toMatchObject({ category: 'skill', exerciseId: 'tuck-planche' });
+    expect(scopeForExercise({ kind: 'all', category: 'pull' }, plancheSet)).toMatchObject({ category: 'skill' });
+  });
+});
+

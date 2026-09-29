@@ -1,6 +1,6 @@
 import * as Haptics from "expo-haptics";
 import { router, useSegments } from "expo-router";
-import { PropsWithChildren, ReactNode, useEffect, useState } from "react";
+import { Children, PropsWithChildren, ReactNode, useEffect, useState } from "react";
 import { Modal, Platform, Pressable, ScrollView, StyleSheet, Switch, TextInput, TextInputProps, TextProps, View, ViewProps } from "react-native";
 import { KeyboardLift, KeyboardScroll } from "./keyboard";
 import { useAppInsets } from "../layout/useAppInsets";
@@ -173,13 +173,15 @@ export function PageHeading({ title, subtitle, action }: { title: string; subtit
   );
 }
 
-export function ListRow({ icon, title, subtitle, onPress, trailing, tint }: {
+export function ListRow({ icon, title, subtitle, onPress, trailing, tint, selected }: {
   icon?: IconName;
   title: string;
   subtitle?: string;
   onPress?: () => void;
   trailing?: ReactNode;
   tint?: string;
+  /** For a list of choices: true marks the current one with a check; false leaves room for it. Leave undefined for a normal row. */
+  selected?: boolean;
 }) {
   const styles = useScaledStyles(baseStyles);
   const { palette } = useTheme();
@@ -191,10 +193,12 @@ export function ListRow({ icon, title, subtitle, onPress, trailing, tint }: {
         </View>
       ) : null}
       <View style={styles.listCopy}>
-        <Text style={[styles.listTitle, { color: palette.text }]}>{title}</Text>
+        <Text style={[styles.listTitle, { color: selected ? palette.accentStrong : palette.text }, selected ? styles.listTitleSelected : null]}>{title}</Text>
         {subtitle ? <Text style={[styles.listSubtitle, { color: palette.textMuted }]} numberOfLines={2}>{subtitle}</Text> : null}
       </View>
-      {!trailing && onPress ? <Icon name="chevron-forward" size={18} color={palette.textMuted} /> : null}
+      {selected !== undefined ? (
+        <View style={styles.listCheck}>{selected ? <Icon name="checkmark-circle" size={22} color={palette.accentStrong} /> : null}</View>
+      ) : !trailing && onPress ? <Icon name="chevron-forward" size={18} color={palette.textMuted} /> : null}
     </>
   );
   // A custom trailing control (e.g. a favourite toggle) sits beside the pressable area, never inside it.
@@ -203,6 +207,8 @@ export function ListRow({ icon, title, subtitle, onPress, trailing, tint }: {
       {onPress ? (
         <Pressable
           accessibilityRole="button"
+          accessibilityLabel={subtitle ? `${title}, ${subtitle}` : title}
+          accessibilityState={selected !== undefined ? { selected } : undefined}
           onPress={() => { tapFeedback(); onPress(); }}
           style={({ pressed }) => [styles.listRow, { backgroundColor: pressed ? palette.surfaceMuted : "transparent" }]}
         >
@@ -307,7 +313,8 @@ export function CheckRow({ icon, title, subtitle, checked, onChange, tint }: {
 export function ListGroup({ children }: PropsWithChildren) {
   const styles = useScaledStyles(baseStyles);
   const { palette } = useTheme();
-  const items = (Array.isArray(children) ? children : [children]).filter(Boolean);
+  // toArray flattens nested arrays (a mapped list beside fixed rows) and drops false/null.
+  const items = Children.toArray(children);
   return (
     <View style={[styles.listGroup, { backgroundColor: palette.surface, borderColor: palette.border }]}>
       {items.map((child, index) => (
@@ -383,16 +390,18 @@ export function Sheet({ visible, onClose, title, body, children }: PropsWithChil
     // Translucent bars give the keyboard controller correct coordinates inside an edge-to-edge Modal.
     <Modal visible={visible} transparent animationType={reducedMotion || speed === "off" ? "none" : speed === "fast" ? "fade" : "slide"} onRequestClose={onClose} statusBarTranslucent navigationBarTranslucent>
       <KeyboardLift style={styles.flexFill}>
-        <Pressable accessibilityRole="button" accessibilityLabel={t("common.close")} style={[styles.sheetBackdrop, { paddingTop: insets.top + 12 }]} onPress={onClose}>
-          <Pressable style={[styles.sheet, { backgroundColor: palette.surface, paddingBottom: insets.bottom + 20, maxHeight: "100%" }]} onPress={() => undefined}>
+        <View style={[styles.sheetBackdrop, { paddingTop: insets.top + 12 }]}>
+          {/* A sibling of the sheet, not its parent: content inside a button breaks screen readers and web. */}
+          <Pressable accessibilityRole="button" accessibilityLabel={t("common.close")} style={StyleSheet.absoluteFill} onPress={onClose} />
+          <View style={[styles.sheet, { backgroundColor: palette.surface, paddingBottom: insets.bottom + 20, maxHeight: "100%" }]}>
             <View style={[styles.sheetHandle, { backgroundColor: palette.border }]} />
             <ScrollView bounces={false} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} contentContainerStyle={styles.sheetContent}>
               <Heading style={styles.sheetTitle}>{title}</Heading>
               {body ? <Body>{body}</Body> : null}
               <View style={styles.sheetActions}>{children}</View>
             </ScrollView>
-          </Pressable>
-        </Pressable>
+          </View>
+        </View>
       </KeyboardLift>
     </Modal>
   );
@@ -567,6 +576,8 @@ const baseStyles = StyleSheet.create({
   listCopy: { flex: 1, gap: 2 },
   checkbox: { width: 26, height: 26, borderRadius: 8, borderWidth: 2, alignItems: "center", justifyContent: "center" },
   listTitle: { fontFamily: fonts.medium, fontSize: 16 },
+  listTitleSelected: { fontFamily: fonts.semibold },
+  listCheck: { width: 22, alignItems: "center" },
   listSubtitle: { fontFamily: fonts.body, fontSize: 13, lineHeight: 18 },
   chip: { minHeight: 36, paddingHorizontal: 14, borderRadius: 999, borderWidth: 1, flexDirection: "row", alignItems: "center", gap: 6 },
   chipText: { fontFamily: fonts.medium, fontSize: 14 },
