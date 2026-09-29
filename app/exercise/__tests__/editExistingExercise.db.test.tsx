@@ -76,4 +76,33 @@ describe('editing an exercise that already exists in the database', () => {
     }
     expect(failures).toEqual([]);
   }, 120_000);
+
+  it('changes category and classification of an exercise already logged in a finished workout', async () => {
+    const now = Date.now();
+    real.sqlite.exec(`
+      INSERT INTO workout (id, name, started_at, ended_at) VALUES ('w1', 'Push', ${now - 3_600_000}, ${now - 1_800_000});
+      INSERT INTO exercise_entry (id, workout_id, exercise_id, "order") VALUES ('e1', 'w1', 'dragon-flag', 1);
+      INSERT INTO training_set (id, entry_id, set_index, kind, reps, added_load_kg, side, rpe, completed_at) VALUES
+        ('s1', 'e1', 1, 'working', 7, 0, 'both', 8, ${now - 3_000_000}),
+        ('s2', 'e1', 2, 'working', 6, 0, 'both', 9, ${now - 2_800_000});
+    `);
+    (goBack as jest.Mock).mockClear();
+    mockParams.edit = 'dragon-flag';
+    renderForm();
+    await screen.findByDisplayValue('Dragon Flag');
+
+    fireEvent.press(screen.getByRole('button', { name: `${t('customExercise.category')}: ${t('library.category.skill')}` }));
+    fireEvent.press(extraChip('library.category.core'));
+    fireEvent.press(screen.getAllByRole('button', { name: t('movement.groups.hinge') })[0]);
+    fireEvent.changeText(screen.getByLabelText(t('movement.searchTags')), 'hip fl');
+    fireEvent.press(screen.getByRole('button', { name: 'Hip flexion' }));
+    fireEvent.press(screen.getByRole('button', { name: t('common.save') }));
+
+    await waitFor(() => expect(goBack).toHaveBeenCalled());
+    expect(screen.queryByText(new RegExp(t('customExercise.errors.save')))).toBeNull();
+    expect(row('dragon-flag')).toMatchObject({ category: 'skill', extra_categories: '["core"]', movement_group: 'hinge', movement_tag: 'Hip flexion' });
+    // The logged sets stay attached to the edited exercise.
+    expect(real.sqlite.prepare("SELECT COUNT(*) AS n FROM training_set WHERE entry_id = 'e1'").get()).toEqual({ n: 2 });
+  });
 });
+
