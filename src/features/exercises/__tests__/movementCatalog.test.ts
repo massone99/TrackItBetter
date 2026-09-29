@@ -1,4 +1,4 @@
-import { canonicalizeMovementTag, MOVEMENT_TAGS, normalizeExerciseClassification, seededMovementGroup } from '../movementCatalog';
+import { canonicalizeMovementTag, LEGACY_MOVEMENT_TAGS, MOVEMENT_TAG_SECTIONS, MOVEMENT_TAGS, normalizeExerciseClassification, seededMovementGroup } from '../movementCatalog';
 import exerciseSeed from '../../../db/seed/exercises.json';
 
 describe('movement catalog', () => {
@@ -47,5 +47,28 @@ describe('movement catalog', () => {
       movementPattern: 'shoulder-extension',
       movementTag: 'Shoulder extension + flexion',
     })).toMatchObject({ movementTag: 'Shoulder extension' });
+  });
+});
+
+describe('movement tag sections', () => {
+  it('has both side-flexion directions for every part of the spine, plus whole-spine tags', () => {
+    for (const region of ['Cervical', 'Thoracic', 'Lumbar', 'Spine']) {
+      expect(MOVEMENT_TAGS).toContain(`${region} side flexion (bottom to top)`);
+      expect(MOVEMENT_TAGS).toContain(`${region} side flexion (top to bottom)`);
+    }
+    for (const tag of ['Spine flexion', 'Spine extension', 'Spine rotation']) expect(MOVEMENT_TAGS).toContain(tag);
+  });
+
+  it('lists every current tag in exactly one section, and only legacy tags stay out', () => {
+    const listed = MOVEMENT_TAG_SECTIONS.flatMap((section) => [...section.tags]);
+    expect(new Set(listed).size).toBe(listed.length);
+    const unlisted = MOVEMENT_TAGS.filter((tag) => !(listed as string[]).includes(tag));
+    expect(unlisted).toEqual([...LEGACY_MOVEMENT_TAGS]);
+    expect(listed.every((tag) => (MOVEMENT_TAGS as readonly string[]).includes(tag))).toBe(true);
+  });
+
+  it('keeps the old undirected side-flexion tags valid for existing data', () => {
+    expect(MOVEMENT_TAGS).toContain('Cervical side flexion');
+    expect(MOVEMENT_TAGS).toContain('Thoracic side flexion');
   });
 });

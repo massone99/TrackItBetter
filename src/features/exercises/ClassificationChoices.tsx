@@ -4,7 +4,7 @@ import { StyleSheet, TextInput, View } from 'react-native';
 import { Chip, Label } from '../../shared/components/ui';
 import { useTheme } from '../../shared/theme/ThemeProvider';
 import { useScaledStyles } from '../../shared/theme/useScaledStyles';
-import { MOVEMENT_GROUPS, MOVEMENT_TAGS, type MovementGroupId } from './movementCatalog';
+import { MOVEMENT_GROUPS, MOVEMENT_TAG_SECTIONS, type MovementGroupId } from './movementCatalog';
 
 export function movementTagLabel(tag: string, translate: (key: string, options: { defaultValue: string }) => string): string {
   const key = tag.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
@@ -12,9 +12,12 @@ export function movementTagLabel(tag: string, translate: (key: string, options: 
 }
 
 /** How many matching movement tags are listed while searching. */
-const TAG_RESULTS = 8;
+const TAG_RESULTS = 12;
 
-/** Movement group and tag, compact: tags are found by search instead of listed all at once. */
+/**
+ * Movement group and tag. Tags are grouped by joint or region: a row of region chips, and the tags of
+ * the open region below it. Searching looks across all regions.
+ */
 export function ClassificationChoices({ movementTag, movementGroup, onTagChange, onGroupChange }: {
   movementTag: string | null;
   movementGroup: MovementGroupId | null;
@@ -25,10 +28,18 @@ export function ClassificationChoices({ movementTag, movementGroup, onTagChange,
   const { t } = useTranslation();
   const { palette } = useTheme();
   const [query, setQuery] = useState('');
+  const [chosenSection, setChosenSection] = useState<string | null>(null);
   const needle = query.trim().toLocaleLowerCase();
   const matches = needle
-    ? MOVEMENT_TAGS.filter((tag) => tag !== movementTag && movementTagLabel(tag, t).toLocaleLowerCase().includes(needle)).slice(0, TAG_RESULTS)
+    ? MOVEMENT_TAG_SECTIONS.flatMap((section) => section.tags)
+      .filter((tag) => tag !== movementTag && movementTagLabel(tag, t).toLocaleLowerCase().includes(needle))
+      .slice(0, TAG_RESULTS)
     : [];
+  // Until a region is tapped, the one holding the selected tag is open (or the first one).
+  const selectedSection = MOVEMENT_TAG_SECTIONS.find((section) => (section.tags as readonly string[]).includes(movementTag ?? ''))?.id;
+  const openId = chosenSection ?? selectedSection ?? MOVEMENT_TAG_SECTIONS[0].id;
+  const open = MOVEMENT_TAG_SECTIONS.find((section) => section.id === openId) ?? MOVEMENT_TAG_SECTIONS[0];
+  const pick = (tag: string) => { onTagChange(tag); setQuery(''); };
 
   return (
     <>
@@ -49,9 +60,6 @@ export function ClassificationChoices({ movementTag, movementGroup, onTagChange,
           ) : (
             <Chip label={t('movement.none')} selected />
           )}
-          {matches.map((tag) => (
-            <Chip key={tag} label={movementTagLabel(tag, t)} onPress={() => { onTagChange(tag); setQuery(''); }} />
-          ))}
         </View>
         <TextInput
           accessibilityLabel={t('movement.searchTags')}
@@ -61,6 +69,27 @@ export function ClassificationChoices({ movementTag, movementGroup, onTagChange,
           placeholderTextColor={palette.textMuted}
           style={[styles.search, { backgroundColor: palette.surfaceMuted, borderColor: palette.border, color: palette.text }]}
         />
+        {needle ? (
+          <View style={styles.choices}>
+            {matches.map((tag) => <Chip key={tag} label={movementTagLabel(tag, t)} onPress={() => pick(tag)} />)}
+          </View>
+        ) : (
+          <>
+            <View style={styles.choices}>
+              {MOVEMENT_TAG_SECTIONS.map((section) => (
+                <Chip
+                  key={section.id}
+                  label={t(`movement.sections.${section.id}`)}
+                  selected={section.id === open.id}
+                  onPress={() => setChosenSection(section.id)}
+                />
+              ))}
+            </View>
+            <View style={[styles.tags, { borderColor: palette.border, backgroundColor: palette.surfaceMuted }]}>
+              {open.tags.filter((tag) => tag !== movementTag).map((tag) => <Chip key={tag} label={movementTagLabel(tag, t)} onPress={() => pick(tag)} />)}
+            </View>
+          </>
+        )}
       </View>
     </>
   );
@@ -69,5 +98,6 @@ export function ClassificationChoices({ movementTag, movementGroup, onTagChange,
 const baseStyles = StyleSheet.create({
   field: { gap: 8 },
   choices: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  tags: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, borderWidth: 1, borderRadius: 14, padding: 10 },
   search: { minHeight: 42, borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, fontSize: 15 },
 });
