@@ -19,6 +19,8 @@ export const exercises = sqliteTable(
     /** JSON list of additional categories, e.g. planche is skill and also push. */
     extraCategories: text('extra_categories').notNull().default('[]'),
     movementPattern: text('movement_pattern'),
+    movementTag: text('movement_tag'),
+    movementGroup: text('movement_group'),
     primaryMuscles: text('primary_muscles').notNull().default('[]'),
     secondaryMuscles: text('secondary_muscles').notNull().default('[]'),
     equipment: text('equipment').notNull().default('[]'),

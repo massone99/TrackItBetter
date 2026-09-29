@@ -4,6 +4,7 @@ import criteriaSeed from './level-criteria.json';
 import type { AppDatabase } from '../client';
 import type { NewExercise } from '../schema';
 import { exercises, levelCriteria, progressionChains } from '../schema';
+import { seededMovementGroup } from '../../features/exercises/movementCatalog';
 
 /** Inserts the bundled catalog on first launch and leaves user edits untouched. */
 export async function seedCatalogIfEmpty(db: AppDatabase): Promise<void> {
@@ -16,6 +17,8 @@ export async function seedCatalogIfEmpty(db: AppDatabase): Promise<void> {
     );
     const exerciseRows: NewExercise[] = exercisesSeed.map((exercise) => ({
         ...exercise,
+        movementTag: null,
+        movementGroup: seededMovementGroup(exercise),
         aliases: JSON.stringify(exercise.aliases),
         extraCategories: JSON.stringify('extraCategories' in exercise ? exercise.extraCategories : []),
         primaryMuscles: JSON.stringify(exercise.primaryMuscles),

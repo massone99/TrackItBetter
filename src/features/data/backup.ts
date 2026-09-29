@@ -18,6 +18,7 @@ import {
 import { getProgressPhotoFile, preparePhotoDirectory } from '../photos/repository';
 import { getPoseCaptureFile, preparePoseCaptureDirectory } from '../pose/repository';
 import { getFormCheckVideoFile } from '../media/formVideos';
+import { MOVEMENT_GROUP_IDS, MOVEMENT_TAGS, canonicalizeMovementTag, normalizeExerciseClassification } from '../exercises/movementCatalog';
 
 const timestamp = z.string().datetime({ offset: true });
 const nullableTimestamp = timestamp.nullable();
@@ -33,6 +34,9 @@ const exerciseSchema = z.object({
   // Added in schema v6; older backups omit it.
   extraCategories: z.string().optional(),
   movementPattern: nullableString,
+  // Added in schema v6; old backups omit both user-editable classifications.
+  movementTag: nullableString.optional().refine((tag) => tag == null || (MOVEMENT_TAGS as readonly string[]).includes(canonicalizeMovementTag(tag) ?? '')),
+  movementGroup: z.enum(MOVEMENT_GROUP_IDS).nullable().optional(),
   primaryMuscles: z.string(),
   secondaryMuscles: z.string(),
   equipment: z.string(),
@@ -384,7 +388,7 @@ export async function mergeBackup(input: string): Promise<void> {
       await tx.insert(progressionChains).values(rows).onConflictDoNothing();
     });
     await insertInChunks(data.exercises, async (rows) => {
-      await tx.insert(exercises).values(rows.map((row) => ({ ...row, extraCategories: row.extraCategories ?? '[]', createdAt: date(row.createdAt) }))).onConflictDoNothing();
+      await tx.insert(exercises).values(rows.map((row) => ({ ...normalizeExerciseClassification(row), extraCategories: row.extraCategories ?? '[]', createdAt: date(row.createdAt) }))).onConflictDoNothing();
     });
     await insertInChunks(data.levelCriteria, async (rows) => {
       await tx.insert(levelCriteria).values(rows).onConflictDoNothing();
@@ -484,7 +488,11 @@ async function replaceWithBackup(input: string): Promise<void> {
       await tx.insert(progressionChains).values(rows);
     });
     await insertInChunks(data.exercises, async (rows) => {
-      await tx.insert(exercises).values(rows.map((row) => ({ ...row, extraCategories: row.extraCategories ?? '[]', createdAt: date(row.createdAt) })));
+      await tx.insert(exercises).values(rows.map((row) => ({
+        ...normalizeExerciseClassification(row),
+        extraCategories: row.extraCategories ?? '[]',
+        createdAt: date(row.createdAt),
+      })));
     });
     await insertInChunks(data.levelCriteria, async (rows) => {
       await tx.insert(levelCriteria).values(rows);

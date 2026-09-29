@@ -11,6 +11,13 @@ const emptyData = {
   trainingSets: [], bodyMeasurements: [], settings: [], progressPhotos: [],
 };
 
+const exercise = {
+  id: 'push-up', name: 'Push-up', aliases: '[]', metric: 'reps', category: 'push',
+  movementPattern: 'horizontal-push', primaryMuscles: '[]', secondaryMuscles: '[]', equipment: '[]',
+  unilateral: false, chainId: null, level: null, leverageFactor: null, cues: '[]', demoUrl: null,
+  isCustom: false, favourite: false, archived: false, createdAt: '2026-09-27T10:00:00.000Z',
+};
+
 const capture = {
   id: '3f1b6c1e-8d2a-4c5e-9a7b-1c2d3e4f5a6b',
   positionId: 'front_split',
@@ -32,6 +39,33 @@ const backup = (data: object) => JSON.stringify({ format: 'trackitbetter-backup'
 describe('parseBackup', () => {
   it('accepts backups made before pose captures existed', () => {
     expect(() => parseBackup(backup(emptyData))).not.toThrow();
+  });
+
+  it('accepts older exercises without movement classifications and new classified exercises', () => {
+    expect(() => parseBackup(backup({ ...emptyData, exercises: [exercise] }))).not.toThrow();
+    const parsed = parseBackup(backup({
+      ...emptyData,
+      exercises: [{ ...exercise, movementTag: 'Shoulder extension', movementGroup: 'horizontal-push' }],
+    }));
+    expect(parsed.data.exercises[0].movementGroup).toBe('horizontal-push');
+  });
+
+  it('accepts the shoulder alias but rejects tags outside the catalog', () => {
+    expect(() => parseBackup(backup({
+      ...emptyData,
+      exercises: [{ ...exercise, movementTag: 'Shoulder extension + flexion' }],
+    }))).not.toThrow();
+    expect(() => parseBackup(backup({
+      ...emptyData,
+      exercises: [{ ...exercise, movementTag: 'unknown tag' }],
+    }))).toThrow();
+  });
+
+  it('rejects a backup with an unknown movement group', () => {
+    expect(() => parseBackup(backup({
+      ...emptyData,
+      exercises: [{ ...exercise, movementGroup: 'push-ish' }],
+    }))).toThrow();
   });
 
   it('accepts backups with pose captures', () => {

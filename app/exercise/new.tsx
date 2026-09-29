@@ -1,11 +1,13 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { router, useLocalSearchParams } from 'expo-router';
-import { Controller, useForm } from 'react-hook-form';
+import { Controller, useForm, useWatch } from 'react-hook-form';
 import { useTranslation } from 'react-i18next';
 import { useEffect, useState } from 'react';
 import { StyleSheet, TextInput, View } from 'react-native';
 import { z } from 'zod';
 import { createCustomExercise, updateExercise, type ExerciseCategory, type ExerciseMetric } from '../../src/features/exercises/customRepository';
+import { ClassificationChoices } from '../../src/features/exercises/ClassificationChoices';
+import type { MovementGroupId } from '../../src/features/exercises/movementCatalog';
 import { ActionButton, Body, Chip, Label, PageHeading, Screen, TextField } from '../../src/shared/components/ui';
 import { addExerciseToWorkout } from '../../src/features/session/repository';
 import { getExerciseById } from '../../src/features/exercises/repository';
@@ -25,6 +27,8 @@ const formSchema = z.object({
   equipment: z.string().max(240, 'customExercise.errors.equipmentLength'),
   cues: z.string().max(1000, 'customExercise.errors.cuesLength'),
   demoUrl: z.string().refine((value) => normalizeVideoUrl(value) !== undefined, 'logger.referenceInvalid'),
+  movementTag: z.string().nullable(),
+  movementGroup: z.string().nullable(),
 });
 
 type FormValues = z.infer<typeof formSchema>;
@@ -51,12 +55,14 @@ export default function NewExerciseRoute() {
   const { palette } = useTheme();
   const [saving, setSaving] = useState(false);
   const [saveFailed, setSaveFailed] = useState(false);
-  const { control, handleSubmit, reset, watch, formState: { errors } } = useForm<FormValues>({
+  const { control, handleSubmit, reset, setValue, formState: { errors } } = useForm<FormValues>({
     resolver: zodResolver(formSchema),
-    defaultValues: { name: '', metric: 'reps', category: 'push', extraCategories: [], equipment: '', cues: '', demoUrl: '' },
+    defaultValues: { name: '', metric: 'reps', category: 'push', extraCategories: [], equipment: '', cues: '', demoUrl: '', movementTag: null, movementGroup: null },
   });
+  const movementTag = useWatch({ control, name: 'movementTag' });
+  const movementGroup = useWatch({ control, name: 'movementGroup' });
 
-  const mainCategory = watch('category');
+  const mainCategory = useWatch({ control, name: 'category' });
 
   useEffect(() => {
     if (!edit) return;
@@ -70,6 +76,8 @@ export default function NewExerciseRoute() {
         equipment: readList(exercise.equipment).join(', '),
         cues: readList(exercise.cues).join('\n'),
         demoUrl: exercise.demoUrl ?? '',
+        movementTag: exercise.movementTag,
+        movementGroup: exercise.movementGroup,
       });
     });
   }, [edit, reset]);
@@ -87,6 +95,8 @@ export default function NewExerciseRoute() {
         equipment: splitList(values.equipment, true),
         cues: splitList(values.cues),
         demoUrl: normalizeVideoUrl(values.demoUrl) ?? null,
+        movementTag: values.movementTag,
+        movementGroup: values.movementGroup as MovementGroupId | null,
       };
       if (edit) {
         await updateExercise(edit, input);
@@ -144,6 +154,13 @@ export default function NewExerciseRoute() {
           </View>
         )} />
       </View>
+
+      <ClassificationChoices
+        movementTag={movementTag}
+        movementGroup={movementGroup as MovementGroupId | null}
+        onTagChange={(value) => setValue('movementTag', value)}
+        onGroupChange={(value) => setValue('movementGroup', value)}
+      />
 
       <View style={styles.field}>
         <Label>{t('customExercise.extraCategories')}</Label>

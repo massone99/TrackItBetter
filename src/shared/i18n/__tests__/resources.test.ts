@@ -1,5 +1,6 @@
 import { POSITION_GROUPS, POSITIONS } from '../../../domain/pose';
 import { RESET_SCOPES } from '../../../features/data/resetScopes';
+import { MOVEMENT_GROUP_IDS, MOVEMENT_TAGS } from '../../../features/exercises/movementCatalog';
 import { resources } from '../resources';
 
 // Node's fs is available under Jest; the app's tsconfig has no Node types, so it is typed here.
@@ -76,6 +77,14 @@ describe('translations', () => {
       ]),
       ...POSITION_GROUPS.map((group) => `pose.groups.${group}`),
       ...RESET_SCOPES.flatMap((scope) => [`reset.scopes.${scope}.title`, `reset.scopes.${scope}.body`]),
+    ];
+    expect(keys.filter((key) => !defined(en, key) || !defined(italian, key))).toEqual([]);
+  });
+
+  it('translates every movement group and tag in the selectable catalog', () => {
+    const keys = [
+      ...MOVEMENT_GROUP_IDS.map((id) => `movement.groups.${id}`),
+      ...MOVEMENT_TAGS.map((tag) => `movement.tags.${tag.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '')}`),
     ];
     expect(keys.filter((key) => !defined(en, key) || !defined(italian, key))).toEqual([]);
   });
