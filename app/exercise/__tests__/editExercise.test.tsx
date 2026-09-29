@@ -137,7 +137,8 @@ describe('edit exercise', () => {
 
     save();
 
-    expect(await screen.findByText(t('customExercise.errors.save'))).toBeTruthy();
+    // The reason is shown too, so a failure on a phone can be reported and fixed.
+    expect(await screen.findByText(`${t('customExercise.errors.save')} (disk full)`)).toBeTruthy();
     expect(goBack).not.toHaveBeenCalled();
   });
 

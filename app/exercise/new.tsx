@@ -32,7 +32,8 @@ export default function NewExerciseRoute() {
   const { t } = useTranslation();
   const { palette } = useTheme();
   const [saving, setSaving] = useState(false);
-  const [saveFailed, setSaveFailed] = useState(false);
+  // Why the last save failed, shown with the message so a failure on a phone can be reported.
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const { control, handleSubmit, reset, setValue, getValues, formState: { errors } } = useForm<ExerciseFormValues>({
     resolver: zodResolver(exerciseFormSchema),
@@ -51,7 +52,7 @@ export default function NewExerciseRoute() {
   const save = async (values: ExerciseFormValues) => {
     if (saving) return;
     setSaving(true);
-    setSaveFailed(false);
+    setSaveError(null);
     try {
       const input = formValuesToInput(values);
       if (edit) {
@@ -66,8 +67,8 @@ export default function NewExerciseRoute() {
       } else {
         router.replace({ pathname: '/exercise/[id]', params: { id } });
       }
-    } catch {
-      setSaveFailed(true);
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : String(error));
     } finally {
       setSaving(false);
     }
@@ -194,7 +195,7 @@ export default function NewExerciseRoute() {
         </>
       ) : null}
 
-      {saveFailed ? <Body style={{ color: palette.warning }}>{t('customExercise.errors.save')}</Body> : null}
+      {saveError !== null ? <Body style={{ color: palette.warning }}>{`${t('customExercise.errors.save')} (${saveError})`}</Body> : null}
       <ActionButton label={saving ? t('customExercise.saving') : t('common.save')} disabled={saving} onPress={submit} />
     </Screen>
   );
