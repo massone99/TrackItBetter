@@ -56,8 +56,8 @@ jobs:
           current_info=$("$apksigner" verify --print-certs "build/TrackItBetter-${VERSION}.apk")
           echo "Previous APK: $previous_info"
           echo "Current APK: $current_info"
-          previous_cert=$(echo "$previous_info" | sed -n 's/^Signer #1 certificate SHA-256 digest: //p' | head -n 1)
-          current_cert=$(echo "$current_info" | sed -n 's/^Signer #1 certificate SHA-256 digest: //p' | head -n 1)
+          previous_cert=$(echo "$previous_info" | sed -nE 's/^.*[Ss]igner.*certificate SHA-256 digest: //p' | head -n 1)
+          current_cert=$(echo "$current_info" | sed -nE 's/^.*[Ss]igner.*certificate SHA-256 digest: //p' | head -n 1)
           if [[ -z "$previous_cert" || -z "$current_cert" ]]; then echo "::error::Could not read APK signing certificates"; exit 1; fi
           if [[ "$previous_cert" != "$current_cert" ]]; then echo "::error::APK signature differs from v0.2.2"; exit 1; fi
       - name: Publish release
@@ -68,4 +68,4 @@ jobs:
           gh release create "v${VERSION}" "build/TrackItBetter-${VERSION}.apk" \
             --target "$GITHUB_SHA" \
             --title "TrackItBetter ${VERSION}" \
-            --notes "Sideloadable Android APK (arm64-v8a). The training calendar now keeps selected dates and workout markers readable in light and dark themes, and adjacent-month dates retain clear contrast."
+            --notes "Sideloadable Android APK (arm64-v8a). Adds per-exercise notes in workouts, editing exercises from the library or a workout, export of workouts by date range or of the exercise library with merge-or-replace import, and fixes clipped two-digit load values."
