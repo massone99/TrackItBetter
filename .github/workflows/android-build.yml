@@ -4,13 +4,10 @@ name: Android build
 # build is caught before it reaches main and the release workflow.
 on:
   pull_request:
-    paths:
-      - modules/**
-      - app.json
-      - package.json
-      - package-lock.json
-      - patches/**
-      - .github/workflows/android-build.yml
+    paths: [modules/**, app.json, package.json, package-lock.json, patches/**, .github/workflows/android-build.yml]
+  push:
+    branches: ['claude/**']
+    paths: [modules/**, app.json, package.json, package-lock.json, patches/**, .github/workflows/android-build.yml]
   workflow_dispatch:
 
 jobs:
