@@ -1136,7 +1136,10 @@
     "cues": [
       "Use a clear wall and exit safely before fatigue."
     ],
-    "demoUrl": null
+    "demoUrl": null,
+    "extraCategories": [
+      "push"
+    ]
   },
   {
     "id": "handstand-kick-up-practice",
@@ -1162,7 +1165,10 @@
     "cues": [
       "Practice controlled entries near a clear wall."
     ],
-    "demoUrl": null
+    "demoUrl": null,
+    "extraCategories": [
+      "push"
+    ]
   },
   {
     "id": "wall-push-up",
@@ -1627,7 +1633,10 @@
     "cues": [
       "Use a safe skin-the-cat entry and keep elbows straight."
     ],
-    "demoUrl": null
+    "demoUrl": null,
+    "extraCategories": [
+      "pull"
+    ]
   },
   {
     "id": "advanced-tuck-back-lever",
@@ -1654,7 +1663,10 @@
     "cues": [
       "Open hips gradually without losing shoulder position."
     ],
-    "demoUrl": null
+    "demoUrl": null,
+    "extraCategories": [
+      "pull"
+    ]
   },
   {
     "id": "straddle-back-lever",
@@ -1681,7 +1693,10 @@
     "cues": [
       "Keep elbows locked and body level."
     ],
-    "demoUrl": null
+    "demoUrl": null,
+    "extraCategories": [
+      "pull"
+    ]
   },
   {
     "id": "full-back-lever",
@@ -1710,7 +1725,10 @@
     "cues": [
       "Maintain a straight body and pain-free shoulder position."
     ],
-    "demoUrl": null
+    "demoUrl": null,
+    "extraCategories": [
+      "pull"
+    ]
   },
   {
     "id": "planche-lean",
@@ -1853,7 +1871,10 @@
     "cues": [
       "Elevate hips over shoulders and keep elbows straight."
     ],
-    "demoUrl": null
+    "demoUrl": null,
+    "extraCategories": [
+      "push"
+    ]
   },
   {
     "id": "wall-facing-handstand-hold",
@@ -1879,7 +1900,10 @@
     "cues": [
       "Keep ribs tucked and use a safe wall exit."
     ],
-    "demoUrl": null
+    "demoUrl": null,
+    "extraCategories": [
+      "push"
+    ]
   },
   {
     "id": "chest-to-wall-handstand-shrug",
@@ -1905,7 +1929,10 @@
     "cues": [
       "Elevate shoulders without bending elbows."
     ],
-    "demoUrl": null
+    "demoUrl": null,
+    "extraCategories": [
+      "push"
+    ]
   },
   {
     "id": "freestanding-handstand-hold",
@@ -1931,7 +1958,10 @@
     "cues": [
       "Practice near a clear area and exit safely."
     ],
-    "demoUrl": null
+    "demoUrl": null,
+    "extraCategories": [
+      "push"
+    ]
   },
   {
     "id": "pike-push-up-progression",
@@ -2167,7 +2197,10 @@
     "cues": [
       "Press shoulders down and hold knees tucked."
     ],
-    "demoUrl": null
+    "demoUrl": null,
+    "extraCategories": [
+      "push"
+    ]
   },
   {
     "id": "one-leg-l-sit",
@@ -2194,7 +2227,10 @@
     "cues": [
       "Keep one leg extended and shoulders depressed."
     ],
-    "demoUrl": null
+    "demoUrl": null,
+    "extraCategories": [
+      "push"
+    ]
   },
   {
     "id": "l-sit-progression-full",
@@ -2221,7 +2257,10 @@
     "cues": [
       "Lock knees as able and press tall through hands."
     ],
-    "demoUrl": null
+    "demoUrl": null,
+    "extraCategories": [
+      "push"
+    ]
   },
   {
     "id": "v-sit",
@@ -2248,7 +2287,10 @@
     "cues": [
       "Lift legs higher only while keeping support stable."
     ],
-    "demoUrl": null
+    "demoUrl": null,
+    "extraCategories": [
+      "push"
+    ]
   },
   {
     "id": "assisted-pistol-squat",

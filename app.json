@@ -3,7 +3,7 @@
     "name": "TrackItBetter",
     "slug": "track-it-better",
     "scheme": "trackitbetter",
-    "version": "0.3.2",
+    "version": "0.3.3",
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
     "ios": {
@@ -13,7 +13,7 @@
     },
     "android": {
       "package": "com.trackitbetter.app",
-      "versionCode": 9,
+      "versionCode": 10,
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#2F45C8"

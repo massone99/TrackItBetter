@@ -109,6 +109,7 @@ async function loadCompletedSetRows(): Promise<CompletedSetRow[]> {
       category: exercises.category,
       extraCategories: exercises.extraCategories,
       movementPattern: exercises.movementPattern,
+      movementGroup: exercises.movementGroup,
       metric: exercises.metric,
       leverageFactor: exercises.leverageFactor,
       setId: trainingSets.id,
