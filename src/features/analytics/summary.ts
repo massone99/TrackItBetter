@@ -1,4 +1,5 @@
 import { calculateEffectiveLoad, calculateVolume, detectPersonalRecords, estimateOneRepMax } from '../../domain';
+import { setEstimate } from './estimates';
 
 export type ProgressMetric = 'reps' | 'time' | 'reps_load' | 'time_load' | 'distance';
 
@@ -9,6 +10,8 @@ export interface CompletedSetRow {
   exerciseId: string;
   exerciseName: string;
   category: string;
+  /** JSON list of additional categories; a planche set also counts as push. */
+  extraCategories?: string;
   movementPattern: string | null;
   metric: string;
   leverageFactor: number | null;
@@ -18,6 +21,8 @@ export interface CompletedSetRow {
   distanceM: number | null;
   addedLoadKg: number;
   completedAt: Date | null;
+  /** Optional so callers that only need volume and records can omit it. */
+  rpe?: number | null;
 }
 
 export interface PersonalBest {
@@ -40,6 +45,8 @@ export interface ExerciseTrend {
   exerciseName: string;
   kind: TrendKind;
   points: TrendPoint[];
+  /** Best RPE-based max estimate per workout, for bodyweight rep and hold trends. */
+  estimate?: TrendPoint[];
 }
 
 export interface ProgressSnapshot {
@@ -98,6 +105,7 @@ export function buildProgressSnapshot(
   const distances = new Map<string, PersonalBest>();
   const exerciseNames = new Map<string, string>();
   const trendPoints = new Map<string, { exerciseId: string; exerciseName: string; kind: TrendKind; date: Date; value: number }>();
+  const estimatePoints = new Map<string, { trendKey: string; date: Date; value: number }>();
   const volumeSets: { reps?: number; durationSec?: number; effectiveLoadKg?: number }[] = [];
   let distanceMeters = 0;
 
@@ -110,8 +118,9 @@ export function buildProgressSnapshot(
     if (inWeek) {
       weeklyRows.push(row);
       weeklyBalance.totalSets += 1;
-      if (row.category === 'push') weeklyBalance.pushSets += 1;
-      if (row.category === 'pull') weeklyBalance.pullSets += 1;
+      const extras = row.extraCategories ?? '[]';
+      if (row.category === 'push' || extras.includes('"push"')) weeklyBalance.pushSets += 1;
+      if (row.category === 'pull' || extras.includes('"pull"')) weeklyBalance.pullSets += 1;
       if (row.movementPattern === 'horizontal-push') weeklyBalance.horizontalPushSets += 1;
       if (row.movementPattern === 'horizontal-pull') weeklyBalance.horizontalPullSets += 1;
       if (row.movementPattern === 'vertical-push') weeklyBalance.verticalPushSets += 1;
@@ -172,6 +181,14 @@ export function buildProgressSnapshot(
       }
     }
 
+    const estimate = setEstimate(row);
+    if (estimate) {
+      const trendKey = `${row.exerciseId}:${estimate.kind}`;
+      const key = `${trendKey}:${row.workoutId}`;
+      const existing = estimatePoints.get(key);
+      if (!existing || estimate.value > existing.value) estimatePoints.set(key, { trendKey, date: row.workoutStartedAt, value: estimate.value });
+    }
+
     if (metric === 'reps' || metric === 'reps_load') {
       volumeSets.push({ reps, ...(metric === 'reps_load' && effectiveLoad != null ? { effectiveLoadKg: effectiveLoad } : {}) });
     } else if (metric === 'time' || metric === 'time_load') {
@@ -212,8 +229,16 @@ export function buildProgressSnapshot(
     }
     trend.points.push({ date: point.date, value: point.value });
   }
+  for (const point of estimatePoints.values()) {
+    const trend = trendGroups.get(point.trendKey);
+    if (trend) (trend.estimate ??= []).push({ date: point.date, value: point.value });
+  }
   const trends = [...trendGroups.values()]
-    .map((trend) => ({ ...trend, points: trend.points.sort((a, b) => a.date.getTime() - b.date.getTime()) }))
+    .map((trend) => ({
+      ...trend,
+      points: trend.points.sort((a, b) => a.date.getTime() - b.date.getTime()),
+      ...(trend.estimate ? { estimate: trend.estimate.sort((a, b) => a.date.getTime() - b.date.getTime()) } : {}),
+    }))
     .filter((trend) => trend.points.length >= 2)
     .sort((a, b) => b.points[b.points.length - 1].date.getTime() - a.points[a.points.length - 1].date.getTime());
 
@@ -242,7 +267,7 @@ function isLegPattern(pattern: string | null): boolean {
   ].includes(pattern);
 }
 
-function getEffectiveLoad(row: CompletedSetRow): number | undefined {
+export function getEffectiveLoad(row: CompletedSetRow): number | undefined {
   if (row.leverageFactor != null) {
     if (row.bodyweightKg == null) return undefined;
     try {

@@ -1,13 +1,14 @@
-import { router } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { router, useFocusEffect } from 'expo-router';
+import { useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import type { Exercise } from '../../db/schema';
-import { Chip, EmptyState, Icon, Label, ListGroup, ListRow } from '../../shared/components/ui';
+import { Chip, EmptyState, Icon, Label, ListGroup, ListRow, SectionTitle } from '../../shared/components/ui';
 import { iconForCategory } from '../../shared/components/categoryIcons';
 import { useTheme } from '../../shared/theme/ThemeProvider';
 import { useScaledStyles } from '../../shared/theme/useScaledStyles';
 import { listExercises, setExerciseFavourite } from './repository';
+import { MOVEMENT_GROUPS, MOVEMENT_GROUP_IDS } from './movementCatalog';
 
 const categories = ['all', 'push', 'pull', 'legs', 'core', 'skill', 'mobility', 'cardio'] as const;
 type CategoryFilter = (typeof categories)[number];
@@ -24,23 +25,40 @@ export function LibraryView() {
   const [loadedFilter, setLoadedFilter] = useState<string | null>(null);
   const filterKey = JSON.stringify([query, category, favouritesOnly]);
 
-  useEffect(() => {
+  useFocusEffect(useCallback(() => {
     let current = true;
+    setLoadedFilter(null);
     void listExercises({ query, category: category === 'all' ? undefined : category, favouritesOnly })
       .then((results) => {
         if (current) {
           setItems(results);
           setLoadedFilter(filterKey);
         }
-      });
+    });
     return () => { current = false; };
-  }, [query, category, favouritesOnly, filterKey]);
+  }, [query, category, favouritesOnly, filterKey]));
 
   const toggleFavourite = async (exercise: Exercise) => {
     await setExerciseFavourite(exercise.id, !exercise.favourite);
     const results = await listExercises({ query, category: category === 'all' ? undefined : category, favouritesOnly });
     setItems(results);
   };
+
+  const exerciseRow = (exercise: Exercise) => (
+    <ListRow
+      key={exercise.id}
+      icon={iconForCategory(exercise.category)}
+      title={exercise.name}
+      subtitle={[t(`library.category.${exercise.category}`), t(`metric.${exercise.metric}`), exercise.level ? t('progression.level', { number: exercise.level }) : null].filter(Boolean).join(' · ')}
+      onPress={() => router.push({ pathname: '/exercise/[id]', params: { id: exercise.id } })}
+      trailing={
+        <Pressable accessibilityRole="button" accessibilityLabel={exercise.favourite ? t('library.removeFavourite') : t('library.addFavourite')} onPress={() => void toggleFavourite(exercise)} hitSlop={12} style={styles.star}>
+          <Icon name={exercise.favourite ? 'star' : 'star-outline'} size={20} color={exercise.favourite ? palette.record : palette.textMuted} />
+        </Pressable>
+      }
+    />
+  );
+  const ungrouped = items.filter((exercise) => !exercise.movementGroup || !(MOVEMENT_GROUP_IDS as readonly string[]).includes(exercise.movementGroup));
 
   return (
     <>
@@ -65,22 +83,23 @@ export function LibraryView() {
       {loadedFilter !== filterKey ? <ActivityIndicator color={palette.accentStrong} /> : items.length === 0 ? (
         <EmptyState icon="search-outline" title={t('library.empty')} body={t('library.emptyBody')} />
       ) : (
-        <ListGroup>
-          {items.map((exercise) => (
-            <ListRow
-              key={exercise.id}
-              icon={iconForCategory(exercise.category)}
-              title={exercise.name}
-              subtitle={[t(`library.category.${exercise.category}`), t(`metric.${exercise.metric}`), exercise.level ? t('progression.level', { number: exercise.level }) : null].filter(Boolean).join(' · ')}
-              onPress={() => router.push({ pathname: '/exercise/[id]', params: { id: exercise.id } })}
-              trailing={
-                <Pressable accessibilityRole="button" accessibilityLabel={exercise.favourite ? t('library.removeFavourite') : t('library.addFavourite')} onPress={() => void toggleFavourite(exercise)} hitSlop={12} style={styles.star}>
-                  <Icon name={exercise.favourite ? 'star' : 'star-outline'} size={20} color={exercise.favourite ? palette.record : palette.textMuted} />
-                </Pressable>
-              }
-            />
-          ))}
-        </ListGroup>
+        <>
+          {MOVEMENT_GROUPS.map(({ id }) => {
+            const groupItems = items.filter((exercise) => exercise.movementGroup === id);
+            return groupItems.length ? (
+              <View key={id} style={styles.group}>
+                <SectionTitle title={`${t(`movement.groups.${id}`)} · ${groupItems.length}`} />
+                <ListGroup>{groupItems.map(exerciseRow)}</ListGroup>
+              </View>
+            ) : null;
+          })}
+          {ungrouped.length ? (
+            <View style={styles.group}>
+              <SectionTitle title={`${t('movement.other')} · ${ungrouped.length}`} />
+              <ListGroup>{ungrouped.map(exerciseRow)}</ListGroup>
+            </View>
+          ) : null}
+        </>
       )}
     </>
   );
@@ -92,4 +111,5 @@ const baseStyles = StyleSheet.create({
   chipRow: { marginHorizontal: -20 },
   categories: { gap: 8, paddingHorizontal: 20 },
   star: { width: 36, height: 44, alignItems: 'center', justifyContent: 'center' },
+  group: { gap: 8 },
 });

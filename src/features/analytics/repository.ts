@@ -2,7 +2,10 @@ import { and, asc, desc, eq, isNotNull } from 'drizzle-orm';
 import { db, initializeDatabase } from '../../db/client';
 import { exerciseEntries, exercises, trainingSets, workouts } from '../../db/schema';
 import { buildExerciseCycle, buildExerciseWeek, buildMobilityCycles, buildMobilityWeek, mobilitySecondsForWorkout, type ExerciseCycle, type ExerciseWeek, type MobilityWeek } from './mobility';
+import { buildExerciseEstimate, type ExerciseEstimate } from './estimates';
+import type { ExploreData } from './explore';
 import { buildProgressSnapshot, detectWorkoutRecords, type CompletedSetRow, type CompletedWorkoutRow, type ProgressSnapshot, type WorkoutRecord } from './summary';
+import type { StatsSetRow } from './trainingStats';
 
 /** Load only finalized workouts and sets, then summarize them in the domain layer. */
 export async function getProgressSnapshot(now = new Date()): Promise<ProgressSnapshot> {
@@ -46,6 +49,54 @@ export async function getMobilityCycles(now = new Date()): Promise<ExerciseCycle
   return buildMobilityCycles(await loadCompletedSetRows(), now);
 }
 
+/** Completed working sets of finished workouts, flat, for the statistics screen. */
+export async function getTrainingStatsRows(): Promise<StatsSetRow[]> {
+  await initializeDatabase();
+  return db.select({
+    workoutId: workouts.id,
+    workoutName: workouts.name,
+    workoutStartedAt: workouts.startedAt,
+    exerciseId: exercises.id,
+    exerciseName: exercises.name,
+    metric: exercises.metric,
+    movementGroup: exercises.movementGroup,
+    movementTag: exercises.movementTag,
+    reps: trainingSets.reps,
+    durationSec: trainingSets.durationSec,
+    addedLoadKg: trainingSets.addedLoadKg,
+    rpe: trainingSets.rpe,
+  }).from(trainingSets)
+    .innerJoin(exerciseEntries, eq(trainingSets.entryId, exerciseEntries.id))
+    .innerJoin(exercises, eq(exerciseEntries.exerciseId, exercises.id))
+    .innerJoin(workouts, eq(exerciseEntries.workoutId, workouts.id))
+    .where(and(isNotNull(workouts.endedAt), isNotNull(trainingSets.completedAt), eq(trainingSets.kind, 'working')));
+}
+
+/** RPE-based max reps or max hold of one bodyweight exercise. */
+export async function getExerciseEstimate(exerciseId: string, now = new Date()): Promise<ExerciseEstimate | null> {
+  return buildExerciseEstimate(await loadCompletedSetRows(), exerciseId, now);
+}
+
+/** Every finished set and workout, for the statistics explorer to slice in memory. */
+export async function getExploreData(): Promise<ExploreData> {
+  const rows = await loadCompletedSetRows();
+  const finished = await db
+    .select({
+      id: workouts.id,
+      name: workouts.name,
+      startedAt: workouts.startedAt,
+      endedAt: workouts.endedAt,
+      sessionRpe: workouts.sessionRpe,
+      sleep: workouts.sleep,
+      energy: workouts.energy,
+      soreness: workouts.soreness,
+    })
+    .from(workouts)
+    .where(isNotNull(workouts.endedAt))
+    .orderBy(asc(workouts.startedAt));
+  return { rows, workouts: finished };
+}
+
 async function loadCompletedSetRows(): Promise<CompletedSetRow[]> {
   await initializeDatabase();
   return db
@@ -56,6 +107,7 @@ async function loadCompletedSetRows(): Promise<CompletedSetRow[]> {
       exerciseId: exercises.id,
       exerciseName: exercises.name,
       category: exercises.category,
+      extraCategories: exercises.extraCategories,
       movementPattern: exercises.movementPattern,
       metric: exercises.metric,
       leverageFactor: exercises.leverageFactor,
@@ -65,6 +117,7 @@ async function loadCompletedSetRows(): Promise<CompletedSetRow[]> {
       distanceM: trainingSets.distanceM,
       addedLoadKg: trainingSets.addedLoadKg,
       completedAt: trainingSets.completedAt,
+      rpe: trainingSets.rpe,
     })
     .from(trainingSets)
     .innerJoin(exerciseEntries, eq(trainingSets.entryId, exerciseEntries.id))

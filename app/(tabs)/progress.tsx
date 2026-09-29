@@ -1,11 +1,11 @@
 import { useCallback, useRef, useState } from 'react';
-import { useFocusEffect } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { ActivityIndicator, Platform, Pressable, StyleSheet, View } from 'react-native';
 import { Text } from '../../src/shared/components/Text';
 import { captureRef } from 'react-native-view-shot';
 import * as Sharing from 'expo-sharing';
-import { Body, Card, Heading, Label, PageHeading, Screen, SectionTitle } from '../../src/shared/components/ui';
+import { Body, Card, Heading, Label, ListGroup, ListRow, PageHeading, Screen, SectionTitle } from '../../src/shared/components/ui';
 import { getProgressSnapshot } from '../../src/features/analytics/repository';
 import type { ExerciseTrend, PersonalBest, ProgressSnapshot, TrendKind } from '../../src/features/analytics/summary';
 import { useTheme } from '../../src/shared/theme/ThemeProvider';
@@ -24,6 +24,7 @@ const copy = {
     loading: 'Gathering your training history…', error: 'Your progress could not be loaded. Try again in a moment.',
     bestKind: { reps: 'Most reps', hold: 'Longest hold', load: 'Heaviest load', estimated1rm: 'Estimated 1RM', distance: 'Farthest distance' },
     dateFirst: 'Earlier', dateLatest: 'Latest', shareBest: 'Share record', shareError: 'Could not create or share the record image.', shareUnavailable: 'Image sharing is unavailable here.',
+    stats: 'Training totals',
   },
   it: {
     week: 'Ultimi 7 giorni', sessions: 'Sessioni', sets: 'Serie completate', volume: 'Volume di allenamento',
@@ -36,6 +37,7 @@ const copy = {
     loading: 'Caricamento dello storico…', error: 'Impossibile caricare i progressi. Riprova tra poco.',
     bestKind: { reps: 'Più ripetizioni', hold: 'Tenuta più lunga', load: 'Carico maggiore', estimated1rm: '1RM stimato', distance: 'Distanza maggiore' },
     dateFirst: 'Prima', dateLatest: 'Ultima', shareBest: 'Condividi record', shareError: 'Impossibile creare o condividere l’immagine del record.', shareUnavailable: 'La condivisione di immagini non è disponibile qui.',
+    stats: 'Totali allenamento',
   },
 } as const;
 
@@ -61,6 +63,10 @@ export default function ProgressScreen() {
   return (
     <Screen>
       <PageHeading title={t('progress.title')} subtitle={t('progress.subtitle')} />
+      <ListGroup>
+        <ListRow icon="stats-chart-outline" title={t('stats.open')} subtitle={t('stats.openBody')} onPress={() => router.push('/stats')} />
+        <ListRow icon="bar-chart-outline" title={strings.stats} onPress={() => router.push('/training-stats')} />
+      </ListGroup>
       {snapshot ? <>
         <View style={styles.metrics}>
           <MetricCard title={strings.week} label={strings.sessions} value={snapshot.weekSessions} palette={palette} />
@@ -110,14 +116,24 @@ export default function ProgressScreen() {
   );
 }
 
+/** Opens the statistics explorer on the same exercise and measure. */
+const TREND_METRIC: Record<TrendKind, string> = { reps: 'bestReps', hold: 'bestHold', effective_load: 'bestLoad', added_load: 'bestLoad', estimated1rm: 'bestE1rm', distance: 'distanceM' };
+
 function TrendCard({ trend, label, palette, locale }: { trend: ExerciseTrend; label: string; palette: ReturnType<typeof useTheme>['palette']; locale: string }) {
   const styles = useScaledStyles(baseStyles);
+  const { t } = useTranslation();
+  // Estimates are per workout; line them up with the logged points by workout date.
+  const estimateByDate = new Map((trend.estimate ?? []).map((point) => [point.date.getTime(), point.value]));
+  const estimate = trend.estimate?.length ? trend.points.map((point) => estimateByDate.get(point.date.getTime()) ?? null) : undefined;
+  const latestEstimate = trend.estimate?.[trend.estimate.length - 1]?.value;
   const values = trend.points.map((point) => point.value);
   const first = values[0];
   const latest = values[values.length - 1];
   const delta = latest - first;
   const deltaText = `${delta > 0 ? '+' : ''}${formatNumber(delta)}${trendUnit(trend.kind)}`;
-  return <View style={[styles.trendCard, { borderTopColor: palette.border }]}>
+  const metric = latestEstimate != null ? (trend.kind === 'hold' ? 'estMaxHold' : 'estMaxReps') : TREND_METRIC[trend.kind];
+  const open = () => router.push({ pathname: '/stats', params: { exerciseId: trend.exerciseId, metric } });
+  return <Pressable accessibilityRole="button" accessibilityLabel={`${trend.exerciseName} · ${label}`} onPress={open} style={[styles.trendCard, { borderTopColor: palette.border }]}>
     <View style={styles.trendHeader}>
       <View style={styles.bestText}>
         <Text numberOfLines={1} style={[styles.exerciseName, { color: palette.text }]}>{trend.exerciseName}</Text>
@@ -128,36 +144,44 @@ function TrendCard({ trend, label, palette, locale }: { trend: ExerciseTrend; la
         <Text style={[styles.trendDelta, { color: delta >= 0 ? palette.accentStrong : palette.textMuted }]}>{deltaText}</Text>
       </View>
     </View>
-    <TrendLine values={values} color={palette.accentStrong} muted={palette.border} />
+    {latestEstimate != null ? <Text style={[styles.trendEstimate, { color: palette.record }]}>{t('estimate.trendLine', { value: `${formatNumber(Math.round(latestEstimate))}${trendUnit(trend.kind)}` })}</Text> : null}
+    <TrendLine values={values} estimate={estimate} color={palette.accentStrong} estimateColor={palette.record} muted={palette.border} />
     <View style={styles.trendDates}>
       <Body style={styles.trendDate}>{formatTrendDate(trend.points[0].date, locale)}</Body>
       <Body style={styles.trendDate}>{formatTrendDate(trend.points[trend.points.length - 1].date, locale)}</Body>
     </View>
-  </View>;
+  </Pressable>;
 }
 
-function TrendLine({ values, color, muted }: { values: number[]; color: string; muted: string }) {
+/** One line for the logged values and, when there is one, a lighter line for the RPE estimate on the same scale. */
+function TrendLine({ values, estimate, color, estimateColor, muted }: { values: number[]; estimate?: (number | null)[]; color: string; estimateColor: string; muted: string }) {
   const styles = useScaledStyles(baseStyles);
   const [width, setWidth] = useState(280);
   const height = 58;
   const inset = 5;
-  const min = Math.min(...values);
-  const max = Math.max(...values);
+  const all = [...values, ...(estimate ?? []).filter((value): value is number => value != null)];
+  const min = Math.min(...all);
+  const max = Math.max(...all);
   const span = max - min || 1;
-  const points = values.map((value, index) => ({
+  const place = (value: number, index: number) => ({
     x: inset + (values.length === 1 ? 0 : index * (width - inset * 2) / (values.length - 1)),
     y: height - inset - (value - min) * (height - inset * 2) / span,
-  }));
+  });
+  const points = values.map(place);
+  const estimatePoints = (estimate ?? []).map((value, index) => (value == null ? null : place(value, index))).filter((point): point is { x: number; y: number } => point != null);
+  const segments = (line: { x: number; y: number }[], lineColor: string, key: string, thin = false) => line.slice(1).map((point, index) => {
+    const previous = line[index];
+    const dx = point.x - previous.x;
+    const dy = point.y - previous.y;
+    const length = Math.sqrt(dx * dx + dy * dy);
+    const angle = Math.atan2(dy, dx) * 180 / Math.PI;
+    return <View key={`${key}-${index}`} style={[styles.chartSegment, { width: length, left: (previous.x + point.x - length) / 2, top: (previous.y + point.y) / 2 - 1, backgroundColor: lineColor, transform: [{ rotate: `${angle}deg` }] }, thin && styles.chartSegmentThin]} />;
+  });
   return <View onLayout={(event) => setWidth(Math.max(120, event.nativeEvent.layout.width))} style={[styles.chart, { height }]}>
     <View style={[styles.chartBase, { backgroundColor: muted }]} />
-    {points.slice(1).map((point, index) => {
-      const previous = points[index];
-      const dx = point.x - previous.x;
-      const dy = point.y - previous.y;
-      const length = Math.sqrt(dx * dx + dy * dy);
-      const angle = Math.atan2(dy, dx) * 180 / Math.PI;
-      return <View key={`line-${index}`} style={[styles.chartSegment, { width: length, left: (previous.x + point.x - length) / 2, top: (previous.y + point.y) / 2 - 1, backgroundColor: color, transform: [{ rotate: `${angle}deg` }] }]} />;
-    })}
+    {segments(estimatePoints, estimateColor, 'estimate', true)}
+    {estimatePoints.map((point, index) => <View key={`estimate-point-${index}`} style={[styles.chartEstimatePoint, { left: point.x - 3, top: point.y - 3, backgroundColor: estimateColor }]} />)}
+    {segments(points, color, 'line')}
     {points.map((point, index) => <View key={`point-${index}`} style={[styles.chartPoint, { left: point.x - 4, top: point.y - 4, borderColor: color, backgroundColor: 'white' }]} />)}
   </View>;
 }
@@ -257,6 +281,9 @@ const baseStyles = StyleSheet.create({
   chart: { position: 'relative', width: '100%', overflow: 'hidden' },
   chartBase: { position: 'absolute', height: StyleSheet.hairlineWidth, left: 0, right: 0, top: 29 },
   chartSegment: { position: 'absolute', height: 2 },
+  chartSegmentThin: { height: 1.5, opacity: 0.8 },
+  chartEstimatePoint: { position: 'absolute', width: 6, height: 6, borderRadius: 3 },
+  trendEstimate: { fontSize: 12, fontWeight: '700' },
   chartPoint: { position: 'absolute', width: 8, height: 8, borderRadius: 4, borderWidth: 2 },
   trendDates: { flexDirection: 'row', justifyContent: 'space-between' },
   trendDate: { fontSize: 11 },

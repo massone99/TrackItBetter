@@ -1,11 +1,13 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { router, useLocalSearchParams } from 'expo-router';
-import { Controller, useForm } from 'react-hook-form';
+import { Controller, useForm, useWatch } from 'react-hook-form';
 import { useTranslation } from 'react-i18next';
 import { useEffect, useState } from 'react';
 import { StyleSheet, TextInput, View } from 'react-native';
 import { z } from 'zod';
 import { createCustomExercise, updateExercise, type ExerciseCategory, type ExerciseMetric } from '../../src/features/exercises/customRepository';
+import { ClassificationChoices } from '../../src/features/exercises/ClassificationChoices';
+import type { MovementGroupId } from '../../src/features/exercises/movementCatalog';
 import { ActionButton, Body, Chip, Label, PageHeading, Screen, TextField } from '../../src/shared/components/ui';
 import { addExerciseToWorkout } from '../../src/features/session/repository';
 import { getExerciseById } from '../../src/features/exercises/repository';
@@ -21,9 +23,12 @@ const formSchema = z.object({
   name: z.string().trim().min(1, 'customExercise.errors.name').max(80, 'customExercise.errors.nameLength'),
   metric: z.enum(metrics),
   category: z.enum(categories),
+  extraCategories: z.array(z.enum(categories)),
   equipment: z.string().max(240, 'customExercise.errors.equipmentLength'),
   cues: z.string().max(1000, 'customExercise.errors.cuesLength'),
   demoUrl: z.string().refine((value) => normalizeVideoUrl(value) !== undefined, 'logger.referenceInvalid'),
+  movementTag: z.string().nullable(),
+  movementGroup: z.string().nullable(),
 });
 
 type FormValues = z.infer<typeof formSchema>;
@@ -50,10 +55,14 @@ export default function NewExerciseRoute() {
   const { palette } = useTheme();
   const [saving, setSaving] = useState(false);
   const [saveFailed, setSaveFailed] = useState(false);
-  const { control, handleSubmit, reset, formState: { errors } } = useForm<FormValues>({
+  const { control, handleSubmit, reset, setValue, formState: { errors } } = useForm<FormValues>({
     resolver: zodResolver(formSchema),
-    defaultValues: { name: '', metric: 'reps', category: 'push', equipment: '', cues: '', demoUrl: '' },
+    defaultValues: { name: '', metric: 'reps', category: 'push', extraCategories: [], equipment: '', cues: '', demoUrl: '', movementTag: null, movementGroup: null },
   });
+  const movementTag = useWatch({ control, name: 'movementTag' });
+  const movementGroup = useWatch({ control, name: 'movementGroup' });
+
+  const mainCategory = useWatch({ control, name: 'category' });
 
   useEffect(() => {
     if (!edit) return;
@@ -63,9 +72,12 @@ export default function NewExerciseRoute() {
         name: exercise.name,
         metric: (metrics as readonly string[]).includes(exercise.metric) ? exercise.metric as ExerciseMetric : 'reps',
         category: (categories as readonly string[]).includes(exercise.category) ? exercise.category as ExerciseCategory : 'push',
+        extraCategories: readList(exercise.extraCategories).filter((item): item is ExerciseCategory => (categories as readonly string[]).includes(item)),
         equipment: readList(exercise.equipment).join(', '),
         cues: readList(exercise.cues).join('\n'),
         demoUrl: exercise.demoUrl ?? '',
+        movementTag: exercise.movementTag,
+        movementGroup: exercise.movementGroup,
       });
     });
   }, [edit, reset]);
@@ -79,9 +91,12 @@ export default function NewExerciseRoute() {
         name: values.name,
         metric: values.metric,
         category: values.category,
+        extraCategories: values.extraCategories.filter((item) => item !== values.category),
         equipment: splitList(values.equipment, true),
         cues: splitList(values.cues),
         demoUrl: normalizeVideoUrl(values.demoUrl) ?? null,
+        movementTag: values.movementTag,
+        movementGroup: values.movementGroup as MovementGroupId | null,
       };
       if (edit) {
         await updateExercise(edit, input);
@@ -136,6 +151,30 @@ export default function NewExerciseRoute() {
         <Controller control={control} name="category" render={({ field: { onChange, value } }) => (
           <View style={styles.choices}>
             {categories.map((category) => <Choice key={category} label={t(`library.category.${category}`)} selected={value === category} onPress={() => onChange(category)} />)}
+          </View>
+        )} />
+      </View>
+
+      <ClassificationChoices
+        movementTag={movementTag}
+        movementGroup={movementGroup as MovementGroupId | null}
+        onTagChange={(value) => setValue('movementTag', value)}
+        onGroupChange={(value) => setValue('movementGroup', value)}
+      />
+
+      <View style={styles.field}>
+        <Label>{t('customExercise.extraCategories')}</Label>
+        <Body>{t('customExercise.extraCategoriesHint')}</Body>
+        <Controller control={control} name="extraCategories" render={({ field: { onChange, value } }) => (
+          <View style={styles.choices}>
+            {categories.filter((category) => category !== mainCategory).map((category) => (
+              <Choice
+                key={category}
+                label={t(`library.category.${category}`)}
+                selected={value.includes(category)}
+                onPress={() => onChange(value.includes(category) ? value.filter((item) => item !== category) : [...value, category])}
+              />
+            ))}
           </View>
         )} />
       </View>

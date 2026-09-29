@@ -14,11 +14,13 @@ import { initializeDatabase } from "../src/db/client";
 import { ThemeProvider, useTheme } from "../src/shared/theme/ThemeProvider";
 import { fontAssets } from "../src/shared/theme/typography";
 import { useTranslation } from "react-i18next";
+import { AnimationProvider, useAnimationSettings } from "../src/shared/settings/AnimationProvider";
 
 void SplashScreen.preventAutoHideAsync().catch(() => undefined);
 
 function AppNavigator() {
   const { mode, palette } = useTheme();
+  const { speed, reducedMotion } = useAnimationSettings();
   const { t } = useTranslation();
   const [fontsLoaded, fontError] = useFonts(fontAssets);
   const [retry, setRetry] = useState(0);
@@ -63,7 +65,7 @@ function AppNavigator() {
   return (
     <>
       <StatusBar style={mode === "dark" ? "light" : "dark"} />
-      <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: palette.background }, animation: "slide_from_right" }}>
+      <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: palette.background }, animation: reducedMotion || speed === "off" ? "none" : speed === "fast" ? "fade" : "slide_from_right" }}>
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="workout/[id]" options={{ gestureEnabled: false }} />
         <Stack.Screen name="micro-session" />
@@ -78,6 +80,8 @@ function AppNavigator() {
         <Stack.Screen name="program/user/[id]" />
         <Stack.Screen name="program-builder" />
         <Stack.Screen name="bodyweight" />
+        <Stack.Screen name="stats" />
+        <Stack.Screen name="training-stats" />
         <Stack.Screen name="data" />
         <Stack.Screen name="reset" options={{ gestureEnabled: false }} />
         <Stack.Screen name="reminders" />
@@ -103,7 +107,9 @@ export default function RootLayout() {
         {/* Known insets on the first frame, so headers never start under the status bar. */}
         <SafeAreaProvider initialMetrics={initialWindowMetrics}>
           <ThemeProvider>
-            <AppNavigator />
+            <AnimationProvider>
+              <AppNavigator />
+            </AnimationProvider>
           </ThemeProvider>
         </SafeAreaProvider>
       </KeyboardRoot>

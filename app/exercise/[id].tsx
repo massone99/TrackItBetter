@@ -4,11 +4,15 @@ import { useTranslation } from 'react-i18next';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import type { Exercise } from '../../src/db/schema';
 import { openReferenceVideo, ReferenceLinkSheet } from '../../src/features/exercises/ReferenceLinkSheet';
-import { archiveCustomExercise, getExerciseById, setExerciseFavourite } from '../../src/features/exercises/repository';
+import { ClassificationChoices, movementTagLabel } from '../../src/features/exercises/ClassificationChoices';
+import type { MovementGroupId } from '../../src/features/exercises/movementCatalog';
+import { archiveCustomExercise, getExerciseById, setExerciseClassification, setExerciseFavourite } from '../../src/features/exercises/repository';
 import { addExerciseToWorkout, getActiveWorkout, startWorkout } from '../../src/features/session/repository';
-import { getExerciseCycle, getExerciseWeekStats } from '../../src/features/analytics/repository';
+import { getExerciseCycle, getExerciseEstimate, getExerciseWeekStats } from '../../src/features/analytics/repository';
+import type { ExerciseEstimate } from '../../src/features/analytics/estimates';
 import type { ExerciseCycle, ExerciseWeek } from '../../src/features/analytics/mobility';
-import { formatMinutes } from '../../src/shared/utils/format';
+import { formatMinutes, formatNumber } from '../../src/shared/utils/format';
+import { formatRpe } from '../../src/domain';
 import { ActionButton, Body, Icon, IconButton, ListGroup, ListRow, PageHeading, Screen, SectionTitle, Sheet, Text } from '../../src/shared/components/ui';
 import { useTheme } from '../../src/shared/theme/ThemeProvider';
 import { fonts } from '../../src/shared/theme/typography';
@@ -34,7 +38,13 @@ export default function ExerciseRoute() {
   const [loading, setLoading] = useState(true);
   const [week, setWeek] = useState<ExerciseWeek | null>(null);
   const [cycle, setCycle] = useState<{ current: ExerciseCycle | null; previous: ExerciseCycle | null } | null>(null);
+  const [estimate, setEstimate] = useState<ExerciseEstimate | null>(null);
   const [editingReference, setEditingReference] = useState(false);
+  const [editingClassification, setEditingClassification] = useState(false);
+  const [draftTag, setDraftTag] = useState<string | null>(null);
+  const [draftGroup, setDraftGroup] = useState<MovementGroupId | null>(null);
+  const [savingClassification, setSavingClassification] = useState(false);
+  const [classificationFailed, setClassificationFailed] = useState(false);
   const [confirmArchive, setConfirmArchive] = useState(false);
 
   const reload = useCallback(async () => {
@@ -44,6 +54,7 @@ export default function ExerciseRoute() {
     // Mobility and stretching count their own week from the first day trained; the rest the last 7 days.
     if (found?.category === 'mobility') setCycle(await getExerciseCycle(found.id).catch(() => null));
     else if (found) setWeek(await getExerciseWeekStats(found.id, found.metric).catch(() => null));
+    if (found) setEstimate(await getExerciseEstimate(found.id).catch(() => null));
   }, [id]);
 
   useFocusEffect(useCallback(() => { void reload(); }, [reload]));
@@ -63,18 +74,34 @@ export default function ExerciseRoute() {
     goBack({ pathname: '/programs', params: { view: 'exercises' } });
   };
 
+  const saveClassification = async () => {
+    if (!exercise || savingClassification) return;
+    setSavingClassification(true);
+    setClassificationFailed(false);
+    try {
+      await setExerciseClassification(exercise.id, draftTag, draftGroup);
+      setEditingClassification(false);
+      await reload();
+    } catch {
+      setClassificationFailed(true);
+    } finally {
+      setSavingClassification(false);
+    }
+  };
+
   if (loading) return <Screen><ActivityIndicator color={palette.accentStrong} /></Screen>;
   if (!exercise) return <Screen><PageHeading title={t('details.exercise')} subtitle={t('library.empty')} /></Screen>;
 
   const cues = readList(exercise.cues);
   const equipment = readList(exercise.equipment);
   const muscles = readList(exercise.primaryMuscles);
+  const extraCategories = readList(exercise.extraCategories).filter((item) => item !== exercise.category);
   const kind = exercise.level ? t('progression.level', { number: exercise.level }) : exercise.isCustom ? t('exercise.custom') : t('exercise.foundation');
   return (
     <Screen>
       <PageHeading
         title={exercise.name}
-        subtitle={[t(`library.category.${exercise.category}`), t(`metric.${exercise.metric}`), kind].join(' · ')}
+        subtitle={[[exercise.category, ...extraCategories].map((category) => t(`library.category.${category}`)).join(' + '), t(`metric.${exercise.metric}`), kind].join(' · ')}
         action={
           <IconButton
             icon={exercise.favourite ? 'star' : 'star-outline'}
@@ -85,6 +112,17 @@ export default function ExerciseRoute() {
       />
 
       <ListGroup>
+        <ListRow
+          icon="layers-outline"
+          title={t('movement.classification')}
+          subtitle={`${t('movement.groupTitle')}: ${exercise.movementGroup ? t(`movement.groups.${exercise.movementGroup}`) : t('movement.none')} · ${t('movement.tagTitle')}: ${exercise.movementTag ? movementTagLabel(exercise.movementTag, t) : t('movement.none')}`}
+          onPress={() => {
+            setDraftTag(exercise.movementTag);
+            setDraftGroup(exercise.movementGroup as MovementGroupId | null);
+            setClassificationFailed(false);
+            setEditingClassification(true);
+          }}
+        />
         {exercise.demoUrl ? (
           <ListRow
             icon="play-circle"
@@ -166,6 +204,31 @@ export default function ExerciseRoute() {
         </View>
       ) : null}
 
+      {estimate ? (
+        <View style={styles.section}>
+          <SectionTitle title={t('estimate.title')} />
+          {estimate.latest ? (
+            <>
+              <View style={[styles.week, { backgroundColor: palette.surface, borderColor: palette.border }]}>
+                <WeekStat
+                  value={formatEstimate(estimate.kind, estimate.latest.value)}
+                  label={`${t('estimate.latest')} · ${t(estimate.kind === 'reps' ? 'estimate.sourceReps' : 'estimate.sourceHold', { done: estimate.kind === 'reps' ? estimate.latest.done : formatMinutes(estimate.latest.done), rpe: formatRpe(estimate.latest.rpe) })}`}
+                />
+                {estimate.recentBest ? <WeekStat value={formatEstimate(estimate.kind, estimate.recentBest.value)} label={t('estimate.recentBest')} /> : null}
+              </View>
+              <Body>{t('estimate.body')}</Body>
+              <ListGroup>
+                <ListRow
+                  icon="stats-chart-outline"
+                  title={t('estimate.seeTrend')}
+                  onPress={() => router.push({ pathname: '/stats', params: { exerciseId: exercise.id, metric: estimate.kind === 'reps' ? 'estMaxReps' : 'estMaxHold' } })}
+                />
+              </ListGroup>
+            </>
+          ) : <Body>{t('estimate.hint')}</Body>}
+        </View>
+      ) : null}
+
       <ActionButton icon="add" label={t('exercise.addToWorkout')} onPress={() => void beginWithExercise()} />
       <ActionButton icon="create-outline" label={t('exercise.edit')} secondary onPress={() => router.push({ pathname: '/exercise/new', params: { edit: exercise.id } })} />
       {exercise.isCustom ? (
@@ -183,12 +246,22 @@ export default function ExerciseRoute() {
         />
       ) : null}
 
+      <Sheet visible={editingClassification} onClose={() => setEditingClassification(false)} title={t('movement.editTitle')} body={exercise.name}>
+        <ClassificationChoices movementTag={draftTag} movementGroup={draftGroup} onTagChange={setDraftTag} onGroupChange={setDraftGroup} />
+        {classificationFailed ? <Body style={{ color: palette.warning }}>{t('movement.saveError')}</Body> : null}
+        <ActionButton label={savingClassification ? t('customExercise.saving') : t('common.save')} disabled={savingClassification} onPress={() => void saveClassification()} />
+      </Sheet>
+
       <Sheet visible={confirmArchive} onClose={() => setConfirmArchive(false)} title={t('exercise.removeFromLibrary')} body={t('exercise.removeFromLibraryBody')}>
         <ActionButton icon="archive-outline" label={t('logger.confirmRemove')} variant="danger" onPress={() => void archive()} />
         <ActionButton label={t('common.cancel')} secondary onPress={() => setConfirmArchive(false)} />
       </Sheet>
     </Screen>
   );
+}
+
+function formatEstimate(kind: ExerciseEstimate['kind'], value: number): string {
+  return kind === 'reps' ? `${formatNumber(Math.round(value * 2) / 2)} reps` : formatMinutes(value);
 }
 
 function WeekStat({ value, label }: { value: string; label: string }) {
