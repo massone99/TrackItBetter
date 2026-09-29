@@ -80,6 +80,9 @@ export function seededMovementGroup(
     return 'hinge';
   }
   if (exercise.movementPattern === 'single-leg-squat') return 'squat';
+  // Holds whose catalog pattern names a position, not a push or pull: put them where they train.
+  if (exercise.movementPattern === 'inversion' || exercise.movementPattern === 'support-hold') return 'vertical-push';
+  if (exercise.movementPattern === 'shoulder-extension') return 'horizontal-pull';
   return MOVEMENT_GROUP_IDS.includes(exercise.movementPattern as MovementGroupId)
     ? exercise.movementPattern as MovementGroupId
     : null;

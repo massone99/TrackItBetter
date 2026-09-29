@@ -131,6 +131,18 @@ UPDATE exercise SET extra_categories = '["pull"]' WHERE category = 'skill' AND m
 PRAGMA user_version = 7;
 `;
 
+// Catalog holds named after a position (handstand, support hold, back lever) count as the push or
+// pull they train. Rows already classified or edited by the user are left alone.
+const holdGroupsSchema = `
+UPDATE exercise SET movement_group = 'vertical-push', extra_categories = '["push"]'
+  WHERE is_custom = 0 AND category = 'skill' AND movement_group IS NULL AND extra_categories = '[]'
+    AND movement_pattern IN ('inversion', 'support-hold');
+UPDATE exercise SET movement_group = 'horizontal-pull', extra_categories = '["pull"]'
+  WHERE is_custom = 0 AND category = 'skill' AND movement_group IS NULL AND extra_categories = '[]'
+    AND movement_pattern = 'shoulder-extension';
+PRAGMA user_version = 8;
+`;
+
 const poseCapturesSchema = `
 CREATE TABLE IF NOT EXISTS pose_capture (
   id TEXT PRIMARY KEY NOT NULL,
@@ -208,6 +220,12 @@ export async function migrateDatabase(database: SQLiteDatabase): Promise<void> {
   if (version < 7) {
     await database.withTransactionAsync(async () => {
       await database.execAsync(extraCategoriesSchema);
+    });
+  }
+
+  if (version < 8) {
+    await database.withTransactionAsync(async () => {
+      await database.execAsync(holdGroupsSchema);
     });
   }
 }

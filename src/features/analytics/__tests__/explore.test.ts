@@ -270,3 +270,36 @@ describe('exercises in more than one category', () => {
   });
 });
 
+describe('movement group as the pattern', () => {
+  // A custom exercise has no catalog pattern; its movement group (set in the form) says what it is.
+  const lift = { exerciseId: 'tuck-planche-lift-off', exerciseName: 'Tuck Planche Lift-off', category: 'push', extraCategories: '["skill"]', movementPattern: null, movementGroup: 'horizontal-push' };
+  const handstand = { exerciseId: 'handstand-hold', exerciseName: 'Handstand hold', category: 'skill', extraCategories: '["push"]', movementPattern: 'inversion', movementGroup: 'vertical-push', metric: 'time', reps: null, durationSec: 20 };
+  const grouped = { workouts: [w1], rows: [set('w1', w1.startedAt, lift), set('w1', w1.startedAt, handstand), set('w1', w1.startedAt, { ...pushUp, movementGroup: 'horizontal-push' }), set('w1', w1.startedAt, { ...pushUp, exerciseId: 'ungrouped', movementGroup: null, movementPattern: 'core-thing' })] } satisfies ExploreData;
+
+  it('filters by the group when the exercise has no pattern, or a pattern outside the groups', () => {
+    const inScope = (pattern: string) => grouped.rows.filter((row) => matchesScope(row, { kind: 'all', pattern })).map((row) => row.exerciseId);
+    expect(inScope('horizontal-push')).toEqual(['tuck-planche-lift-off', 'push-up']);
+    expect(inScope('vertical-push')).toEqual(['handstand-hold']);
+    expect(inScope('inversion')).toEqual([]);
+  });
+
+  it('falls back to the pattern when there is no group', () => {
+    expect(grouped.rows.filter((row) => matchesScope(row, { kind: 'all', pattern: 'core-thing' })).map((row) => row.exerciseId)).toEqual(['ungrouped']);
+  });
+
+  it('splits by pattern with grouped exercises under their group', () => {
+    const items = buildBreakdown(grouped, { kind: 'all', category: 'push' }, 'sets', { workoutIds: ['w1'] });
+    expect(Object.fromEntries(items.map((item) => [item.key, item.value]))).toEqual({ 'horizontal-push': 2, 'vertical-push': 1, 'core-thing': 1 });
+  });
+
+  it('lists the group in the pattern choices', () => {
+    const keys = scopeOptions(grouped, { kind: 'all' }, 'pattern').map((option) => option.key);
+    expect(keys).toEqual(expect.arrayContaining(['horizontal-push', 'vertical-push']));
+    expect(keys).not.toContain('inversion');
+  });
+
+  it('narrowing to an exercise keeps the group as its pattern', () => {
+    expect(scopeForExercise({ kind: 'all', category: 'push' }, grouped.rows[0])).toEqual({ kind: 'all', category: 'push', pattern: 'horizontal-push', exerciseId: 'tuck-planche-lift-off' });
+  });
+});
+

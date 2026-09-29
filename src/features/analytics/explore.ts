@@ -1,7 +1,7 @@
 import { estimateOneRepMax } from '../../domain';
 import { setEstimate } from './estimates';
 import { isMobilityTimedSet } from './mobility';
-import { getEffectiveLoad, rowCategories, type CompletedSetRow } from './summary';
+import { getEffectiveLoad, rowCategories, rowPattern, type CompletedSetRow } from './summary';
 
 /**
  * Statistics explorer: any metric over time (per workout, day, week or month), narrowed by
@@ -98,7 +98,7 @@ export function matchesScope(row: CompletedSetRow, scope: Scope): boolean {
   if (scope.kind === 'mobility' && row.category !== 'mobility') return false;
   if (scope.kind === 'strength' && (row.category === 'mobility' || row.category === 'cardio')) return false;
   if (scope.category && !rowCategories(row).includes(scope.category)) return false;
-  if (scope.pattern && row.movementPattern !== scope.pattern) return false;
+  if (scope.pattern && rowPattern(row) !== scope.pattern) return false;
   if (scope.exerciseId && row.exerciseId !== scope.exerciseId) return false;
   return true;
 }
@@ -215,7 +215,7 @@ export type BreakdownLevel = 'category' | 'pattern' | 'exercise';
 
 /** Rows grouped for one level; an exercise in several categories lands in each of them. */
 function groupRows(rows: CompletedSetRow[], level: BreakdownLevel): Map<string, CompletedSetRow[]> {
-  if (level !== 'category') return groupBy(rows, (row) => (level === 'pattern' ? row.movementPattern ?? '' : row.exerciseId));
+  if (level !== 'category') return groupBy(rows, (row) => (level === 'pattern' ? rowPattern(row) ?? '' : row.exerciseId));
   const groups = new Map<string, CompletedSetRow[]>();
   for (const row of rows) {
     for (const category of rowCategories(row)) groups.set(category, [...(groups.get(category) ?? []), row]);
@@ -272,7 +272,7 @@ export interface ScopeOption {
 export function scopeForExercise(scope: Scope, row: CompletedSetRow): Scope {
   const categories = rowCategories(row);
   const category = scope.category && categories.includes(scope.category) ? scope.category : row.category;
-  return { kind: scope.kind, category, pattern: row.movementPattern ?? undefined, exerciseId: row.exerciseId };
+  return { kind: scope.kind, category, pattern: rowPattern(row) ?? undefined, exerciseId: row.exerciseId };
 }
 
 /** Choices for one scope level that have logged sets, most trained first. */

@@ -111,7 +111,7 @@ export default function StatsScreen() {
   };
   const valueText = (id: MetricId, value: number | null | undefined) => (value == null ? t('stats.noValue') : formatMetric(id, value));
   const categoryLabel = (key: string) => t(`library.category.${key}`, { defaultValue: humanize(key) });
-  const patternLabel = (key: string) => t(`movementPattern.${key}`, { defaultValue: humanize(key) });
+  const patternLabel = (key: string) => t(`movementPattern.${key}`, { defaultValue: t(`movement.groups.${key}`, { defaultValue: humanize(key) }) });
   const levelLabel = (kind: BreakdownLevel, key: string, name: string) => (kind === 'category' ? categoryLabel(key) : kind === 'pattern' ? (key ? patternLabel(key) : t('stats.noPattern')) : name);
 
   const resetView = () => { setPage(0); setSelected(null); };

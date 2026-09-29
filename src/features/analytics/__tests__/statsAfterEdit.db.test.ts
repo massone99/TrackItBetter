@@ -65,4 +65,25 @@ describe('statistics after editing an exercise that already has logged sets', ()
     expect(await setsIn('push')).toBe(4);
     expect(await setsIn('skill')).toBe(0);
   });
+
+  it('shows a custom exercise without a catalog pattern under the movement group chosen in the form', async () => {
+    const now = Date.now();
+    real.sqlite.exec(`
+      INSERT INTO exercise (id, name, aliases, metric, category, movement_pattern, primary_muscles, secondary_muscles, equipment, unilateral, cues, is_custom, favourite, archived, created_at)
+        VALUES ('lift-off', 'Tuck Planche Lift-off', '[]', 'reps', 'push', NULL, '[]', '[]', '[]', 0, '[]', 1, 0, 0, ${now});
+      INSERT INTO exercise_entry (id, workout_id, exercise_id, "order") VALUES ('e9', 'w2', 'lift-off', 2);
+      INSERT INTO training_set (id, entry_id, set_index, kind, reps, added_load_kg, side, completed_at) VALUES ('s9', 'e9', 1, 'working', 4, 0, 'both', ${now});
+    `);
+    const inPattern = async (pattern: string) => (await getExploreData()).rows.filter((row) => matchesScope(row, { kind: 'all', pattern })).map((row) => row.exerciseId);
+    expect(await inPattern('horizontal-push')).not.toContain('lift-off');
+
+    await updateExercise('lift-off', { name: 'Tuck Planche Lift-off', metric: 'reps', category: 'push', extraCategories: ['skill'], equipment: [], cues: [], demoUrl: null, movementTag: 'Shoulder flexion', movementGroup: 'horizontal-push' });
+    expect(await inPattern('horizontal-push')).toContain('lift-off');
+
+    const data = await getExploreData();
+    const split = buildBreakdown(data, { kind: 'all', category: 'push' }, 'sets', { workoutIds: ['w1', 'w2'] });
+    expect(split.find((item) => item.key === 'horizontal-push')?.value).toBeGreaterThanOrEqual(1);
+    expect(split.find((item) => item.key === '')).toBeUndefined();
+  });
 });
+

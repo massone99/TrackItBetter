@@ -16,6 +16,24 @@ describe('movement catalog', () => {
     expect(seededMovementGroup(find('reverse-plank'))).toBeNull();
   });
 
+  it('puts handstands, back levers and support holds in the group they train, and leaves human flags out', () => {
+    const find = (id: string) => exerciseSeed.find((exercise) => exercise.id === id)!;
+    expect(seededMovementGroup(find('freestanding-handstand-hold'))).toBe('vertical-push');
+    expect(seededMovementGroup(find('pike-handstand-hold'))).toBe('vertical-push');
+    expect(seededMovementGroup(find('tuck-back-lever'))).toBe('horizontal-pull');
+    expect(seededMovementGroup(find('full-back-lever'))).toBe('horizontal-pull');
+    expect(seededMovementGroup(find('v-sit'))).toBe('vertical-push');
+    expect(seededMovementGroup(find('full-human-flag'))).toBeNull();
+  });
+
+  it('gives every hold of a pushing or pulling skill a matching extra category in the catalog', () => {
+    const find = (id: string) => exerciseSeed.find((exercise) => exercise.id === id) as { extraCategories?: string[] };
+    expect(find('freestanding-handstand-hold').extraCategories).toEqual(['push']);
+    expect(find('tuck-back-lever').extraCategories).toEqual(['pull']);
+    expect(find('one-leg-l-sit').extraCategories).toEqual(['push']);
+    expect(find('full-human-flag').extraCategories).toBeUndefined();
+  });
+
   it('infers classifications only when legacy fields are absent', () => {
     expect(normalizeExerciseClassification({ id: 'split-squat', movementPattern: 'single-leg-squat' }))
       .toMatchObject({ movementTag: null, movementGroup: 'squat' });

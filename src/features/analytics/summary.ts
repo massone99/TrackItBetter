@@ -11,6 +11,14 @@ export function rowCategories(row: Pick<CompletedSetRow, 'category' | 'extraCate
   return [row.category, ...new Set(list)];
 }
 
+/**
+ * What an exercise trains, for splitting and filtering: its movement group when it has one
+ * (set in the exercise form, so custom exercises count too), else its catalog pattern.
+ */
+export function rowPattern(row: Pick<CompletedSetRow, 'movementPattern' | 'movementGroup'>): string | null {
+  return row.movementGroup || row.movementPattern;
+}
+
 export interface CompletedSetRow {
   workoutId: string;
   workoutStartedAt: Date;
@@ -21,6 +29,8 @@ export interface CompletedSetRow {
   /** JSON list of additional categories; a planche set also counts as push. */
   extraCategories?: string;
   movementPattern: string | null;
+  /** Movement group chosen for the exercise (push/pull direction, squat, hinge); overrides the pattern. */
+  movementGroup?: string | null;
   metric: string;
   leverageFactor: number | null;
   setId: string;
@@ -129,11 +139,12 @@ export function buildProgressSnapshot(
       const categories = rowCategories(row);
       if (categories.includes('push')) weeklyBalance.pushSets += 1;
       if (categories.includes('pull')) weeklyBalance.pullSets += 1;
-      if (row.movementPattern === 'horizontal-push') weeklyBalance.horizontalPushSets += 1;
-      if (row.movementPattern === 'horizontal-pull') weeklyBalance.horizontalPullSets += 1;
-      if (row.movementPattern === 'vertical-push') weeklyBalance.verticalPushSets += 1;
-      if (row.movementPattern === 'vertical-pull') weeklyBalance.verticalPullSets += 1;
-      if (row.category === 'legs' || (row.category !== 'mobility' && isLegPattern(row.movementPattern))) weeklyBalance.legSets += 1;
+      const pattern = rowPattern(row);
+      if (pattern === 'horizontal-push') weeklyBalance.horizontalPushSets += 1;
+      if (pattern === 'horizontal-pull') weeklyBalance.horizontalPullSets += 1;
+      if (pattern === 'vertical-push') weeklyBalance.verticalPushSets += 1;
+      if (pattern === 'vertical-pull') weeklyBalance.verticalPullSets += 1;
+      if (row.category === 'legs' || (row.category !== 'mobility' && isLegPattern(pattern))) weeklyBalance.legSets += 1;
     }
 
     const completedAt = row.completedAt.toISOString();
@@ -270,7 +281,7 @@ export function buildProgressSnapshot(
 
 function isLegPattern(pattern: string | null): boolean {
   return pattern != null && [
-    'squat', 'single-leg-squat', 'hip-extension', 'knee-flexion',
+    'squat', 'hinge', 'single-leg-squat', 'hip-extension', 'knee-flexion',
     'knee-extension', 'ankle-plantar-flexion',
   ].includes(pattern);
 }
