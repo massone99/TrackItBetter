@@ -1,5 +1,6 @@
 import * as Crypto from 'expo-crypto';
 import { db, initializeDatabase } from '../../db/client';
+import { eq } from 'drizzle-orm';
 import { exercises } from '../../db/schema';
 
 export type ExerciseMetric = 'reps' | 'time' | 'reps_load' | 'time_load' | 'distance';
@@ -35,4 +36,21 @@ export async function createCustomExercise(input: CreateCustomExerciseInput): Pr
   });
 
   return id;
+}
+
+/**
+ * Edit any exercise, catalog or custom. Past sets reference the exercise by id and keep
+ * reps, time, distance and load separately, so history, records and charts follow the new
+ * definition without rewriting old rows.
+ */
+export async function updateExercise(id: string, input: CreateCustomExerciseInput): Promise<void> {
+  await initializeDatabase();
+  await db.update(exercises).set({
+    name: input.name.trim(),
+    metric: input.metric,
+    category: input.category,
+    equipment: JSON.stringify(input.equipment),
+    cues: JSON.stringify(input.cues),
+    demoUrl: input.demoUrl ?? null,
+  }).where(eq(exercises.id, id));
 }

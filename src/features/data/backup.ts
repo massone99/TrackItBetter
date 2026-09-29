@@ -237,8 +237,22 @@ async function insertInChunks<T>(rows: T[], insert: (chunk: T[]) => Promise<void
   }
 }
 
-/** Read every supported local table into a portable, versioned backup object. */
-export async function createBackup(): Promise<LocalBackup> {
+/** What a backup file holds: everything, the workouts started in a date range, or only the exercise library. */
+export type BackupScope =
+  | { kind: 'full' }
+  | { kind: 'workouts'; from: Date; to: Date }
+  | { kind: 'library' };
+
+/** How an import meets local data: replace everything, or add rows whose ids are not there yet. */
+export type ImportMode = 'replace' | 'merge';
+
+/**
+ * Read local tables into a portable, versioned backup object. A partial scope keeps the same
+ * format with the other tables empty, and still carries every exercise and progression chain
+ * its workouts reference so the file validates and imports on its own.
+ */
+export async function createBackup(scope: BackupScope = { kind: 'full' }): Promise<LocalBackup> {
+  if (scope.kind !== 'full') return createPartialBackup(scope);
   await initializeDatabase();
   const [exerciseRows, chainRows, criteriaRows, workoutRows, entryRows, setRows, measurementRows, settingRows, photoRows, poseRows] = await Promise.all([
     db.select().from(exercises),
@@ -283,9 +297,54 @@ export async function createBackup(): Promise<LocalBackup> {
   });
 }
 
+async function createPartialBackup(scope: Exclude<BackupScope, { kind: 'full' }>): Promise<LocalBackup> {
+  await initializeDatabase();
+  const [exerciseRows, chainRows, criteriaRows] = await Promise.all([
+    db.select().from(exercises),
+    db.select().from(progressionChains),
+    db.select().from(levelCriteria),
+  ]);
+  let workoutRows: (typeof workouts.$inferSelect)[] = [];
+  let entryRows: (typeof exerciseEntries.$inferSelect)[] = [];
+  let setRows: (typeof trainingSets.$inferSelect)[] = [];
+  let keptExercises = exerciseRows;
+  if (scope.kind === 'workouts') {
+    const from = scope.from.getTime();
+    const to = scope.to.getTime();
+    workoutRows = (await db.select().from(workouts))
+      .filter((row) => row.endedAt !== null && row.startedAt.getTime() >= from && row.startedAt.getTime() <= to);
+    const workoutIds = new Set(workoutRows.map(({ id }) => id));
+    entryRows = (await db.select().from(exerciseEntries)).filter((row) => workoutIds.has(row.workoutId));
+    const entryIds = new Set(entryRows.map(({ id }) => id));
+    setRows = (await db.select().from(trainingSets)).filter((row) => entryIds.has(row.entryId));
+    const usedExercises = new Set(entryRows.map(({ exerciseId }) => exerciseId));
+    keptExercises = exerciseRows.filter(({ id }) => usedExercises.has(id));
+  }
+  const chainIds = new Set(keptExercises.flatMap(({ chainId }) => (chainId ? [chainId] : [])));
+  const keptChains = scope.kind === 'library' ? chainRows : chainRows.filter(({ id }) => chainIds.has(id));
+  const keptChainIds = new Set(keptChains.map(({ id }) => id));
+  return backupSchema.parse({
+    format: 'trackitbetter-backup',
+    version: 2,
+    exportedAt: new Date().toISOString(),
+    data: {
+      exercises: keptExercises.map((row) => ({ ...row, createdAt: row.createdAt.toISOString() })),
+      progressionChains: keptChains,
+      levelCriteria: criteriaRows.filter(({ chainId }) => keptChainIds.has(chainId)),
+      workouts: workoutRows.map((row) => ({ ...row, startedAt: row.startedAt.toISOString(), endedAt: row.endedAt?.toISOString() ?? null })),
+      exerciseEntries: entryRows,
+      trainingSets: setRows.map((row) => ({ ...row, completedAt: row.completedAt?.toISOString() ?? null })),
+      bodyMeasurements: [],
+      settings: [],
+      progressPhotos: [],
+      poseCaptures: [],
+    },
+  });
+}
+
 /** Serialize a fresh local backup as JSON for a file/share workflow. */
-export async function exportBackup(): Promise<string> {
-  return JSON.stringify(await createBackup(), null, 2);
+export async function exportBackup(scope: BackupScope = { kind: 'full' }): Promise<string> {
+  return JSON.stringify(await createBackup(scope), null, 2);
 }
 
 /** Parse and fully validate a backup before any database writes are attempted. */
@@ -309,8 +368,56 @@ function decodeBase64(value: string): Uint8Array {
   return output;
 }
 
+/**
+ * Add a validated backup to local data in one transaction, keeping every local row: rows whose
+ * id already exists (an exercise you edited, a workout imported before) are skipped. Settings,
+ * photos and pose captures are left out so a merge never changes the device's own setup.
+ */
+export async function mergeBackup(input: string): Promise<void> {
+  const { data } = parseBackup(input);
+  const date = (value: string) => new Date(value);
+  await initializeDatabase();
+  await db.transaction(async (tx) => {
+    await insertInChunks(data.progressionChains, async (rows) => {
+      await tx.insert(progressionChains).values(rows).onConflictDoNothing();
+    });
+    await insertInChunks(data.exercises, async (rows) => {
+      await tx.insert(exercises).values(rows.map((row) => ({ ...row, createdAt: date(row.createdAt) }))).onConflictDoNothing();
+    });
+    await insertInChunks(data.levelCriteria, async (rows) => {
+      await tx.insert(levelCriteria).values(rows).onConflictDoNothing();
+    });
+    await insertInChunks(data.workouts, async (rows) => {
+      await tx.insert(workouts).values(rows.map((row) => ({
+        ...row,
+        startedAt: date(row.startedAt),
+        endedAt: row.endedAt ? date(row.endedAt) : null,
+      }))).onConflictDoNothing();
+    });
+    await insertInChunks(data.exerciseEntries, async (rows) => {
+      await tx.insert(exerciseEntries).values(rows).onConflictDoNothing();
+    });
+    await insertInChunks(data.trainingSets, async (rows) => {
+      await tx.insert(trainingSets).values(rows.map((row) => ({
+        ...row,
+        note: row.note ?? null,
+        completedAt: row.completedAt ? date(row.completedAt) : null,
+      }))).onConflictDoNothing();
+    });
+    await insertInChunks(data.bodyMeasurements, async (rows) => {
+      await tx.insert(bodyMeasurements).values(rows.map((row) => ({ ...row, measuredAt: date(row.measuredAt) }))).onConflictDoNothing();
+    });
+  });
+}
+
+/** Import a backup either by replacing all local data or by merging it in. */
+export async function importBackup(input: string, mode: ImportMode = 'replace'): Promise<void> {
+  if (mode === 'merge') return mergeBackup(input);
+  return replaceWithBackup(input);
+}
+
 /** Replace all supported local data atomically with the validated backup. */
-export async function importBackup(input: string): Promise<void> {
+async function replaceWithBackup(input: string): Promise<void> {
   const backup = parseBackup(input);
   const { data } = backup;
   const photoAssets = 'progressPhotos' in data ? data.progressPhotos : [];

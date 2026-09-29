@@ -22,6 +22,7 @@ import {
 } from '../../../src/features/session/repository';
 import type { CompletedWorkout, RemovedRows, SessionExercise, SessionSet } from '../../../src/features/session/repository';
 import { RpePicker } from '../../../src/features/session/RpePicker';
+import { ExerciseNoteField } from '../../../src/features/session/ExerciseNoteField';
 import { getWorkoutMobilitySeconds } from '../../../src/features/analytics/repository';
 import { formatMinutes } from '../../../src/shared/utils/format';
 import { formatRpe } from '../../../src/domain/rpe';
@@ -153,6 +154,7 @@ export default function PastWorkoutScreen() {
               <View style={styles.flex}>
                 <Label>{t(`metric.${exercise.metric}`)}</Label>
                 <Heading>{exercise.name}</Heading>
+                {exercise.notes ? <Text numberOfLines={3} style={[styles.exerciseNote, { color: palette.textMuted }]}>{exercise.notes}</Text> : null}
               </View>
               <IconButton icon="ellipsis-horizontal" tone="plain" label={t('logger.options')} onPress={() => setExerciseFor(exercise)} />
             </View>
@@ -242,6 +244,7 @@ export default function PastWorkoutScreen() {
       <ExerciseSheet
         exercise={exerciseFor}
         onClose={() => setExerciseFor(null)}
+        onChanged={() => void refresh()}
         onRemove={(exercise) => {
           setExerciseFor(null);
           if (exercise.sets.some((set) => set.clipCount > 0)) { void edit(() => removeExerciseEntry(exercise.entryId)); return; }
@@ -329,7 +332,7 @@ function SetSheet({ title, set, onRpe, onSaveNote, onVideo, onRemove, onClose }:
   );
 }
 
-function ExerciseSheet({ exercise, onClose, onRemove }: { exercise: SessionExercise | null; onClose: () => void; onRemove: (exercise: SessionExercise) => void }) {
+function ExerciseSheet({ exercise, onClose, onChanged, onRemove }: { exercise: SessionExercise | null; onClose: () => void; onChanged: () => void; onRemove: (exercise: SessionExercise) => void }) {
   const { t } = useTranslation();
   const [confirming, setConfirming] = useState(false);
   const close = () => { setConfirming(false); onClose(); };
@@ -347,6 +350,18 @@ function ExerciseSheet({ exercise, onClose, onRemove }: { exercise: SessionExerc
         </>
       ) : (
         <>
+          {exercise ? <ExerciseNoteField key={exercise.entryId} entryId={exercise.entryId} initial={exercise.notes} onSaved={onChanged} /> : null}
+          <ActionButton
+            icon="construct-outline"
+            label={t('logger.editExercise')}
+            secondary
+            onPress={() => {
+              if (!exercise) return;
+              const exerciseId = exercise.exerciseId;
+              close();
+              router.push({ pathname: '/exercise/new', params: { edit: exerciseId } });
+            }}
+          />
           <ActionButton icon="trash-outline" label={t('logger.removeExercise')} variant="danger" onPress={() => {
             if (exercise?.sets.some((set) => set.clipCount > 0)) setConfirming(true);
             else if (exercise) onRemove(exercise);
@@ -471,7 +486,8 @@ const baseStyles = StyleSheet.create({
   clipText: { fontFamily: fonts.semibold, fontSize: 12 },
   addSet: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, minHeight: 44, borderRadius: 12, borderWidth: 1, borderStyle: 'dashed', marginTop: 6 },
   addSetText: { fontFamily: fonts.semibold, fontSize: 15 },
+  exerciseNote: { fontFamily: fonts.body, fontSize: 13, lineHeight: 18, marginTop: 4 },
   loadWrap: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  loadInput: { width: 58, height: 38, borderRadius: 10, textAlign: 'center', fontFamily: fonts.display, fontSize: 17 },
+  loadInput: { minWidth: 64, height: 38, borderRadius: 10, textAlign: 'center', textAlignVertical: 'center', fontFamily: fonts.display, fontSize: 17, lineHeight: 21, paddingVertical: 0, paddingHorizontal: 6, includeFontPadding: false },
   loadUnit: { fontFamily: fonts.medium, fontSize: 11 },
 });

@@ -2,12 +2,13 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Controller, useForm } from 'react-hook-form';
 import { useTranslation } from 'react-i18next';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { StyleSheet, TextInput, View } from 'react-native';
 import { z } from 'zod';
-import { createCustomExercise, type ExerciseCategory, type ExerciseMetric } from '../../src/features/exercises/customRepository';
+import { createCustomExercise, updateExercise, type ExerciseCategory, type ExerciseMetric } from '../../src/features/exercises/customRepository';
 import { ActionButton, Body, Chip, Label, PageHeading, Screen, TextField } from '../../src/shared/components/ui';
 import { addExerciseToWorkout } from '../../src/features/session/repository';
+import { getExerciseById } from '../../src/features/exercises/repository';
 import { normalizeVideoUrl } from '../../src/shared/utils/url';
 import { useTheme } from '../../src/shared/theme/ThemeProvider';
 import { useScaledStyles } from '../../src/shared/theme/useScaledStyles';
@@ -27,6 +28,15 @@ const formSchema = z.object({
 
 type FormValues = z.infer<typeof formSchema>;
 
+function readList(value: string): string[] {
+  try {
+    const parsed: unknown = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === 'string') : [];
+  } catch {
+    return [];
+  }
+}
+
 function splitList(value: string, commaSeparated = false): string[] {
   return value.split(commaSeparated ? /[\n,]/ : /\n/).map((item) => item.trim()).filter(Boolean);
 }
@@ -34,29 +44,51 @@ function splitList(value: string, commaSeparated = false): string[] {
 export default function NewExerciseRoute() {
   const styles = useScaledStyles(baseStyles);
   // Set when opened from an active workout: the new exercise is added to it right away.
-  const { addTo } = useLocalSearchParams<{ addTo?: string }>();
+  // Set when editing an existing exercise (catalog or custom) instead of creating one.
+  const { addTo, edit } = useLocalSearchParams<{ addTo?: string; edit?: string }>();
   const { t } = useTranslation();
   const { palette } = useTheme();
   const [saving, setSaving] = useState(false);
   const [saveFailed, setSaveFailed] = useState(false);
-  const { control, handleSubmit, formState: { errors } } = useForm<FormValues>({
+  const { control, handleSubmit, reset, formState: { errors } } = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: { name: '', metric: 'reps', category: 'push', equipment: '', cues: '', demoUrl: '' },
   });
+
+  useEffect(() => {
+    if (!edit) return;
+    void getExerciseById(edit).then((exercise) => {
+      if (!exercise) return;
+      reset({
+        name: exercise.name,
+        metric: (metrics as readonly string[]).includes(exercise.metric) ? exercise.metric as ExerciseMetric : 'reps',
+        category: (categories as readonly string[]).includes(exercise.category) ? exercise.category as ExerciseCategory : 'push',
+        equipment: readList(exercise.equipment).join(', '),
+        cues: readList(exercise.cues).join('\n'),
+        demoUrl: exercise.demoUrl ?? '',
+      });
+    });
+  }, [edit, reset]);
 
   const save = async (values: FormValues) => {
     if (saving) return;
     setSaving(true);
     setSaveFailed(false);
     try {
-      const id = await createCustomExercise({
+      const input = {
         name: values.name,
         metric: values.metric,
         category: values.category,
         equipment: splitList(values.equipment, true),
         cues: splitList(values.cues),
         demoUrl: normalizeVideoUrl(values.demoUrl) ?? null,
-      });
+      };
+      if (edit) {
+        await updateExercise(edit, input);
+        goBack({ pathname: '/exercise/[id]', params: { id: edit } });
+        return;
+      }
+      const id = await createCustomExercise(input);
       if (addTo) {
         await addExerciseToWorkout(addTo, id);
         goBack(addTo ? { pathname: '/workout/[id]', params: { id: addTo } } : { pathname: '/programs', params: { view: 'exercises' } });
@@ -72,7 +104,7 @@ export default function NewExerciseRoute() {
 
   return (
     <Screen>
-      <PageHeading title={t('customExercise.title')} subtitle={t('customExercise.subtitle')} />
+      <PageHeading title={edit ? t('customExercise.editTitle') : t('customExercise.title')} subtitle={edit ? t('customExercise.editSubtitle') : t('customExercise.subtitle')} />
       <View style={styles.field}>
         <Label>{t('customExercise.name')}</Label>
         <Controller control={control} name="name" render={({ field: { onChange, onBlur, value } }) => (

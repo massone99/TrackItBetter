@@ -167,6 +167,7 @@ export default function ExerciseRoute() {
       ) : null}
 
       <ActionButton icon="add" label={t('exercise.addToWorkout')} onPress={() => void beginWithExercise()} />
+      <ActionButton icon="create-outline" label={t('exercise.edit')} secondary onPress={() => router.push({ pathname: '/exercise/new', params: { edit: exercise.id } })} />
       {exercise.isCustom ? (
         <ActionButton icon="archive-outline" label={t('exercise.removeFromLibrary')} variant="danger" onPress={() => setConfirmArchive(true)} />
       ) : null}
