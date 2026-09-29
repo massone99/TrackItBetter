@@ -110,3 +110,18 @@ describe('per-exercise weeks', () => {
     expect(buildMobilityCycles(rows, today).map((cycle) => cycle.exerciseId)).toEqual(['pike-stretch', 'front-split']);
   });
 });
+
+describe('mobility through extra categories', () => {
+  const extra = { category: 'push', extraCategories: '["mobility"]', exerciseId: 'push-mob', exerciseName: 'Push with mobility' };
+
+  it('counts holds of an exercise with mobility as an extra category', () => {
+    expect(isMobilityTimedSet(row(extra))).toBe(true);
+    expect(isMobilityTimedSet(row({ category: 'push' }))).toBe(false);
+    expect(mobilitySecondsForWorkout([row(extra)], 'w1')).toBe(60);
+  });
+
+  it('includes them in the week and the cycles', () => {
+    expect(buildMobilityWeek([row(extra), row({})], now)).toEqual({ seconds: 120, sessions: 1 });
+    expect(buildMobilityCycles([row(extra)], now).map((cycle) => cycle.exerciseId)).toEqual(['push-mob']);
+  });
+});

@@ -1,6 +1,6 @@
 import { estimateOneRepMax } from '../../domain';
 import { setEstimate } from './estimates';
-import { isMobilityTimedSet } from './mobility';
+import { isMobilityRow, isMobilityTimedSet } from './mobility';
 import { getEffectiveLoad, rowCategories, rowPattern, type CompletedSetRow } from './summary';
 
 /**
@@ -23,7 +23,7 @@ export type MetricId =
   | 'reps' | 'holdSec' | 'distanceM' | 'loadReps' | 'loadSec'
   | 'mobilityHoldSec' | 'mobilitySets'
   | 'bestReps' | 'bestHold' | 'bestLoad' | 'bestE1rm' | 'estMaxReps' | 'estMaxHold'
-  | 'avgRpe' | 'sessionRpe' | 'trainingSec' | 'sleep' | 'energy' | 'soreness';
+  | 'setsAtRpe' | 'avgRpe' | 'sessionRpe' | 'trainingSec' | 'sleep' | 'energy' | 'soreness';
 
 export type MetricFamily = 'counts' | 'volume' | 'mobility' | 'performance' | 'intensity';
 export type MetricUnit = 'count' | 'reps' | 'seconds' | 'meters' | 'kgReps' | 'kgSeconds' | 'kg' | 'score';
@@ -53,6 +53,7 @@ export const METRICS: readonly MetricDef[] = [
   { id: 'bestE1rm', family: 'performance', unit: 'kg', additive: false },
   { id: 'estMaxReps', family: 'performance', unit: 'reps', additive: false },
   { id: 'estMaxHold', family: 'performance', unit: 'seconds', additive: false },
+  { id: 'setsAtRpe', family: 'intensity', unit: 'count', additive: true },
   { id: 'avgRpe', family: 'intensity', unit: 'score', additive: false },
   { id: 'sessionRpe', family: 'intensity', unit: 'score', additive: false },
   { id: 'trainingSec', family: 'intensity', unit: 'seconds', additive: false },
@@ -95,17 +96,23 @@ export const PAGE_SIZE: Record<Granularity, number> = { workout: 20, day: 30, we
 const BEST_E1RM_MAX_REPS = 36;
 
 export function matchesScope(row: CompletedSetRow, scope: Scope): boolean {
-  if (scope.kind === 'mobility' && row.category !== 'mobility') return false;
-  if (scope.kind === 'strength' && (row.category === 'mobility' || row.category === 'cardio')) return false;
-  if (scope.category && !rowCategories(row).includes(scope.category)) return false;
+  const categories = rowCategories(row);
+  if (scope.kind === 'mobility' && !isMobilityRow(row)) return false;
+  // Strength: any category that is neither mobility nor cardio (a push with a mobility extra counts in both).
+  if (scope.kind === 'strength' && !categories.some((category) => category !== 'mobility' && category !== 'cardio')) return false;
+  if (scope.category && !categories.includes(scope.category)) return false;
   if (scope.pattern && rowPattern(row) !== scope.pattern) return false;
   if (scope.exerciseId && row.exerciseId !== scope.exerciseId) return false;
   return true;
 }
 
+/** RPE threshold used until the user picks one; shared with the training totals screen. */
+export const DEFAULT_RPE_THRESHOLD = 8;
+
 /** One metric over a set of rows and the workouts they belong to. */
-export function computeMetric(metric: MetricId, rows: readonly CompletedSetRow[], workouts: readonly ExploreWorkout[]): number | null {
+export function computeMetric(metric: MetricId, rows: readonly CompletedSetRow[], workouts: readonly ExploreWorkout[], rpeThreshold = DEFAULT_RPE_THRESHOLD): number | null {
   switch (metric) {
+    case 'setsAtRpe': return rows.filter((row) => row.rpe != null && row.rpe >= rpeThreshold).length;
     case 'sessions': return new Set(rows.map((row) => row.workoutId)).size;
     case 'sets': return rows.length;
     case 'exercises': return new Set(rows.map((row) => row.exerciseId)).size;
@@ -115,7 +122,7 @@ export function computeMetric(metric: MetricId, rows: readonly CompletedSetRow[]
     case 'loadReps': return sum(rows, (row) => (row.metric === 'reps_load' ? loadTimes(row, row.reps) : null));
     case 'loadSec': return sum(rows, (row) => (row.metric === 'time_load' ? loadTimes(row, row.durationSec) : null));
     case 'mobilityHoldSec': return sum(rows, (row) => (isMobilityTimedSet(row) ? row.durationSec : null));
-    case 'mobilitySets': return rows.filter((row) => row.category === 'mobility').length;
+    case 'mobilitySets': return rows.filter(isMobilityRow).length;
     case 'bestReps': return max(rows, (row) => (isRepMetric(row) ? row.reps : null));
     case 'bestHold': return max(rows, (row) => (isTimeMetric(row) ? row.durationSec : null));
     case 'bestLoad': return max(rows, (row) => (row.metric === 'reps_load' || row.metric === 'time_load' ? getEffectiveLoad(row) ?? null : null));
@@ -145,6 +152,8 @@ export function availableMetrics(data: ExploreData, scope: Scope): MetricId[] {
   return METRICS.filter((metric) => {
     if (metric.family === 'performance' && !scope.exerciseId) return false;
     if (metric.family === 'mobility' && (scope.kind === 'mobility' || scope.category === 'mobility' || scope.exerciseId)) return false;
+    // Offered whenever any set was rated, so the threshold can be moved to where sets are.
+    if (metric.id === 'setsAtRpe') return rows.some((row) => row.rpe != null);
     const value = computeMetric(metric.id, rows, workouts);
     return metric.family === 'counts' || (value != null && value > 0);
   }).map((metric) => metric.id);
@@ -157,6 +166,8 @@ export interface SeriesOptions {
   now: Date;
   /** 0 is the latest page; each step goes one page further back. */
   page: number;
+  /** For the "sets at or above RPE" metric. */
+  rpeThreshold?: number;
 }
 
 export interface Series {
@@ -184,7 +195,7 @@ export function buildSeries(data: ExploreData, options: SeriesOptions): Series {
           key: id,
           start: startedAt,
           end: workout?.endedAt ?? startedAt,
-          value: computeMetric(options.metric, byWorkout.get(id)!, workout ? [workout] : []),
+          value: computeMetric(options.metric, byWorkout.get(id)!, workout ? [workout] : [], options.rpeThreshold),
           workoutIds: [id],
         };
       }),
@@ -203,7 +214,7 @@ export function buildSeries(data: ExploreData, options: SeriesOptions): Series {
       key: periodKey(start, granularity),
       start,
       end: shift(start, granularity, 1),
-      value: computeMetric(options.metric, bucketRows, workoutsFor(data, bucketRows)),
+      value: computeMetric(options.metric, bucketRows, workoutsFor(data, bucketRows), options.rpeThreshold),
       workoutIds: [...new Set(bucketRows.map((row) => row.workoutId))],
     });
   }
@@ -241,7 +252,7 @@ export function nextLevel(scope: Scope): BreakdownLevel | null {
 }
 
 /** Splits one bucket's metric by the next level down, largest first. */
-export function buildBreakdown(data: ExploreData, scope: Scope, metric: MetricId, bucket: Pick<Bucket, 'workoutIds'>): BreakdownItem[] {
+export function buildBreakdown(data: ExploreData, scope: Scope, metric: MetricId, bucket: Pick<Bucket, 'workoutIds'>, rpeThreshold?: number): BreakdownItem[] {
   const level = nextLevel(scope);
   if (!level) return [];
   const ids = new Set(bucket.workoutIds);
@@ -249,14 +260,14 @@ export function buildBreakdown(data: ExploreData, scope: Scope, metric: MetricId
   const groups = groupRows(rows, level);
   const items: BreakdownItem[] = [];
   for (const [key, groupRows] of groups) {
-    const value = computeMetric(metric, groupRows, workoutsFor(data, groupRows));
+    const value = computeMetric(metric, groupRows, workoutsFor(data, groupRows), rpeThreshold);
     if (value == null || value <= 0) continue;
     items.push({ key, name: level === 'exercise' ? groupRows[0].exerciseName : key, value, share: null });
   }
   if (METRIC_BY_ID[metric].additive) {
     // Of the period's own total: an exercise in two categories counts in both, so the shares of a
     // category split can add up to more than 100%.
-    const total = computeMetric(metric, rows, workoutsFor(data, rows)) ?? 0;
+    const total = computeMetric(metric, rows, workoutsFor(data, rows), rpeThreshold) ?? 0;
     for (const item of items) item.share = total > 0 ? item.value / total : null;
   }
   return items.sort((a, b) => b.value - a.value);

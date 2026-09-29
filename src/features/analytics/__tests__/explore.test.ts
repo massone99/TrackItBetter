@@ -303,3 +303,74 @@ describe('movement group as the pattern', () => {
   });
 });
 
+describe('every category of an exercise counts', () => {
+  const row = (category: string, extras: string[], id: string) => set('w1', w1.startedAt, { exerciseId: id, exerciseName: id, category, extraCategories: JSON.stringify(extras) });
+  const pushWithMobility = row('push', ['mobility'], 'push-mob');
+  const mobilityWithPush = row('mobility', ['push'], 'mob-push');
+  const cardioOnly = row('cardio', [], 'cardio');
+  const cardioWithCore = row('cardio', ['core'], 'cardio-core');
+  const mobilityOnly = row('mobility', [], 'mob');
+
+  it('mobility scope takes an exercise with mobility as an extra category', () => {
+    const inMobility = [pushWithMobility, mobilityWithPush, cardioOnly, mobilityOnly].filter((r) => matchesScope(r, { kind: 'mobility' })).map((r) => r.exerciseId);
+    expect(inMobility).toEqual(['push-mob', 'mob-push', 'mob']);
+  });
+
+  it('strength scope takes an exercise with any strength category, even under mobility or cardio', () => {
+    const inStrength = [pushWithMobility, mobilityWithPush, cardioOnly, cardioWithCore, mobilityOnly].filter((r) => matchesScope(r, { kind: 'strength' })).map((r) => r.exerciseId);
+    expect(inStrength).toEqual(['push-mob', 'mob-push', 'cardio-core']);
+  });
+
+  it('counts mobility sets and mobility hold time through extra categories', () => {
+    const timed = { ...pushWithMobility, metric: 'time', reps: null, durationSec: 30 };
+    expect(computeMetric('mobilitySets', [timed, mobilityOnly, cardioOnly], [w1])).toBe(2);
+    expect(computeMetric('mobilityHoldSec', [timed, cardioOnly], [w1])).toBe(30);
+  });
+});
+
+describe('sets at or above an RPE, per category and time frame', () => {
+  const day = (offset: number) => new Date(2026, 8, 21 + offset, 10);
+  const wA = workout('wa', day(0)); const wB = workout('wb', day(1)); const wC = workout('wc', day(8));
+  const rated = (w: ExploreWorkout, over: Partial<CompletedSetRow>) => set(w.id, w.startedAt, over);
+  const planche = { exerciseId: 'tuck-planche', exerciseName: 'Tuck Planche', category: 'skill', extraCategories: '["push"]', movementPattern: 'horizontal-push' };
+  const data: ExploreData = {
+    workouts: [wA, wB, wC],
+    rows: [
+      rated(wA, { ...planche, rpe: 9 }), rated(wA, { ...planche, rpe: 7 }), rated(wA, { ...pushUp, rpe: 8 }), rated(wA, { ...pushUp, rpe: null }),
+      rated(wB, { ...pushUp, rpe: 10 }), rated(wB, { exerciseId: 'pull-up', category: 'pull', rpe: 8.5 }),
+      rated(wC, { exerciseId: 'pull-up', category: 'pull', rpe: 6 }), rated(wC, { ...planche, rpe: 8 }),
+    ],
+  };
+
+  it('counts rated sets at or above the threshold and ignores unrated ones', () => {
+    expect(computeMetric('setsAtRpe', data.rows, data.workouts, 8)).toBe(5);
+    expect(computeMetric('setsAtRpe', data.rows, data.workouts, 9)).toBe(2);
+    expect(computeMetric('setsAtRpe', [], [], 8)).toBe(0);
+  });
+
+  it.each(['workout', 'day', 'week', 'month'] as const)('is available on the %s time frame and adds up to the total', (granularity) => {
+    const series = buildSeries(data, { granularity, scope: { kind: 'all' }, metric: 'setsAtRpe', now: new Date(2026, 8, 30), page: 0, rpeThreshold: 8 });
+    const total = series.buckets.reduce((acc, bucket) => acc + (bucket.value ?? 0), 0);
+    expect(total).toBe(5);
+  });
+
+  it('weekly buckets hold the right counts', () => {
+    const { buckets } = buildSeries(data, { granularity: 'week', scope: { kind: 'all' }, metric: 'setsAtRpe', now: new Date(2026, 8, 30), page: 0, rpeThreshold: 8 });
+    expect(buckets.slice(-2).map((bucket) => bucket.value)).toEqual([4, 1]);
+  });
+
+  it('splits by category, with a multi-category exercise counted in each', () => {
+    const items = buildBreakdown(data, { kind: 'all' }, 'setsAtRpe', { workoutIds: ['wa', 'wb', 'wc'] }, 8);
+    expect(Object.fromEntries(items.map((item) => [item.key, item.value]))).toEqual({ push: 4, skill: 2, pull: 1 });
+  });
+
+  it('follows the threshold in the category split too', () => {
+    const items = buildBreakdown(data, { kind: 'all' }, 'setsAtRpe', { workoutIds: ['wa', 'wb', 'wc'] }, 9.5);
+    expect(Object.fromEntries(items.map((item) => [item.key, item.value]))).toEqual({ push: 1 });
+  });
+
+  it('is offered whenever some set has an RPE, whatever the threshold', () => {
+    expect(availableMetrics(data, { kind: 'all' })).toContain('setsAtRpe');
+    expect(availableMetrics({ ...data, rows: data.rows.map((r) => ({ ...r, rpe: null })) }, { kind: 'all' })).not.toContain('setsAtRpe');
+  });
+});
