@@ -20,6 +20,7 @@ import {
 import { ActionButton, Body, Chip, Icon, Label, PageHeading, Screen, TextField } from '../../src/shared/components/ui';
 import { addExerciseToWorkout } from '../../src/features/session/repository';
 import { getExerciseById } from '../../src/features/exercises/repository';
+import { setPendingExercise } from '../../src/features/programs/pendingExercise';
 import { useTheme } from '../../src/shared/theme/ThemeProvider';
 import { useScaledStyles } from '../../src/shared/theme/useScaledStyles';
 import { goBack } from '../../src/shared/navigation/goBack';
@@ -28,7 +29,8 @@ export default function NewExerciseRoute() {
   const styles = useScaledStyles(baseStyles);
   // Set when opened from an active workout: the new exercise is added to it right away.
   // Set when editing an existing exercise (catalog or custom) instead of creating one.
-  const { addTo, edit } = useLocalSearchParams<{ addTo?: string; edit?: string }>();
+  // Set when opened from the program builder: the new exercise goes into that workout of the program.
+  const { addTo, addToProgram, edit } = useLocalSearchParams<{ addTo?: string; addToProgram?: string; edit?: string }>();
   const { t } = useTranslation();
   const { palette } = useTheme();
   const [saving, setSaving] = useState(false);
@@ -61,7 +63,10 @@ export default function NewExerciseRoute() {
         return;
       }
       const id = await createCustomExercise(input);
-      if (addTo) {
+      if (addToProgram) {
+        setPendingExercise({ sessionId: addToProgram, exerciseId: id, metric: input.metric });
+        goBack('/program-builder');
+      } else if (addTo) {
         await addExerciseToWorkout(addTo, id);
         goBack({ pathname: '/workout/[id]', params: { id: addTo } });
       } else {

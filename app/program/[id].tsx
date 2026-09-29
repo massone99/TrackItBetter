@@ -2,6 +2,7 @@ import { router, useLocalSearchParams } from "expo-router";
 import { useState } from "react";
 import { ActivityIndicator, Alert, StyleSheet, View } from "react-native";
 import { Text } from "../../src/shared/components/Text";
+import { WorkoutInProgressSheet } from "../../src/features/session/WorkoutInProgressSheet";
 import { addExerciseToWorkout, addSet, getActiveWorkout, startWorkout, updateSet } from "../../src/features/session/repository";
 import { findProgram, ProgramExercise } from "../../src/features/programs/catalog";
 import { ActionButton, Body, Card, Heading, Label, PageHeading, Screen, SectionTitle } from "../../src/shared/components/ui";
@@ -15,6 +16,7 @@ export default function ProgramRoute() {
   const program = findProgram(id);
   const { palette } = useTheme();
   const [startingSession, setStartingSession] = useState<string | null>(null);
+  const [blockedBy, setBlockedBy] = useState<{ id: string; name: string } | null>(null);
   const language = i18n.language.startsWith("it") ? "it" : "en";
 
   if (!program) {
@@ -25,6 +27,8 @@ export default function ProgramRoute() {
     if (startingSession) return;
     setStartingSession(sessionId);
     try {
+      const open = await getActiveWorkout();
+      if (open) { setBlockedBy({ id: open.id, name: open.name }); return; }
       const workoutId = await startWorkout(sessionName);
       const entries = [] as { entryId: string; prescription: ProgramExercise }[];
       for (const prescription of exercises) {
@@ -55,6 +59,7 @@ export default function ProgramRoute() {
 
   return (
     <Screen>
+      <WorkoutInProgressSheet active={blockedBy} onClose={() => setBlockedBy(null)} />
       <PageHeading title={program.name[language]} subtitle={program.frequency[language]} />
       <Card style={[styles.intro, { backgroundColor: palette.surfaceMuted, borderColor: palette.surfaceMuted }]}>
         <Label style={{ color: palette.accentStrong }}>{language === "it" ? "Panoramica" : "Overview"}</Label>

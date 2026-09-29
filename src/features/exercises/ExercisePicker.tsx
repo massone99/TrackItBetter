@@ -44,17 +44,19 @@ export function ExercisePicker({ visible, title, subtitle, initialCategory = nul
     return () => { mounted = false; };
   }, [visible, query]);
 
+  // Every opening starts from a clean search: leaving the picker clears what was typed.
+  const leave = (action: () => void) => () => { setQuery(''); setCategory(initialCategory); action(); };
   const filtered = choices.filter((choice) => !category || choice.category === category || choice.extraCategories.includes(`"${category}"`)).slice(0, 80);
 
   return (
-    <Modal visible={visible} animationType={reducedMotion || speed === 'off' ? 'none' : speed === 'fast' ? 'fade' : 'slide'} onRequestClose={onClose} statusBarTranslucent navigationBarTranslucent>
+    <Modal visible={visible} animationType={reducedMotion || speed === 'off' ? 'none' : speed === 'fast' ? 'fade' : 'slide'} onRequestClose={leave(onClose)} statusBarTranslucent navigationBarTranslucent>
       <View style={[styles.root, { backgroundColor: palette.background, paddingTop: Math.max(insets.top, 14) + 10 }]}>
         <View style={styles.header}>
           <View style={styles.flex}>
             <Heading style={styles.title}>{title}</Heading>
             {subtitle ? <Body>{subtitle}</Body> : null}
           </View>
-          <IconButton icon="close" label={t('workout.close')} onPress={onClose} />
+          <IconButton icon="close" label={t('workout.close')} onPress={leave(onClose)} />
         </View>
         <View style={[styles.searchBox, { backgroundColor: palette.surface, borderColor: palette.border }]}>
           <Icon name="search" size={18} color={palette.textMuted} />
@@ -72,21 +74,21 @@ export function ExercisePicker({ visible, title, subtitle, initialCategory = nul
           {CATEGORIES.map((item) => <Chip key={item} label={t(`library.category.${item}`)} selected={category === item} onPress={() => setCategory(item)} />)}
         </ScrollView>
         <KeyboardScroll contentContainerStyle={[styles.list, { paddingBottom: insets.bottom + 24 }]}>
-          {onCreate ? <ListRow icon="create-outline" title={t('logger.createExercise')} onPress={onCreate} /> : null}
+          {onCreate ? <ListRow icon="create-outline" title={t('logger.createExercise')} onPress={leave(onCreate)} /> : null}
           {filtered.map((exercise) => (
             <ListRow
               key={exercise.id}
               icon={iconForCategory(exercise.category)}
               title={exercise.name}
               subtitle={[t(`library.category.${exercise.category}`), t(`metric.${exercise.metric}`), exercise.level ? t('progression.level', { number: exercise.level }) : null].filter(Boolean).join(' · ')}
-              onPress={() => onChoose(exercise)}
+              onPress={leave(() => onChoose(exercise))}
               // The add icon sits beside the row's touch area, so it needs its own press handler.
               trailing={(
                 <Pressable
                   accessibilityRole="button"
                   accessibilityLabel={t('logger.addNamed', { name: exercise.name })}
                   hitSlop={10}
-                  onPress={() => { tapFeedback(); onChoose(exercise); }}
+                  onPress={leave(() => { tapFeedback(); onChoose(exercise); })}
                 >
                   <Icon name="add-circle" size={28} color={palette.accentStrong} />
                 </Pressable>

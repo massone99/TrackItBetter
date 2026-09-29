@@ -25,4 +25,10 @@ describe('parsePrograms', () => {
     }]);
     expect(program.sessions.map((session) => session.id)).toEqual(['b', 'a']);
   });
+
+  it('keeps movements saved without a rest', () => {
+    const { restSeconds: _rest, ...noRest } = exercise;
+    const [program] = parsePrograms([{ id: 'p', name: 'Plan', updatedAt: 'x', sessions: [{ id: 's', name: 'A', exercises: [noRest, { ...exercise, id: 'e2', restSeconds: null }] }] }]);
+    expect(program.sessions[0].exercises).toHaveLength(2);
+  });
 });

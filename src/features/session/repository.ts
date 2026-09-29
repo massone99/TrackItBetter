@@ -556,9 +556,9 @@ export async function copyValuesToSet(setId: string, values: PreviousSetValues):
 }
 
 /** Repeats a finished workout unless another one is in progress, whose name is returned instead. */
-export async function repeatWorkoutIfIdle(sourceId: string): Promise<{ workoutId: string } | { activeName: string }> {
+export async function repeatWorkoutIfIdle(sourceId: string): Promise<{ workoutId: string } | { active: { id: string; name: string } }> {
   const active = await getActiveWorkout();
-  if (active) return { activeName: active.name };
+  if (active) return { active: { id: active.id, name: active.name } };
   return { workoutId: await repeatWorkout(sourceId) };
 }
 

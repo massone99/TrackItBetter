@@ -1,6 +1,6 @@
 import { migrateDatabase } from '../../../db/migrations';
 import { seedCatalogIfEmpty } from '../../../db/seed/import';
-import { addExerciseToWorkout, addSet, copyValuesToSet, getActiveWorkout, getPreviousPerformance, repeatWorkout, setSetKind, startWorkout, updateEntryNote, updateSet, updateSetNote, updateSetRpe } from '../repository';
+import { addExerciseToWorkout, addSet, copyValuesToSet, getActiveWorkout, getPreviousPerformance, repeatWorkout, repeatWorkoutIfIdle, setSetKind, startWorkout, updateEntryNote, updateSet, updateSetNote, updateSetRpe } from '../repository';
 
 jest.mock('../../../db/client', () => {
   const { createRealDatabase } = jest.requireActual('../../../test/realDatabase');
@@ -62,5 +62,14 @@ describe('repeatWorkout', () => {
       { index: 1, kind: 'warmup', reps: 3, addedLoadKg: 0, rpe: null, note: null, restSec: null, completedAt: null },
       { index: 2, kind: 'working', reps: 6, addedLoadKg: 15, rpe: 8.5, note: 'Presa stretta', restSec: 150, completedAt: null },
     ]);
+  });
+});
+
+describe('repeatWorkoutIfIdle', () => {
+  it('does not start a second workout while one is open, and says which one', async () => {
+    const open = await startWorkout('Still going');
+    const result = await repeatWorkoutIfIdle(finishedId);
+    expect(result).toEqual({ active: { id: open, name: 'Still going' } });
+    real.sqlite.prepare('DELETE FROM workout WHERE id = ?').run(open);
   });
 });

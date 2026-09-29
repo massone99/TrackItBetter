@@ -3,6 +3,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Keyboard, Pressable, StyleSheet, TextInput, View } from 'react-native';
 import { Text } from '../src/shared/components/Text';
+import { WorkoutInProgressSheet } from '../src/features/session/WorkoutInProgressSheet';
+import { getActiveWorkout } from '../src/features/session/repository';
 import { defaultMicroTarget, getLastMicroSessionExercise, listMicroSessionExercises, listRecentMicroSessionExerciseIds, logMicroSession, pickRecent } from '../src/features/session/microSession';
 import { ActionButton, Body, Card, Chip, Label, PageHeading, Screen, Icon } from '../src/shared/components/ui';
 import { useTheme } from '../src/shared/theme/ThemeProvider';
@@ -26,6 +28,7 @@ export default function MicroSessionScreen() {
   const workingRef = useRef(false);
   const requestRef = useRef(0);
   const [message, setMessage] = useState<'done' | 'error' | null>(null);
+  const [blockedBy, setBlockedBy] = useState<{ id: string; name: string } | null>(null);
 
   useEffect(() => { selectedRef.current = selected; }, [selected]);
 
@@ -77,6 +80,8 @@ export default function MicroSessionScreen() {
     setWorking(true);
     setMessage(null);
     try {
+      const open = await getActiveWorkout();
+      if (open) { setBlockedBy({ id: open.id, name: open.name }); return; }
       await logMicroSession(selected.id, parsed);
       setMessage('done');
       void loadBase();
@@ -92,6 +97,7 @@ export default function MicroSessionScreen() {
 
   return (
     <Screen>
+      <WorkoutInProgressSheet active={blockedBy} onClose={() => setBlockedBy(null)} />
       <PageHeading title={t('micro.title')} subtitle={t('micro.subtitle')} />
       <Card>
         {selected ? <>

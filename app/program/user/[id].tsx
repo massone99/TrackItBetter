@@ -7,6 +7,8 @@ import { listExercises } from '../../../src/features/exercises/repository';
 import { describePrescription } from '../../../src/features/programs/describe';
 import { startUserProgramSession } from '../../../src/features/programs/startUserSession';
 import { deleteUserProgram, duplicateUserProgram, getUserProgram } from '../../../src/features/programs/userPrograms';
+import { readDefaultRest } from '../../../src/features/session/restDefaults';
+import { WorkoutInProgressSheet } from '../../../src/features/session/WorkoutInProgressSheet';
 import { getActiveWorkout, listRecentWorkoutNames } from '../../../src/features/session/repository';
 import { ActionButton, Body, Card, IconButton, Label, PageHeading, Screen, SectionTitle, Sheet, Text } from '../../../src/shared/components/ui';
 import { goBack } from '../../../src/shared/navigation/goBack';
@@ -28,17 +30,18 @@ export default function UserProgramScreen() {
   const [starting, setStarting] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
-  const [activeName, setActiveName] = useState<string | null>(null);
+  const [active, setActive] = useState<{ id: string; name: string } | null>(null);
+  const [blockedBy, setBlockedBy] = useState<{ id: string; name: string } | null>(null);
   const [recentNames, setRecentNames] = useState<string[]>([]);
 
   useFocusEffect(useCallback(() => {
     let mounted = true;
-    void Promise.all([getUserProgram(id), listExercises(), getActiveWorkout(), listRecentWorkoutNames()]).then(([found, exercises, active, names]) => {
+    void Promise.all([getUserProgram(id), listExercises(), getActiveWorkout(), listRecentWorkoutNames()]).then(([found, exercises, activeWorkout, names]) => {
       if (!mounted) return;
       setRecentNames(names);
       setProgram(found);
       setInfo(new Map(exercises.map((exercise) => [exercise.id, { name: exercise.name, metric: exercise.metric }])));
-      setActiveName(active?.name ?? null);
+      setActive(activeWorkout ? { id: activeWorkout.id, name: activeWorkout.name } : null);
       setLoading(false);
     });
     return () => { mounted = false; };
@@ -59,13 +62,14 @@ export default function UserProgramScreen() {
 
   const start = async (session: UserProgramSession) => {
     if (starting) return;
+    if (active) { setBlockedBy(active); return; }
     setStarting(session.id);
     setError(null);
     try {
       const workoutId = await startUserProgramSession(program, session);
       router.replace({ pathname: '/workout/[id]', params: { id: workoutId } });
-    } catch {
-      setError(t('programBuilder.startError'));
+    } catch (reason) {
+      setError(`${t('programBuilder.startError')} (${reason instanceof Error ? reason.message : String(reason)})`);
     } finally {
       setStarting(null);
     }
@@ -89,7 +93,7 @@ export default function UserProgramScreen() {
         }
       />
 
-      {activeName ? <Body>{t('userProgram.activeWorkout', { name: activeName })}</Body> : null}
+      {active ? <Body>{t('userProgram.activeWorkout', { name: active.name })}</Body> : null}
       {error ? <Text style={[styles.error, { color: palette.warning }]}>{error}</Text> : null}
 
       <Body>{t('userProgram.rotationHelp')}</Body>
@@ -103,7 +107,7 @@ export default function UserProgramScreen() {
               </Label>
               <Text style={styles.sessionName}>{session.name}</Text>
             </View>
-            <Label>{t('userProgram.daySummary', { count: sessionSetCount(session), minutes: formatMinutes(estimateSessionSeconds(session, metricById)) })}</Label>
+            <Label>{t('userProgram.daySummary', { count: sessionSetCount(session), minutes: formatMinutes(estimateSessionSeconds(session, metricById, readDefaultRest('working'))) })}</Label>
           </View>
           {session.exercises.map((prescription) => (
             <View key={prescription.id} style={[styles.exerciseRow, { borderTopColor: palette.border }]}>
@@ -115,11 +119,13 @@ export default function UserProgramScreen() {
             icon="play"
             label={starting === session.id ? t('programBuilder.starting') : t('userProgram.start')}
             secondary={session.id !== nextId}
-            disabled={starting !== null || activeName !== null}
+            disabled={starting !== null}
             onPress={() => void start(session)}
           />
         </Card>
       ))}
+
+      <WorkoutInProgressSheet active={blockedBy} onClose={() => setBlockedBy(null)} />
 
       <ActionButton icon="trash-outline" label={t('programBuilder.delete')} variant="danger" onPress={() => setConfirmDelete(true)} />
 

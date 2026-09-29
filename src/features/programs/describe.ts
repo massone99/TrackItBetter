@@ -15,6 +15,6 @@ export function describePrescription(prescription: UserProgramExercise, metric: 
       ? t('userProgram.loadAuto')
       : t('userProgram.kgValue', { value: formatNumber(prescription.loadKg) }));
   }
-  if (prescription.restSeconds > 0) parts.push(t('userProgram.restShort', { value: prescription.restSeconds }));
+  if (prescription.restSeconds != null && prescription.restSeconds > 0) parts.push(t('userProgram.restShort', { value: prescription.restSeconds }));
   return parts.join(' · ');
 }

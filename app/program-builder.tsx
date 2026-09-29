@@ -9,6 +9,7 @@ import {
   isLoadMetric,
   isTimedMetric,
   moveItem,
+  newPrescription,
   replaceExercise,
   sessionSetCount,
   validateUserProgram,
@@ -17,6 +18,8 @@ import {
   type UserProgramSession,
 } from '../src/domain/userProgram';
 import { ExercisePicker } from '../src/features/exercises/ExercisePicker';
+import { readDefaultRest } from '../src/features/session/restDefaults';
+import { takePendingExercise } from '../src/features/programs/pendingExercise';
 import { listExercises } from '../src/features/exercises/repository';
 import { getUserProgram, saveUserProgram } from '../src/features/programs/userPrograms';
 import {
@@ -44,6 +47,8 @@ type Draft = { name: string; sessions: UserProgramSession[] };
 
 /** Stepper value below zero stands for "reuse last time's load". */
 const LOAD_AUTO = -2.5;
+/** Stepper position meaning "no rest of its own": the default rest applies. */
+const REST_DEFAULT = -15;
 
 export default function ProgramEditorScreen() {
   const styles = useScaledStyles(baseStyles);
@@ -68,6 +73,14 @@ export default function ProgramEditorScreen() {
 
   const dirty = loaded && JSON.stringify({ name, sessions } satisfies Draft) !== snapshot;
 
+  const clearError = (match: (error: ProgramError) => boolean) => setErrors((current) => current.filter((error) => !match(error)));
+
+  const addExercise = (sessionId: string, exerciseId: string, metric: string) => {
+    const prescription = newPrescription(exerciseId, metric, () => Crypto.randomUUID());
+    setSessions((current) => current.map((session) => (session.id === sessionId ? { ...session, exercises: [...session.exercises, prescription] } : session)));
+    clearError((error) => error.sessionId === sessionId && error.code === 'sessionEmpty');
+  };
+
   // Exercise names are reloaded on focus so movements created from the picker show up by name.
   useFocusEffect(useCallback(() => {
     let mounted = true;
@@ -75,6 +88,9 @@ export default function ProgramEditorScreen() {
       const exercises = await listExercises();
       if (!mounted) return;
       setExerciseInfo(new Map(exercises.map((exercise) => [exercise.id, { name: exercise.name, metric: exercise.metric }])));
+      // An exercise created from this builder's picker joins the workout it was created for.
+      const created = takePendingExercise();
+      if (created) addExercise(created.sessionId, created.exerciseId, created.metric);
       if (id && !loaded) {
         const program = await getUserProgram(id);
         if (!mounted) return;
@@ -95,8 +111,6 @@ export default function ProgramEditorScreen() {
     event.preventDefault();
     setLeaveAction(event.data.action);
   }), [navigation, dirty]);
-
-  const clearError = (match: (error: ProgramError) => boolean) => setErrors((current) => current.filter((error) => !match(error)));
 
   const updateSession = (sessionId: string, patch: Partial<UserProgramSession>) => {
     setSessions((current) => current.map((session) => (session.id === sessionId ? { ...session, ...patch } : session)));
@@ -122,13 +136,6 @@ export default function ProgramEditorScreen() {
         : item)),
     })));
     clearError((error) => error.exerciseId === prescriptionId);
-  };
-
-  const addExercise = (sessionId: string, exerciseId: string, metric: string) => {
-    const target = isTimedMetric(metric) ? 30 : metric === 'distance' ? 100 : 8;
-    const prescription: UserProgramExercise = { id: Crypto.randomUUID(), exerciseId, sets: 3, target, restSeconds: 90, loadKg: null };
-    setSessions((current) => current.map((session) => (session.id === sessionId ? { ...session, exercises: [...session.exercises, prescription] } : session)));
-    clearError((error) => error.sessionId === sessionId && error.code === 'sessionEmpty');
   };
 
   const save = async () => {
@@ -172,7 +179,7 @@ export default function ProgramEditorScreen() {
       {sessions.length === 0 ? <EmptyState icon="calendar-outline" title={t('programBuilder.addDay')} body={t('userProgram.errors.noSessions')} /> : null}
       {sessions.map((session, index) => {
         const sessionErrors = errors.filter((error) => error.sessionId === session.id && !error.exerciseId);
-        const minutes = session.exercises.length > 0 ? formatMinutes(estimateSessionSeconds(session, metricById)) : null;
+        const minutes = session.exercises.length > 0 ? formatMinutes(estimateSessionSeconds(session, metricById, readDefaultRest('working'))) : null;
         return (
           <Card key={session.id} style={styles.dayCard}>
             <View style={styles.header}>
@@ -228,12 +235,12 @@ export default function ProgramEditorScreen() {
                   <Stepper
                     layout="row"
                     label={t('userProgram.rest')}
-                    value={prescription.restSeconds}
-                    display={t('userProgram.secondsValue', { value: prescription.restSeconds })}
+                    value={prescription.restSeconds ?? REST_DEFAULT}
+                    display={prescription.restSeconds == null ? t('userProgram.restDefault') : t('userProgram.secondsValue', { value: prescription.restSeconds })}
                     step={15}
-                    min={0}
+                    min={REST_DEFAULT}
                     max={600}
-                    onChange={(restSeconds) => updateExercise(session.id, prescription.id, { restSeconds })}
+                    onChange={(value) => updateExercise(session.id, prescription.id, { restSeconds: value < 0 ? null : value })}
                   />
                   {isLoadMetric(metric) ? (
                     <Stepper
@@ -276,7 +283,7 @@ export default function ProgramEditorScreen() {
           setPickerFor(null);
           setReplacing(null);
         }}
-        onCreate={replacing ? undefined : () => { setPickerFor(null); router.push('/exercise/new'); }}
+        onCreate={replacing ? undefined : () => { const sessionId = pickerFor; setPickerFor(null); router.push({ pathname: '/exercise/new', params: sessionId ? { addToProgram: sessionId } : {} }); }}
         onClose={() => { setPickerFor(null); setReplacing(null); }}
       />
 

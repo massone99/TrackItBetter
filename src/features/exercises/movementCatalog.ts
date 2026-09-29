@@ -58,18 +58,49 @@ export const MOVEMENT_TAGS = [
   'Toes abduction / adduction',
   'Cervical flexion',
   'Cervical extension',
-  'Cervical side flexion',
+  'Cervical side flexion (bottom to top)',
+  'Cervical side flexion (top to bottom)',
   'Cervical rotation',
   'Thoracic flexion',
   'Thoracic extension',
-  'Thoracic side flexion',
+  'Thoracic side flexion (bottom to top)',
+  'Thoracic side flexion (top to bottom)',
   'Thoracic rotation',
   'Lumbar flexion',
   'Lumbar extension',
   'Lumbar side flexion (bottom to top)',
   'Lumbar side flexion (top to bottom)',
   'Lumbar rotation',
+  'Spine flexion',
+  'Spine extension',
+  'Spine side flexion (bottom to top)',
+  'Spine side flexion (top to bottom)',
+  'Spine rotation',
+  // Older tags without a direction: still valid for existing data, no longer offered.
+  'Cervical side flexion',
+  'Thoracic side flexion',
 ] as const;
+
+/** Tags kept valid for data saved before their direction was split; not offered when classifying. */
+export const LEGACY_MOVEMENT_TAGS = ['Cervical side flexion', 'Thoracic side flexion'] as const;
+
+type SectionTag = Exclude<(typeof MOVEMENT_TAGS)[number], (typeof LEGACY_MOVEMENT_TAGS)[number]>;
+
+/** The tags offered when classifying, grouped by joint or region. Ids match `movement.sections.*`. */
+export const MOVEMENT_TAG_SECTIONS: readonly { id: string; tags: readonly SectionTag[] }[] = [
+  { id: 'shoulder', tags: ['Shoulder flexion', 'Shoulder extension', 'Shoulder abduction', 'Shoulder adduction', 'Shoulder ER', 'Shoulder IR'] },
+  { id: 'elbow', tags: ['Elbow flexion', 'Elbow extension', 'Elbow pronation / supination'] },
+  { id: 'wrist', tags: ['Wrist flexion', 'Wrist extension', 'Wrist deviation'] },
+  { id: 'fingers', tags: ['Fingers extension', 'Fingers flexion', 'Fingers abduction'] },
+  { id: 'hip', tags: ['Hip flexion', 'Hip extension', 'Hip abduction', 'Hip adduction', 'Hip ER', 'Hip IR'] },
+  { id: 'knee', tags: ['Knee flexion', 'Knee extension', 'Knee IR', 'Knee ER'] },
+  { id: 'ankle', tags: ['Ankle dorsiflexion', 'Ankle plantar flexion', 'Ankle inversion', 'Ankle eversion'] },
+  { id: 'toes', tags: ['Toes flexion', 'Toes extension', 'Toes abduction / adduction'] },
+  { id: 'cervical', tags: ['Cervical flexion', 'Cervical extension', 'Cervical side flexion (bottom to top)', 'Cervical side flexion (top to bottom)', 'Cervical rotation'] },
+  { id: 'thoracic', tags: ['Thoracic flexion', 'Thoracic extension', 'Thoracic side flexion (bottom to top)', 'Thoracic side flexion (top to bottom)', 'Thoracic rotation'] },
+  { id: 'lumbar', tags: ['Lumbar flexion', 'Lumbar extension', 'Lumbar side flexion (bottom to top)', 'Lumbar side flexion (top to bottom)', 'Lumbar rotation'] },
+  { id: 'spine', tags: ['Spine flexion', 'Spine extension', 'Spine side flexion (bottom to top)', 'Spine side flexion (top to bottom)', 'Spine rotation'] },
+];
 
 export type MovementTag = (typeof MOVEMENT_TAGS)[number];
 

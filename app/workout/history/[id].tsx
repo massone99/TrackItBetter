@@ -17,10 +17,11 @@ import {
   updateCompletedWorkoutDetails,
   updateCompletedWorkoutSet,
   updateSetNote,
+  repeatWorkoutIfIdle,
   updateSetRpe,
   WORKOUT_NAME_MAX,
 } from '../../../src/features/session/repository';
-import { repeatWorkoutIfIdle } from '../../../src/features/session/repository';
+import { WorkoutInProgressSheet } from '../../../src/features/session/WorkoutInProgressSheet';
 import type { CompletedWorkout, RemovedRows, SessionExercise, SessionSet } from '../../../src/features/session/repository';
 import { RpePicker } from '../../../src/features/session/RpePicker';
 import { ExerciseNoteField } from '../../../src/features/session/ExerciseNoteField';
@@ -44,6 +45,7 @@ export default function PastWorkoutScreen() {
   const [loading, setLoading] = useState(true);
   const [mobilitySeconds, setMobilitySeconds] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [blockedBy, setBlockedBy] = useState<{ id: string; name: string } | null>(null);
   const [loadError, setLoadError] = useState(false);
   const [setFor, setSetFor] = useState<SetTarget | null>(null);
   const [exerciseFor, setExerciseFor] = useState<SessionExercise | null>(null);
@@ -138,9 +140,10 @@ export default function PastWorkoutScreen() {
           <Text style={[styles.mobilityText, { color: palette.accentStrong }]}>{t('mobilityStats.workoutLine', { time: formatMinutes(mobilitySeconds) })}</Text>
         </View>
       ) : null}
+      <WorkoutInProgressSheet active={blockedBy} onClose={() => setBlockedBy(null)} />
       <ActionButton icon="repeat" label={t('history.repeat')} onPress={() => void repeatWorkoutIfIdle(id).then((result) => {
         if ('workoutId' in result) router.push({ pathname: '/workout/[id]', params: { id: result.workoutId } });
-        else setError(t('userProgram.activeWorkout', { name: result.activeName }));
+        else setBlockedBy(result.active);
       }).catch(() => setError(t('history.repeatError')))} />
       <ActionButton icon="share-social-outline" label={t('shareCard.action')} secondary onPress={() => router.push({ pathname: '/workout/share/[id]', params: { id } })} />
       <Body>{t('history.editHelp')}</Body>
