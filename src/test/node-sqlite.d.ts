@@ -2,7 +2,8 @@
 declare module 'node:sqlite' {
   interface StatementSync {
     run(...params: unknown[]): unknown;
-    all(...params: unknown[]): Record<string, unknown>[];
+    all(...params: unknown[]): Record<string, unknown>[] | unknown[][];
+    setReturnArrays(enabled: boolean): void;
     get(...params: unknown[]): Record<string, unknown> | undefined;
   }
   export class DatabaseSync {

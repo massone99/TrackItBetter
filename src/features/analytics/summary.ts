@@ -3,6 +3,14 @@ import { setEstimate } from './estimates';
 
 export type ProgressMetric = 'reps' | 'time' | 'reps_load' | 'time_load' | 'distance';
 
+/** Every category an exercise counts under: its main one first, then the extras (planche: skill and push). */
+export function rowCategories(row: Pick<CompletedSetRow, 'category' | 'extraCategories'>): string[] {
+  let extras: unknown;
+  try { extras = JSON.parse(row.extraCategories ?? '[]'); } catch { extras = []; }
+  const list = Array.isArray(extras) ? extras.filter((item): item is string => typeof item === 'string' && item !== row.category) : [];
+  return [row.category, ...new Set(list)];
+}
+
 export interface CompletedSetRow {
   workoutId: string;
   workoutStartedAt: Date;
@@ -118,9 +126,9 @@ export function buildProgressSnapshot(
     if (inWeek) {
       weeklyRows.push(row);
       weeklyBalance.totalSets += 1;
-      const extras = row.extraCategories ?? '[]';
-      if (row.category === 'push' || extras.includes('"push"')) weeklyBalance.pushSets += 1;
-      if (row.category === 'pull' || extras.includes('"pull"')) weeklyBalance.pullSets += 1;
+      const categories = rowCategories(row);
+      if (categories.includes('push')) weeklyBalance.pushSets += 1;
+      if (categories.includes('pull')) weeklyBalance.pullSets += 1;
       if (row.movementPattern === 'horizontal-push') weeklyBalance.horizontalPushSets += 1;
       if (row.movementPattern === 'horizontal-pull') weeklyBalance.horizontalPullSets += 1;
       if (row.movementPattern === 'vertical-push') weeklyBalance.verticalPushSets += 1;

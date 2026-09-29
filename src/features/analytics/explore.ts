@@ -1,7 +1,7 @@
 import { estimateOneRepMax } from '../../domain';
 import { setEstimate } from './estimates';
 import { isMobilityTimedSet } from './mobility';
-import { getEffectiveLoad, type CompletedSetRow } from './summary';
+import { getEffectiveLoad, rowCategories, type CompletedSetRow } from './summary';
 
 /**
  * Statistics explorer: any metric over time (per workout, day, week or month), narrowed by
@@ -97,7 +97,7 @@ const BEST_E1RM_MAX_REPS = 36;
 export function matchesScope(row: CompletedSetRow, scope: Scope): boolean {
   if (scope.kind === 'mobility' && row.category !== 'mobility') return false;
   if (scope.kind === 'strength' && (row.category === 'mobility' || row.category === 'cardio')) return false;
-  if (scope.category && row.category !== scope.category) return false;
+  if (scope.category && !rowCategories(row).includes(scope.category)) return false;
   if (scope.pattern && row.movementPattern !== scope.pattern) return false;
   if (scope.exerciseId && row.exerciseId !== scope.exerciseId) return false;
   return true;
@@ -213,6 +213,16 @@ export function buildSeries(data: ExploreData, options: SeriesOptions): Series {
 
 export type BreakdownLevel = 'category' | 'pattern' | 'exercise';
 
+/** Rows grouped for one level; an exercise in several categories lands in each of them. */
+function groupRows(rows: CompletedSetRow[], level: BreakdownLevel): Map<string, CompletedSetRow[]> {
+  if (level !== 'category') return groupBy(rows, (row) => (level === 'pattern' ? row.movementPattern ?? '' : row.exerciseId));
+  const groups = new Map<string, CompletedSetRow[]>();
+  for (const row of rows) {
+    for (const category of rowCategories(row)) groups.set(category, [...(groups.get(category) ?? []), row]);
+  }
+  return groups;
+}
+
 export interface BreakdownItem {
   key: string;
   /** Exercise name for the exercise level; the raw key otherwise (labels are localized by the UI). */
@@ -236,7 +246,7 @@ export function buildBreakdown(data: ExploreData, scope: Scope, metric: MetricId
   if (!level) return [];
   const ids = new Set(bucket.workoutIds);
   const rows = data.rows.filter((row) => ids.has(row.workoutId) && matchesScope(row, scope));
-  const groups = groupBy(rows, (row) => (level === 'category' ? row.category : level === 'pattern' ? row.movementPattern ?? '' : row.exerciseId));
+  const groups = groupRows(rows, level);
   const items: BreakdownItem[] = [];
   for (const [key, groupRows] of groups) {
     const value = computeMetric(metric, groupRows, workoutsFor(data, groupRows));
@@ -244,7 +254,9 @@ export function buildBreakdown(data: ExploreData, scope: Scope, metric: MetricId
     items.push({ key, name: level === 'exercise' ? groupRows[0].exerciseName : key, value, share: null });
   }
   if (METRIC_BY_ID[metric].additive) {
-    const total = items.reduce((acc, item) => acc + item.value, 0);
+    // Of the period's own total: an exercise in two categories counts in both, so the shares of a
+    // category split can add up to more than 100%.
+    const total = computeMetric(metric, rows, workoutsFor(data, rows)) ?? 0;
     for (const item of items) item.share = total > 0 ? item.value / total : null;
   }
   return items.sort((a, b) => b.value - a.value);
@@ -256,11 +268,18 @@ export interface ScopeOption {
   sets: number;
 }
 
+/** The scope for one exercise, keeping the current category when the exercise also belongs to it. */
+export function scopeForExercise(scope: Scope, row: CompletedSetRow): Scope {
+  const categories = rowCategories(row);
+  const category = scope.category && categories.includes(scope.category) ? scope.category : row.category;
+  return { kind: scope.kind, category, pattern: row.movementPattern ?? undefined, exerciseId: row.exerciseId };
+}
+
 /** Choices for one scope level that have logged sets, most trained first. */
 export function scopeOptions(data: ExploreData, scope: Scope, level: BreakdownLevel): ScopeOption[] {
   const parent: Scope = level === 'category' ? { kind: scope.kind } : level === 'pattern' ? { kind: scope.kind, category: scope.category } : { kind: scope.kind, category: scope.category, pattern: scope.pattern };
   const rows = data.rows.filter((row) => matchesScope(row, parent));
-  const groups = groupBy(rows, (row) => (level === 'category' ? row.category : level === 'pattern' ? row.movementPattern ?? '' : row.exerciseId));
+  const groups = groupRows(rows, level);
   return [...groups.entries()]
     .filter(([key]) => key !== '')
     .map(([key, groupRows]) => ({ key, name: level === 'exercise' ? groupRows[0].exerciseName : key, sets: groupRows.length }))
