@@ -1,10 +1,15 @@
-import type { CompletedSetRow } from './summary';
+import { rowCategories, type CompletedSetRow } from './summary';
 
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 
+/** True when mobility is any of the exercise's categories, main or extra. */
+export function isMobilityRow(row: Pick<CompletedSetRow, 'category' | 'extraCategories'>): boolean {
+  return rowCategories(row).includes('mobility');
+}
+
 /** Mobility and flexibility share one category; only holds carry time. */
-export function isMobilityTimedSet(row: Pick<CompletedSetRow, 'category' | 'metric' | 'durationSec'>): boolean {
-  return row.category === 'mobility' && (row.metric === 'time' || row.metric === 'time_load') && (row.durationSec ?? 0) > 0;
+export function isMobilityTimedSet(row: Pick<CompletedSetRow, 'category' | 'extraCategories' | 'metric' | 'durationSec'>): boolean {
+  return isMobilityRow(row) && (row.metric === 'time' || row.metric === 'time_load') && (row.durationSec ?? 0) > 0;
 }
 
 function inLastWeek(row: Pick<CompletedSetRow, 'workoutStartedAt'>, now: Date): boolean {
@@ -28,7 +33,7 @@ export function buildMobilityWeek(rows: readonly CompletedSetRow[], now = new Da
   let seconds = 0;
   const sessions = new Set<string>();
   for (const row of rows) {
-    if (row.category !== 'mobility' || !inLastWeek(row, now)) continue;
+    if (!isMobilityRow(row) || !inLastWeek(row, now)) continue;
     sessions.add(row.workoutId);
     if (isMobilityTimedSet(row)) seconds += row.durationSec!;
   }
@@ -130,7 +135,7 @@ export function buildExerciseCycle(rows: readonly CompletedSetRow[], exerciseId:
 
 /** Every mobility exercise with a week in progress, most recently started first. */
 export function buildMobilityCycles(rows: readonly CompletedSetRow[], now = new Date()): ExerciseCycle[] {
-  const ids = new Set(rows.filter((row) => row.category === 'mobility').map((row) => row.exerciseId));
+  const ids = new Set(rows.filter(isMobilityRow).map((row) => row.exerciseId));
   return [...ids]
     .map((exerciseId) => buildExerciseCycle(rows, exerciseId, now).current)
     .filter((cycle): cycle is ExerciseCycle => cycle !== null)

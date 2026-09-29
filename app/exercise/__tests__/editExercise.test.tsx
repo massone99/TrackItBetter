@@ -163,4 +163,19 @@ describe('edit exercise', () => {
     await waitFor(() => expect(createCustomExercise).toHaveBeenCalledTimes(1));
     expect(createCustomExercise.mock.calls[0][0]).toMatchObject({ name: 'Pseudo planche push-up', category: 'push', extraCategories: ['skill'] });
   });
+
+  it('saves biceps or triceps as the main category, keeping the old one as an extra when promoted', async () => {
+    mockParams.edit = 'tuck-planche';
+    getExerciseById.mockResolvedValue({ ...tuckPlanche, extraCategories: '["triceps"]' });
+    renderForm();
+    await screen.findByDisplayValue('Tuck Planche');
+
+    fireEvent.press(mainChip('library.category.triceps'));
+    fireEvent.press(extraChip('library.category.biceps'));
+    save();
+
+    await waitFor(() => expect(updateExercise).toHaveBeenCalledTimes(1));
+    expect(updateExercise.mock.calls[0][1]).toMatchObject({ category: 'triceps', extraCategories: ['skill', 'biceps'] });
+  });
 });
+

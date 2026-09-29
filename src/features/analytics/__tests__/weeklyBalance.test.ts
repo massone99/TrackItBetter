@@ -28,4 +28,14 @@ describe('weekly push and pull balance', () => {
     ], now);
     expect(weeklyBalance).toMatchObject({ horizontalPushSets: 1, verticalPushSets: 1, verticalPullSets: 1, horizontalPullSets: 1 });
   });
+
+  it('counts legs when it is an extra category, unless the exercise is mobility work', () => {
+    const { weeklyBalance } = buildProgressSnapshot([
+      row({ category: 'core', extraCategories: '["legs"]' }),
+      row({ category: 'mobility', extraCategories: '[]', movementPattern: 'hip-extension' }),
+      row({ category: 'skill', extraCategories: '["legs","mobility"]', movementPattern: 'hip-extension' }),
+    ], now);
+    expect(weeklyBalance.legSets).toBe(2);
+  });
 });
+

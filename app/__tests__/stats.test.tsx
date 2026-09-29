@@ -26,10 +26,10 @@ const row = (over: object) => ({ ...base, setId: `s${counter += 1}`, extraCatego
 const data: ExploreData = {
   workouts: [{ id: 'w1', name: 'Allenamento', startedAt: started, endedAt: new Date(started.getTime() + 3_600_000), sessionRpe: null, sleep: null, energy: null, soreness: null }],
   rows: [
-    row({ exerciseId: 'push-up', exerciseName: 'Push-up', category: 'push', movementPattern: 'horizontal-push' }),
-    row({ exerciseId: 'dip', exerciseName: 'Dip', category: 'push', movementPattern: 'vertical-push' }),
-    row({ exerciseId: 'pull-up', exerciseName: 'Pull-up', category: 'pull', movementPattern: 'vertical-pull' }),
-    row({ exerciseId: 'tuck-planche', exerciseName: 'Tuck Planche', category: 'skill', extraCategories: '["push"]', movementPattern: 'horizontal-push', metric: 'time', reps: null, durationSec: 10 }),
+    row({ exerciseId: 'push-up', exerciseName: 'Push-up', category: 'push', movementPattern: 'horizontal-push', rpe: 9 }),
+    row({ exerciseId: 'dip', exerciseName: 'Dip', category: 'push', movementPattern: 'vertical-push', rpe: 7 }),
+    row({ exerciseId: 'pull-up', exerciseName: 'Pull-up', category: 'pull', movementPattern: 'vertical-pull', rpe: 8.5 }),
+    row({ exerciseId: 'tuck-planche', exerciseName: 'Tuck Planche', category: 'skill', extraCategories: '["push"]', movementPattern: 'horizontal-push', metric: 'time', reps: null, durationSec: 10, rpe: 8 }),
   ] as unknown as ExploreData['rows'],
 };
 
@@ -136,6 +136,36 @@ describe('statistics drill-down', () => {
     fireEvent.press(screen.getByRole('button', { name: new RegExp(`${t('stats.exercise')}:`) }));
     fireEvent.changeText(screen.getByPlaceholderText(t('stats.search')), 'zzzz');
     expect(await screen.findByText(t('stats.noMatches'))).toBeTruthy();
+  });
+
+  const pickMetric = (label: string) => {
+    fireEvent.press(screen.getAllByRole('button', { name: t('stats.metrics.sets') })[0]);
+    fireEvent.press(screen.getByRole('button', { name: label }));
+  };
+  const rpeLabel = (value: string) => t('stats.metrics.setsAtRpe').replace('{{value}}', value);
+
+  it('counts sets at or above an RPE for every category, with a threshold you can move', async () => {
+    renderScreen();
+    await screen.findByText(t('stats.breakdown.category'));
+    pickMetric(rpeLabel('8'));
+
+    // Push-up 9, planche 8 (also push) and pull-up 8.5 reach 8; the dip at 7 does not.
+    expect(await screen.findByRole('button', { name: new RegExp(`^${t('library.category.push')}: 2`) })).toBeTruthy();
+    expect(screen.getByRole('button', { name: new RegExp(`^${t('library.category.pull')}: 1`) })).toBeTruthy();
+    expect(screen.getByRole('button', { name: new RegExp(`^${t('library.category.skill')}: 1`) })).toBeTruthy();
+
+    fireEvent.press(screen.getByRole('button', { name: `${t('stats.rpeThreshold')} +` }));
+    // At 8.5 the planche (8) drops out.
+    expect(await screen.findByRole('button', { name: new RegExp(`^${t('library.category.push')}: 1`) })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: new RegExp(`^${t('library.category.skill')}:`) })).toBeNull();
+  });
+
+  it('offers the threshold only while an RPE metric is shown', async () => {
+    renderScreen();
+    await screen.findByText(t('stats.breakdown.category'));
+    expect(screen.queryByRole('button', { name: `${t('stats.rpeThreshold')} +` })).toBeNull();
+    pickMetric(rpeLabel('8'));
+    expect(await screen.findByRole('button', { name: `${t('stats.rpeThreshold')} +` })).toBeTruthy();
   });
 });
 

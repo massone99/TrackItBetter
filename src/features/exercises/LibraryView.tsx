@@ -7,10 +7,11 @@ import { Chip, EmptyState, Icon, Label, ListGroup, ListRow, SectionTitle } from 
 import { iconForCategory } from '../../shared/components/categoryIcons';
 import { useTheme } from '../../shared/theme/ThemeProvider';
 import { useScaledStyles } from '../../shared/theme/useScaledStyles';
+import { EXERCISE_CATEGORIES } from './categories';
 import { listExercises, setExerciseFavourite } from './repository';
 import { MOVEMENT_GROUPS, MOVEMENT_GROUP_IDS } from './movementCatalog';
 
-const categories = ['all', 'push', 'pull', 'legs', 'core', 'skill', 'mobility', 'cardio'] as const;
+const categories = ['all', ...EXERCISE_CATEGORIES] as const;
 type CategoryFilter = (typeof categories)[number];
 
 /** Searchable exercise library with category and favourite filters. */

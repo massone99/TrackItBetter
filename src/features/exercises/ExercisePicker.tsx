@@ -8,12 +8,13 @@ import { iconForCategory } from '../../shared/components/categoryIcons';
 import { useTheme } from '../../shared/theme/ThemeProvider';
 import { fonts } from '../../shared/theme/typography';
 import { useScaledStyles } from '../../shared/theme/useScaledStyles';
+import { EXERCISE_CATEGORIES } from './categories';
 import { listExercises } from './repository';
 import { useAnimationSettings } from '../../shared/settings/AnimationProvider';
 
 export type ExerciseChoice = { id: string; name: string; metric: string; category: string; extraCategories: string; level: number | null };
 
-const CATEGORIES = ['push', 'pull', 'legs', 'core', 'skill', 'mobility'] as const;
+const CATEGORIES = EXERCISE_CATEGORIES;
 
 /** Full-screen exercise search with category filters and an optional "create" entry. */
 export function ExercisePicker({ visible, title, subtitle, initialCategory = null, onChoose, onCreate, onClose }: {

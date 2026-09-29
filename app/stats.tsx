@@ -3,12 +3,13 @@ import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { ActivityIndicator, BackHandler, Pressable, StyleSheet, View } from 'react-native';
 import { Text } from '../src/shared/components/Text';
-import { Body, Card, Chip, EmptyState, Heading, Icon, IconButton, Label, ListGroup, ListRow, PageHeading, Screen, SectionTitle, SegmentedControl, Sheet, TextField } from '../src/shared/components/ui';
+import { Body, Card, Chip, EmptyState, Heading, Icon, IconButton, Label, ListGroup, ListRow, PageHeading, Screen, SectionTitle, SegmentedControl, Sheet, Stepper, TextField } from '../src/shared/components/ui';
 import { getExploreData } from '../src/features/analytics/repository';
 import {
   availableMetrics,
   buildBreakdown,
   buildSeries,
+  DEFAULT_RPE_THRESHOLD,
   METRIC_BY_ID,
   METRICS,
   nextLevel,
@@ -27,7 +28,9 @@ import { StatsChart } from '../src/features/analytics/components/StatsChart';
 import { useTheme } from '../src/shared/theme/ThemeProvider';
 import { useScaledStyles } from '../src/shared/theme/useScaledStyles';
 import { formatMinutes, formatNumber } from '../src/shared/utils/format';
+import { readPreference, writePreference } from '../src/shared/settings/preferences';
 
+const RPE_THRESHOLD_KEY = 'stats.threshold';
 const GRANULARITIES: Granularity[] = ['workout', 'day', 'week', 'month'];
 const KINDS: TrainingKind[] = ['all', 'strength', 'mobility'];
 const FAMILIES: MetricFamily[] = ['counts', 'volume', 'mobility', 'performance', 'intensity'];
@@ -59,6 +62,11 @@ export default function StatsScreen() {
   const [trail, setTrail] = useState<Scope[]>([]);
   const [metric, setMetric] = useState<MetricId>('sets');
   const [secondary, setSecondary] = useState<MetricId | null>(null);
+  // Shared with the training totals screen, so both count "hard" sets the same way.
+  const [rpeThreshold, setRpeThreshold] = useState(() => {
+    const stored = Number(readPreference(RPE_THRESHOLD_KEY));
+    return stored >= 6 && stored <= 10 ? stored : DEFAULT_RPE_THRESHOLD;
+  });
   const [page, setPage] = useState(0);
   const [selected, setSelected] = useState<number | null>(null);
   const [sheet, setSheet] = useState<SheetKind>(null);
@@ -88,12 +96,12 @@ export default function StatsScreen() {
   const second = secondary && secondary !== primary && available.includes(secondary) ? secondary : null;
   const now = useMemo(() => new Date(), [data]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const series = useMemo(() => (data ? buildSeries(data, { granularity, scope, metric: primary, now, page }) : null), [data, granularity, scope, primary, now, page]);
-  const secondarySeries = useMemo(() => (data && second ? buildSeries(data, { granularity, scope, metric: second, now, page }) : null), [data, granularity, scope, second, now, page]);
+  const series = useMemo(() => (data ? buildSeries(data, { granularity, scope, metric: primary, now, page, rpeThreshold }) : null), [data, granularity, scope, primary, now, page, rpeThreshold]);
+  const secondarySeries = useMemo(() => (data && second ? buildSeries(data, { granularity, scope, metric: second, now, page, rpeThreshold }) : null), [data, granularity, scope, second, now, page, rpeThreshold]);
   const buckets = series?.buckets ?? [];
   const selectedIndex = selected != null && selected < buckets.length ? selected : buckets.length ? lastWithData(buckets) : null;
   const bucket = selectedIndex != null ? buckets[selectedIndex] : null;
-  const breakdown = useMemo(() => (data && bucket ? buildBreakdown(data, scope, primary, bucket) : []), [data, bucket, scope, primary]);
+  const breakdown = useMemo(() => (data && bucket ? buildBreakdown(data, scope, primary, bucket, rpeThreshold) : []), [data, bucket, scope, primary, rpeThreshold]);
   const level = nextLevel(scope);
 
   const locale = i18n.language;
@@ -109,6 +117,8 @@ export default function StatsScreen() {
     if (granularity === 'week') return `${dateFormat({ day: 'numeric', month: 'short' }, item.start)} – ${dateFormat({ day: 'numeric', month: 'short', year: 'numeric' }, new Date(item.end.getTime() - 1))}`;
     return dateFormat({ month: 'long', year: 'numeric' }, item.start);
   };
+  const metricLabel = (id: MetricId) => t(`stats.metrics.${id}`, { value: formatNumber(rpeThreshold) });
+  const changeThreshold = (value: number) => { setRpeThreshold(value); writePreference(RPE_THRESHOLD_KEY, String(value)); };
   const valueText = (id: MetricId, value: number | null | undefined) => (value == null ? t('stats.noValue') : formatMetric(id, value));
   const categoryLabel = (key: string) => t(`library.category.${key}`, { defaultValue: humanize(key) });
   const patternLabel = (key: string) => t(`movementPattern.${key}`, { defaultValue: t(`movement.groups.${key}`, { defaultValue: humanize(key) }) });
@@ -184,11 +194,11 @@ export default function StatsScreen() {
           <View style={styles.metricRow}>
             <View style={styles.metricPick}>
               <Label>{t('stats.metric')}</Label>
-              <Chip icon="stats-chart-outline" label={t(`stats.metrics.${primary}`)} selected onPress={() => setSheet('metric')} />
+              <Chip icon="stats-chart-outline" label={metricLabel(primary)} selected onPress={() => setSheet('metric')} />
             </View>
             <View style={styles.metricPick}>
               <Label>{t('stats.compare')}</Label>
-              <Chip icon="pulse-outline" label={second ? t(`stats.metrics.${second}`) : t('stats.none')} selected={Boolean(second)} onPress={() => setSheet('secondary')} />
+              <Chip icon="pulse-outline" label={second ? metricLabel(second) : t('stats.none')} selected={Boolean(second)} onPress={() => setSheet('secondary')} />
             </View>
           </View>
 
@@ -213,10 +223,16 @@ export default function StatsScreen() {
               accessibilityLabel={(index) => `${periodTitle(buckets[index])}: ${valueText(primary, buckets[index].value)}`}
             />
           )}
+          {primary === 'setsAtRpe' || second === 'setsAtRpe' ? (
+            <View style={styles.thresholdBox}>
+              <Stepper layout="row" label={t('stats.rpeThreshold')} value={rpeThreshold} display={`≥ RPE ${formatNumber(rpeThreshold)}`} step={0.5} min={6} max={10} onChange={changeThreshold} />
+              <Body style={styles.legendText}>{t('stats.rpeHint')}</Body>
+            </View>
+          ) : null}
           {second ? (
             <View style={styles.legend}>
-              <View style={[styles.legendSwatch, { backgroundColor: palette.accent }]} /><Body style={styles.legendText}>{t(`stats.metrics.${primary}`)}</Body>
-              <View style={[styles.legendLine, { backgroundColor: palette.record }]} /><Body style={styles.legendText}>{t(`stats.metrics.${second}`)}</Body>
+              <View style={[styles.legendSwatch, { backgroundColor: palette.accent }]} /><Body style={styles.legendText}>{metricLabel(primary)}</Body>
+              <View style={[styles.legendLine, { backgroundColor: palette.record }]} /><Body style={styles.legendText}>{metricLabel(second)}</Body>
             </View>
           ) : null}
         </Card>
@@ -227,12 +243,12 @@ export default function StatsScreen() {
             <View style={styles.totals}>
               <View style={styles.total}>
                 <Text style={[styles.totalValue, { color: palette.accentStrong }]}>{valueText(primary, bucket.value)}</Text>
-                <Body style={styles.totalLabel}>{t(`stats.metrics.${primary}`)}</Body>
+                <Body style={styles.totalLabel}>{metricLabel(primary)}</Body>
               </View>
               {second ? (
                 <View style={styles.total}>
                   <Text style={[styles.totalValue, { color: palette.record }]}>{valueText(second, secondarySeries?.buckets[selectedIndex!]?.value)}</Text>
-                  <Body style={styles.totalLabel}>{t(`stats.metrics.${second}`)}</Body>
+                  <Body style={styles.totalLabel}>{metricLabel(second)}</Body>
                 </View>
               ) : null}
             </View>
@@ -312,7 +328,7 @@ export default function StatsScreen() {
                 {ids.map((id) => (
                   <Chip
                     key={id}
-                    label={t(`stats.metrics.${id}`)}
+                    label={metricLabel(id)}
                     selected={sheet === 'secondary' ? second === id : primary === id}
                     onPress={() => { if (sheet === 'secondary') setSecondary(id); else setMetric(id); setSheet(null); }}
                   />
@@ -350,6 +366,7 @@ const baseStyles = StyleSheet.create({
   pager: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   pagerSpacer: { width: 40, height: 40 },
   pagerRange: { flex: 1, textAlign: 'center', fontSize: 13 },
+  thresholdBox: { gap: 4 },
   legend: { flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' },
   legendSwatch: { width: 10, height: 10, borderRadius: 2 },
   legendLine: { width: 14, height: 2, marginLeft: 8 },

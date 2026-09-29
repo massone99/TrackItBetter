@@ -144,7 +144,7 @@ export function buildProgressSnapshot(
       if (pattern === 'horizontal-pull') weeklyBalance.horizontalPullSets += 1;
       if (pattern === 'vertical-push') weeklyBalance.verticalPushSets += 1;
       if (pattern === 'vertical-pull') weeklyBalance.verticalPullSets += 1;
-      if (row.category === 'legs' || (row.category !== 'mobility' && isLegPattern(pattern))) weeklyBalance.legSets += 1;
+      if (categories.includes('legs') || (!categories.includes('mobility') && isLegPattern(pattern))) weeklyBalance.legSets += 1;
     }
 
     const completedAt = row.completedAt.toISOString();

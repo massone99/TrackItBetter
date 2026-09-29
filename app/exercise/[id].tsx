@@ -46,7 +46,7 @@ export default function ExerciseRoute() {
     setExercise(found);
     setLoading(false);
     // Mobility and stretching count their own week from the first day trained; the rest the last 7 days.
-    if (found?.category === 'mobility') setCycle(await getExerciseCycle(found.id).catch(() => null));
+    if (found && [found.category, ...readList(found.extraCategories)].includes('mobility')) setCycle(await getExerciseCycle(found.id).catch(() => null));
     else if (found) setWeek(await getExerciseWeekStats(found.id, found.metric).catch(() => null));
     if (found) setEstimate(await getExerciseEstimate(found.id).catch(() => null));
   }, [id]);
