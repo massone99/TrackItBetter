@@ -4,6 +4,7 @@ import {
   moveItem,
   nextSessionInRotation,
   plannedLoads,
+  replaceExercise,
   programSessionWorkoutName,
   sessionSetCount,
   validateUserProgram,
@@ -117,5 +118,23 @@ describe('plannedLoads', () => {
   it('falls back to last time per set, repeating its last set', () => {
     expect(plannedLoads({ sets: 3, loadKg: null }, [10, 12])).toEqual([10, 12, 12]);
     expect(plannedLoads({ sets: 2 }, [])).toEqual([0, 0]);
+  });
+});
+
+describe('replaceExercise', () => {
+  it('keeps sets, rest and target when the kind of measure stays the same', () => {
+    const swapped = replaceExercise(exercise({ sets: 4, target: 6, restSeconds: 120, loadKg: 10 }), 'ring-dip', 'reps_load', 'reps_load');
+    expect(swapped).toEqual(exercise({ exerciseId: 'ring-dip', sets: 4, target: 6, restSeconds: 120, loadKg: 10 }));
+  });
+
+  it('resets the target for the new measure and drops a load the new exercise cannot carry', () => {
+    const toHold = replaceExercise(exercise({ target: 6, loadKg: 10 }), 'plank', 'reps_load', 'time');
+    expect(toHold).toMatchObject({ exerciseId: 'plank', sets: 3, target: 30, loadKg: null });
+    expect(replaceExercise(exercise({ target: 30 }), 'run', 'time', 'distance').target).toBe(100);
+    expect(replaceExercise(exercise({ target: 30 }), 'squat', 'time', 'reps').target).toBe(8);
+  });
+
+  it('keeps the load between weighted exercises of different measures only when both carry load', () => {
+    expect(replaceExercise(exercise({ target: 8, loadKg: 5 }), 'hold', 'reps_load', 'time_load').loadKg).toBe(5);
   });
 });
