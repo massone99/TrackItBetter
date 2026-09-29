@@ -11,6 +11,24 @@ export function rpeToRir(rpe: number): number {
   return 10 - rpe;
 }
 
+/**
+ * Reps the set could have reached before failure: the reps done plus the reps in reserve.
+ * Null without a valid RPE or reps, so unrated sets never produce an estimate.
+ */
+export function estimateMaxReps(reps: number | null | undefined, rpe: number | null | undefined): number | null {
+  if (reps == null || reps <= 0 || !isValidRpe(rpe)) return null;
+  return reps + rpeToRir(rpe);
+}
+
+/**
+ * Longest hold the set suggests. Reserve seconds do not scale like reserve reps (two seconds
+ * mean nothing on a 40 s hold), so a hold at RPE 8 is read as about 80 % of the maximum.
+ */
+export function estimateMaxHold(seconds: number | null | undefined, rpe: number | null | undefined): number | null {
+  if (seconds == null || seconds <= 0 || !isValidRpe(rpe)) return null;
+  return (seconds * 10) / rpe;
+}
+
 /** Mean RPE of the rated sets, rounded to one decimal; null when none were rated. */
 export function averageRpe(values: readonly (number | null | undefined)[]): number | null {
   const rated = values.filter((value): value is number => typeof value === 'number');

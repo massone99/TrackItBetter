@@ -37,6 +37,17 @@ npm run build:apk
 builds for `arm64-v8a` only with compressed native libs to keep the APK small. For other ABIs (e.g. an
 x86_64 emulator) run `ABIS=x86_64 npm run build:apk`.
 
+The APK name and version come from `app.json`. Bump the version with:
+
+```sh
+npm run version:bump -- patch   # or minor, major, or an explicit x.y.z
+```
+
+It updates `expo.version`, increments `android.versionCode` and `ios.buildNumber` (Android refuses to
+install an update whose `versionCode` is not higher), and syncs `package.json`/`package-lock.json`.
+Pushing the `app.json` change to `main` triggers the Android release workflow, which publishes
+`v<version>`.
+
 The generated project signs release builds with the debug keystore, which is fine for sideloading;
 use a real upload key (or `eas build -p android --profile preview`) for store distribution.
 

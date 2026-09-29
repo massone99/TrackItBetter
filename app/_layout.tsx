@@ -80,6 +80,8 @@ function AppNavigator() {
         <Stack.Screen name="program/user/[id]" />
         <Stack.Screen name="program-builder" />
         <Stack.Screen name="bodyweight" />
+        <Stack.Screen name="stats" />
+        <Stack.Screen name="training-stats" />
         <Stack.Screen name="data" />
         <Stack.Screen name="reset" options={{ gestureEnabled: false }} />
         <Stack.Screen name="reminders" />

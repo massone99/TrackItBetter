@@ -1,178 +1,326 @@
-import { useCallback, useMemo, useState } from 'react';
-import { useFocusEffect } from 'expo-router';
+import { useCallback, useMemo, useRef, useState } from 'react';
+import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useTranslation } from 'react-i18next';
-import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
-import { Body, Card, Heading, IconButton, PageHeading, Screen, SegmentedControl, Stepper } from '../src/shared/components/ui';
+import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { Text } from '../src/shared/components/Text';
-import { getTrainingStatsRows } from '../src/features/analytics/repository';
-import { buildTrainingStats, OTHER_ID, type StatsDimension, type StatsMetrics, type StatsPeriodKind, type StatsSetRow } from '../src/features/analytics/trainingStats';
-import { formatPeriod, formatPeriodShort } from '../src/features/analytics/periodLabels';
-import { PeriodBars } from '../src/features/analytics/PeriodBars';
-import { movementTagLabel } from '../src/features/exercises/ClassificationChoices';
-import { readPreference, writePreference } from '../src/shared/settings/preferences';
+import { Body, Card, Chip, EmptyState, Heading, IconButton, Label, ListGroup, ListRow, PageHeading, Screen, SectionTitle, SegmentedControl, Sheet, TextField } from '../src/shared/components/ui';
+import { getExploreData } from '../src/features/analytics/repository';
+import {
+  availableMetrics,
+  buildBreakdown,
+  buildSeries,
+  METRIC_BY_ID,
+  METRICS,
+  nextLevel,
+  scopeOptions,
+  type BreakdownLevel,
+  type Bucket,
+  type ExploreData,
+  type Granularity,
+  type MetricFamily,
+  type MetricId,
+  type Scope,
+  type TrainingKind,
+} from '../src/features/analytics/explore';
+import { StatsChart } from '../src/features/analytics/components/StatsChart';
 import { useTheme } from '../src/shared/theme/ThemeProvider';
 import { useScaledStyles } from '../src/shared/theme/useScaledStyles';
-import { formatDuration, formatNumber } from '../src/shared/utils/format';
+import { formatMinutes, formatNumber } from '../src/shared/utils/format';
 
-const copy = {
-  en: {
-    title: 'Statistics', subtitle: 'Working sets by pattern or exercise.',
-    pattern: 'Pattern', exercise: 'Exercise', groups: 'Groups', tags: 'Tags',
-    session: 'Session', day: 'Day', week: 'Week', month: 'Month',
-    previous: 'Previous period', next: 'Next period', today: 'Today', latestSession: 'Latest',
-    set: 'set', sets: 'sets', reps: 'reps', threshold: 'RPE threshold',
-    empty: 'No working sets in this period.', noData: 'Finish a workout to see statistics here.',
-    other: 'Other movements', untagged: 'No tag', loading: 'Loading statistics…', error: 'Statistics could not be loaded.', retry: 'Retry',
-  },
-  it: {
-    title: 'Statistiche', subtitle: 'Serie di lavoro per pattern o esercizio.',
-    pattern: 'Pattern', exercise: 'Esercizio', groups: 'Gruppi', tags: 'Tag',
-    session: 'Sessione', day: 'Giorno', week: 'Sett.', month: 'Mese',
-    previous: 'Periodo precedente', next: 'Periodo successivo', today: 'Oggi', latestSession: 'Ultima',
-    set: 'serie', sets: 'serie', reps: 'rip', threshold: 'Soglia RPE',
-    empty: 'Nessuna serie di lavoro in questo periodo.', noData: 'Completa un allenamento per vedere qui le statistiche.',
-    other: 'Altri movimenti', untagged: 'Senza tag', loading: 'Caricamento statistiche…', error: 'Impossibile caricare le statistiche.', retry: 'Riprova',
-  },
-} as const;
-type Strings = (typeof copy)['en'] | (typeof copy)['it'];
+const GRANULARITIES: Granularity[] = ['workout', 'day', 'week', 'month'];
+const KINDS: TrainingKind[] = ['all', 'strength', 'mobility'];
+const FAMILIES: MetricFamily[] = ['counts', 'volume', 'mobility', 'performance', 'intensity'];
+type SheetKind = BreakdownLevel | 'metric' | 'secondary' | null;
 
-type StatsView = 'pattern' | 'exercise';
-type PatternKind = 'group' | 'tag';
-const pick = <T extends string>(key: string, allowed: readonly T[], fallback: T): T => {
-  const value = readPreference(key);
-  return allowed.includes(value as T) ? (value as T) : fallback;
-};
+function formatMetric(metric: MetricId, value: number): string {
+  switch (METRIC_BY_ID[metric].unit) {
+    case 'count':
+    case 'reps': return formatNumber(Math.round(value * 10) / 10);
+    case 'seconds': return formatMinutes(value);
+    case 'meters': return `${formatNumber(value)} m`;
+    case 'kgReps': return `${formatNumber(value)} kg·rep`;
+    case 'kgSeconds': return `${formatNumber(value)} kg·s`;
+    case 'kg': return `${formatNumber(value)} kg`;
+    case 'score': return value.toFixed(1);
+  }
+}
 
 export default function StatsScreen() {
   const styles = useScaledStyles(baseStyles);
+  const { t, i18n } = useTranslation();
   const { palette } = useTheme();
-  const { i18n, t } = useTranslation();
-  const locale = i18n.language.toLowerCase().startsWith('it') ? 'it' : 'en';
-  const strings = copy[locale];
-  const [rows, setRows] = useState<StatsSetRow[] | null>(null);
+  const params = useLocalSearchParams<{ exerciseId?: string; metric?: string }>();
+  const [data, setData] = useState<ExploreData | null>(null);
   const [failed, setFailed] = useState(false);
-  const [view, setView] = useState<StatsView>(() => pick('stats.view', ['pattern', 'exercise'], 'pattern'));
-  const [patternKind, setPatternKind] = useState<PatternKind>(() => pick('stats.patternKind', ['group', 'tag'], 'group'));
-  const [periodKind, setPeriodKind] = useState<StatsPeriodKind>(() => pick('stats.period', ['session', 'day', 'week', 'month'], 'week'));
-  const [threshold, setThreshold] = useState(() => {
-    const stored = Number(readPreference('stats.threshold'));
-    return stored >= 6 && stored <= 10 ? stored : 8;
-  });
-  const [anchor, setAnchor] = useState<string | null>(null);
+  const [granularity, setGranularity] = useState<Granularity>(params.exerciseId ? 'workout' : 'week');
+  const [scope, setScope] = useState<Scope>({ kind: 'all' });
+  const [metric, setMetric] = useState<MetricId>('sets');
+  const [secondary, setSecondary] = useState<MetricId | null>(null);
+  const [page, setPage] = useState(0);
+  const [selected, setSelected] = useState<number | null>(null);
+  const [sheet, setSheet] = useState<SheetKind>(null);
+  const [search, setSearch] = useState('');
+  const appliedParams = useRef(false);
 
   const load = useCallback(() => {
     let active = true;
     setFailed(false);
-    getTrainingStatsRows().then((result) => { if (active) setRows(result); }).catch(() => { if (active) setFailed(true); });
+    getExploreData().then((result) => {
+      if (!active) return;
+      setData(result);
+      // A deep link (e.g. from an exercise trend) opens the explorer on that exercise and metric, once.
+      if (appliedParams.current) return;
+      appliedParams.current = true;
+      const row = params.exerciseId ? result.rows.find((candidate) => candidate.exerciseId === params.exerciseId) : undefined;
+      if (!row) return;
+      setScope({ kind: 'all', category: row.category, pattern: row.movementPattern ?? undefined, exerciseId: row.exerciseId });
+      if (params.metric && params.metric in METRIC_BY_ID) setMetric(params.metric as MetricId);
+    }).catch(() => { if (active) setFailed(true); });
     return () => { active = false; };
-  }, []);
+  }, [params.exerciseId, params.metric]);
   useFocusEffect(load);
 
-  const dimension: StatsDimension = view === 'exercise' ? 'exercise' : patternKind;
-  const stats = useMemo(() => rows ? buildTrainingStats(rows, { dimension, period: periodKind, anchor, threshold }) : null, [rows, dimension, periodKind, anchor, threshold]);
+  const available = useMemo(() => (data ? availableMetrics(data, scope) : []), [data, scope]);
+  const primary = available.includes(metric) ? metric : 'sets';
+  const second = secondary && secondary !== primary && available.includes(secondary) ? secondary : null;
+  const now = useMemo(() => new Date(), [data]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  function remember<T extends string>(key: string, setter: (value: T) => void) {
-    return (value: T) => {
-      setter(value);
-      writePreference(key, value);
-    };
-  }
-  const changeThreshold = (value: number) => { setThreshold(value); writePreference('stats.threshold', String(value)); };
+  const series = useMemo(() => (data ? buildSeries(data, { granularity, scope, metric: primary, now, page }) : null), [data, granularity, scope, primary, now, page]);
+  const secondarySeries = useMemo(() => (data && second ? buildSeries(data, { granularity, scope, metric: second, now, page }) : null), [data, granularity, scope, second, now, page]);
+  const buckets = series?.buckets ?? [];
+  const selectedIndex = selected != null && selected < buckets.length ? selected : buckets.length ? lastWithData(buckets) : null;
+  const bucket = selectedIndex != null ? buckets[selectedIndex] : null;
+  const breakdown = useMemo(() => (data && bucket ? buildBreakdown(data, scope, primary, bucket) : []), [data, bucket, scope, primary]);
+  const level = nextLevel(scope);
 
-  const itemName = (id: string, name: string) => {
-    if (dimension === 'exercise') return name;
-    if (id === OTHER_ID) return dimension === 'tag' ? strings.untagged : strings.other;
-    return dimension === 'group' ? t(`movement.groups.${id}`) : movementTagLabel(id, t);
+  const locale = i18n.language;
+  const dateFormat = (options: Intl.DateTimeFormatOptions, date: Date) => new Intl.DateTimeFormat(locale, options).format(date);
+  const shortLabel = (item: Bucket) => {
+    if (granularity === 'month') return dateFormat(item.start.getMonth() === 0 ? { month: 'short', year: '2-digit' } : { month: 'short' }, item.start);
+    if (granularity === 'week') return dateFormat({ day: 'numeric', month: 'short' }, item.start);
+    return dateFormat({ day: 'numeric', month: 'numeric' }, item.start);
   };
-  const maxSets = Math.max(1, ...(stats?.items.map((item) => item.metrics.sets) ?? [1]));
+  const periodTitle = (item: Bucket) => {
+    if (granularity === 'workout') return `${data?.workouts.find((workout) => workout.id === item.key)?.name ?? ''} · ${dateFormat({ weekday: 'short', day: 'numeric', month: 'short' }, item.start)}`;
+    if (granularity === 'day') return dateFormat({ weekday: 'long', day: 'numeric', month: 'long' }, item.start);
+    if (granularity === 'week') return `${dateFormat({ day: 'numeric', month: 'short' }, item.start)} – ${dateFormat({ day: 'numeric', month: 'short', year: 'numeric' }, new Date(item.end.getTime() - 1))}`;
+    return dateFormat({ month: 'long', year: 'numeric' }, item.start);
+  };
+  const valueText = (id: MetricId, value: number | null | undefined) => (value == null ? t('stats.noValue') : formatMetric(id, value));
+  const categoryLabel = (key: string) => t(`library.category.${key}`, { defaultValue: humanize(key) });
+  const patternLabel = (key: string) => t(`movementPattern.${key}`, { defaultValue: humanize(key) });
+  const levelLabel = (kind: BreakdownLevel, key: string, name: string) => (kind === 'category' ? categoryLabel(key) : kind === 'pattern' ? (key ? patternLabel(key) : t('stats.noValue')) : name);
 
-  return <Screen>
-    <PageHeading title={strings.title} subtitle={strings.subtitle} />
-    <View style={styles.controls}>
-      <SegmentedControl<StatsView> value={view} onChange={remember<StatsView>('stats.view', setView)} options={[{ value: 'pattern', label: strings.pattern }, { value: 'exercise', label: strings.exercise }]} />
-      {view === 'pattern' && <View style={styles.quietToggle}>
-        {(['group', 'tag'] as const).map((kind, index) => <View key={kind} style={styles.quietItem}>
-          {index > 0 && <Text style={{ color: palette.textMuted }}>·</Text>}
-          <Pressable accessibilityRole="button" accessibilityState={{ selected: patternKind === kind }} hitSlop={10} onPress={() => remember<PatternKind>('stats.patternKind', setPatternKind)(kind)}>
-            <Text style={[styles.quietText, { color: patternKind === kind ? palette.text : palette.textMuted, fontFamily: patternKind === kind ? 'Barlow_600SemiBold' : undefined }]}>{kind === 'group' ? strings.groups : strings.tags}</Text>
-          </Pressable>
-        </View>)}
-      </View>}
-      <SegmentedControl<StatsPeriodKind> value={periodKind} onChange={(value) => { remember<StatsPeriodKind>('stats.period', setPeriodKind)(value); setAnchor(null); }} options={(['session', 'day', 'week', 'month'] as const).map((value) => ({ value, label: strings[value] }))} />
-    </View>
+  const resetView = () => { setPage(0); setSelected(null); };
+  const changeScope = (next: Scope) => { setScope(next); resetView(); };
+  const narrow = (kind: BreakdownLevel, key: string | undefined) => {
+    if (kind === 'category') changeScope({ kind: scope.kind, category: key });
+    else if (kind === 'pattern') changeScope({ kind: scope.kind, category: scope.category, pattern: key });
+    else {
+      const row = key ? data?.rows.find((candidate) => candidate.exerciseId === key) : undefined;
+      changeScope(row ? { kind: scope.kind, category: row.category, pattern: row.movementPattern ?? undefined, exerciseId: key } : { kind: scope.kind, category: scope.category, pattern: scope.pattern });
+    }
+    setSheet(null);
+    setSearch('');
+  };
 
-    {!stats ? <Card style={styles.loadingCard}>
-      {failed ? <Pressable accessibilityRole="button" onPress={load}><Heading>{strings.error}</Heading><Body>{strings.retry}</Body></Pressable>
-        : <><ActivityIndicator color={palette.accentStrong} /><Body>{strings.loading}</Body></>}
-    </Card> : !stats.period ? <Card><Body>{strings.noData}</Body></Card> : <>
-      <Card>
-        <View style={styles.navigator}>
-          <IconButton icon="chevron-back" label={strings.previous} disabled={!stats.olderId} onPress={() => stats.olderId && setAnchor(stats.olderId)} />
-          <Text numberOfLines={1} accessibilityLiveRegion="polite" style={[styles.periodLabel, { color: palette.text }]}>{formatPeriod(stats.period, periodKind, locale)}</Text>
-          <IconButton icon="chevron-forward" label={strings.next} disabled={!stats.newerId} onPress={() => stats.newerId && setAnchor(stats.newerId)} />
+  const exerciseName = scope.exerciseId ? data?.rows.find((row) => row.exerciseId === scope.exerciseId)?.exerciseName : undefined;
+  const previousValue = selectedIndex != null && selectedIndex > 0 ? buckets[selectedIndex - 1].value : null;
+  const options = data && (sheet === 'category' || sheet === 'pattern' || sheet === 'exercise')
+    ? scopeOptions(data, scope, sheet).filter((option) => levelLabel(sheet, option.key, option.name).toLowerCase().includes(search.trim().toLowerCase()))
+    : [];
+  const bucketWorkouts = data && bucket ? data.workouts.filter((workout) => bucket.workoutIds.includes(workout.id)).sort((a, b) => b.startedAt.getTime() - a.startedAt.getTime()) : [];
+
+  return (
+    <Screen>
+      <PageHeading title={t('stats.title')} subtitle={t('stats.subtitle')} />
+      {!data ? (
+        <Card style={styles.loading}>
+          {failed ? <>
+            <Heading>{t('stats.error')}</Heading>
+            <Text onPress={load} style={[styles.link, { color: palette.accentStrong }]} accessibilityRole="button">{t('stats.retry')}</Text>
+          </> : <><ActivityIndicator color={palette.accentStrong} /><Body>{t('stats.loading')}</Body></>}
+        </Card>
+      ) : <>
+        <SegmentedControl value={granularity} options={GRANULARITIES.map((value) => ({ value, label: t(`stats.granularity.${value}`) }))} onChange={(value) => { setGranularity(value); resetView(); }} />
+
+        <View style={styles.chips}>
+          {KINDS.map((kind) => <Chip key={kind} label={t(`stats.kind.${kind}`)} selected={scope.kind === kind} onPress={() => changeScope({ kind })} />)}
         </View>
-        {stats.newerId && <Pressable accessibilityRole="button" onPress={() => setAnchor(null)} style={styles.latest}>
-          <Text style={[styles.latestText, { color: palette.accentStrong }]}>{periodKind === 'session' ? strings.latestSession : strings.today}</Text>
-        </Pressable>}
-        <PeriodBars
-          bars={stats.history}
-          selectedId={stats.period.id}
-          onSelect={setAnchor}
-          describe={(bar) => `${formatPeriodShort(bar.start, periodKind, locale)}: ${bar.sets} ${bar.sets === 1 ? strings.set : strings.sets}`}
-          firstLabel={stats.history.length ? formatPeriodShort(stats.history[0].start, periodKind, locale) : ''}
-          lastLabel={stats.history.length ? formatPeriodShort(stats.history[stats.history.length - 1].start, periodKind, locale) : ''}
-        />
-        <View style={styles.summary}>
-          <Text style={[styles.summaryValue, { color: palette.text }]}>{stats.summary.sets}</Text>
-          <Text style={[styles.summaryUnit, { color: palette.textMuted }]}>{stats.summary.sets === 1 ? strings.set : strings.sets}</Text>
+        <View style={styles.chips}>
+          <Chip icon="layers-outline" label={scope.category ? categoryLabel(scope.category) : `${t('stats.category')}: ${t('stats.any')}`} selected={Boolean(scope.category)} onPress={() => setSheet('category')} />
+          <Chip icon="git-branch-outline" label={scope.pattern ? patternLabel(scope.pattern) : `${t('stats.pattern')}: ${t('stats.any')}`} selected={Boolean(scope.pattern)} onPress={() => setSheet('pattern')} />
+          <Chip icon="barbell-outline" label={exerciseName ?? `${t('stats.exercise')}: ${t('stats.any')}`} selected={Boolean(scope.exerciseId)} onPress={() => setSheet('exercise')} />
         </View>
-        {detail(stats.summary, threshold, strings) ? <Body>{detail(stats.summary, threshold, strings)}</Body> : null}
-      </Card>
 
-      <Card>
-        {stats.items.length === 0 ? <Body>{strings.empty}</Body> : stats.items.map((item, index) => <View key={item.id} style={[styles.row, index > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: palette.border }]}>
-          <View style={styles.rowHead}>
-            <Text numberOfLines={1} style={[styles.rowName, { color: palette.text }]}>{itemName(item.id, item.name)}</Text>
-            <Text style={[styles.rowValue, { color: palette.text }]}>{item.metrics.sets}</Text>
+        <Card>
+          <View style={styles.metricRow}>
+            <View style={styles.metricPick}>
+              <Label>{t('stats.metric')}</Label>
+              <Chip icon="stats-chart-outline" label={t(`stats.metrics.${primary}`)} selected onPress={() => setSheet('metric')} />
+            </View>
+            <View style={styles.metricPick}>
+              <Label>{t('stats.compare')}</Label>
+              <Chip icon="pulse-outline" label={second ? t(`stats.metrics.${second}`) : t('stats.none')} selected={Boolean(second)} onPress={() => setSheet('secondary')} />
+            </View>
           </View>
-          <View style={[styles.rowBar, { width: `${Math.max(3, (item.metrics.sets / maxSets) * 100)}%`, backgroundColor: palette.accentSoft }]} />
-          {detail(item.metrics, threshold, strings) ? <Text style={[styles.rowDetail, { color: palette.textMuted }]}>{detail(item.metrics, threshold, strings)}</Text> : null}
-        </View>)}
-      </Card>
 
-      <Stepper layout="row" label={strings.threshold} value={threshold} step={0.5} min={6} max={10} onChange={changeThreshold} />
-    </>}
-  </Screen>;
+          <View style={styles.pager}>
+            {series?.hasOlder ? <IconButton icon="chevron-back" label={t('stats.older')} onPress={() => { setPage(page + 1); setSelected(null); }} /> : <View style={styles.pagerSpacer} />}
+            <Body style={styles.pagerRange}>{buckets.length ? `${shortLabel(buckets[0])} – ${shortLabel(buckets[buckets.length - 1])}` : ''}</Body>
+            {page > 0 ? <IconButton icon="chevron-forward" label={t('stats.newer')} onPress={() => { setPage(page - 1); setSelected(null); }} /> : <View style={styles.pagerSpacer} />}
+          </View>
+
+          {buckets.length === 0 || buckets.every((item) => item.workoutIds.length === 0) ? (
+            <EmptyState icon="stats-chart-outline" title={t('stats.emptyTitle')} body={t('stats.emptyBody')} />
+          ) : (
+            <StatsChart
+              values={buckets.map((item) => item.value)}
+              secondary={secondarySeries?.buckets.map((item) => item.value)}
+              labels={buckets.map(shortLabel)}
+              selected={selectedIndex}
+              onSelect={setSelected}
+              formatPrimary={(value) => formatMetric(primary, value)}
+              zeroBased={(METRIC_BY_ID[primary].family !== 'performance' && METRIC_BY_ID[primary].family !== 'intensity') || primary === 'trainingSec'}
+              formatSecondary={second ? (value) => formatMetric(second, value) : undefined}
+              accessibilityLabel={(index) => `${periodTitle(buckets[index])}: ${valueText(primary, buckets[index].value)}`}
+            />
+          )}
+          {second ? (
+            <View style={styles.legend}>
+              <View style={[styles.legendSwatch, { backgroundColor: palette.accent }]} /><Body style={styles.legendText}>{t(`stats.metrics.${primary}`)}</Body>
+              <View style={[styles.legendLine, { backgroundColor: palette.record }]} /><Body style={styles.legendText}>{t(`stats.metrics.${second}`)}</Body>
+            </View>
+          ) : null}
+        </Card>
+
+        {bucket && bucket.workoutIds.length > 0 ? (
+          <Card>
+            <Label>{periodTitle(bucket)}</Label>
+            <View style={styles.totals}>
+              <View style={styles.total}>
+                <Text style={[styles.totalValue, { color: palette.accentStrong }]}>{valueText(primary, bucket.value)}</Text>
+                <Body style={styles.totalLabel}>{t(`stats.metrics.${primary}`)}</Body>
+              </View>
+              {second ? (
+                <View style={styles.total}>
+                  <Text style={[styles.totalValue, { color: palette.record }]}>{valueText(second, secondarySeries?.buckets[selectedIndex!]?.value)}</Text>
+                  <Body style={styles.totalLabel}>{t(`stats.metrics.${second}`)}</Body>
+                </View>
+              ) : null}
+            </View>
+            <Body>{t('stats.previous', { value: valueText(primary, previousValue) })}{bucket.value != null && previousValue ? `  (${delta(bucket.value, previousValue)})` : ''}</Body>
+
+            {level && breakdown.length > 0 ? <>
+              <SectionTitle title={t(`stats.breakdown.${level}`)} />
+              {breakdown.map((item) => (
+                <View key={item.key} style={styles.breakdownRow}>
+                  <Text accessibilityRole="button" onPress={item.key ? () => narrow(level, item.key) : undefined} numberOfLines={1} style={[styles.breakdownName, { color: palette.text }]}>
+                    {levelLabel(level, item.key, item.name)}
+                  </Text>
+                  <View style={[styles.breakdownTrack, { backgroundColor: palette.surfaceMuted }]}>
+                    <View style={[styles.breakdownFill, { width: `${Math.max(4, (item.value / breakdown[0].value) * 100)}%`, backgroundColor: palette.accent }]} />
+                  </View>
+                  <Text style={[styles.breakdownValue, { color: palette.text }]}>
+                    {formatMetric(primary, item.value)}{item.share != null ? ` · ${Math.round(item.share * 100)}%` : ''}
+                  </Text>
+                </View>
+              ))}
+            </> : null}
+
+            <SectionTitle title={t('stats.workouts')} />
+            <ListGroup>
+              {bucketWorkouts.map((workout) => (
+                <ListRow
+                  key={workout.id}
+                  icon="barbell-outline"
+                  title={workout.name}
+                  subtitle={dateFormat({ weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }, workout.startedAt)}
+                  onPress={() => router.push({ pathname: '/workout/history/[id]', params: { id: workout.id } })}
+                />
+              ))}
+            </ListGroup>
+          </Card>
+        ) : buckets.some((item) => item.workoutIds.length) ? <Body>{t('stats.selectHint')}</Body> : null}
+      </>}
+
+      <Sheet visible={sheet === 'category' || sheet === 'pattern' || sheet === 'exercise'} onClose={() => { setSheet(null); setSearch(''); }} title={sheet ? t(`stats.${sheet === 'metric' || sheet === 'secondary' ? 'metric' : sheet}`) : ''}>
+        <TextField placeholder={t('stats.search')} value={search} onChangeText={setSearch} />
+        <ListGroup>
+          <ListRow icon="close-circle-outline" title={t('stats.clear')} onPress={() => sheet && sheet !== 'metric' && sheet !== 'secondary' && narrow(sheet, undefined)} />
+          {options.map((option) => (
+            <ListRow
+              key={option.key}
+              title={sheet && sheet !== 'metric' && sheet !== 'secondary' ? levelLabel(sheet, option.key, option.name) : option.name}
+              subtitle={`${option.sets} ${t('stats.metrics.sets').toLowerCase()}`}
+              onPress={() => sheet && sheet !== 'metric' && sheet !== 'secondary' && narrow(sheet, option.key)}
+            />
+          ))}
+        </ListGroup>
+      </Sheet>
+
+      <Sheet visible={sheet === 'metric' || sheet === 'secondary'} onClose={() => setSheet(null)} title={sheet === 'secondary' ? t('stats.compare') : t('stats.metric')} body={scope.exerciseId ? undefined : t('stats.performanceHint')}>
+        {sheet === 'secondary' ? <View style={styles.chips}><Chip label={t('stats.none')} selected={!second} onPress={() => { setSecondary(null); setSheet(null); }} /></View> : null}
+        {FAMILIES.map((family) => {
+          const ids = METRICS.filter((item) => item.family === family && available.includes(item.id) && (sheet !== 'secondary' || item.id !== primary)).map((item) => item.id);
+          if (!ids.length) return null;
+          return (
+            <View key={family} style={styles.family}>
+              <Label>{t(`stats.family.${family}`)}</Label>
+              <View style={styles.chips}>
+                {ids.map((id) => (
+                  <Chip
+                    key={id}
+                    label={t(`stats.metrics.${id}`)}
+                    selected={sheet === 'secondary' ? second === id : primary === id}
+                    onPress={() => { if (sheet === 'secondary') setSecondary(id); else setMetric(id); setSheet(null); }}
+                  />
+                ))}
+              </View>
+            </View>
+          );
+        })}
+      </Sheet>
+    </Screen>
+  );
 }
 
-/** Only the non-zero parts, e.g. "48 rip · 2 ≥ RPE 8 · 120 kg·rep". Empty string when nothing to add. */
-function detail(metrics: StatsMetrics, threshold: number, strings: Strings): string {
-  return [
-    metrics.reps > 0 ? `${metrics.reps} ${strings.reps}` : null,
-    metrics.holdSeconds > 0 ? formatDuration(metrics.holdSeconds) : null,
-    metrics.setsAtThreshold > 0 ? `${metrics.setsAtThreshold} ≥ RPE ${formatNumber(threshold)}` : null,
-    metrics.loadRepsKg > 0 ? `${formatNumber(metrics.loadRepsKg)} kg·rep` : null,
-    metrics.loadSecondsKg > 0 ? `${formatNumber(metrics.loadSecondsKg)} kg·s` : null,
-  ].filter((part): part is string => part !== null).join(' · ');
+function lastWithData(buckets: readonly Bucket[]): number {
+  for (let index = buckets.length - 1; index >= 0; index -= 1) if (buckets[index].workoutIds.length) return index;
+  return buckets.length - 1;
+}
+
+function delta(value: number, previous: number): string {
+  const change = ((value - previous) / previous) * 100;
+  return `${change > 0 ? '+' : ''}${Math.round(change)}%`;
+}
+
+function humanize(key: string): string {
+  const text = key.replace(/[-_]+/g, ' ').trim();
+  return text.charAt(0).toUpperCase() + text.slice(1);
 }
 
 const baseStyles = StyleSheet.create({
-  controls: { gap: 8, marginBottom: 12 },
-  quietToggle: { flexDirection: 'row', justifyContent: 'center', gap: 8 },
-  quietItem: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  quietText: { fontSize: 14 },
-  loadingCard: { minHeight: 120, alignItems: 'center', justifyContent: 'center', gap: 10 },
-  navigator: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 },
-  periodLabel: { flex: 1, textAlign: 'center', fontSize: 16, fontFamily: 'Barlow_600SemiBold' },
-  latest: { alignSelf: 'center', marginBottom: 8 },
-  latestText: { fontSize: 13, fontFamily: 'Barlow_600SemiBold' },
-  summary: { flexDirection: 'row', alignItems: 'baseline', gap: 6, marginTop: 14 },
-  summaryValue: { fontSize: 28, fontFamily: 'Barlow_600SemiBold', fontVariant: ['tabular-nums'] },
-  summaryUnit: { fontSize: 15 },
-  row: { paddingVertical: 10, gap: 5 },
-  rowHead: { flexDirection: 'row', alignItems: 'baseline', gap: 10 },
-  rowName: { flex: 1, fontSize: 15, fontFamily: 'Barlow_600SemiBold' },
-  rowValue: { fontSize: 16, fontFamily: 'Barlow_600SemiBold', fontVariant: ['tabular-nums'] },
-  rowBar: { height: 4, borderRadius: 2 },
-  rowDetail: { fontSize: 13 },
+  loading: { minHeight: 170, alignItems: 'center', justifyContent: 'center' },
+  link: { fontWeight: '700', padding: 8 },
+  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  metricRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
+  metricPick: { gap: 6, flexShrink: 1 },
+  pager: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  pagerSpacer: { width: 40, height: 40 },
+  pagerRange: { flex: 1, textAlign: 'center', fontSize: 13 },
+  legend: { flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' },
+  legendSwatch: { width: 10, height: 10, borderRadius: 2 },
+  legendLine: { width: 14, height: 2, marginLeft: 8 },
+  legendText: { fontSize: 12 },
+  totals: { flexDirection: 'row', gap: 24 },
+  total: { gap: 2 },
+  totalValue: { fontSize: 26, fontWeight: '800' },
+  totalLabel: { fontSize: 12 },
+  breakdownRow: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 36 },
+  breakdownName: { width: '36%', fontSize: 13, fontWeight: '600', textDecorationLine: 'underline' },
+  breakdownTrack: { flex: 1, height: 8, borderRadius: 4, overflow: 'hidden' },
+  breakdownFill: { height: '100%', borderRadius: 4 },
+  breakdownValue: { minWidth: 70, textAlign: 'right', fontSize: 12, fontWeight: '700' },
+  family: { gap: 6, marginBottom: 6 },
 });
