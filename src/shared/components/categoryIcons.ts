@@ -3,6 +3,8 @@ import type { IconName } from "./Icon";
 export const categoryIcons: Record<string, IconName> = {
   push: "arrow-up-circle-outline",
   pull: "arrow-down-circle-outline",
+  biceps: "fitness-outline",
+  triceps: "flash-outline",
   legs: "walk-outline",
   core: "shield-outline",
   skill: "sparkles-outline",

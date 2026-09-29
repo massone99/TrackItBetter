@@ -2,10 +2,11 @@ import * as Crypto from 'expo-crypto';
 import { db, initializeDatabase } from '../../db/client';
 import { eq } from 'drizzle-orm';
 import { exercises } from '../../db/schema';
+import type { ExerciseCategory } from './categories';
 import { canonicalizeMovementTag, MOVEMENT_GROUP_IDS, MOVEMENT_TAGS, type MovementGroupId } from './movementCatalog';
 
+export type { ExerciseCategory } from './categories';
 export type ExerciseMetric = 'reps' | 'time' | 'reps_load' | 'time_load' | 'distance';
-export type ExerciseCategory = 'push' | 'pull' | 'legs' | 'core' | 'skill' | 'mobility' | 'cardio';
 
 export interface CreateCustomExerciseInput {
   name: string;

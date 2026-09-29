@@ -1,9 +1,10 @@
 import { z } from 'zod';
 import { normalizeVideoUrl } from '../../shared/utils/url';
-import type { CreateCustomExerciseInput, ExerciseCategory, ExerciseMetric } from './customRepository';
+import { EXERCISE_CATEGORIES, type ExerciseCategory } from './categories';
+import type { CreateCustomExerciseInput, ExerciseMetric } from './customRepository';
 import { MOVEMENT_GROUP_IDS, MOVEMENT_TAGS, canonicalizeMovementTag, type MovementGroupId } from './movementCatalog';
 
-export const EXERCISE_CATEGORIES = ['push', 'pull', 'legs', 'core', 'skill', 'mobility', 'cardio'] as const satisfies readonly ExerciseCategory[];
+export { EXERCISE_CATEGORIES };
 export const EXERCISE_METRICS = ['reps', 'time', 'reps_load', 'time_load', 'distance'] as const satisfies readonly ExerciseMetric[];
 
 export const exerciseFormSchema = z.object({
