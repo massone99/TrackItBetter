@@ -4,9 +4,8 @@ import { useTranslation } from 'react-i18next';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import type { Exercise } from '../../src/db/schema';
 import { openReferenceVideo, ReferenceLinkSheet } from '../../src/features/exercises/ReferenceLinkSheet';
-import { ClassificationChoices, movementTagLabel } from '../../src/features/exercises/ClassificationChoices';
-import type { MovementGroupId } from '../../src/features/exercises/movementCatalog';
-import { archiveCustomExercise, getExerciseById, setExerciseClassification, setExerciseFavourite } from '../../src/features/exercises/repository';
+import { movementTagLabel } from '../../src/features/exercises/ClassificationChoices';
+import { archiveCustomExercise, getExerciseById, setExerciseFavourite } from '../../src/features/exercises/repository';
 import { addExerciseToWorkout, getActiveWorkout, startWorkout } from '../../src/features/session/repository';
 import { getExerciseCycle, getExerciseEstimate, getExerciseWeekStats } from '../../src/features/analytics/repository';
 import type { ExerciseEstimate } from '../../src/features/analytics/estimates';
@@ -40,11 +39,6 @@ export default function ExerciseRoute() {
   const [cycle, setCycle] = useState<{ current: ExerciseCycle | null; previous: ExerciseCycle | null } | null>(null);
   const [estimate, setEstimate] = useState<ExerciseEstimate | null>(null);
   const [editingReference, setEditingReference] = useState(false);
-  const [editingClassification, setEditingClassification] = useState(false);
-  const [draftTag, setDraftTag] = useState<string | null>(null);
-  const [draftGroup, setDraftGroup] = useState<MovementGroupId | null>(null);
-  const [savingClassification, setSavingClassification] = useState(false);
-  const [classificationFailed, setClassificationFailed] = useState(false);
   const [confirmArchive, setConfirmArchive] = useState(false);
 
   const reload = useCallback(async () => {
@@ -74,21 +68,6 @@ export default function ExerciseRoute() {
     goBack({ pathname: '/programs', params: { view: 'exercises' } });
   };
 
-  const saveClassification = async () => {
-    if (!exercise || savingClassification) return;
-    setSavingClassification(true);
-    setClassificationFailed(false);
-    try {
-      await setExerciseClassification(exercise.id, draftTag, draftGroup);
-      setEditingClassification(false);
-      await reload();
-    } catch {
-      setClassificationFailed(true);
-    } finally {
-      setSavingClassification(false);
-    }
-  };
-
   if (loading) return <Screen><ActivityIndicator color={palette.accentStrong} /></Screen>;
   if (!exercise) return <Screen><PageHeading title={t('details.exercise')} subtitle={t('library.empty')} /></Screen>;
 
@@ -116,12 +95,7 @@ export default function ExerciseRoute() {
           icon="layers-outline"
           title={t('movement.classification')}
           subtitle={`${t('movement.groupTitle')}: ${exercise.movementGroup ? t(`movement.groups.${exercise.movementGroup}`) : t('movement.none')} · ${t('movement.tagTitle')}: ${exercise.movementTag ? movementTagLabel(exercise.movementTag, t) : t('movement.none')}`}
-          onPress={() => {
-            setDraftTag(exercise.movementTag);
-            setDraftGroup(exercise.movementGroup as MovementGroupId | null);
-            setClassificationFailed(false);
-            setEditingClassification(true);
-          }}
+          onPress={() => router.push({ pathname: '/exercise/new', params: { edit: exercise.id } })}
         />
         {exercise.demoUrl ? (
           <ListRow
@@ -245,12 +219,6 @@ export default function ExerciseRoute() {
           onSaved={() => { setEditingReference(false); void reload(); }}
         />
       ) : null}
-
-      <Sheet visible={editingClassification} onClose={() => setEditingClassification(false)} title={t('movement.editTitle')} body={exercise.name}>
-        <ClassificationChoices movementTag={draftTag} movementGroup={draftGroup} onTagChange={setDraftTag} onGroupChange={setDraftGroup} />
-        {classificationFailed ? <Body style={{ color: palette.warning }}>{t('movement.saveError')}</Body> : null}
-        <ActionButton label={savingClassification ? t('customExercise.saving') : t('common.save')} disabled={savingClassification} onPress={() => void saveClassification()} />
-      </Sheet>
 
       <Sheet visible={confirmArchive} onClose={() => setConfirmArchive(false)} title={t('exercise.removeFromLibrary')} body={t('exercise.removeFromLibraryBody')}>
         <ActionButton icon="archive-outline" label={t('logger.confirmRemove')} variant="danger" onPress={() => void archive()} />

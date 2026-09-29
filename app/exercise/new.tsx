@@ -3,48 +3,26 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { Controller, useForm, useWatch } from 'react-hook-form';
 import { useTranslation } from 'react-i18next';
 import { useEffect, useState } from 'react';
-import { StyleSheet, TextInput, View } from 'react-native';
-import { z } from 'zod';
-import { createCustomExercise, updateExercise, type ExerciseCategory, type ExerciseMetric } from '../../src/features/exercises/customRepository';
+import { Pressable, StyleSheet, View } from 'react-native';
+import { createCustomExercise, updateExercise } from '../../src/features/exercises/customRepository';
 import { ClassificationChoices } from '../../src/features/exercises/ClassificationChoices';
-import type { MovementGroupId } from '../../src/features/exercises/movementCatalog';
-import { ActionButton, Body, Chip, Label, PageHeading, Screen, TextField } from '../../src/shared/components/ui';
+import {
+  chooseMainCategory,
+  EMPTY_EXERCISE_FORM,
+  EXERCISE_CATEGORIES,
+  EXERCISE_METRICS,
+  exerciseFormSchema,
+  exerciseToFormValues,
+  formValuesToInput,
+  toggleExtraCategory,
+  type ExerciseFormValues,
+} from '../../src/features/exercises/exerciseForm';
+import { ActionButton, Body, Chip, Icon, Label, PageHeading, Screen, TextField } from '../../src/shared/components/ui';
 import { addExerciseToWorkout } from '../../src/features/session/repository';
 import { getExerciseById } from '../../src/features/exercises/repository';
-import { normalizeVideoUrl } from '../../src/shared/utils/url';
 import { useTheme } from '../../src/shared/theme/ThemeProvider';
 import { useScaledStyles } from '../../src/shared/theme/useScaledStyles';
 import { goBack } from '../../src/shared/navigation/goBack';
-
-const categories = ['push', 'pull', 'legs', 'core', 'skill', 'mobility', 'cardio'] as const satisfies readonly ExerciseCategory[];
-const metrics = ['reps', 'time', 'reps_load', 'time_load', 'distance'] as const satisfies readonly ExerciseMetric[];
-
-const formSchema = z.object({
-  name: z.string().trim().min(1, 'customExercise.errors.name').max(80, 'customExercise.errors.nameLength'),
-  metric: z.enum(metrics),
-  category: z.enum(categories),
-  extraCategories: z.array(z.enum(categories)),
-  equipment: z.string().max(240, 'customExercise.errors.equipmentLength'),
-  cues: z.string().max(1000, 'customExercise.errors.cuesLength'),
-  demoUrl: z.string().refine((value) => normalizeVideoUrl(value) !== undefined, 'logger.referenceInvalid'),
-  movementTag: z.string().nullable(),
-  movementGroup: z.string().nullable(),
-});
-
-type FormValues = z.infer<typeof formSchema>;
-
-function readList(value: string): string[] {
-  try {
-    const parsed: unknown = JSON.parse(value);
-    return Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === 'string') : [];
-  } catch {
-    return [];
-  }
-}
-
-function splitList(value: string, commaSeparated = false): string[] {
-  return value.split(commaSeparated ? /[\n,]/ : /\n/).map((item) => item.trim()).filter(Boolean);
-}
 
 export default function NewExerciseRoute() {
   const styles = useScaledStyles(baseStyles);
@@ -54,50 +32,29 @@ export default function NewExerciseRoute() {
   const { t } = useTranslation();
   const { palette } = useTheme();
   const [saving, setSaving] = useState(false);
-  const [saveFailed, setSaveFailed] = useState(false);
-  const { control, handleSubmit, reset, setValue, formState: { errors } } = useForm<FormValues>({
-    resolver: zodResolver(formSchema),
-    defaultValues: { name: '', metric: 'reps', category: 'push', extraCategories: [], equipment: '', cues: '', demoUrl: '', movementTag: null, movementGroup: null },
+  // Why the last save failed, shown with the message so a failure on a phone can be reported.
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const { control, handleSubmit, reset, setValue, getValues, formState: { errors } } = useForm<ExerciseFormValues>({
+    resolver: zodResolver(exerciseFormSchema),
+    defaultValues: EMPTY_EXERCISE_FORM,
   });
-  const movementTag = useWatch({ control, name: 'movementTag' });
-  const movementGroup = useWatch({ control, name: 'movementGroup' });
-
-  const mainCategory = useWatch({ control, name: 'category' });
+  const [category, extraCategories, movementTag, movementGroup] = useWatch({ control, name: ['category', 'extraCategories', 'movementTag', 'movementGroup'] });
+  const detailErrors = Boolean(errors.equipment || errors.cues || errors.demoUrl);
 
   useEffect(() => {
     if (!edit) return;
     void getExerciseById(edit).then((exercise) => {
-      if (!exercise) return;
-      reset({
-        name: exercise.name,
-        metric: (metrics as readonly string[]).includes(exercise.metric) ? exercise.metric as ExerciseMetric : 'reps',
-        category: (categories as readonly string[]).includes(exercise.category) ? exercise.category as ExerciseCategory : 'push',
-        extraCategories: readList(exercise.extraCategories).filter((item): item is ExerciseCategory => (categories as readonly string[]).includes(item)),
-        equipment: readList(exercise.equipment).join(', '),
-        cues: readList(exercise.cues).join('\n'),
-        demoUrl: exercise.demoUrl ?? '',
-        movementTag: exercise.movementTag,
-        movementGroup: exercise.movementGroup,
-      });
+      if (exercise) reset(exerciseToFormValues(exercise));
     });
   }, [edit, reset]);
 
-  const save = async (values: FormValues) => {
+  const save = async (values: ExerciseFormValues) => {
     if (saving) return;
     setSaving(true);
-    setSaveFailed(false);
+    setSaveError(null);
     try {
-      const input = {
-        name: values.name,
-        metric: values.metric,
-        category: values.category,
-        extraCategories: values.extraCategories.filter((item) => item !== values.category),
-        equipment: splitList(values.equipment, true),
-        cues: splitList(values.cues),
-        demoUrl: normalizeVideoUrl(values.demoUrl) ?? null,
-        movementTag: values.movementTag,
-        movementGroup: values.movementGroup as MovementGroupId | null,
-      };
+      const input = formValuesToInput(values);
       if (edit) {
         await updateExercise(edit, input);
         goBack({ pathname: '/exercise/[id]', params: { id: edit } });
@@ -106,143 +63,146 @@ export default function NewExerciseRoute() {
       const id = await createCustomExercise(input);
       if (addTo) {
         await addExerciseToWorkout(addTo, id);
-        goBack(addTo ? { pathname: '/workout/[id]', params: { id: addTo } } : { pathname: '/programs', params: { view: 'exercises' } });
+        goBack({ pathname: '/workout/[id]', params: { id: addTo } });
       } else {
         router.replace({ pathname: '/exercise/[id]', params: { id } });
       }
-    } catch {
-      setSaveFailed(true);
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : String(error));
     } finally {
       setSaving(false);
     }
   };
 
+  // Hidden detail fields with an error open up so the message is never out of sight.
+  const submit = () => void handleSubmit(save, (invalid) => {
+    if (invalid.equipment || invalid.cues || invalid.demoUrl) setDetailsOpen(true);
+  })();
+
+  const pickMain = (next: (typeof EXERCISE_CATEGORIES)[number]) => {
+    const picked = chooseMainCategory(getValues(), next);
+    setValue('category', picked.category);
+    setValue('extraCategories', picked.extraCategories);
+  };
+
   return (
     <Screen>
-      <PageHeading title={edit ? t('customExercise.editTitle') : t('customExercise.title')} subtitle={edit ? t('customExercise.editSubtitle') : t('customExercise.subtitle')} />
-      <View style={styles.field}>
-        <Label>{t('customExercise.name')}</Label>
-        <Controller control={control} name="name" render={({ field: { onChange, onBlur, value } }) => (
-          <TextInput
-            accessibilityLabel={t('customExercise.name')}
-            autoCapitalize="words"
-            value={value}
-            onChangeText={onChange}
-            onBlur={onBlur}
-            placeholder={t('customExercise.namePlaceholder')}
-            placeholderTextColor={palette.textMuted}
-            style={[styles.input, { backgroundColor: palette.surface, borderColor: palette.border, color: palette.text }]}
-          />
-        )} />
-        {errors.name ? <Body style={{ color: palette.warning }}>{t(errors.name.message ?? 'customExercise.errors.name')}</Body> : null}
-      </View>
+      <PageHeading title={edit ? t('customExercise.editTitle') : t('customExercise.title')} subtitle={edit ? t('customExercise.editSubtitle') : undefined} />
+
+      <Controller control={control} name="name" render={({ field: { onChange, onBlur, value } }) => (
+        <TextField
+          label={t('customExercise.name')}
+          autoCapitalize="words"
+          value={value}
+          onChangeText={onChange}
+          onBlur={onBlur}
+          placeholder={t('customExercise.namePlaceholder')}
+          error={errors.name ? t(errors.name.message ?? 'customExercise.errors.name') : null}
+        />
+      )} />
 
       <View style={styles.field}>
         <Label>{t('customExercise.metric')}</Label>
         <Controller control={control} name="metric" render={({ field: { onChange, value } }) => (
           <View style={styles.choices}>
-            {metrics.map((metric) => <Choice key={metric} label={t(`customExercise.metrics.${metric}`)} selected={value === metric} onPress={() => onChange(metric)} />)}
+            {EXERCISE_METRICS.map((metric) => <Chip key={metric} label={t(`customExercise.metrics.${metric}`)} selected={value === metric} onPress={() => onChange(metric)} />)}
           </View>
         )} />
       </View>
 
       <View style={styles.field}>
         <Label>{t('customExercise.category')}</Label>
-        <Controller control={control} name="category" render={({ field: { onChange, value } }) => (
-          <View style={styles.choices}>
-            {categories.map((category) => <Choice key={category} label={t(`library.category.${category}`)} selected={value === category} onPress={() => onChange(category)} />)}
-          </View>
-        )} />
+        <View style={styles.choices}>
+          {EXERCISE_CATEGORIES.map((item) => {
+            const label = t(`library.category.${item}`);
+            return <Chip key={item} label={label} accessibilityLabel={`${t('customExercise.category')}: ${label}`} selected={category === item} onPress={() => pickMain(item)} />;
+          })}
+        </View>
+      </View>
+
+      <View style={styles.field}>
+        <Label>{t('customExercise.extraCategories')}</Label>
+        <View style={styles.choices}>
+          {EXERCISE_CATEGORIES.filter((item) => item !== category).map((item) => {
+            const label = t(`library.category.${item}`);
+            return (
+              <Chip
+                key={item}
+                label={label}
+                accessibilityLabel={`${t('customExercise.extraCategories')}: ${label}`}
+                selected={extraCategories.includes(item)}
+                onPress={() => setValue('extraCategories', toggleExtraCategory(getValues('extraCategories'), item))}
+              />
+            );
+          })}
+        </View>
       </View>
 
       <ClassificationChoices
         movementTag={movementTag}
-        movementGroup={movementGroup as MovementGroupId | null}
+        movementGroup={movementGroup}
         onTagChange={(value) => setValue('movementTag', value)}
         onGroupChange={(value) => setValue('movementGroup', value)}
       />
 
-      <View style={styles.field}>
-        <Label>{t('customExercise.extraCategories')}</Label>
-        <Body>{t('customExercise.extraCategoriesHint')}</Body>
-        <Controller control={control} name="extraCategories" render={({ field: { onChange, value } }) => (
-          <View style={styles.choices}>
-            {categories.filter((category) => category !== mainCategory).map((category) => (
-              <Choice
-                key={category}
-                label={t(`library.category.${category}`)}
-                selected={value.includes(category)}
-                onPress={() => onChange(value.includes(category) ? value.filter((item) => item !== category) : [...value, category])}
-              />
-            ))}
-          </View>
-        )} />
-      </View>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityState={{ expanded: detailsOpen || detailErrors }}
+        onPress={() => setDetailsOpen((open) => !open)}
+        style={[styles.detailsToggle, { borderColor: palette.border }]}
+      >
+        <Label>{t('customExercise.details')}</Label>
+        <Icon name={detailsOpen || detailErrors ? 'chevron-up' : 'chevron-down'} size={18} color={palette.textMuted} />
+      </Pressable>
 
-      <View style={styles.field}>
-        <Label>{t('customExercise.equipment')}</Label>
-        <Body>{t('customExercise.listHint')}</Body>
-        <Controller control={control} name="equipment" render={({ field: { onChange, onBlur, value } }) => (
-          <TextInput
-            accessibilityLabel={t('customExercise.equipment')}
-            value={value}
-            onChangeText={onChange}
-            onBlur={onBlur}
-            placeholder={t('customExercise.equipmentPlaceholder')}
-            placeholderTextColor={palette.textMuted}
-            style={[styles.input, { backgroundColor: palette.surface, borderColor: palette.border, color: palette.text }]}
-          />
-        )} />
-        {errors.equipment ? <Body style={{ color: palette.warning }}>{t(errors.equipment.message ?? 'customExercise.errors.equipmentLength')}</Body> : null}
-      </View>
+      {detailsOpen || detailErrors ? (
+        <>
+          <Controller control={control} name="equipment" render={({ field: { onChange, onBlur, value } }) => (
+            <TextField
+              label={t('customExercise.equipment')}
+              value={value}
+              onChangeText={onChange}
+              onBlur={onBlur}
+              placeholder={t('customExercise.equipmentPlaceholder')}
+              error={errors.equipment ? t(errors.equipment.message ?? 'customExercise.errors.equipmentLength') : null}
+            />
+          )} />
+          <Controller control={control} name="cues" render={({ field: { onChange, onBlur, value } }) => (
+            <TextField
+              label={t('customExercise.cues')}
+              multiline
+              value={value}
+              onChangeText={onChange}
+              onBlur={onBlur}
+              placeholder={t('customExercise.cuesPlaceholder')}
+              hint={t('customExercise.cuesHint')}
+              error={errors.cues ? t(errors.cues.message ?? 'customExercise.errors.cuesLength') : null}
+            />
+          )} />
+          <Controller control={control} name="demoUrl" render={({ field: { onChange, onBlur, value } }) => (
+            <TextField
+              label={t('logger.reference')}
+              value={value}
+              onChangeText={onChange}
+              onBlur={onBlur}
+              placeholder={t('logger.referencePlaceholder')}
+              autoCapitalize="none"
+              autoCorrect={false}
+              keyboardType="url"
+              error={errors.demoUrl ? t('logger.referenceInvalid') : null}
+            />
+          )} />
+        </>
+      ) : null}
 
-      <View style={styles.field}>
-        <Label>{t('customExercise.cues')}</Label>
-        <Body>{t('customExercise.cuesHint')}</Body>
-        <Controller control={control} name="cues" render={({ field: { onChange, onBlur, value } }) => (
-          <TextInput
-            accessibilityLabel={t('customExercise.cues')}
-            multiline
-            textAlignVertical="top"
-            value={value}
-            onChangeText={onChange}
-            onBlur={onBlur}
-            placeholder={t('customExercise.cuesPlaceholder')}
-            placeholderTextColor={palette.textMuted}
-            style={[styles.input, styles.multiline, { backgroundColor: palette.surface, borderColor: palette.border, color: palette.text }]}
-          />
-        )} />
-        {errors.cues ? <Body style={{ color: palette.warning }}>{t(errors.cues.message ?? 'customExercise.errors.cuesLength')}</Body> : null}
-      </View>
-
-      <Controller control={control} name="demoUrl" render={({ field: { onChange, onBlur, value } }) => (
-        <TextField
-          label={t('logger.reference')}
-          value={value}
-          onChangeText={onChange}
-          onBlur={onBlur}
-          placeholder={t('logger.referencePlaceholder')}
-          autoCapitalize="none"
-          autoCorrect={false}
-          keyboardType="url"
-          hint={t('logger.referenceHint')}
-          error={errors.demoUrl ? t('logger.referenceInvalid') : null}
-        />
-      )} />
-
-      {saveFailed ? <Body style={{ color: palette.warning }}>{t('customExercise.errors.save')}</Body> : null}
-      <ActionButton label={saving ? t('customExercise.saving') : t('common.save')} onPress={() => void handleSubmit(save)()} />
+      {saveError !== null ? <Body style={{ color: palette.warning }}>{`${t('customExercise.errors.save')} (${saveError})`}</Body> : null}
+      <ActionButton label={saving ? t('customExercise.saving') : t('common.save')} disabled={saving} onPress={submit} />
     </Screen>
   );
 }
 
-function Choice({ label, selected, onPress }: { label: string; selected: boolean; onPress: () => void }) {
-  return <Chip label={label} selected={selected} onPress={onPress} />;
-}
-
 const baseStyles = StyleSheet.create({
-  field: { gap: 9 },
-  input: { minHeight: 52, borderWidth: 1, borderRadius: 15, paddingHorizontal: 15, fontSize: 15 },
-  multiline: { minHeight: 112, paddingTop: 13 },
-  choices: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  field: { gap: 8 },
+  choices: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  detailsToggle: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 44, borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 8 },
 });
