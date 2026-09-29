@@ -17,7 +17,8 @@ export interface UserProgramExercise {
   sets: number;
   /** Reps, seconds or meters depending on the exercise metric. */
   target: number;
-  restSeconds: number;
+  /** Rest after each set; null or missing means "use the default rest" (per exercise, or Profile). */
+  restSeconds?: number | null;
   /** Planned added load for weighted exercises; null or missing means "reuse last time's load". */
   loadKg?: number | null;
 }
@@ -71,7 +72,7 @@ export function isValidPrescription(exercise: Partial<UserProgramExercise>): exe
   return typeof exercise.id === 'string' && typeof exercise.exerciseId === 'string'
     && Number.isInteger(exercise.sets) && exercise.sets! > 0
     && Number.isFinite(exercise.target) && exercise.target! > 0
-    && Number.isInteger(exercise.restSeconds) && exercise.restSeconds! >= 0
+    && (exercise.restSeconds === undefined || exercise.restSeconds === null || (Number.isInteger(exercise.restSeconds) && exercise.restSeconds >= 0))
     && (exercise.loadKg === undefined || exercise.loadKg === null || (Number.isFinite(exercise.loadKg) && exercise.loadKg >= 0));
 }
 
@@ -94,7 +95,7 @@ const DEFAULT_TARGET = { time: 30, distance: 100, reps: 8 } as const;
 
 /** A movement freshly added to a workout of a program: one set, to be raised as needed. */
 export function newPrescription(exerciseId: string, metric: string | undefined, newId: () => string): UserProgramExercise {
-  return { id: newId(), exerciseId, sets: 1, target: DEFAULT_TARGET[measureOf(metric)], restSeconds: 90, loadKg: null };
+  return { id: newId(), exerciseId, sets: 1, target: DEFAULT_TARGET[measureOf(metric)], restSeconds: null, loadKg: null };
 }
 
 /**
@@ -136,16 +137,18 @@ export function sessionSetCount(session: Pick<UserProgramSession, 'exercises'>):
 
 /**
  * Rough length of a day: every set's work (hold seconds, or reps at ESTIMATED_SEC_PER_REP; distance
- * counts as a minute) plus the rest after each set except the last one of the day.
+ * counts as a minute) plus the rest after each set except the last one of the day. Movements without
+ * a rest of their own count `defaultRestSec`.
  */
-export function estimateSessionSeconds(session: Pick<UserProgramSession, 'exercises'>, metricById: ReadonlyMap<string, string>): number {
+export function estimateSessionSeconds(session: Pick<UserProgramSession, 'exercises'>, metricById: ReadonlyMap<string, string>, defaultRestSec = 90): number {
   let total = 0;
   let lastRest = 0;
   for (const exercise of session.exercises) {
     const metric = metricById.get(exercise.exerciseId);
     const work = isTimedMetric(metric) ? exercise.target : metric === 'distance' ? 60 : exercise.target * ESTIMATED_SEC_PER_REP;
-    total += exercise.sets * (work + exercise.restSeconds);
-    lastRest = exercise.restSeconds;
+    const rest = exercise.restSeconds ?? defaultRestSec;
+    total += exercise.sets * (work + rest);
+    lastRest = rest;
   }
   return Math.max(0, total - lastRest);
 }

@@ -119,3 +119,13 @@ describe('replaceEntryExercise', () => {
     expect(real.sqlite.prepare('SELECT reps, duration_sec, added_load_kg FROM training_set WHERE id = ?').get(setId)).toEqual({ reps: null, duration_sec: 10, added_load_kg: 0 });
   });
 });
+
+describe('adding an exercise to a workout', () => {
+  it('starts with a single set and no rest of its own', async () => {
+    const workoutId = await startWorkout('One set');
+    await addExerciseToWorkout(workoutId, 'push-up');
+    const [exercise] = (await getActiveWorkout(workoutId))!.exercises;
+    expect(exercise.sets).toHaveLength(1);
+    expect(exercise.sets[0].restSec).toBeNull();
+  });
+});

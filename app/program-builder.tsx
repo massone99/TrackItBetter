@@ -18,6 +18,7 @@ import {
   type UserProgramSession,
 } from '../src/domain/userProgram';
 import { ExercisePicker } from '../src/features/exercises/ExercisePicker';
+import { readDefaultRest } from '../src/features/session/restDefaults';
 import { takePendingExercise } from '../src/features/programs/pendingExercise';
 import { listExercises } from '../src/features/exercises/repository';
 import { getUserProgram, saveUserProgram } from '../src/features/programs/userPrograms';
@@ -46,6 +47,8 @@ type Draft = { name: string; sessions: UserProgramSession[] };
 
 /** Stepper value below zero stands for "reuse last time's load". */
 const LOAD_AUTO = -2.5;
+/** Stepper position meaning "no rest of its own": the default rest applies. */
+const REST_DEFAULT = -15;
 
 export default function ProgramEditorScreen() {
   const styles = useScaledStyles(baseStyles);
@@ -176,7 +179,7 @@ export default function ProgramEditorScreen() {
       {sessions.length === 0 ? <EmptyState icon="calendar-outline" title={t('programBuilder.addDay')} body={t('userProgram.errors.noSessions')} /> : null}
       {sessions.map((session, index) => {
         const sessionErrors = errors.filter((error) => error.sessionId === session.id && !error.exerciseId);
-        const minutes = session.exercises.length > 0 ? formatMinutes(estimateSessionSeconds(session, metricById)) : null;
+        const minutes = session.exercises.length > 0 ? formatMinutes(estimateSessionSeconds(session, metricById, readDefaultRest('working'))) : null;
         return (
           <Card key={session.id} style={styles.dayCard}>
             <View style={styles.header}>
@@ -232,12 +235,12 @@ export default function ProgramEditorScreen() {
                   <Stepper
                     layout="row"
                     label={t('userProgram.rest')}
-                    value={prescription.restSeconds}
-                    display={t('userProgram.secondsValue', { value: prescription.restSeconds })}
+                    value={prescription.restSeconds ?? REST_DEFAULT}
+                    display={prescription.restSeconds == null ? t('userProgram.restDefault') : t('userProgram.secondsValue', { value: prescription.restSeconds })}
                     step={15}
-                    min={0}
+                    min={REST_DEFAULT}
                     max={600}
-                    onChange={(restSeconds) => updateExercise(session.id, prescription.id, { restSeconds })}
+                    onChange={(value) => updateExercise(session.id, prescription.id, { restSeconds: value < 0 ? null : value })}
                   />
                   {isLoadMetric(metric) ? (
                     <Stepper

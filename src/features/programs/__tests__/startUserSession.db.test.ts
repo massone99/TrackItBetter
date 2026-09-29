@@ -54,4 +54,15 @@ describe('starting a workout from a program', () => {
     const workoutId = await startUserProgramSession(program, program.sessions[0]);
     expect((await getActiveWorkout(workoutId))!.exercises.map((exercise) => [exercise.exerciseId, exercise.sets.length])).toEqual([['push-up', 2]]);
   });
+
+  it('leaves the rest of the sets empty when the program sets none, so the default rest applies', async () => {
+    const program = { id: 'p3', name: 'NoRest', updatedAt: '', sessions: [{ id: 's', name: 'A', exercises: [
+      { id: 'e1', exerciseId: 'push-up', sets: 1, target: 8, restSeconds: null },
+      { id: 'e2', exerciseId: 'pull-up', sets: 2, target: 5 },
+      { id: 'e3', exerciseId: 'tuck-planche', sets: 1, target: 5, restSeconds: 45 },
+    ] }] };
+    const workoutId = await startUserProgramSession(program, program.sessions[0]);
+    const rests = (await getActiveWorkout(workoutId))!.exercises.map((exercise) => exercise.sets.map((set) => set.restSec));
+    expect(rests).toEqual([[null], [null, null], [45]]);
+  });
 });

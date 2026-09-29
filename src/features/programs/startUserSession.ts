@@ -43,7 +43,8 @@ async function fillWorkout(workoutId: string, exercises: UserProgramSession['exe
       ? plannedLoads(prescription, previous.get(prescription.exerciseId)?.sets.map((set) => set.addedLoadKg) ?? [])
       : [];
     for (const [setIndex, setId] of setIds.slice(0, prescription.sets).entries()) {
-      await updateSet(setId, 'restSec', prescription.restSeconds);
+      // Without a rest of its own the set keeps none, and the exercise's or Profile's rest applies.
+      if (prescription.restSeconds != null) await updateSet(setId, 'restSec', prescription.restSeconds);
       if (isTimedMetric(metric)) await updateSet(setId, 'durationSec', prescription.target);
       else if (metric === 'distance') await updateSet(setId, 'distanceM', prescription.target);
       else await updateSet(setId, 'reps', prescription.target);

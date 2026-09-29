@@ -7,6 +7,7 @@ import { listExercises } from '../../../src/features/exercises/repository';
 import { describePrescription } from '../../../src/features/programs/describe';
 import { startUserProgramSession } from '../../../src/features/programs/startUserSession';
 import { deleteUserProgram, duplicateUserProgram, getUserProgram } from '../../../src/features/programs/userPrograms';
+import { readDefaultRest } from '../../../src/features/session/restDefaults';
 import { WorkoutInProgressSheet } from '../../../src/features/session/WorkoutInProgressSheet';
 import { getActiveWorkout, listRecentWorkoutNames } from '../../../src/features/session/repository';
 import { ActionButton, Body, Card, IconButton, Label, PageHeading, Screen, SectionTitle, Sheet, Text } from '../../../src/shared/components/ui';
@@ -106,7 +107,7 @@ export default function UserProgramScreen() {
               </Label>
               <Text style={styles.sessionName}>{session.name}</Text>
             </View>
-            <Label>{t('userProgram.daySummary', { count: sessionSetCount(session), minutes: formatMinutes(estimateSessionSeconds(session, metricById)) })}</Label>
+            <Label>{t('userProgram.daySummary', { count: sessionSetCount(session), minutes: formatMinutes(estimateSessionSeconds(session, metricById, readDefaultRest('working'))) })}</Label>
           </View>
           {session.exercises.map((prescription) => (
             <View key={prescription.id} style={[styles.exerciseRow, { borderTopColor: palette.border }]}>

@@ -54,6 +54,16 @@ describe('validateUserProgram', () => {
   });
 });
 
+describe('rest is optional', () => {
+  it('accepts a movement without a rest, but not a negative or fractional one', () => {
+    expect(validateUserProgram(program({ sessions: [session({ exercises: [exercise({ restSeconds: null })] })] }))).toEqual([]);
+    const { restSeconds: _rest, ...withoutRest } = exercise();
+    expect(validateUserProgram(program({ sessions: [session({ exercises: [withoutRest as UserProgramExercise] })] }))).toEqual([]);
+    expect(validateUserProgram(program({ sessions: [session({ exercises: [exercise({ restSeconds: -5 })] })] })).map((error) => error.code)).toEqual(['invalidValue']);
+    expect(validateUserProgram(program({ sessions: [session({ exercises: [exercise({ restSeconds: 30.5 })] })] })).map((error) => error.code)).toEqual(['invalidValue']);
+  });
+});
+
 describe('moveItem', () => {
   it('moves up and down and ignores moves past the ends', () => {
     expect(moveItem(['a', 'b', 'c'], 2, -1)).toEqual(['a', 'c', 'b']);
@@ -81,6 +91,13 @@ describe('estimateSessionSeconds', () => {
     const day = session({ exercises: [exercise({ sets: 2, target: 10, restSeconds: 60 }), exercise({ exerciseId: 'plank', sets: 1, target: 30, restSeconds: 45 })] });
     // push-ups: 2 × (30 + 60) = 180; plank: 30 + 45 = 75; minus the final 45 s rest.
     expect(estimateSessionSeconds(day, metrics)).toBe(210);
+  });
+
+  it('uses the default rest for movements without one of their own', () => {
+    const day = session({ exercises: [exercise({ sets: 2, target: 10, restSeconds: null }), exercise({ sets: 1, target: 10 })] });
+    // 2 × (30 + 90) + (30 + 90), minus the final 90 s rest; a movement with no rest field counts the same.
+    expect(estimateSessionSeconds(day, new Map(), 90)).toBe(270);
+    expect(estimateSessionSeconds(day, new Map(), 60)).toBe(210);
   });
 
   it('is zero for an empty day', () => {
@@ -142,7 +159,7 @@ describe('replaceExercise', () => {
 
 describe('newPrescription', () => {
   it('starts with one set and a target that fits the measure', () => {
-    expect(newPrescription('a', 'reps', () => 'x')).toEqual({ id: 'x', exerciseId: 'a', sets: 1, target: 8, restSeconds: 90, loadKg: null });
+    expect(newPrescription('a', 'reps', () => 'x')).toEqual({ id: 'x', exerciseId: 'a', sets: 1, target: 8, restSeconds: null, loadKg: null });
     expect(newPrescription('a', 'time_load', () => 'x')).toMatchObject({ sets: 1, target: 30 });
     expect(newPrescription('a', 'distance', () => 'x')).toMatchObject({ sets: 1, target: 100 });
   });
