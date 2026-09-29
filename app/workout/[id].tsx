@@ -209,7 +209,9 @@ export default function WorkoutScreen() {
     const duration = Math.max(1, Math.floor(seconds));
     setRestSeconds(duration);
     setRestEndsAt(Date.now() + duration * 1000);
-    void scheduleRestFinishedNotification(duration, t('workout.restDoneTitle'), t('workout.restDoneBody')).catch(() => undefined);
+    void scheduleRestFinishedNotification(duration, {
+      title: t('workout.restDoneTitle'), body: t('workout.restDoneBody'), countdown: t('workout.restCountdown'), channel: t('workout.restChannel'),
+    }).catch(() => undefined);
   };
 
   const extendRest = () => {
