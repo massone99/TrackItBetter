@@ -54,6 +54,7 @@ import {
 } from '../../src/shared/components/ui';
 import { useKeyboardVisible } from '../../src/shared/components/keyboard';
 import { RpePicker } from '../../src/features/session/RpePicker';
+import { ExerciseNoteField } from '../../src/features/session/ExerciseNoteField';
 import { DoneTint, PopOnActivate, SwipeableSetRow } from '../../src/features/session/SwipeableSetRow';
 import Animated, { FadeInDown, FadeOutLeft, LayoutAnimationConfig, LinearTransition, ZoomIn } from 'react-native-reanimated';
 import { formatRpe } from '../../src/domain/rpe';
@@ -499,6 +500,20 @@ export default function WorkoutScreen() {
       </Sheet>
 
       <Sheet visible={optionsFor !== null} onClose={() => setOptionsFor(null)} title={optionsFor?.name ?? t('logger.options')}>
+        {optionsFor ? (
+          <ExerciseNoteField key={optionsFor.entryId} entryId={optionsFor.entryId} initial={optionsFor.notes} onSaved={() => void refresh(workout.id)} />
+        ) : null}
+        <ActionButton
+          icon="construct-outline"
+          label={t('logger.editExercise')}
+          secondary
+          onPress={() => {
+            if (!optionsFor) return;
+            const exerciseId = optionsFor.exerciseId;
+            setOptionsFor(null);
+            router.push({ pathname: '/exercise/new', params: { edit: exerciseId } });
+          }}
+        />
         <ActionButton
           icon={optionsFor?.demoUrl ? 'create-outline' : 'link'}
           label={optionsFor?.demoUrl ? t('logger.reference') : t('exercise.addReference')}
@@ -593,6 +608,7 @@ function ExerciseCard({ exercise, previous, hold, onChange, onSetValue, onComple
         <View style={styles.flex}>
           <Heading style={styles.exerciseName}>{exercise.name}</Heading>
           <Label>{previousText ? t('logger.lastTime', { value: previousText }) : t('logger.firstTime')}</Label>
+          {exercise.notes ? <Text numberOfLines={3} style={[styles.exerciseNote, { color: palette.textMuted }]}>{exercise.notes}</Text> : null}
         </View>
         {exercise.demoUrl ? (
           <IconButton icon="play-circle-outline" label={t('logger.referenceOpen')} tone="plain" onPress={() => openReferenceVideo(exercise.demoUrl!)} />
@@ -986,12 +1002,13 @@ const baseStyles = StyleSheet.create({
   clipChip: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, height: 24, borderRadius: 999 },
   clipChipText: { fontFamily: fonts.semibold, fontSize: 12 },
   setNote: { flex: 1, fontFamily: fonts.body, fontSize: 13, lineHeight: 18 },
+  exerciseNote: { fontFamily: fonts.body, fontSize: 13, lineHeight: 18, marginTop: 4 },
   setBadge: { width: 30, height: 30, borderRadius: 9, alignItems: 'center', justifyContent: 'center' },
   setBadgeText: { fontFamily: fonts.display, fontSize: 16 },
   stepper: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
   setValue: { fontFamily: fonts.display, fontSize: 30, lineHeight: 34, minWidth: 52, textAlign: 'center', fontVariant: ['tabular-nums'] },
   stepButton: { width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center' },
-  loadInput: { width: 64, height: 38, borderRadius: 10, textAlign: 'center', fontFamily: fonts.display, fontSize: 19, paddingHorizontal: 4 },
+  loadInput: { minWidth: 64, height: 38, borderRadius: 10, textAlign: 'center', textAlignVertical: 'center', fontFamily: fonts.display, fontSize: 19, lineHeight: 23, paddingVertical: 0, paddingHorizontal: 6, includeFontPadding: false },
   rowActions: { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 2 },
   checkButton: { width: 42, height: 42, borderRadius: 13, alignItems: 'center', justifyContent: 'center' },
   addSet: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, minHeight: 44, borderRadius: 12, borderWidth: 1, borderStyle: 'dashed', marginTop: 6 },

@@ -28,6 +28,8 @@ export interface SessionExercise {
   metric: string;
   /** Link to a reference video showing good form, if one was attached to the exercise. */
   demoUrl: string | null;
+  /** Free-text note for this exercise within the workout. */
+  notes: string | null;
   sets: SessionSet[];
 }
 
@@ -133,6 +135,7 @@ async function loadSessionExercises(workoutId: string): Promise<SessionExercise[
       name: exercise.name,
       metric: exercise.metric,
       demoUrl: exercise.demoUrl,
+      notes: entry.notes,
       sets: sets.map((set) => ({
         id: set.id,
         index: set.index,
@@ -415,6 +418,13 @@ export async function updateSetNote(setId: string, note: string): Promise<void> 
   await initializeDatabase();
   const trimmed = note.trim().slice(0, 500);
   await db.update(trainingSets).set({ note: trimmed || null }).where(eq(trainingSets.id, setId));
+}
+
+/** Saves an optional free-text note on an exercise within a workout; blank text clears it. */
+export async function updateEntryNote(entryId: string, note: string): Promise<void> {
+  await initializeDatabase();
+  const trimmed = note.trim().slice(0, 1000);
+  await db.update(exerciseEntries).set({ notes: trimmed || null }).where(eq(exerciseEntries.id, entryId));
 }
 
 /** Saves (or clears, with null) the RPE of a set. */
