@@ -30,6 +30,8 @@ const exerciseSchema = z.object({
   aliases: z.string(),
   metric: z.enum(['reps', 'time', 'reps_load', 'time_load', 'distance']),
   category: z.string(),
+  // Added in schema v6; older backups omit it.
+  extraCategories: z.string().optional(),
   movementPattern: nullableString,
   primaryMuscles: z.string(),
   secondaryMuscles: z.string(),
@@ -382,7 +384,7 @@ export async function mergeBackup(input: string): Promise<void> {
       await tx.insert(progressionChains).values(rows).onConflictDoNothing();
     });
     await insertInChunks(data.exercises, async (rows) => {
-      await tx.insert(exercises).values(rows.map((row) => ({ ...row, createdAt: date(row.createdAt) }))).onConflictDoNothing();
+      await tx.insert(exercises).values(rows.map((row) => ({ ...row, extraCategories: row.extraCategories ?? '[]', createdAt: date(row.createdAt) }))).onConflictDoNothing();
     });
     await insertInChunks(data.levelCriteria, async (rows) => {
       await tx.insert(levelCriteria).values(rows).onConflictDoNothing();
@@ -482,7 +484,7 @@ async function replaceWithBackup(input: string): Promise<void> {
       await tx.insert(progressionChains).values(rows);
     });
     await insertInChunks(data.exercises, async (rows) => {
-      await tx.insert(exercises).values(rows.map((row) => ({ ...row, createdAt: date(row.createdAt) })));
+      await tx.insert(exercises).values(rows.map((row) => ({ ...row, extraCategories: row.extraCategories ?? '[]', createdAt: date(row.createdAt) })));
     });
     await insertInChunks(data.levelCriteria, async (rows) => {
       await tx.insert(levelCriteria).values(rows);

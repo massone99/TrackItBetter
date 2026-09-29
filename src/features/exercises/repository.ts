@@ -18,7 +18,9 @@ export async function listExercises(filters: ExerciseFilters = {}) {
     const pattern = `%${query.replace(/[\\%_]/g, (match) => `\\${match}`)}%`;
     conditions.push(or(like(exercises.name, pattern), like(exercises.aliases, pattern))!);
   }
-  if (filters.category) conditions.push(eq(exercises.category, filters.category));
+  if (filters.category) {
+    conditions.push(or(eq(exercises.category, filters.category), like(exercises.extraCategories, `%"${filters.category}"%`))!);
+  }
   if (filters.favouritesOnly) conditions.push(eq(exercises.favourite, true));
 
   return db

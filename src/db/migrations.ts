@@ -123,6 +123,14 @@ ALTER TABLE training_set ADD COLUMN note TEXT;
 PRAGMA user_version = 4;
 `;
 
+// Skill holds that are also a push or a pull start with that extra category.
+const extraCategoriesSchema = `
+ALTER TABLE exercise ADD COLUMN extra_categories TEXT NOT NULL DEFAULT '[]';
+UPDATE exercise SET extra_categories = '["push"]' WHERE category = 'skill' AND movement_pattern IN ('horizontal-push', 'vertical-push');
+UPDATE exercise SET extra_categories = '["pull"]' WHERE category = 'skill' AND movement_pattern IN ('horizontal-pull', 'vertical-pull');
+PRAGMA user_version = 6;
+`;
+
 const poseCapturesSchema = `
 CREATE TABLE IF NOT EXISTS pose_capture (
   id TEXT PRIMARY KEY NOT NULL,
@@ -176,6 +184,12 @@ export async function migrateDatabase(database: SQLiteDatabase): Promise<void> {
   if (version < 5) {
     await database.withTransactionAsync(async () => {
       await database.execAsync(poseCapturesSchema);
+    });
+  }
+
+  if (version < 6) {
+    await database.withTransactionAsync(async () => {
+      await database.execAsync(extraCategoriesSchema);
     });
   }
 }

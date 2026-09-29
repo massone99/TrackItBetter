@@ -1508,7 +1508,10 @@
     "cues": [
       "Depress shoulders and keep hips tucked."
     ],
-    "demoUrl": null
+    "demoUrl": null,
+    "extraCategories": [
+      "pull"
+    ]
   },
   {
     "id": "advanced-tuck-front-lever",
@@ -1534,7 +1537,10 @@
     "cues": [
       "Open the hip angle while maintaining a flat back."
     ],
-    "demoUrl": null
+    "demoUrl": null,
+    "extraCategories": [
+      "pull"
+    ]
   },
   {
     "id": "straddle-front-lever",
@@ -1560,7 +1566,10 @@
     "cues": [
       "Spread legs and keep shoulders actively depressed."
     ],
-    "demoUrl": null
+    "demoUrl": null,
+    "extraCategories": [
+      "pull"
+    ]
   },
   {
     "id": "full-front-lever",
@@ -1588,7 +1597,10 @@
     "cues": [
       "Hold a straight line with active shoulders."
     ],
-    "demoUrl": null
+    "demoUrl": null,
+    "extraCategories": [
+      "pull"
+    ]
   },
   {
     "id": "tuck-back-lever",
@@ -1725,7 +1737,10 @@
     "cues": [
       "Protract shoulders and lean only as far as wrists tolerate."
     ],
-    "demoUrl": null
+    "demoUrl": null,
+    "extraCategories": [
+      "push"
+    ]
   },
   {
     "id": "tuck-planche",
@@ -1751,7 +1766,10 @@
     "cues": [
       "Push tall through shoulders and keep knees tucked."
     ],
-    "demoUrl": null
+    "demoUrl": null,
+    "extraCategories": [
+      "push"
+    ]
   },
   {
     "id": "advanced-tuck-planche",
@@ -1777,7 +1795,10 @@
     "cues": [
       "Open the hips while keeping scapulae protracted."
     ],
-    "demoUrl": null
+    "demoUrl": null,
+    "extraCategories": [
+      "push"
+    ]
   },
   {
     "id": "straddle-planche",
@@ -1803,7 +1824,10 @@
     "cues": [
       "Keep arms straight and hold a controlled straddle."
     ],
-    "demoUrl": null
+    "demoUrl": null,
+    "extraCategories": [
+      "push"
+    ]
   },
   {
     "id": "pike-handstand-hold",
@@ -2765,35 +2789,62 @@
   {
     "id": "weighted-pull-up",
     "name": "Weighted Pull-up",
-    "aliases": ["loaded pull-up"],
+    "aliases": [
+      "loaded pull-up"
+    ],
     "metric": "reps_load",
     "category": "pull",
     "movementPattern": "vertical-pull",
-    "primaryMuscles": ["lats"],
-    "secondaryMuscles": ["biceps", "upper-back", "forearms"],
-    "equipment": ["pull-up-bar", "weight-belt", "weight-vest"],
+    "primaryMuscles": [
+      "lats"
+    ],
+    "secondaryMuscles": [
+      "biceps",
+      "upper-back",
+      "forearms"
+    ],
+    "equipment": [
+      "pull-up-bar",
+      "weight-belt",
+      "weight-vest"
+    ],
     "unilateral": false,
     "chainId": null,
     "level": null,
     "leverageFactor": 1,
-    "cues": ["Start from a controlled hang and avoid kipping."],
+    "cues": [
+      "Start from a controlled hang and avoid kipping."
+    ],
     "demoUrl": null
   },
   {
     "id": "weighted-dip",
     "name": "Weighted Dip",
-    "aliases": ["loaded dip"],
+    "aliases": [
+      "loaded dip"
+    ],
     "metric": "reps_load",
     "category": "push",
     "movementPattern": "vertical-push",
-    "primaryMuscles": ["triceps", "chest"],
-    "secondaryMuscles": ["front-delts"],
-    "equipment": ["dip-bars", "weight-belt", "weight-vest"],
+    "primaryMuscles": [
+      "triceps",
+      "chest"
+    ],
+    "secondaryMuscles": [
+      "front-delts"
+    ],
+    "equipment": [
+      "dip-bars",
+      "weight-belt",
+      "weight-vest"
+    ],
     "unilateral": false,
     "chainId": null,
     "level": null,
     "leverageFactor": 1,
-    "cues": ["Keep shoulders controlled and use a pain-free depth."],
+    "cues": [
+      "Keep shoulders controlled and use a pain-free depth."
+    ],
     "demoUrl": null
   }
 ]

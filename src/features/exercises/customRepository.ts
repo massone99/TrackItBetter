@@ -10,6 +10,8 @@ export interface CreateCustomExerciseInput {
   name: string;
   metric: ExerciseMetric;
   category: ExerciseCategory;
+  /** Categories the exercise also belongs to, besides the main one. */
+  extraCategories?: ExerciseCategory[];
   equipment: string[];
   cues: string[];
   demoUrl?: string | null;
@@ -26,6 +28,7 @@ export async function createCustomExercise(input: CreateCustomExerciseInput): Pr
     aliases: '[]',
     metric: input.metric,
     category: input.category,
+    extraCategories: JSON.stringify(input.extraCategories ?? []),
     primaryMuscles: '[]',
     secondaryMuscles: '[]',
     equipment: JSON.stringify(input.equipment),
@@ -49,6 +52,7 @@ export async function updateExercise(id: string, input: CreateCustomExerciseInpu
     name: input.name.trim(),
     metric: input.metric,
     category: input.category,
+    extraCategories: JSON.stringify(input.extraCategories ?? []),
     equipment: JSON.stringify(input.equipment),
     cues: JSON.stringify(input.cues),
     demoUrl: input.demoUrl ?? null,

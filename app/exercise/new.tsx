@@ -21,6 +21,7 @@ const formSchema = z.object({
   name: z.string().trim().min(1, 'customExercise.errors.name').max(80, 'customExercise.errors.nameLength'),
   metric: z.enum(metrics),
   category: z.enum(categories),
+  extraCategories: z.array(z.enum(categories)),
   equipment: z.string().max(240, 'customExercise.errors.equipmentLength'),
   cues: z.string().max(1000, 'customExercise.errors.cuesLength'),
   demoUrl: z.string().refine((value) => normalizeVideoUrl(value) !== undefined, 'logger.referenceInvalid'),
@@ -50,10 +51,12 @@ export default function NewExerciseRoute() {
   const { palette } = useTheme();
   const [saving, setSaving] = useState(false);
   const [saveFailed, setSaveFailed] = useState(false);
-  const { control, handleSubmit, reset, formState: { errors } } = useForm<FormValues>({
+  const { control, handleSubmit, reset, watch, formState: { errors } } = useForm<FormValues>({
     resolver: zodResolver(formSchema),
-    defaultValues: { name: '', metric: 'reps', category: 'push', equipment: '', cues: '', demoUrl: '' },
+    defaultValues: { name: '', metric: 'reps', category: 'push', extraCategories: [], equipment: '', cues: '', demoUrl: '' },
   });
+
+  const mainCategory = watch('category');
 
   useEffect(() => {
     if (!edit) return;
@@ -63,6 +66,7 @@ export default function NewExerciseRoute() {
         name: exercise.name,
         metric: (metrics as readonly string[]).includes(exercise.metric) ? exercise.metric as ExerciseMetric : 'reps',
         category: (categories as readonly string[]).includes(exercise.category) ? exercise.category as ExerciseCategory : 'push',
+        extraCategories: readList(exercise.extraCategories).filter((item): item is ExerciseCategory => (categories as readonly string[]).includes(item)),
         equipment: readList(exercise.equipment).join(', '),
         cues: readList(exercise.cues).join('\n'),
         demoUrl: exercise.demoUrl ?? '',
@@ -79,6 +83,7 @@ export default function NewExerciseRoute() {
         name: values.name,
         metric: values.metric,
         category: values.category,
+        extraCategories: values.extraCategories.filter((item) => item !== values.category),
         equipment: splitList(values.equipment, true),
         cues: splitList(values.cues),
         demoUrl: normalizeVideoUrl(values.demoUrl) ?? null,
@@ -136,6 +141,23 @@ export default function NewExerciseRoute() {
         <Controller control={control} name="category" render={({ field: { onChange, value } }) => (
           <View style={styles.choices}>
             {categories.map((category) => <Choice key={category} label={t(`library.category.${category}`)} selected={value === category} onPress={() => onChange(category)} />)}
+          </View>
+        )} />
+      </View>
+
+      <View style={styles.field}>
+        <Label>{t('customExercise.extraCategories')}</Label>
+        <Body>{t('customExercise.extraCategoriesHint')}</Body>
+        <Controller control={control} name="extraCategories" render={({ field: { onChange, value } }) => (
+          <View style={styles.choices}>
+            {categories.filter((category) => category !== mainCategory).map((category) => (
+              <Choice
+                key={category}
+                label={t(`library.category.${category}`)}
+                selected={value.includes(category)}
+                onPress={() => onChange(value.includes(category) ? value.filter((item) => item !== category) : [...value, category])}
+              />
+            ))}
           </View>
         )} />
       </View>

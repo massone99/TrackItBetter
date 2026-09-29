@@ -17,6 +17,7 @@ export async function seedCatalogIfEmpty(db: AppDatabase): Promise<void> {
     const exerciseRows: NewExercise[] = exercisesSeed.map((exercise) => ({
         ...exercise,
         aliases: JSON.stringify(exercise.aliases),
+        extraCategories: JSON.stringify('extraCategories' in exercise ? exercise.extraCategories : []),
         primaryMuscles: JSON.stringify(exercise.primaryMuscles),
         secondaryMuscles: JSON.stringify(exercise.secondaryMuscles),
         equipment: JSON.stringify(exercise.equipment),

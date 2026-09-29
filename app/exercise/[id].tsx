@@ -69,12 +69,13 @@ export default function ExerciseRoute() {
   const cues = readList(exercise.cues);
   const equipment = readList(exercise.equipment);
   const muscles = readList(exercise.primaryMuscles);
+  const extraCategories = readList(exercise.extraCategories).filter((item) => item !== exercise.category);
   const kind = exercise.level ? t('progression.level', { number: exercise.level }) : exercise.isCustom ? t('exercise.custom') : t('exercise.foundation');
   return (
     <Screen>
       <PageHeading
         title={exercise.name}
-        subtitle={[t(`library.category.${exercise.category}`), t(`metric.${exercise.metric}`), kind].join(' · ')}
+        subtitle={[[exercise.category, ...extraCategories].map((category) => t(`library.category.${category}`)).join(' + '), t(`metric.${exercise.metric}`), kind].join(' · ')}
         action={
           <IconButton
             icon={exercise.favourite ? 'star' : 'star-outline'}

@@ -10,7 +10,7 @@ import { fonts } from '../../shared/theme/typography';
 import { useScaledStyles } from '../../shared/theme/useScaledStyles';
 import { listExercises } from './repository';
 
-export type ExerciseChoice = { id: string; name: string; metric: string; category: string; level: number | null };
+export type ExerciseChoice = { id: string; name: string; metric: string; category: string; extraCategories: string; level: number | null };
 
 const CATEGORIES = ['push', 'pull', 'legs', 'core', 'skill', 'mobility'] as const;
 
@@ -36,12 +36,12 @@ export function ExercisePicker({ visible, title, subtitle, initialCategory = nul
     if (!visible) return;
     let mounted = true;
     void listExercises({ query }).then((items) => {
-      if (mounted) setChoices(items.map(({ id, name, metric, category: itemCategory, level }) => ({ id, name, metric, category: itemCategory, level })));
+      if (mounted) setChoices(items.map(({ id, name, metric, category: itemCategory, extraCategories, level }) => ({ id, name, metric, category: itemCategory, extraCategories, level })));
     });
     return () => { mounted = false; };
   }, [visible, query]);
 
-  const filtered = choices.filter((choice) => !category || choice.category === category).slice(0, 80);
+  const filtered = choices.filter((choice) => !category || choice.category === category || choice.extraCategories.includes(`"${category}"`)).slice(0, 80);
 
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose} statusBarTranslucent navigationBarTranslucent>

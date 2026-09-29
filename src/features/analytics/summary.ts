@@ -9,6 +9,8 @@ export interface CompletedSetRow {
   exerciseId: string;
   exerciseName: string;
   category: string;
+  /** JSON list of additional categories; a planche set also counts as push. */
+  extraCategories?: string;
   movementPattern: string | null;
   metric: string;
   leverageFactor: number | null;
@@ -110,8 +112,9 @@ export function buildProgressSnapshot(
     if (inWeek) {
       weeklyRows.push(row);
       weeklyBalance.totalSets += 1;
-      if (row.category === 'push') weeklyBalance.pushSets += 1;
-      if (row.category === 'pull') weeklyBalance.pullSets += 1;
+      const extras = row.extraCategories ?? '[]';
+      if (row.category === 'push' || extras.includes('"push"')) weeklyBalance.pushSets += 1;
+      if (row.category === 'pull' || extras.includes('"pull"')) weeklyBalance.pullSets += 1;
       if (row.movementPattern === 'horizontal-push') weeklyBalance.horizontalPushSets += 1;
       if (row.movementPattern === 'horizontal-pull') weeklyBalance.horizontalPullSets += 1;
       if (row.movementPattern === 'vertical-push') weeklyBalance.verticalPushSets += 1;
