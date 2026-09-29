@@ -2,9 +2,9 @@ import { eq } from 'drizzle-orm';
 import * as Crypto from 'expo-crypto';
 import { db, initializeDatabase } from '../../db/client';
 import { settings } from '../../db/schema';
-import { isValidPrescription, validateUserProgram, type UserProgram, type UserProgramSession } from '../../domain/userProgram';
+import { isValidPrescription, validateUserProgram, WEEK_ORDER, type UserProgram, type UserProgramSession } from '../../domain/userProgram';
 
-export type { UserProgram, UserProgramExercise, UserProgramSession, Weekday } from '../../domain/userProgram';
+export type { UserProgram, UserProgramExercise, UserProgramSession } from '../../domain/userProgram';
 
 const KEY = 'user_weekly_programs_v1';
 
@@ -14,7 +14,7 @@ export async function listUserPrograms(): Promise<UserProgram[]> {
   if (!row) return [];
   try {
     const parsed: unknown = JSON.parse(row.value);
-    return Array.isArray(parsed) ? parsed.map(parseProgram).filter((item): item is UserProgram => item !== null) : [];
+    return Array.isArray(parsed) ? parsePrograms(parsed) : [];
   } catch {
     return [];
   }
@@ -73,26 +73,34 @@ async function writePrograms(programs: UserProgram[]): Promise<void> {
   await db.insert(settings).values({ key: KEY, value }).onConflictDoUpdate({ target: settings.key, set: { value } });
 }
 
-/** Reads one stored program; a damaged movement is dropped instead of hiding the whole program. */
+/** Reads stored programs, dropping damaged ones. */
+export function parsePrograms(values: readonly unknown[]): UserProgram[] {
+  return values.map(parseProgram).filter((item): item is UserProgram => item !== null);
+}
+
+/**
+ * Reads one stored program; a damaged movement is dropped instead of hiding the whole program.
+ * Programs saved before sessions lost their weekday keep the old Monday-first order as rotation order.
+ */
 function parseProgram(value: unknown): UserProgram | null {
   if (!value || typeof value !== 'object') return null;
   const item = value as Partial<UserProgram>;
   if (typeof item.id !== 'string' || typeof item.name !== 'string' || !Array.isArray(item.sessions)) return null;
-  const sessions: UserProgramSession[] = [];
-  for (const session of item.sessions as unknown[]) {
+  const sessions: (UserProgramSession & { order: number })[] = [];
+  for (const [position, session] of (item.sessions as unknown[]).entries()) {
     if (!session || typeof session !== 'object') continue;
-    const candidate = session as Partial<UserProgramSession>;
+    const candidate = session as Partial<UserProgramSession> & { weekday?: unknown };
     if (typeof candidate.id !== 'string' || typeof candidate.name !== 'string' || !Array.isArray(candidate.exercises)) continue;
-    if (!Number.isInteger(candidate.weekday) || candidate.weekday! < 0 || candidate.weekday! > 6) continue;
     const exercises = candidate.exercises.filter((exercise) => exercise && typeof exercise === 'object' && isValidPrescription(exercise));
     if (exercises.length === 0) continue;
-    sessions.push({ id: candidate.id, weekday: candidate.weekday!, name: candidate.name, exercises });
+    const day = WEEK_ORDER.indexOf(candidate.weekday as never);
+    sessions.push({ id: candidate.id, name: candidate.name, exercises, order: (day >= 0 ? day : 7) * 1000 + position });
   }
   if (sessions.length === 0) return null;
   return {
     id: item.id,
     name: item.name,
-    sessions,
+    sessions: sessions.sort((a, b) => a.order - b.order).map(({ order: _order, ...session }) => session),
     updatedAt: typeof item.updatedAt === 'string' ? item.updatedAt : new Date(0).toISOString(),
   };
 }

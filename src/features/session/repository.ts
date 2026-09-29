@@ -383,6 +383,14 @@ export async function setCompletedWorkoutSetDone(workoutId: string, setId: strin
   await db.update(trainingSets).set({ completedAt: done ? endedAt : null }).where(eq(trainingSets.id, setId));
 }
 
+/** Names of finished workouts, newest first; programs use them to know which session comes next. */
+export async function listRecentWorkoutNames(limit = 200): Promise<string[]> {
+  await initializeDatabase();
+  const rows = await db.select({ name: workouts.name }).from(workouts)
+    .where(isNotNull(workouts.endedAt)).orderBy(desc(workouts.startedAt)).limit(limit);
+  return rows.map((row) => row.name);
+}
+
 export async function listRecentWorkouts(limit = 365): Promise<WorkoutHistoryItem[]> {
   await initializeDatabase();
   const rows = await db

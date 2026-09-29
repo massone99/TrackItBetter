@@ -2,11 +2,10 @@ import {
   duplicateSession,
   estimateSessionSeconds,
   moveItem,
-  nextFreeWeekday,
+  nextSessionInRotation,
   plannedLoads,
+  programSessionWorkoutName,
   sessionSetCount,
-  sessionsForWeekday,
-  sortByWeekday,
   validateUserProgram,
   type UserProgram,
   type UserProgramExercise,
@@ -18,7 +17,7 @@ function exercise(overrides: Partial<UserProgramExercise> = {}): UserProgramExer
 }
 
 function session(overrides: Partial<UserProgramSession> = {}): UserProgramSession {
-  return { id: 's1', weekday: 1, name: 'Push', exercises: [exercise()], ...overrides };
+  return { id: 's1', name: 'Push', exercises: [exercise()], ...overrides };
 }
 
 function program(overrides: Partial<UserProgram> = {}): UserProgram {
@@ -62,24 +61,13 @@ describe('moveItem', () => {
   });
 });
 
-describe('nextFreeWeekday', () => {
-  it('starts on Monday for an empty week', () => {
-    expect(nextFreeWeekday([])).toBe(1);
-  });
-
-  it('skips used days and wraps past Sunday', () => {
-    expect(nextFreeWeekday([{ weekday: 1 }, { weekday: 2 }])).toBe(3);
-    expect(nextFreeWeekday([{ weekday: 0 }, { weekday: 1 }], 0)).toBe(2);
-  });
-});
-
 describe('duplicateSession', () => {
-  it('copies movements with new ids onto the next free day', () => {
+  it('copies movements with new ids', () => {
     let n = 0;
-    const source = session({ weekday: 1, exercises: [exercise({ id: 'e1' }), exercise({ id: 'e2' })] });
-    const copy = duplicateSession(source, [source], () => `id${++n}`);
+    const source = session({ exercises: [exercise({ id: 'e1' }), exercise({ id: 'e2' })] });
+    const copy = duplicateSession(source, () => `id${++n}`);
     expect(copy.id).toBe('id1');
-    expect(copy.weekday).toBe(2);
+    expect(copy.name).toBe('Push');
     expect(copy.exercises.map((item) => item.id)).toEqual(['id2', 'id3']);
     expect(copy.exercises[0].exerciseId).toBe('push-up');
   });
@@ -99,16 +87,25 @@ describe('estimateSessionSeconds', () => {
 });
 
 describe('session helpers', () => {
-  it('counts sets and finds the days planned on a weekday', () => {
-    const plan = program({ sessions: [session({ id: 'a', weekday: 3 }), session({ id: 'b', weekday: 5, exercises: [exercise({ sets: 4 }), exercise({ sets: 2 })] })] });
-    expect(sessionSetCount(plan.sessions[1])).toBe(6);
-    expect(sessionsForWeekday([plan], 5).map((item) => item.session.id)).toEqual(['b']);
-    expect(sessionsForWeekday([plan], 0)).toEqual([]);
+  it('counts sets', () => {
+    expect(sessionSetCount(session({ exercises: [exercise({ sets: 4 }), exercise({ sets: 2 })] }))).toBe(6);
+  });
+});
+
+describe('nextSessionInRotation', () => {
+  const plan = program({ name: 'Plan', sessions: [session({ id: 'a', name: 'A' }), session({ id: 'b', name: 'B' }), session({ id: 'c', name: 'C' })] });
+
+  it('starts from the first workout when none was done yet', () => {
+    expect(nextSessionInRotation(plan, ['Something else']).id).toBe('a');
   });
 
-  it('sorts Monday first and keeps the entered order on the same day', () => {
-    const sorted = sortByWeekday([session({ id: 'sun', weekday: 0 }), session({ id: 'mon2', weekday: 1 }), session({ id: 'mon1', weekday: 1 })]);
-    expect(sorted.map((item) => item.id)).toEqual(['mon2', 'mon1', 'sun']);
+  it('proposes the workout after the latest one done, wrapping around', () => {
+    expect(nextSessionInRotation(plan, ['Plan · A', 'Plan · C']).id).toBe('b');
+    expect(nextSessionInRotation(plan, ['Other · A', 'Plan · C', 'Plan · B']).id).toBe('a');
+  });
+
+  it('names workouts after program and session', () => {
+    expect(programSessionWorkoutName(plan, plan.sessions[1])).toBe('Plan · B');
   });
 });
 
