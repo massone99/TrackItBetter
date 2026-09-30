@@ -100,8 +100,15 @@ export default function WorkoutScreen() {
   const [pickerOpen, setPickerOpen] = useState(false);
   // Entry whose exercise is being replaced; null when the picker adds an exercise instead.
   const [replacing, setReplacing] = useState<SessionExercise | null>(null);
-  const [restSeconds, setRestSeconds] = useState<number | null>(null);
-  const [restEndsAt, setRestEndsAt] = useState<number | null>(null);
+  // A rest keeps running when the screen is left: its end time lives outside the component.
+  const [restSeconds, setRestSeconds] = useState<number | null>(() => {
+    const endsAt = id ? runningRests.get(id) : undefined;
+    return endsAt && endsAt > Date.now() ? Math.ceil((endsAt - Date.now()) / 1000) : null;
+  });
+  const [restEndsAt, setRestEndsAt] = useState<number | null>(() => {
+    const endsAt = id ? runningRests.get(id) : undefined;
+    return endsAt && endsAt > Date.now() ? endsAt : null;
+  });
   // Hold mode chosen per set during this session; unset sets use the last mode picked.
   const [holdModes, setHoldModes] = useState<Map<string, HoldMode>>(new Map());
   const holdModeFor = (setId: string) => holdModes.get(setId) ?? defaultHoldMode();
@@ -189,6 +196,7 @@ export default function WorkoutScreen() {
       if (remaining === 0) {
         setRestSeconds(null);
         setRestEndsAt(null);
+        if (id) runningRests.delete(id);
         playBeep('done');
         return;
       }
@@ -200,7 +208,7 @@ export default function WorkoutScreen() {
       setRestSeconds(remaining);
     }, 1000);
     return () => clearInterval(timer);
-  }, [isResting, restEndsAt, voiceCues, i18n.resolvedLanguage, t]);
+  }, [isResting, restEndsAt, id, voiceCues, i18n.resolvedLanguage, t]);
 
   const toggleVoiceCues = async () => {
     const enabled = !voiceCues;
@@ -244,8 +252,10 @@ export default function WorkoutScreen() {
 
   const startRestTimer = (seconds: number) => {
     const duration = Math.max(1, Math.floor(seconds));
+    const endsAt = Date.now() + duration * 1000;
     setRestSeconds(duration);
-    setRestEndsAt(Date.now() + duration * 1000);
+    setRestEndsAt(endsAt);
+    if (id) runningRests.set(id, endsAt);
     void scheduleRestFinishedNotification(duration, {
       title: t('workout.restDoneTitle'), body: t('workout.restDoneBody'), countdown: t('workout.restCountdown'), channel: t('workout.restChannel'),
     }).catch(() => undefined);
@@ -261,6 +271,7 @@ export default function WorkoutScreen() {
   const skipRest = () => {
     setRestSeconds(null);
     setRestEndsAt(null);
+    if (id) runningRests.delete(id);
     void cancelRestFinishedNotification().catch(() => undefined);
   };
 
@@ -719,6 +730,9 @@ export default function WorkoutScreen() {
     </View>
   );
 }
+
+/** Rest end times by workout id, so leaving and reopening the workout keeps the same countdown. */
+const runningRests = new Map<string, number>();
 
 function ExerciseCard({ handle, exercise, previous, hold, onChange, onSetValue, onComplete, onStartHold, onFinishHold, onAddSet, onSetOptions, onUncomplete, onRemoveSet, onSwiped, rpePromptFor, onRpe, onDismissRpe, onOptions, onSaved, onToggleWarmup, onCopyPrevious, setRecords, volumeRecord, supersetLabel }: {
   handle?: ReactNode;
