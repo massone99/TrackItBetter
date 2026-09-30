@@ -20,6 +20,7 @@ import {
   type UserProgramSession,
 } from '../src/domain/userProgram';
 import { DurationField } from '../src/shared/components/DateTimePickers';
+import { ReorderableList } from '../src/shared/components/ReorderableList';
 import { ExercisePicker } from '../src/features/exercises/ExercisePicker';
 import { openExercisePage } from '../src/features/exercises/openExercise';
 import { readDefaultRest } from '../src/features/session/restDefaults';
@@ -236,7 +237,13 @@ export default function ProgramEditorScreen() {
               maxLength={40}
               error={sessionErrors.some((error) => error.code === 'sessionNameMissing') ? t('userProgram.errors.sessionNameMissing') : null}
             />
-            {session.exercises.map((prescription, exerciseIndex) => {
+            <ReorderableList
+              items={session.exercises}
+              keyOf={(item) => item.id}
+              nameOf={(item) => exerciseInfo.get(item.exerciseId)?.name ?? t('userProgram.exerciseMissing')}
+              gap={0}
+              onMove={(from, to) => updateSession(session.id, { exercises: moveItem(session.exercises, from, to - from) })}
+              renderRow={(prescription, exerciseIndex, row) => {
               const info = exerciseInfo.get(prescription.exerciseId);
               const metric = info?.metric ?? 'reps';
               const exerciseName = info?.name ?? t('userProgram.exerciseMissing');
@@ -260,6 +267,7 @@ export default function ProgramEditorScreen() {
                     onAccessibilityAction={(event) => { if (event.nativeEvent.actionName === 'longpress') openExercisePage(prescription.exerciseId); }}
                     style={styles.header}
                   >
+                    {row.handle}
                     <View style={styles.flex}>
                       <Text style={styles.exerciseName} numberOfLines={2}>{exerciseName}</Text>
                       <Label>{t(`metric.${metric}`)}</Label>
@@ -304,8 +312,6 @@ export default function ProgramEditorScreen() {
                     />
                   ) : null}
                   <View style={styles.exerciseActions}>
-                    <IconButton icon="arrow-up" label={t('userProgram.moveExerciseUp', { name: exerciseName })} tone="plain" size={40} onPress={() => updateSession(session.id, { exercises: moveItem(session.exercises, exerciseIndex, -1) })} />
-                    <IconButton icon="arrow-down" label={t('userProgram.moveExerciseDown', { name: exerciseName })} tone="plain" size={40} onPress={() => updateSession(session.id, { exercises: moveItem(session.exercises, exerciseIndex, 1) })} />
                     <IconButton icon="swap-horizontal" label={t('userProgram.replaceExercise', { name: exerciseName })} tone="plain" size={40} onPress={() => setReplacing({ sessionId: session.id, exerciseId: prescription.id })} />
                     <IconButton icon="trash-outline" label={t('userProgram.removeExercise', { name: exerciseName })} tone="plain" size={40} onPress={() => removeWithUndo(
                       t('userProgram.exerciseRemoved', { name: exerciseName }),
@@ -317,7 +323,8 @@ export default function ProgramEditorScreen() {
                   {invalid ? <Text style={[styles.error, { color: palette.warning }]}>{t('userProgram.errors.invalidValue')}</Text> : null}
                 </View>
               );
-            })}
+              }}
+            />
             {sessionErrors.some((error) => error.code === 'sessionEmpty') ? (
               <Text style={[styles.error, { color: palette.warning }]}>{t('userProgram.errors.sessionEmpty')}</Text>
             ) : null}

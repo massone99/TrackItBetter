@@ -743,3 +743,33 @@ export async function setSupersetRest(groupId: string, rest: SupersetRest): Prom
   await initializeDatabase();
   await db.update(exerciseEntries).set({ groupType: formatSupersetType(rest) }).where(eq(exerciseEntries.groupId, groupId));
 }
+
+/**
+ * Moves an exercise of a workout (in progress or finished) to another position. Positions are
+ * rewritten as 1..n. A superset member that ends up away from its group leaves it, and a group left
+ * with a single exercise dissolves, so a superset is always made of neighbours.
+ */
+export async function moveExerciseEntry(workoutId: string, entryId: string, toIndex: number): Promise<void> {
+  await initializeDatabase();
+  const entries = await db.select().from(exerciseEntries).where(eq(exerciseEntries.workoutId, workoutId)).orderBy(asc(exerciseEntries.order));
+  const from = entries.findIndex((entry) => entry.id === entryId);
+  if (from < 0) return;
+  const target = Math.min(entries.length - 1, Math.max(0, toIndex));
+  if (target === from) return;
+  const reordered = [...entries];
+  const [moved] = reordered.splice(from, 1);
+  reordered.splice(target, 0, moved);
+  await db.transaction(async (tx) => {
+    for (const [position, entry] of reordered.entries()) {
+      if (entry.order !== position + 1) await tx.update(exerciseEntries).set({ order: position + 1 }).where(eq(exerciseEntries.id, entry.id));
+    }
+    if (!moved.groupId) return;
+    const members = reordered.filter((entry) => entry.groupId === moved.groupId);
+    const positions = members.map((entry) => reordered.indexOf(entry));
+    const contiguous = positions[positions.length - 1] - positions[0] === members.length - 1;
+    if (contiguous) return;
+    await tx.update(exerciseEntries).set({ groupId: null, groupType: null }).where(eq(exerciseEntries.id, moved.id));
+    const rest = members.filter((entry) => entry.id !== moved.id);
+    if (rest.length === 1) await tx.update(exerciseEntries).set({ groupId: null, groupType: null }).where(eq(exerciseEntries.id, rest[0].id));
+  });
+}

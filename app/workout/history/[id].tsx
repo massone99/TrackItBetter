@@ -9,6 +9,7 @@ import {
   addSetToCompletedWorkout,
   deleteWorkout,
   getCompletedWorkout,
+  moveExerciseEntry,
   removeExerciseEntry,
   removeExerciseEntryWithUndo,
   removeSet,
@@ -35,6 +36,7 @@ import { useTheme } from '../../../src/shared/theme/ThemeProvider';
 import { fonts } from '../../../src/shared/theme/typography';
 import { useScaledStyles } from '../../../src/shared/theme/useScaledStyles';
 import { DateField, TimeField } from '../../../src/shared/components/DateTimePickers';
+import { ReorderableList } from '../../../src/shared/components/ReorderableList';
 import { goBack } from '../../../src/shared/navigation/goBack';
 
 type SetTarget = { exercise: SessionExercise; set: SessionSet };
@@ -155,7 +157,13 @@ export default function PastWorkoutScreen() {
       <Body>{t('history.editHelp')}</Body>
       {error ? <Text accessibilityLiveRegion="polite" style={[styles.error, { color: palette.warning }]}>{error}</Text> : null}
 
-      {workout.exercises.map((exercise) => {
+      <ReorderableList
+        items={workout.exercises}
+        keyOf={(item) => item.entryId}
+        nameOf={(item) => item.name}
+        gap={20}
+        onMove={(from, to) => void edit(() => moveExerciseEntry(id, workout.exercises[from].entryId, to))}
+        renderRow={(exercise, _index, row) => {
         const timed = exercise.metric === 'time' || exercise.metric === 'time_load';
         const distance = exercise.metric === 'distance';
         const loaded = exercise.metric === 'reps_load' || exercise.metric === 'time_load';
@@ -165,6 +173,7 @@ export default function PastWorkoutScreen() {
         return (
           <Card key={exercise.entryId} style={styles.exerciseCard}>
             <View style={styles.exerciseHeader}>
+              {row.handle}
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel={exercise.name}
@@ -237,7 +246,8 @@ export default function PastWorkoutScreen() {
             </Pressable>
           </Card>
         );
-      })}
+        }}
+      />
 
       <ActionButton icon="add" label={t('workout.addExercise')} secondary onPress={() => setPickerOpen(true)} />
       <ActionButton icon="trash-outline" label={t('history.delete')} variant="danger" onPress={() => setDeleteOpen(true)} />

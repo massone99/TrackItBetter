@@ -1,7 +1,7 @@
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import * as Speech from 'expo-speech';
 import { useTranslation } from 'react-i18next';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { eq } from 'drizzle-orm';
 import { ActivityIndicator, Pressable, StyleSheet, TextInput, View } from 'react-native';
 import { useAppInsets } from '../../src/shared/layout/useAppInsets';
@@ -26,6 +26,7 @@ import {
   replaceEntryExercise,
   deleteWorkout,
   finishWorkout,
+  moveExerciseEntry,
   getActiveWorkout,
   getPreviousPerformance,
   removeExerciseEntry,
@@ -64,6 +65,7 @@ import {
   tapFeedback,
   useRepeatPress,
 } from '../../src/shared/components/ui';
+import { ReorderableList } from '../../src/shared/components/ReorderableList';
 import { useKeyboardVisible } from '../../src/shared/components/keyboard';
 import { RpePicker } from '../../src/features/session/RpePicker';
 import { SaveToProgramSheet } from '../../src/features/programs/SaveToProgramSheet';
@@ -307,6 +309,7 @@ export default function WorkoutScreen() {
 
   const scrollRef = useRef<ScrollHandle>(null);
   const cardTops = useRef(new Map<string, number>());
+  const listTop = useRef(0);
 
   /**
    * Starts the right rest after a set and, in a superset, scrolls to the exercise that comes next:
@@ -515,11 +518,20 @@ export default function WorkoutScreen() {
             <Text style={[styles.swipeHintText, { color: palette.accentStrong }]}>{t('logger.swipeHint')}</Text>
           </Animated.View>
         ) : null}
+        <View onLayout={(event) => { listTop.current = event.nativeEvent.layout.y; }}>
         <LayoutAnimationConfig skipEntering>
-        {workout.exercises.map((exercise) => (
-          <Animated.View key={exercise.entryId} entering={exerciseEntering} exiting={itemExiting} layout={rowLayout} onLayout={(event) => { cardTops.current.set(exercise.entryId, event.nativeEvent.layout.y); }}>
+        <ReorderableList
+          items={workout.exercises}
+          keyOf={(item) => item.entryId}
+          nameOf={(item) => item.name}
+          gap={20}
+          onMove={(from, to) => void moveExerciseEntry(workout.id, workout.exercises[from].entryId, to).then(() => refresh(workout.id))}
+          onRowLayout={(key, top) => { cardTops.current.set(key, listTop.current + top); }}
+          renderRow={(exercise, _index, row) => (
+            <Animated.View entering={exerciseEntering} exiting={itemExiting} layout={rowLayout}>
           <ExerciseCard
             exercise={exercise}
+            handle={row.handle}
             previous={previous.get(exercise.exerciseId)}
             hold={hold.active}
             onChange={changeSet}
@@ -543,9 +555,11 @@ export default function WorkoutScreen() {
             onOptions={() => setOptionsFor(exercise)}
             onSaved={() => refresh(workout.id)}
           />
-          </Animated.View>
-        ))}
+            </Animated.View>
+          )}
+        />
         </LayoutAnimationConfig>
+        </View>
 
         {workout.exercises.length > 0 ? (
           <Animated.View layout={rowLayout} style={styles.footerActions}>
@@ -705,7 +719,8 @@ export default function WorkoutScreen() {
   );
 }
 
-function ExerciseCard({ exercise, previous, hold, onChange, onSetValue, onComplete, onStartHold, onFinishHold, onAddSet, onSetOptions, onUncomplete, onRemoveSet, onSwiped, rpePromptFor, onRpe, onDismissRpe, onOptions, onSaved, onToggleWarmup, onCopyPrevious, setRecords, volumeRecord, supersetLabel }: {
+function ExerciseCard({ handle, exercise, previous, hold, onChange, onSetValue, onComplete, onStartHold, onFinishHold, onAddSet, onSetOptions, onUncomplete, onRemoveSet, onSwiped, rpePromptFor, onRpe, onDismissRpe, onOptions, onSaved, onToggleWarmup, onCopyPrevious, setRecords, volumeRecord, supersetLabel }: {
+  handle?: ReactNode;
   exercise: SessionExercise;
   previous: PreviousPerformance | undefined;
   hold: ActiveHold | null;
@@ -760,6 +775,7 @@ function ExerciseCard({ exercise, previous, hold, onChange, onSetValue, onComple
   return (
     <Card style={[styles.exerciseCard, supersetLabel ? { borderLeftWidth: 4, borderLeftColor: palette.accent } : null]}>
       <View style={styles.exerciseHeader}>
+        {handle}
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={t(collapsed ? 'logger.expand' : 'logger.collapse', { name: exercise.name })}
@@ -1234,7 +1250,7 @@ const baseStyles = StyleSheet.create({
   stepper: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
   setValue: { fontFamily: fonts.display, fontSize: 30, lineHeight: 34, minWidth: 52, textAlign: 'center', fontVariant: ['tabular-nums'] },
   stepButton: { width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center' },
-  loadInput: { minWidth: 64, height: 38, borderRadius: 10, textAlign: 'center', textAlignVertical: 'center', fontFamily: fonts.display, fontSize: 19, lineHeight: 23, paddingVertical: 0, paddingHorizontal: 6, includeFontPadding: false },
+  loadInput: { width: 64, height: 38, borderRadius: 10, textAlign: 'center', textAlignVertical: 'center', fontFamily: fonts.display, fontSize: 19, lineHeight: 23, paddingVertical: 0, paddingHorizontal: 6, includeFontPadding: false },
   rowActions: { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 2 },
   checkButton: { width: 42, height: 42, borderRadius: 13, alignItems: 'center', justifyContent: 'center' },
   addSet: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, minHeight: 44, borderRadius: 12, borderWidth: 1, borderStyle: 'dashed', marginTop: 6 },
