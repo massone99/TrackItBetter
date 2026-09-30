@@ -432,6 +432,10 @@ export default function WorkoutScreen() {
   if (loading) return <Screen><ActivityIndicator color={palette.accentStrong} /></Screen>;
   if (!workout) return <Screen><PageHeading title={t('workout.unavailable')} subtitle={t('workout.finished')} /><ActionButton label={t('workout.backToToday')} onPress={() => router.replace('/(tabs)/today')} /></Screen>;
 
+  const allSets = workout.exercises.flatMap((exercise) => exercise.sets);
+  const totalSets = allSets.length;
+  const finishedExercises = workout.exercises.filter((exercise) => exercise.sets.length > 0 && exercise.sets.every((set) => set.completedAt)).length;
+  const volumeKg = allSets.reduce((sum, set) => (set.completedAt && set.kind === 'working' && set.reps && set.addedLoadKg > 0 ? sum + set.reps * set.addedLoadKg : sum), 0);
   const readinessCount = [workout.sleep, workout.energy, workout.soreness].filter((value) => value !== null).length;
   const lowReadiness = (workout.sleep !== null && workout.sleep <= 2) || (workout.energy !== null && workout.energy <= 2) || (workout.soreness !== null && workout.soreness >= 4);
 
@@ -450,6 +454,19 @@ export default function WorkoutScreen() {
             />
           }
         />
+
+        {totalSets > 0 ? (
+          <View style={[styles.summary, { backgroundColor: palette.surface, borderColor: palette.border }]}>
+            <View style={styles.summaryTop}>
+              <Text style={styles.summaryText}>{t('logger.setsProgress', { done: completedCount, total: totalSets })}</Text>
+              <Text style={[styles.summaryMuted, { color: palette.textMuted }]}>{t('logger.exercisesProgress', { done: finishedExercises, total: workout.exercises.length })}</Text>
+              {volumeKg > 0 ? <Text style={[styles.summaryMuted, { color: palette.textMuted }]}>{formatNumber(Math.round(volumeKg))} kg</Text> : null}
+            </View>
+            <View style={[styles.summaryTrack, { backgroundColor: palette.border }]}>
+              <View style={[styles.summaryFill, { backgroundColor: palette.accentStrong, width: `${Math.round((completedCount / totalSets) * 100)}%` }]} />
+            </View>
+          </View>
+        ) : null}
 
         <Pressable
           accessibilityRole="button"
@@ -702,6 +719,9 @@ function ExerciseCard({ exercise, previous, hold, onChange, onSetValue, onComple
   const distance = exercise.metric === 'distance';
   const loaded = exercise.metric === 'reps_load' || exercise.metric === 'time_load';
   const field = timed ? 'durationSec' : distance ? 'distanceM' : 'reps';
+  const [collapsed, setCollapsed] = useState(false);
+  const doneSets = exercise.sets.filter((set) => set.completedAt).length;
+  const allDone = exercise.sets.length > 0 && doneSets === exercise.sets.length;
   const previousText = previous
     ? previous.sets.map((set) => describeSet(set, exercise.metric)).join(' · ')
     : null;
@@ -709,10 +729,23 @@ function ExerciseCard({ exercise, previous, hold, onChange, onSetValue, onComple
   return (
     <Card style={[styles.exerciseCard, supersetLabel ? { borderLeftWidth: 4, borderLeftColor: palette.accent } : null]}>
       <View style={styles.exerciseHeader}>
-        <View style={styles.flex}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={t(collapsed ? 'logger.expand' : 'logger.collapse', { name: exercise.name })}
+          accessibilityState={{ expanded: !collapsed }}
+          onPress={() => setCollapsed((value) => !value)}
+          style={styles.flex}
+        >
           {supersetLabel ? <Label style={{ color: palette.accentStrong }}>{supersetLabel}</Label> : null}
-          <Heading style={styles.exerciseName}>{exercise.name}</Heading>
-          <Label>{previousText ? t('logger.lastTime', { value: previousText }) : t('logger.firstTime')}</Label>
+          <View style={styles.nameRow}>
+            <Heading style={[styles.exerciseName, styles.flex]}>{exercise.name}</Heading>
+            <Icon name={collapsed ? 'chevron-down' : 'chevron-up'} size={18} color={palette.textMuted} />
+          </View>
+          <View style={styles.progressRow}>
+            <Icon name={allDone ? 'checkmark-circle' : 'ellipse-outline'} size={14} color={allDone ? palette.success : palette.textMuted} />
+            <Label>{t('logger.setsProgress', { done: doneSets, total: exercise.sets.length })}</Label>
+          </View>
+          {collapsed ? null : <Label>{previousText ? t('logger.lastTime', { value: previousText }) : t('logger.firstTime')}</Label>}
           {exercise.notes ? <Text numberOfLines={3} style={[styles.exerciseNote, { color: palette.textMuted }]}>{exercise.notes}</Text> : null}
           {volumeRecord ? (
             <View style={[styles.recordChip, { backgroundColor: palette.recordSoft }]}>
@@ -720,21 +753,21 @@ function ExerciseCard({ exercise, previous, hold, onChange, onSetValue, onComple
               <Text style={[styles.clipChipText, { color: palette.record }]}>{t('records.kinds.volume')}</Text>
             </View>
           ) : null}
-        </View>
+        </Pressable>
         {exercise.demoUrl ? (
           <IconButton icon="play-circle-outline" label={t('logger.referenceOpen')} tone="plain" onPress={() => openReferenceVideo(exercise.demoUrl!)} />
         ) : null}
         <IconButton icon="ellipsis-horizontal" label={t('logger.options')} tone="plain" onPress={onOptions} />
       </View>
 
-      <View style={[styles.columns, { borderBottomColor: palette.border }]}>
+      {collapsed ? null : <View style={[styles.columns, { borderBottomColor: palette.border }]}>
         <Label style={styles.colSet}>{t('logger.setCol')}</Label>
         <Label style={styles.colValue}>{timed ? t('logger.holdCol') : distance ? t('logger.distanceCol') : t('logger.repsCol')}</Label>
         {loaded ? <Label style={styles.colLoad}>{t('logger.loadCol')}</Label> : null}
         <View style={styles.colAction} />
-      </View>
+      </View>}
 
-      {exercise.sets.map((set) => {
+      {(collapsed ? [] : exercise.sets).map((set) => {
         const done = Boolean(set.completedAt);
         const workingNumber = exercise.sets.filter((item) => item.kind === 'working' && item.index <= set.index).length;
         // Last time's working set at the same position; tapping it copies its values and note.
@@ -872,10 +905,10 @@ function ExerciseCard({ exercise, previous, hold, onChange, onSetValue, onComple
         );
       })}
 
-      <Pressable accessibilityRole="button" onPress={() => { tapFeedback(); onAddSet(); }} style={({ pressed }) => [styles.addSet, { borderColor: palette.border, opacity: pressed ? 0.6 : 1 }]}>
+      {collapsed ? null : <Pressable accessibilityRole="button" onPress={() => { tapFeedback(); onAddSet(); }} style={({ pressed }) => [styles.addSet, { borderColor: palette.border, opacity: pressed ? 0.6 : 1 }]}>
         <Icon name="add" size={18} color={palette.accentStrong} />
         <Text style={[styles.addSetText, { color: palette.accentStrong }]}>{t('logger.addSet')}</Text>
-      </Pressable>
+      </Pressable>}
     </Card>
   );
 }
@@ -1131,6 +1164,14 @@ const baseStyles = StyleSheet.create({
   emptyAction: { alignSelf: 'stretch', marginTop: 6, gap: 8 },
   exerciseCard: { paddingHorizontal: 14, paddingBottom: 12, gap: 6 },
   exerciseHeader: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, paddingHorizontal: 4, marginBottom: 4 },
+  summary: { borderWidth: StyleSheet.hairlineWidth, borderRadius: 16, paddingHorizontal: 16, paddingVertical: 12, gap: 8 },
+  summaryTop: { flexDirection: 'row', alignItems: 'baseline', gap: 12 },
+  summaryText: { flex: 1, fontFamily: fonts.semibold, fontSize: 15 },
+  summaryMuted: { fontFamily: fonts.medium, fontSize: 13 },
+  summaryTrack: { height: 4, borderRadius: 2, overflow: 'hidden' },
+  summaryFill: { height: 4, borderRadius: 2 },
+  nameRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  progressRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   exerciseName: { fontFamily: fonts.display, fontSize: 24, lineHeight: 28 },
   columns: { flexDirection: 'row', alignItems: 'center', paddingBottom: 6, paddingHorizontal: 4, borderBottomWidth: StyleSheet.hairlineWidth },
   colSet: { width: 44 },
