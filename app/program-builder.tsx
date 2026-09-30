@@ -270,7 +270,7 @@ export default function ProgramEditorScreen() {
                   </Pressable>
                   {isOpen ? (
                     <>
-                  <Stepper layout="row" label={t('programBuilder.sets')} value={prescription.sets} step={1} min={1} max={10} onChange={(sets) => updateExercise(session.id, prescription.id, { sets })} />
+                  <Stepper layout="row" label={t('programBuilder.sets')} value={prescription.sets} step={1} min={1} max={20} editable onChange={(sets) => updateExercise(session.id, prescription.id, { sets: Math.max(1, Math.round(sets)) })} />
                   <TargetStepper metric={metric} value={prescription.target} onChange={(target) => updateExercise(session.id, prescription.id, { target })} />
                   <TextField
                     label={t('userProgram.noteLabel')}

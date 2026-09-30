@@ -504,7 +504,12 @@ export function NumberEdit({ value, display, label, onCommit, initialDraft, cloc
         selectTextOnFocus
         keyboardType={clock ? "numbers-and-punctuation" : allowNegative ? "numbers-and-punctuation" : "decimal-pad"}
         value={draft}
-        onChangeText={setDraft}
+        // Saved as you type, so a value counts even if the field is never confirmed (Save tapped, screen left).
+        onChangeText={(text) => {
+          setDraft(text);
+          const parsed = parseNumberInput(text, clock);
+          if (parsed !== null && (allowNegative || parsed >= 0) && parsed !== value) onCommit(parsed);
+        }}
         onBlur={commit}
         onSubmitEditing={commit}
         returnKeyType="done"
