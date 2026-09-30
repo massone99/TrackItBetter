@@ -1,5 +1,11 @@
 /** An exercise just created for a program workout, waiting for the program builder to add it. */
-export interface PendingProgramExercise { sessionId: string; exerciseId: string; metric: string }
+export interface PendingProgramExercise {
+  sessionId: string;
+  exerciseId: string;
+  metric: string;
+  /** Set when the exercise replaces this prescription of the workout instead of being added. */
+  replaceId?: string;
+}
 
 let pending: PendingProgramExercise | null = null;
 

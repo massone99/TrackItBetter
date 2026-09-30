@@ -431,7 +431,8 @@ export default function WorkoutScreen() {
   const createExercise = (name: string) => {
     if (!workout) return;
     setPickerOpen(false);
-    router.push({ pathname: '/exercise/new', params: { addTo: workout.id, ...(name ? { name } : {}) } });
+    router.push({ pathname: '/exercise/new', params: { addTo: workout.id, ...(replacing ? { replaceEntry: replacing.entryId } : {}), ...(name ? { name } : {}) } });
+    setReplacing(null);
   };
 
   const sheetExercise = setSheet ? workout?.exercises.find((item) => item.entryId === setSheet.exercise.entryId) : undefined;
@@ -712,7 +713,7 @@ export default function WorkoutScreen() {
         title={replacing ? t('logger.replaceExercise') : t('workout.addExercise')}
         subtitle={replacing ? t('logger.replaceSubtitle', { name: replacing.name }) : t('workout.pickerSubtitle')}
         onChoose={(choice) => void chooseExercise(choice)}
-        onCreate={replacing ? undefined : createExercise}
+        onCreate={createExercise}
         onClose={() => { setPickerOpen(false); setReplacing(null); }}
       />
     </View>

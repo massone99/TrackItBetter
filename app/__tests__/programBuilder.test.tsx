@@ -67,6 +67,24 @@ describe('program builder', () => {
     expect(screen.getByText(t('metric.time'))).toBeTruthy();
   });
 
+  it('replaces a movement with the exercise created for it, keeping its place in the workout', async () => {
+    getUserProgram.mockResolvedValue({ id: 'program-1', name: 'Plan', updatedAt: '', sessions: [{ id: 'session-1', name: 'A', exercises: [{ id: 'old', exerciseId: 'push-up', sets: 3, target: 8, restSeconds: null }] }] });
+    setPendingExercise({ sessionId: 'session-1', exerciseId: 'my-hold', metric: 'time', replaceId: 'old' });
+    renderScreen();
+    expect(await screen.findByText('My Hold')).toBeTruthy();
+    expect(screen.queryByText('Push-up')).toBeNull();
+  });
+
+  it('offers creating a movement while replacing one', async () => {
+    getUserProgram.mockResolvedValue({ id: 'program-1', name: 'Plan', updatedAt: '', sessions: [{ id: 'session-1', name: 'A', exercises: [{ id: 'old', exerciseId: 'push-up', sets: 3, target: 8, restSeconds: null }] }] });
+    renderScreen();
+    fireEvent.press(await screen.findByRole('button', { name: /Push-up/ }));
+    fireEvent.press(await screen.findByRole('button', { name: /^Replace Push-up/ }));
+    fireEvent.press(await screen.findByText(t('logger.createExercise')));
+    const { params } = router.push.mock.calls[0][0];
+    expect(params).toMatchObject({ addToProgram: 'session-1', replaceProgramExercise: 'old' });
+  });
+
   it('starts every opening of the picker with a clean search', async () => {
     renderScreen();
     fireEvent.press(await screen.findByRole('button', { name: t('programBuilder.addExercise') }));

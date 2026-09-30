@@ -18,7 +18,7 @@ import {
   type ExerciseFormValues,
 } from '../../src/features/exercises/exerciseForm';
 import { ActionButton, Body, Chip, Icon, Label, PageHeading, Screen, TextField } from '../../src/shared/components/ui';
-import { addExerciseToCompletedWorkout, addExerciseToWorkout } from '../../src/features/session/repository';
+import { addExerciseToCompletedWorkout, addExerciseToWorkout, replaceEntryExercise } from '../../src/features/session/repository';
 import { getExerciseById } from '../../src/features/exercises/repository';
 import { setPendingExercise } from '../../src/features/programs/pendingExercise';
 import { useTheme } from '../../src/shared/theme/ThemeProvider';
@@ -32,7 +32,8 @@ export default function NewExerciseRoute() {
   // Set when opened from the program builder: the new exercise goes into that workout of the program.
   // Set when opened from a finished (past) workout: the exercise is added to it as done.
   // `name` prefills the name field, e.g. what was searched for in a picker before choosing "create".
-  const { addTo, addToPast, addToProgram, edit, name: suggestedName } = useLocalSearchParams<{ addTo?: string; addToPast?: string; addToProgram?: string; edit?: string; name?: string }>();
+  // `replaceEntry` (with `addTo`) makes the new exercise take the place of that exercise of the workout; `replaceProgramExercise` (with `addToProgram`) does the same for a program workout.
+  const { addTo, addToPast, addToProgram, edit, name: suggestedName, replaceEntry, replaceProgramExercise } = useLocalSearchParams<{ addTo?: string; addToPast?: string; addToProgram?: string; edit?: string; name?: string; replaceEntry?: string; replaceProgramExercise?: string }>();
   const { t } = useTranslation();
   const { palette } = useTheme();
   const [saving, setSaving] = useState(false);
@@ -66,13 +67,14 @@ export default function NewExerciseRoute() {
       }
       const id = await createCustomExercise(input);
       if (addToProgram) {
-        setPendingExercise({ sessionId: addToProgram, exerciseId: id, metric: input.metric });
+        setPendingExercise({ sessionId: addToProgram, exerciseId: id, metric: input.metric, replaceId: replaceProgramExercise });
         goBack('/program-builder');
       } else if (addToPast) {
         await addExerciseToCompletedWorkout(addToPast, id);
         goBack({ pathname: '/workout/history/[id]', params: { id: addToPast } });
       } else if (addTo) {
-        await addExerciseToWorkout(addTo, id);
+        if (replaceEntry) await replaceEntryExercise(replaceEntry, id);
+        else await addExerciseToWorkout(addTo, id);
         goBack({ pathname: '/workout/[id]', params: { id: addTo } });
       } else {
         router.replace({ pathname: '/exercise/[id]', params: { id } });

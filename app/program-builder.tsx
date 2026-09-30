@@ -95,6 +95,16 @@ export default function ProgramEditorScreen() {
     clearError((error) => error.sessionId === sessionId && error.code === 'sessionEmpty');
   };
 
+  const replaceExerciseIn = (sessionId: string, prescriptionId: string, exerciseId: string, metric: string) => {
+    setSessions((current) => current.map((session) => (session.id !== sessionId ? session : {
+      ...session,
+      exercises: session.exercises.map((item) => (item.id === prescriptionId
+        ? replaceExercise(item, exerciseId, exerciseInfo.get(item.exerciseId)?.metric, metric)
+        : item)),
+    })));
+    clearError((error) => error.exerciseId === prescriptionId);
+  };
+
   // Exercise names are reloaded on focus so movements created from the picker show up by name.
   useFocusEffect(useCallback(() => {
     let mounted = true;
@@ -114,7 +124,8 @@ export default function ProgramEditorScreen() {
       }
       // An exercise created from this builder's picker joins the workout it was created for (after the program is loaded, which would overwrite it).
       const created = takePendingExercise();
-      if (created) addExercise(created.sessionId, created.exerciseId, created.metric);
+      if (created?.replaceId) replaceExerciseIn(created.sessionId, created.replaceId, created.exerciseId, created.metric);
+      else if (created) addExercise(created.sessionId, created.exerciseId, created.metric);
     })();
     return () => { mounted = false; };
   }, [id, loaded]));
@@ -142,15 +153,6 @@ export default function ProgramEditorScreen() {
     setSessions(next);
   };
 
-  const replaceExerciseIn = (sessionId: string, prescriptionId: string, exerciseId: string, metric: string) => {
-    setSessions((current) => current.map((session) => (session.id !== sessionId ? session : {
-      ...session,
-      exercises: session.exercises.map((item) => (item.id === prescriptionId
-        ? replaceExercise(item, exerciseId, exerciseInfo.get(item.exerciseId)?.metric, metric)
-        : item)),
-    })));
-    clearError((error) => error.exerciseId === prescriptionId);
-  };
 
   const save = async () => {
     if (saving) return;
@@ -351,7 +353,13 @@ export default function ProgramEditorScreen() {
           setPickerFor(null);
           setReplacing(null);
         }}
-        onCreate={replacing ? undefined : (name) => { const sessionId = pickerFor; setPickerFor(null); router.push({ pathname: '/exercise/new', params: { ...(sessionId ? { addToProgram: sessionId } : {}), ...(name ? { name } : {}) } }); }}
+        onCreate={(name) => {
+          const sessionId = replacing?.sessionId ?? pickerFor;
+          const replaceId = replacing?.exerciseId;
+          setPickerFor(null);
+          setReplacing(null);
+          router.push({ pathname: '/exercise/new', params: { ...(sessionId ? { addToProgram: sessionId } : {}), ...(replaceId ? { replaceProgramExercise: replaceId } : {}), ...(name ? { name } : {}) } });
+        }}
         onClose={() => { setPickerFor(null); setReplacing(null); }}
       />
 
