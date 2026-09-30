@@ -89,3 +89,19 @@ describe('logging a program workout as a past session', () => {
     expect(await getActiveWorkout()).toBeNull();
   });
 });
+
+describe('program exercises without a target', () => {
+  it('start with the note on the exercise and last time\'s reps at each set', async () => {
+    real.sqlite.prepare('DELETE FROM workout').run();
+    const first = { id: 'op', name: 'Open', updatedAt: '', sessions: [{ id: 's', name: 'A', exercises: [{ id: 'e', exerciseId: 'push-up', sets: 2, target: 12, restSeconds: null }] }] };
+    const done = await logPastUserProgramSession(first, first.sessions[0], new Date(Date.now() - 3600_000 * 24), 30);
+    expect(done).toBeTruthy();
+
+    const open = { id: 'op', name: 'Open', updatedAt: '', sessions: [{ id: 's', name: 'A', exercises: [{ id: 'e', exerciseId: 'push-up', sets: 2, target: null, note: '10–12 reps, slow', restSeconds: null }] }] };
+    const workoutId = await startUserProgramSession(open, open.sessions[0]);
+
+    const workout = (await getActiveWorkout(workoutId))!;
+    expect(workout.exercises[0].notes).toBe('10–12 reps, slow');
+    expect(workout.exercises[0].sets.map((set) => set.reps)).toEqual([12, 12]);
+  });
+});

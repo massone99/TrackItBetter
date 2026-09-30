@@ -129,6 +129,7 @@ export default function UserProgramScreen() {
             <View key={prescription.id} style={[styles.exerciseRow, { borderTopColor: palette.border }]}>
               <Text style={styles.exerciseName} numberOfLines={2}>{info.get(prescription.exerciseId)?.name ?? t('userProgram.exerciseMissing')}</Text>
               <Text style={[styles.target, { color: palette.textMuted }]}>{describePrescription(prescription, metricById.get(prescription.exerciseId), t)}</Text>
+              {prescription.note?.trim() ? <Text style={[styles.target, { color: palette.text }]}>{prescription.note.trim()}</Text> : null}
             </View>
           ))}
           <ActionButton

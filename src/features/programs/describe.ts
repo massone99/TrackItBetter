@@ -4,12 +4,14 @@ import { formatNumber } from '../../shared/utils/format';
 
 /** One-line prescription such as "3 × 8 · 20 kg · rest 90 s". */
 export function describePrescription(prescription: UserProgramExercise, metric: string | undefined, t: TFunction): string {
-  const target = isTimedMetric(metric)
+  const target = prescription.target === null
+    ? null
+    : isTimedMetric(metric)
     ? t('userProgram.secondsValue', { value: prescription.target })
     : metric === 'distance'
       ? t('userProgram.metersValue', { value: prescription.target })
       : String(prescription.target);
-  const parts = [`${prescription.sets} × ${target}`];
+  const parts = [target === null ? t('userProgram.setsOnly', { count: prescription.sets }) : `${prescription.sets} × ${target}`];
   if (isLoadMetric(metric)) {
     parts.push(prescription.loadKg === null || prescription.loadKg === undefined
       ? t('userProgram.loadAuto')

@@ -6,9 +6,11 @@ import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
 import {
   duplicateSession,
   estimateSessionSeconds,
+  DEFAULT_TARGET_FOR,
   isLoadMetric,
   isTimedMetric,
   moveItem,
+  NOTE_MAX,
   newPrescription,
   replaceExercise,
   sessionSetCount,
@@ -26,6 +28,7 @@ import { getUserProgram, saveUserProgram } from '../src/features/programs/userPr
 import {
   ActionButton,
   Card,
+  Chip,
   EmptyState,
   Icon,
   IconButton,
@@ -240,7 +243,7 @@ export default function ProgramEditorScreen() {
               const isOpen = openExercises.has(prescription.id) || invalid;
               const suffix = isTimedMetric(metric) ? 's' : metric === 'distance' ? ' m' : '';
               const summary = [
-                `${prescription.sets} × ${prescription.target}${suffix}`,
+                prescription.target === null ? t('userProgram.setsOnly', { count: prescription.sets }) : `${prescription.sets} × ${prescription.target}${suffix}`,
                 isLoadMetric(metric) ? (prescription.loadKg == null ? null : `${prescription.loadKg} kg`) : null,
                 prescription.restSeconds == null ? null : `${prescription.restSeconds}s`,
               ].filter(Boolean).join(' · ');
@@ -257,6 +260,7 @@ export default function ProgramEditorScreen() {
                       <Text style={styles.exerciseName} numberOfLines={2}>{exerciseName}</Text>
                       <Label>{t(`metric.${metric}`)}</Label>
                       <Label>{summary}</Label>
+                      {prescription.note?.trim() ? <Label numberOfLines={1}>{prescription.note.trim()}</Label> : null}
                     </View>
                     <Icon name={isOpen ? 'chevron-up' : 'chevron-down'} size={18} color={palette.textMuted} />
                   </Pressable>
@@ -264,6 +268,14 @@ export default function ProgramEditorScreen() {
                     <>
                   <Stepper layout="row" label={t('programBuilder.sets')} value={prescription.sets} step={1} min={1} max={10} onChange={(sets) => updateExercise(session.id, prescription.id, { sets })} />
                   <TargetStepper metric={metric} value={prescription.target} onChange={(target) => updateExercise(session.id, prescription.id, { target })} />
+                  <TextField
+                    label={t('userProgram.noteLabel')}
+                    value={prescription.note ?? ''}
+                    onChangeText={(note) => updateExercise(session.id, prescription.id, { note })}
+                    placeholder={t('userProgram.notePlaceholder')}
+                    multiline
+                    maxLength={NOTE_MAX}
+                  />
                   <DurationField
                     label={t('userProgram.rest')}
                     // A rest of its own, else the app's default rest, shown as the selected value.
@@ -346,16 +358,39 @@ export default function ProgramEditorScreen() {
   );
 }
 
-function TargetStepper({ metric, value, onChange }: { metric: string; value: number; onChange: (value: number) => void }) {
+/** The reps (or hold, or distance) of an exercise; optional, so a workout can be drafted without them. */
+function TargetStepper({ metric, value, onChange }: { metric: string; value: number | null; onChange: (value: number | null) => void }) {
   const { t } = useTranslation();
-  if (isTimedMetric(metric)) {
-    return <DurationField label={t('programBuilder.seconds')} value={value} min={5} max={600} step={5} presets={[10, 20, 30, 45, 60]} format={(seconds) => t('userProgram.secondsValue', { value: seconds })} onChange={onChange} />;
+  const { palette } = useTheme();
+  const label = isTimedMetric(metric) ? t('programBuilder.seconds') : metric === 'distance' ? t('programBuilder.meters') : t('programBuilder.reps');
+  if (value === null) {
+    return (
+      <View style={targetStyles.open}>
+        <Text style={[targetStyles.label, { color: palette.text }]}>{label}</Text>
+        <Text style={[targetStyles.hint, { color: palette.textMuted }]}>{t('userProgram.targetOpen')}</Text>
+        <Chip label={t('userProgram.targetSet')} icon="add" onPress={() => onChange(DEFAULT_TARGET_FOR(metric))} />
+      </View>
+    );
   }
-  if (metric === 'distance') {
-    return <Stepper layout="row" label={t('programBuilder.meters')} value={value} display={t('userProgram.metersValue', { value })} step={10} min={10} max={5000} editable onChange={onChange} />;
-  }
-  return <Stepper layout="row" label={t('programBuilder.reps')} value={value} step={1} min={1} max={100} editable onChange={onChange} />;
+  const control = isTimedMetric(metric)
+    ? <DurationField label={label} value={value} min={5} max={600} step={5} presets={[10, 20, 30, 45, 60]} format={(seconds) => t('userProgram.secondsValue', { value: seconds })} onChange={onChange} />
+    : metric === 'distance'
+      ? <Stepper layout="row" label={label} value={value} display={t('userProgram.metersValue', { value })} step={10} min={10} max={5000} editable onChange={onChange} />
+      : <Stepper layout="row" label={label} value={value} step={1} min={1} max={100} editable onChange={onChange} />;
+  return (
+    <View>
+      {control}
+      <View style={targetStyles.clear}><Chip label={t('userProgram.targetClear')} icon="close" onPress={() => onChange(null)} /></View>
+    </View>
+  );
 }
+
+const targetStyles = StyleSheet.create({
+  open: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 44 },
+  label: { fontFamily: fonts.medium, fontSize: 15 },
+  hint: { flex: 1, fontFamily: fonts.body, fontSize: 14 },
+  clear: { flexDirection: 'row', paddingTop: 4 },
+});
 
 function newSession(name: string): UserProgramSession {
   return { id: Crypto.randomUUID(), name, exercises: [] };

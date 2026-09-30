@@ -1,6 +1,6 @@
 import { isLoadMetric, isTimedMetric, plannedLoads, programSessionWorkoutName, type UserProgram, type UserProgramSession } from '../../domain/userProgram';
 import { getExerciseById } from '../exercises/repository';
-import { addExerciseToWorkout, addSet, convertToPastWorkout, deleteWorkout, getActiveWorkout, getPreviousPerformance, startWorkout, updateSet } from '../session/repository';
+import { addExerciseToWorkout, addSet, convertToPastWorkout, deleteWorkout, getActiveWorkout, getPreviousPerformance, startWorkout, updateEntryNote, updateSet } from '../session/repository';
 
 /**
  * Starts a workout from one day of a self-made program: every movement gets exactly the planned
@@ -58,15 +58,27 @@ async function fillWorkout(workoutId: string, exercises: UserProgramSession['exe
     // addExerciseToWorkout already creates the first set: reuse it instead of adding one more.
     const setIds = exercise?.sets.map((set) => set.id) ?? [];
     while (setIds.length < prescription.sets) setIds.push(await addSet(entryId));
+    const previousSets = previous.get(prescription.exerciseId)?.sets ?? [];
+    if (prescription.note?.trim()) await updateEntryNote(entryId, prescription.note);
     const loads = isLoadMetric(metric)
       ? plannedLoads(prescription, previous.get(prescription.exerciseId)?.sets.map((set) => set.addedLoadKg) ?? [])
       : [];
     for (const [setIndex, setId] of setIds.slice(0, prescription.sets).entries()) {
       // Without a rest of its own the set keeps none, and the exercise's or Profile's rest applies.
       if (prescription.restSeconds != null) await updateSet(setId, 'restSec', prescription.restSeconds);
-      if (isTimedMetric(metric)) await updateSet(setId, 'durationSec', prescription.target);
-      else if (metric === 'distance') await updateSet(setId, 'distanceM', prescription.target);
-      else await updateSet(setId, 'reps', prescription.target);
+      if (prescription.target !== null) {
+        if (isTimedMetric(metric)) await updateSet(setId, 'durationSec', prescription.target);
+        else if (metric === 'distance') await updateSet(setId, 'distanceM', prescription.target);
+        else await updateSet(setId, 'reps', prescription.target);
+      } else {
+        // An open target starts from last time's set at the same position, when there is one.
+        const last = previousSets[Math.min(setIndex, previousSets.length - 1)];
+        if (last) {
+          if (isTimedMetric(metric) && last.durationSec) await updateSet(setId, 'durationSec', last.durationSec);
+          else if (metric === 'distance' && last.distanceM) await updateSet(setId, 'distanceM', last.distanceM);
+          else if (!isTimedMetric(metric) && metric !== 'distance' && last.reps) await updateSet(setId, 'reps', last.reps);
+        }
+      }
       if (loads.length > 0) await updateSet(setId, 'addedLoadKg', loads[setIndex]);
     }
   }

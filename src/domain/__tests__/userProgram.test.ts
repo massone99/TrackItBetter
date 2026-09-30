@@ -1,6 +1,7 @@
 import {
   duplicateSession,
   estimateSessionSeconds,
+  isValidPrescription,
   moveItem,
   newPrescription,
   nextSessionInRotation,
@@ -147,9 +148,13 @@ describe('replaceExercise', () => {
 
   it('resets the target for the new measure and drops a load the new exercise cannot carry', () => {
     const toHold = replaceExercise(exercise({ target: 6, loadKg: 10 }), 'plank', 'reps_load', 'time');
-    expect(toHold).toMatchObject({ exerciseId: 'plank', sets: 3, target: 30, loadKg: null });
-    expect(replaceExercise(exercise({ target: 30 }), 'run', 'time', 'distance').target).toBe(100);
-    expect(replaceExercise(exercise({ target: 30 }), 'squat', 'time', 'reps').target).toBe(8);
+    expect(toHold).toMatchObject({ exerciseId: 'plank', sets: 3, target: null, loadKg: null });
+    expect(replaceExercise(exercise({ target: 30 }), 'run', 'time', 'distance').target).toBeNull();
+    expect(replaceExercise(exercise({ target: 30 }), 'squat', 'time', 'reps').target).toBeNull();
+  });
+
+  it('keeps an open target open', () => {
+    expect(replaceExercise(exercise({ target: null }), 'ring-dip', 'reps', 'reps').target).toBeNull();
   });
 
   it('keeps the load between weighted exercises of different measures only when both carry load', () => {
@@ -158,9 +163,22 @@ describe('replaceExercise', () => {
 });
 
 describe('newPrescription', () => {
-  it('starts with one set and a target that fits the measure', () => {
-    expect(newPrescription('a', 'reps', () => 'x')).toEqual({ id: 'x', exerciseId: 'a', sets: 1, target: 8, restSeconds: null, loadKg: null });
-    expect(newPrescription('a', 'time_load', () => 'x')).toMatchObject({ sets: 1, target: 30 });
-    expect(newPrescription('a', 'distance', () => 'x')).toMatchObject({ sets: 1, target: 100 });
+  it('starts with one set and no target, so a workout can be drafted without deciding reps', () => {
+    expect(newPrescription('a', 'reps', () => 'x')).toEqual({ id: 'x', exerciseId: 'a', sets: 1, target: null, note: null, restSeconds: null, loadKg: null });
+  });
+});
+
+describe('prescriptions without a target', () => {
+  it('are valid, with or without a note', () => {
+    expect(isValidPrescription(exercise({ target: null }))).toBe(true);
+    expect(isValidPrescription(exercise({ target: null, note: '6–8 reps' }))).toBe(true);
+    expect(isValidPrescription(exercise({ target: 0 }))).toBe(false);
+    expect(isValidPrescription(exercise({ note: 'x'.repeat(1001) }))).toBe(false);
+  });
+
+  it('count as a default effort when the duration of a workout is estimated', () => {
+    const open = estimateSessionSeconds({ exercises: [exercise({ target: null, sets: 2, restSeconds: 60 })] }, new Map([['push-up', 'reps']]));
+    const fixed = estimateSessionSeconds({ exercises: [exercise({ target: 8, sets: 2, restSeconds: 60 })] }, new Map([['push-up', 'reps']]));
+    expect(open).toBe(fixed);
   });
 });

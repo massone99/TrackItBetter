@@ -15,8 +15,10 @@ export interface UserProgramExercise {
   id: string;
   exerciseId: string;
   sets: number;
-  /** Reps, seconds or meters depending on the exercise metric. */
-  target: number;
+  /** Reps, seconds or meters depending on the exercise metric; null leaves it open (see `note`). */
+  target: number | null;
+  /** Free text for the exercise, e.g. "6–8 reps, slow negatives"; copied to the exercise's note in the workout. */
+  note?: string | null;
   /** Rest after each set; null or missing means "use the default rest" (per exercise, or Profile). */
   restSeconds?: number | null;
   /** Planned added load for weighted exercises; null or missing means "reuse last time's load". */
@@ -68,10 +70,13 @@ export function validateUserProgram(program: Pick<UserProgram, 'name' | 'session
   return errors;
 }
 
+export const NOTE_MAX = 1000;
+
 export function isValidPrescription(exercise: Partial<UserProgramExercise>): exercise is UserProgramExercise {
   return typeof exercise.id === 'string' && typeof exercise.exerciseId === 'string'
     && Number.isInteger(exercise.sets) && exercise.sets! > 0
-    && Number.isFinite(exercise.target) && exercise.target! > 0
+    && (exercise.target === null || (Number.isFinite(exercise.target) && exercise.target! > 0))
+    && (exercise.note === undefined || exercise.note === null || (typeof exercise.note === 'string' && exercise.note.length <= NOTE_MAX))
     && (exercise.restSeconds === undefined || exercise.restSeconds === null || (Number.isInteger(exercise.restSeconds) && exercise.restSeconds >= 0))
     && (exercise.loadKg === undefined || exercise.loadKg === null || (Number.isFinite(exercise.loadKg) && exercise.loadKg >= 0));
 }
@@ -93,9 +98,12 @@ export function measureOf(metric: string | undefined): 'time' | 'distance' | 're
 
 const DEFAULT_TARGET = { time: 30, distance: 100, reps: 8 } as const;
 
-/** A movement freshly added to a workout of a program: one set, to be raised as needed. */
+/** A movement freshly added to a workout of a program: one set, no reps decided yet. */
+/** What an open target counts as when a duration is estimated. */
+export const DEFAULT_TARGET_FOR = (metric: string | undefined): number => DEFAULT_TARGET[measureOf(metric)];
+
 export function newPrescription(exerciseId: string, metric: string | undefined, newId: () => string): UserProgramExercise {
-  return { id: newId(), exerciseId, sets: 1, target: DEFAULT_TARGET[measureOf(metric)], restSeconds: null, loadKg: null };
+  return { id: newId(), exerciseId, sets: 1, target: null, note: null, restSeconds: null, loadKg: null };
 }
 
 /**
@@ -107,7 +115,7 @@ export function replaceExercise(prescription: UserProgramExercise, exerciseId: s
   return {
     ...prescription,
     exerciseId,
-    target: sameMeasure ? prescription.target : DEFAULT_TARGET[measureOf(newMetric)],
+    target: prescription.target !== null && sameMeasure ? prescription.target : null,
     loadKg: isLoadMetric(newMetric) ? prescription.loadKg ?? null : null,
   };
 }
@@ -145,7 +153,8 @@ export function estimateSessionSeconds(session: Pick<UserProgramSession, 'exerci
   let lastRest = 0;
   for (const exercise of session.exercises) {
     const metric = metricById.get(exercise.exerciseId);
-    const work = isTimedMetric(metric) ? exercise.target : metric === 'distance' ? 60 : exercise.target * ESTIMATED_SEC_PER_REP;
+    const target = exercise.target ?? DEFAULT_TARGET[measureOf(metric)];
+    const work = isTimedMetric(metric) ? target : metric === 'distance' ? 60 : target * ESTIMATED_SEC_PER_REP;
     const rest = exercise.restSeconds ?? defaultRestSec;
     total += exercise.sets * (work + rest);
     lastRest = rest;
