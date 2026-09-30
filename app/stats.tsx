@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { ActivityIndicator, BackHandler, Pressable, StyleSheet, View } from 'react-native';
@@ -131,22 +131,40 @@ export default function StatsScreen() {
   const drillTo = (next: Scope) => {
     if (JSON.stringify(next) !== JSON.stringify(scope)) setTrail((steps) => [...steps, scope]);
     setScope(next);
+    keepPeriod(next);
+  };
+  /**
+   * Keeps the chosen period selected when the scope changes. Days, weeks and months sit at the same
+   * place in every scope; a workout is looked up on the new scope's pages, and when it is not part
+   * of that scope the view falls back to the latest period.
+   */
+  const keepPeriod = (next: Scope) => {
+    if (!data || !bucket || selectedIndex == null) { resetView(); return; }
+    if (granularity !== 'workout') { setSelected(selectedIndex); return; }
+    for (let candidate = 0; candidate < 100; candidate += 1) {
+      const found = buildSeries(data, { granularity, scope: next, metric: primary, now, page: candidate, rpeThreshold });
+      const index = found.buckets.findIndex((item) => item.key === bucket.key);
+      if (index >= 0) { setPage(candidate); setSelected(index); return; }
+      if (!found.hasOlder) break;
+    }
     resetView();
   };
-  const stepBack = useCallback(() => {
+  const stepBack = () => {
     const previous = trail[trail.length - 1];
     if (!previous) return false;
     setTrail(trail.slice(0, -1));
     setScope(previous);
-    setPage(0);
-    setSelected(null);
+    keepPeriod(previous);
     return true;
-  }, [trail]);
+  };
+  // The latest step-back, read by the back-button listener so it does not re-subscribe each render.
+  const stepBackRef = useRef(stepBack);
+  useEffect(() => { stepBackRef.current = stepBack; });
   // The phone's back button climbs the drill-down first and only then leaves the screen.
   useFocusEffect(useCallback(() => {
-    const subscription = BackHandler.addEventListener('hardwareBackPress', stepBack);
+    const subscription = BackHandler.addEventListener('hardwareBackPress', () => stepBackRef.current());
     return () => subscription.remove();
-  }, [stepBack]));
+  }, []));
   const narrow = (kind: BreakdownLevel, key: string | undefined) => {
     if (kind === 'category') drillTo({ kind: scope.kind, category: key });
     else if (kind === 'pattern') drillTo({ kind: scope.kind, category: scope.category, pattern: key });

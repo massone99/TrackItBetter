@@ -101,6 +101,26 @@ describe('statistics drill-down', () => {
     expect(pressBack()).toBe(false);
   });
 
+  it('keeps the chosen period when drilling down', async () => {
+    const old = new Date(started.getTime() - 21 * 86_400_000);
+    getExploreData.mockResolvedValue({
+      workouts: [...data.workouts, { ...data.workouts[0], id: 'w0', name: 'Vecchio', startedAt: old, endedAt: new Date(old.getTime() + 3_600_000) }],
+      rows: [...data.rows, row({ workoutId: 'w0', workoutStartedAt: old, completedAt: old, exerciseId: 'pull-up', exerciseName: 'Pull-up', category: 'pull', movementPattern: 'vertical-pull' })],
+    });
+    renderScreen();
+    await screen.findByText(t('stats.breakdown.category'));
+    // Weekly bars are labelled with their date range; the older week holds only the pull workout.
+    const bars = screen.getAllByRole('button').filter((item) => item.props.accessibilityState?.selected !== undefined && /–/.test(item.props.accessibilityLabel ?? ''));
+    const selectedBefore = bars.findIndex((item) => item.props.accessibilityState.selected);
+    fireEvent.press(bars[selectedBefore - 3]);
+    expect(await screen.findByText('Vecchio')).toBeTruthy();
+
+    fireEvent.press(breakdownRow(t('library.category.pull')));
+    await screen.findByText(t('stats.breakdown.pattern'));
+    expect(screen.getByText('Vecchio')).toBeTruthy();
+    expect(screen.queryByText('Allenamento')).toBeNull();
+  });
+
   it('shows shares of the period total when categories overlap', async () => {
     renderScreen();
     await screen.findByText(t('stats.breakdown.category'));
