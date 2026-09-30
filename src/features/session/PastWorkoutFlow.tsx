@@ -1,7 +1,7 @@
 import { router } from 'expo-router';
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Animated, Modal, Pressable, ScrollView, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
+import { Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { sessionSetCount, type UserProgram, type UserProgramSession } from '../../domain/userProgram';
 import { Body, Heading, Icon, IconButton, Text, tapFeedback, type IconName } from '../../shared/components/ui';
 import { useAppInsets } from '../../shared/layout/useAppInsets';
@@ -82,7 +82,7 @@ export function PastWorkoutFlow({ visible, dateKey, onClose }: { visible: boolea
         </View>
 
         <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 28 }]} showsVerticalScrollIndicator={false}>
-          <StepFade key={step.name + (step.name === 'sessions' ? step.programId : '')} style={styles.stack}>
+          <View style={styles.stack}>
             {step.name === 'start' ? (
               <>
                 <Tile
@@ -125,18 +125,11 @@ export function PastWorkoutFlow({ visible, dateKey, onClose }: { visible: boolea
               />
             )) : null}
             {error ? <Text accessibilityLiveRegion="polite" style={[styles.error, { color: palette.warning }]}>{error}</Text> : null}
-          </StepFade>
+          </View>
         </ScrollView>
       </View>
     </Modal>
   );
-}
-
-/** Fades a step in on mount with the plain Animated API, which behaves the same inside a native Modal. */
-function StepFade({ children, style }: { children: ReactNode; style: StyleProp<ViewStyle> }) {
-  const [opacity] = useState(() => new Animated.Value(0));
-  useEffect(() => { Animated.timing(opacity, { toValue: 1, duration: 200, useNativeDriver: true }).start(); }, [opacity]);
-  return <Animated.View style={[style, { opacity }]}>{children}</Animated.View>;
 }
 
 /** A large tappable card; `featured` fills it with the accent colour for the main choice. */
