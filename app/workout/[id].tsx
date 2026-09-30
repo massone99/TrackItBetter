@@ -544,8 +544,10 @@ export default function WorkoutScreen() {
 
         {workout.exercises.length > 0 ? (
           <Animated.View layout={rowLayout} style={styles.footerActions}>
-            <ActionButton icon="add" label={t('workout.addExercise')} secondary onPress={() => setPickerOpen(true)} />
-            <ActionButton icon="flag-outline" label={t('workout.finish')} onPress={() => setFinishOpen(true)} />
+            <View style={styles.footerRow}>
+              <View style={styles.flex}><ActionButton icon="add" label={t('workout.addExercise')} secondary onPress={() => setPickerOpen(true)} /></View>
+              <View style={styles.flex}><ActionButton icon="flag-outline" label={t('workout.finish')} onPress={() => setFinishOpen(true)} /></View>
+            </View>
             <ActionButton icon="close-circle-outline" label={t('workout.discard')} variant="ghost" onPress={() => setDiscardOpen(true)} />
           </Animated.View>
         ) : null}
@@ -719,9 +721,17 @@ function ExerciseCard({ exercise, previous, hold, onChange, onSetValue, onComple
   const distance = exercise.metric === 'distance';
   const loaded = exercise.metric === 'reps_load' || exercise.metric === 'time_load';
   const field = timed ? 'durationSec' : distance ? 'distanceM' : 'reps';
-  const [collapsed, setCollapsed] = useState(false);
   const doneSets = exercise.sets.filter((set) => set.completedAt).length;
   const allDone = exercise.sets.length > 0 && doneSets === exercise.sets.length;
+  // A finished exercise folds to its results; reopening it (or adding a set) unfolds it again.
+  const [collapsed, setCollapsed] = useState(allDone);
+  const [wasAllDone, setWasAllDone] = useState(allDone);
+  if (wasAllDone !== allDone) { setWasAllDone(allDone); setCollapsed(allDone); }
+  const results = exercise.sets.filter((set) => set.completedAt).map((set) => {
+    const base = timed ? formatClock(set.durationSec ?? 0) : distance ? `${formatNumber(set.distanceM ?? 0)}m` : String(set.reps ?? 0);
+    const label = set.kind === 'warmup' ? `W ${base}` : base;
+    return loaded && set.addedLoadKg !== 0 ? `${label}×${formatNumber(set.addedLoadKg)}` : label;
+  }).join('  ·  ');
   const previousText = previous
     ? previous.sets.map((set) => describeSet(set, exercise.metric)).join(' · ')
     : null;
@@ -745,6 +755,7 @@ function ExerciseCard({ exercise, previous, hold, onChange, onSetValue, onComple
             <Icon name={allDone ? 'checkmark-circle' : 'ellipse-outline'} size={14} color={allDone ? palette.success : palette.textMuted} />
             <Label>{t('logger.setsProgress', { done: doneSets, total: exercise.sets.length })}</Label>
           </View>
+          {collapsed && results ? <Text numberOfLines={2} style={[styles.results, { color: palette.text }]}>{results}</Text> : null}
           {collapsed ? null : <Label>{previousText ? t('logger.lastTime', { value: previousText }) : t('logger.firstTime')}</Label>}
           {exercise.notes ? <Text numberOfLines={3} style={[styles.exerciseNote, { color: palette.textMuted }]}>{exercise.notes}</Text> : null}
           {volumeRecord ? (
@@ -1170,6 +1181,8 @@ const baseStyles = StyleSheet.create({
   summaryMuted: { fontFamily: fonts.medium, fontSize: 13 },
   summaryTrack: { height: 4, borderRadius: 2, overflow: 'hidden' },
   summaryFill: { height: 4, borderRadius: 2 },
+  results: { fontFamily: fonts.semibold, fontSize: 15, marginTop: 2 },
+  footerRow: { flexDirection: 'row', gap: 10 },
   nameRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   progressRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   exerciseName: { fontFamily: fonts.display, fontSize: 24, lineHeight: 28 },

@@ -2,7 +2,7 @@ import * as Crypto from 'expo-crypto';
 import { router, useFocusEffect, useLocalSearchParams, useNavigation } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ActivityIndicator, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
 import {
   duplicateSession,
   estimateSessionSeconds,
@@ -26,6 +26,7 @@ import {
   ActionButton,
   Card,
   EmptyState,
+  Icon,
   IconButton,
   Label,
   PageHeading,
@@ -70,6 +71,10 @@ export default function ProgramEditorScreen() {
   const [undo, setUndo] = useState<{ message: string; previous: UserProgramSession[] } | null>(null);
   const [leaveAction, setLeaveAction] = useState<Parameters<typeof navigation.dispatch>[0] | null>(null);
   const allowLeave = useRef(false);
+  // Days folded to their summary, and exercises opened for editing; the rest show one line.
+  const [closedDays, setClosedDays] = useState<Set<string>>(new Set());
+  const [openExercises, setOpenExercises] = useState<Set<string>>(new Set());
+  const flip = (set: Set<string>, key: string) => { const next = new Set(set); if (!next.delete(key)) next.add(key); return next; };
 
   const dirty = loaded && JSON.stringify({ name, sessions } satisfies Draft) !== snapshot;
 
@@ -78,6 +83,7 @@ export default function ProgramEditorScreen() {
   const addExercise = (sessionId: string, exerciseId: string, metric: string) => {
     const prescription = newPrescription(exerciseId, metric, () => Crypto.randomUUID());
     setSessions((current) => current.map((session) => (session.id === sessionId ? { ...session, exercises: [...session.exercises, prescription] } : session)));
+    setOpenExercises((current) => new Set(current).add(prescription.id));
     clearError((error) => error.sessionId === sessionId && error.code === 'sessionEmpty');
   };
 
@@ -179,10 +185,17 @@ export default function ProgramEditorScreen() {
       {sessions.length === 0 ? <EmptyState icon="calendar-outline" title={t('programBuilder.addDay')} body={t('userProgram.errors.noSessions')} /> : null}
       {sessions.map((session, index) => {
         const sessionErrors = errors.filter((error) => error.sessionId === session.id && !error.exerciseId);
+        const dayClosed = closedDays.has(session.id) && sessionErrors.length === 0 && !errors.some((error) => error.sessionId === session.id);
         const minutes = session.exercises.length > 0 ? formatMinutes(estimateSessionSeconds(session, metricById, readDefaultRest('working'))) : null;
         return (
           <Card key={session.id} style={styles.dayCard}>
-            <View style={styles.header}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={t(dayClosed ? 'logger.expand' : 'logger.collapse', { name: session.name || t('userProgram.dayNumber', { number: index + 1 }) })}
+              accessibilityState={{ expanded: !dayClosed }}
+              onPress={() => setClosedDays((current) => flip(current, session.id))}
+              style={styles.header}
+            >
               <View style={[styles.number, { backgroundColor: palette.accentSoft }]}>
                 <Text style={[styles.numberText, { color: palette.accentStrong }]}>{index + 1}</Text>
               </View>
@@ -190,13 +203,19 @@ export default function ProgramEditorScreen() {
                 <Text style={styles.dayTitle} numberOfLines={1}>{session.name || t('userProgram.dayNumber', { number: index + 1 })}</Text>
                 {minutes ? <Label>{t('userProgram.daySummary', { count: sessionSetCount(session), minutes })}</Label> : null}
               </View>
-              <IconButton icon="chevron-up" label={t('userProgram.moveDayUp')} tone="plain" size={34} onPress={() => setSessions((current) => moveItem(current, index, -1))} />
-              <IconButton icon="chevron-down" label={t('userProgram.moveDayDown')} tone="plain" size={34} onPress={() => setSessions((current) => moveItem(current, index, 1))} />
-              <IconButton icon="copy-outline" label={t('userProgram.duplicateDay')} tone="plain" size={34} onPress={() => setSessions((current) => {
+              <Icon name={dayClosed ? 'chevron-down' : 'chevron-up'} size={20} color={palette.textMuted} />
+            </Pressable>
+
+            {dayClosed ? null : (
+              <>
+            <View style={styles.dayActions}>
+              <IconButton icon="arrow-up" label={t('userProgram.moveDayUp')} tone="plain" size={40} onPress={() => setSessions((current) => moveItem(current, index, -1))} />
+              <IconButton icon="arrow-down" label={t('userProgram.moveDayDown')} tone="plain" size={40} onPress={() => setSessions((current) => moveItem(current, index, 1))} />
+              <IconButton icon="copy-outline" label={t('userProgram.duplicateDay')} tone="plain" size={40} onPress={() => setSessions((current) => {
                 const copy = duplicateSession(session, () => Crypto.randomUUID());
                 return [...current.slice(0, index + 1), copy, ...current.slice(index + 1)];
               })} />
-              <IconButton icon="trash-outline" label={t('programBuilder.removeDay')} tone="plain" size={34} onPress={() => removeWithUndo(
+              <IconButton icon="trash-outline" label={t('programBuilder.removeDay')} tone="plain" size={40} onPress={() => removeWithUndo(
                 t('userProgram.dayRemoved', { name: session.name || t('userProgram.dayNumber', { number: index + 1 }) }),
                 sessions.filter((item) => item.id !== session.id),
               )} />
@@ -215,21 +234,31 @@ export default function ProgramEditorScreen() {
               const metric = info?.metric ?? 'reps';
               const exerciseName = info?.name ?? t('userProgram.exerciseMissing');
               const invalid = errors.some((error) => error.exerciseId === prescription.id);
+              const isOpen = openExercises.has(prescription.id) || invalid;
+              const suffix = isTimedMetric(metric) ? 's' : metric === 'distance' ? ' m' : '';
+              const summary = [
+                `${prescription.sets} × ${prescription.target}${suffix}`,
+                isLoadMetric(metric) ? (prescription.loadKg == null ? null : `${prescription.loadKg} kg`) : null,
+                prescription.restSeconds == null ? null : `${prescription.restSeconds}s`,
+              ].filter(Boolean).join(' · ');
               return (
                 <View key={prescription.id} style={[styles.exercise, { borderTopColor: palette.border }]}>
-                  <View style={styles.header}>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={t(isOpen ? 'logger.collapse' : 'logger.expand', { name: exerciseName })}
+                    accessibilityState={{ expanded: isOpen }}
+                    onPress={() => setOpenExercises((current) => flip(current, prescription.id))}
+                    style={styles.header}
+                  >
                     <View style={styles.flex}>
                       <Text style={styles.exerciseName} numberOfLines={2}>{exerciseName}</Text>
                       <Label>{t(`metric.${metric}`)}</Label>
+                      <Label>{summary}</Label>
                     </View>
-                    <IconButton icon="chevron-up" label={t('userProgram.moveExerciseUp', { name: exerciseName })} tone="plain" size={32} onPress={() => updateSession(session.id, { exercises: moveItem(session.exercises, exerciseIndex, -1) })} />
-                    <IconButton icon="chevron-down" label={t('userProgram.moveExerciseDown', { name: exerciseName })} tone="plain" size={32} onPress={() => updateSession(session.id, { exercises: moveItem(session.exercises, exerciseIndex, 1) })} />
-                    <IconButton icon="swap-horizontal" label={t('userProgram.replaceExercise', { name: exerciseName })} tone="plain" size={32} onPress={() => setReplacing({ sessionId: session.id, exerciseId: prescription.id })} />
-                    <IconButton icon="close" label={t('userProgram.removeExercise', { name: exerciseName })} tone="plain" size={32} onPress={() => removeWithUndo(
-                      t('userProgram.exerciseRemoved', { name: exerciseName }),
-                      sessions.map((item) => (item.id === session.id ? { ...item, exercises: item.exercises.filter((exercise) => exercise.id !== prescription.id) } : item)),
-                    )} />
-                  </View>
+                    <Icon name={isOpen ? 'chevron-up' : 'chevron-down'} size={18} color={palette.textMuted} />
+                  </Pressable>
+                  {isOpen ? (
+                    <>
                   <Stepper layout="row" label={t('programBuilder.sets')} value={prescription.sets} step={1} min={1} max={10} onChange={(sets) => updateExercise(session.id, prescription.id, { sets })} />
                   <TargetStepper metric={metric} value={prescription.target} onChange={(target) => updateExercise(session.id, prescription.id, { target })} />
                   <Stepper
@@ -254,6 +283,17 @@ export default function ProgramEditorScreen() {
                       onChange={(value) => updateExercise(session.id, prescription.id, { loadKg: value < 0 ? null : value })}
                     />
                   ) : null}
+                  <View style={styles.exerciseActions}>
+                    <IconButton icon="arrow-up" label={t('userProgram.moveExerciseUp', { name: exerciseName })} tone="plain" size={40} onPress={() => updateSession(session.id, { exercises: moveItem(session.exercises, exerciseIndex, -1) })} />
+                    <IconButton icon="arrow-down" label={t('userProgram.moveExerciseDown', { name: exerciseName })} tone="plain" size={40} onPress={() => updateSession(session.id, { exercises: moveItem(session.exercises, exerciseIndex, 1) })} />
+                    <IconButton icon="swap-horizontal" label={t('userProgram.replaceExercise', { name: exerciseName })} tone="plain" size={40} onPress={() => setReplacing({ sessionId: session.id, exerciseId: prescription.id })} />
+                    <IconButton icon="trash-outline" label={t('userProgram.removeExercise', { name: exerciseName })} tone="plain" size={40} onPress={() => removeWithUndo(
+                      t('userProgram.exerciseRemoved', { name: exerciseName }),
+                      sessions.map((item) => (item.id === session.id ? { ...item, exercises: item.exercises.filter((exercise) => exercise.id !== prescription.id) } : item)),
+                    )} />
+                  </View>
+                    </>
+                  ) : null}
                   {invalid ? <Text style={[styles.error, { color: palette.warning }]}>{t('userProgram.errors.invalidValue')}</Text> : null}
                 </View>
               );
@@ -262,6 +302,8 @@ export default function ProgramEditorScreen() {
               <Text style={[styles.error, { color: palette.warning }]}>{t('userProgram.errors.sessionEmpty')}</Text>
             ) : null}
             <ActionButton icon="add" label={t('programBuilder.addExercise')} secondary onPress={() => setPickerFor(session.id)} />
+              </>
+            )}
           </Card>
         );
       })}
@@ -323,6 +365,8 @@ const baseStyles = StyleSheet.create({
   numberText: { fontFamily: fonts.display, fontSize: 16 },
   dayTitle: { fontFamily: fonts.display, fontSize: 21, lineHeight: 24 },
   field: { gap: 8 },
+  dayActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 4, marginTop: -6 },
+  exerciseActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 4 },
   exercise: { borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 12, gap: 2 },
   exerciseName: { fontFamily: fonts.semibold, fontSize: 16 },
   error: { fontFamily: fonts.medium, fontSize: 14 },
