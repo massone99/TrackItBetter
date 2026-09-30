@@ -22,6 +22,7 @@ import {
   updateSetRpe,
   WORKOUT_NAME_MAX,
 } from '../../../src/features/session/repository';
+import { SaveToProgramSheet } from '../../../src/features/programs/SaveToProgramSheet';
 import { WorkoutInProgressSheet } from '../../../src/features/session/WorkoutInProgressSheet';
 import type { CompletedWorkout, RemovedRows, SessionExercise, SessionSet } from '../../../src/features/session/repository';
 import { RpePicker } from '../../../src/features/session/RpePicker';
@@ -55,6 +56,8 @@ export default function PastWorkoutScreen() {
   const [detailsOpen, setDetailsOpen] = useState(openDetails === '1');
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [saveOpen, setSaveOpen] = useState(false);
+  const [saved, setSaved] = useState<{ id: string; name: string } | null>(null);
   // The last removal, offered for a few seconds as "Restore".
   const [undo, setUndo] = useState<{ message: string; removed: RemovedRows } | null>(null);
   const hideUndo = useCallback(() => setUndo(null), []);
@@ -147,6 +150,7 @@ export default function PastWorkoutScreen() {
         if ('workoutId' in result) router.push({ pathname: '/workout/[id]', params: { id: result.workoutId } });
         else setBlockedBy(result.active);
       }).catch(() => setError(t('history.repeatError')))} />
+      <ActionButton icon="bookmark-outline" label={t('saveToProgram.action')} secondary onPress={() => setSaveOpen(true)} />
       <ActionButton icon="share-social-outline" label={t('shareCard.action')} secondary onPress={() => router.push({ pathname: '/workout/share/[id]', params: { id } })} />
       <Body>{t('history.editHelp')}</Body>
       {error ? <Text accessibilityLiveRegion="polite" style={[styles.error, { color: palette.warning }]}>{error}</Text> : null}
@@ -295,6 +299,21 @@ export default function PastWorkoutScreen() {
         <ActionButton icon="trash-outline" label={t('history.deleteConfirm')} variant="danger" onPress={() => void confirmDelete()} />
         <ActionButton label={t('common.cancel')} secondary onPress={() => setDeleteOpen(false)} />
       </Sheet>
+
+      <SaveToProgramSheet
+        visible={saveOpen}
+        defaultName={workout.name}
+        exercises={workout.exercises.map((exercise) => ({ ...exercise, sets: exercise.sets.filter((set) => set.completedAt) }))}
+        onClose={() => setSaveOpen(false)}
+        onSaved={(program) => { setSaveOpen(false); setSaved({ id: program.id, name: program.name }); }}
+      />
+      <Toast
+        message={saved ? t('saveToProgram.saved', { name: saved.name }) : null}
+        actionLabel={t('saveToProgram.open')}
+        onAction={() => { if (saved) router.push({ pathname: '/program/user/[id]', params: { id: saved.id } }); }}
+        onHide={() => setSaved(null)}
+        bottomOffset={0}
+      />
 
       <ExercisePicker
         visible={pickerOpen}

@@ -11,7 +11,7 @@ jest.mock('expo-router', () => {
   const React = jest.requireActual('react');
   return {
     router: { push: jest.fn(), replace: jest.fn(), back: jest.fn(), canGoBack: () => true },
-    useLocalSearchParams: () => ({}),
+    useLocalSearchParams: () => ({ id: 'program-1' }),
     useSegments: () => ['program-builder'],
     useNavigation: () => ({ addListener: () => () => undefined, dispatch: jest.fn() }),
     useFocusEffect: (callback: () => void) => React.useEffect(callback, [callback]),
@@ -25,15 +25,26 @@ jest.mock('../../src/features/exercises/repository', () => ({
 }));
 jest.mock('../../src/features/programs/userPrograms', () => ({ getUserProgram: jest.fn(), saveUserProgram: jest.fn() }));
 const { router } = jest.requireMock('expo-router');
+const { getUserProgram } = jest.requireMock('../../src/features/programs/userPrograms');
 
 const metrics = { frame: { x: 0, y: 0, width: 390, height: 844 }, insets: { top: 0, left: 0, right: 0, bottom: 0 } };
 const renderScreen = () => render(<SafeAreaProvider initialMetrics={metrics}><ThemeProvider><ProgramBuilder /></ThemeProvider></SafeAreaProvider>);
 const t = (key: string) => i18n.t(key);
 
 beforeAll(async () => { await i18n.changeLanguage('en'); });
-beforeEach(() => jest.clearAllMocks());
+beforeEach(() => {
+  jest.clearAllMocks();
+  // A program that already has one (empty) workout, like after adding a day.
+  getUserProgram.mockResolvedValue({ id: 'program-1', name: 'Plan', updatedAt: '', sessions: [{ id: 'session-1', name: 'A', exercises: [] }] });
+});
 
 describe('program builder', () => {
+  it('starts a new program with no workouts and lets you add them', async () => {
+    getUserProgram.mockResolvedValue(null);
+    renderScreen();
+    expect(await screen.findByText(t('userProgram.noWorkoutsYet'))).toBeTruthy();
+  });
+
   it('sends the new exercise to the workout it was created for', async () => {
     renderScreen();
     fireEvent.press(await screen.findByRole('button', { name: t('programBuilder.addExercise') }));

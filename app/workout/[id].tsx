@@ -66,6 +66,7 @@ import {
 } from '../../src/shared/components/ui';
 import { useKeyboardVisible } from '../../src/shared/components/keyboard';
 import { RpePicker } from '../../src/features/session/RpePicker';
+import { SaveToProgramSheet } from '../../src/features/programs/SaveToProgramSheet';
 import { ExerciseNoteField } from '../../src/features/session/ExerciseNoteField';
 import { DoneTint, PopOnActivate, SwipeableSetRow } from '../../src/features/session/SwipeableSetRow';
 import Animated, { FadeInDown, FadeOutLeft, LayoutAnimationConfig, LinearTransition, ZoomIn } from 'react-native-reanimated';
@@ -110,6 +111,8 @@ export default function WorkoutScreen() {
   const [voicePreferenceLoaded, setVoicePreferenceLoaded] = useState(false);
   const [readinessOpen, setReadinessOpen] = useState(false);
   const [finishOpen, setFinishOpen] = useState(false);
+  const [saveOpen, setSaveOpen] = useState(false);
+  const [savedTo, setSavedTo] = useState<{ id: string; name: string } | null>(null);
   const [discardOpen, setDiscardOpen] = useState(false);
   const [optionsFor, setOptionsFor] = useState<SessionExercise | null>(null);
   // PRs set so far in this workout: record kinds per set, and exercises with a volume mini PR.
@@ -550,6 +553,7 @@ export default function WorkoutScreen() {
               <View style={styles.flex}><ActionButton icon="add" label={t('workout.addExercise')} secondary onPress={() => setPickerOpen(true)} /></View>
               <View style={styles.flex}><ActionButton icon="flag-outline" label={t('workout.finish')} onPress={() => setFinishOpen(true)} /></View>
             </View>
+            <ActionButton icon="bookmark-outline" label={t('saveToProgram.action')} variant="ghost" onPress={() => setSaveOpen(true)} />
             <ActionButton icon="close-circle-outline" label={t('workout.discard')} variant="ghost" onPress={() => setDiscardOpen(true)} />
           </Animated.View>
         ) : null}
@@ -571,6 +575,21 @@ export default function WorkoutScreen() {
           if (removed) void restoreRemoved(removed).then(() => refresh(workout.id));
         }}
         onHide={hideUndo}
+        bottomOffset={hold.active || restSeconds !== null ? 110 : 0}
+      />
+
+      <SaveToProgramSheet
+        visible={saveOpen}
+        defaultName={workout.name}
+        exercises={workout.exercises}
+        onClose={() => setSaveOpen(false)}
+        onSaved={(program) => { setSaveOpen(false); setSavedTo({ id: program.id, name: program.name }); }}
+      />
+      <Toast
+        message={savedTo ? t('saveToProgram.saved', { name: savedTo.name }) : null}
+        actionLabel={t('saveToProgram.open')}
+        onAction={() => { if (savedTo) router.push({ pathname: '/program/user/[id]', params: { id: savedTo.id } }); }}
+        onHide={() => setSavedTo(null)}
         bottomOffset={hold.active || restSeconds !== null ? 110 : 0}
       />
 

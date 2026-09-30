@@ -95,7 +95,7 @@ export default function ProgramsTab() {
                     key={program.id}
                     icon="calendar"
                     title={program.name}
-                    subtitle={`${t('userProgram.nextShort', { name: next.name })} · ${t('userProgram.daysPerWeek', { count: program.sessions.length })}`}
+                    subtitle={next ? `${t('userProgram.nextShort', { name: next.name })} · ${t('userProgram.daysPerWeek', { count: program.sessions.length })}` : t('userProgram.noWorkoutsYet')}
                     onPress={() => router.push({ pathname: '/program/user/[id]', params: { id: program.id } })}
                   />
                 );

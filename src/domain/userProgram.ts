@@ -39,7 +39,7 @@ export interface UserProgram {
   updatedAt: string;
 }
 
-export type ProgramErrorCode = 'nameMissing' | 'noSessions' | 'sessionNameMissing' | 'sessionEmpty' | 'invalidValue';
+export type ProgramErrorCode = 'nameMissing' | 'sessionNameMissing' | 'sessionEmpty' | 'invalidValue';
 
 export interface ProgramError {
   code: ProgramErrorCode;
@@ -59,7 +59,6 @@ export function isLoadMetric(metric: string | undefined): boolean {
 export function validateUserProgram(program: Pick<UserProgram, 'name' | 'sessions'>): ProgramError[] {
   const errors: ProgramError[] = [];
   if (!program.name.trim()) errors.push({ code: 'nameMissing' });
-  if (program.sessions.length === 0) errors.push({ code: 'noSessions' });
   for (const session of program.sessions) {
     if (!session.name.trim()) errors.push({ code: 'sessionNameMissing', sessionId: session.id });
     if (session.exercises.length === 0) errors.push({ code: 'sessionEmpty', sessionId: session.id });
@@ -130,8 +129,9 @@ export function programSessionWorkoutName(program: Pick<UserProgram, 'name'>, se
   return `${program.name} · ${session.name}`;
 }
 
-/** The session after the latest one done (`recentWorkoutNames` newest first), wrapping; the first when none was done. */
-export function nextSessionInRotation(program: UserProgram, recentWorkoutNames: readonly string[]): UserProgramSession {
+/** The session after the latest one done (`recentWorkoutNames` newest first), wrapping; the first when none was done; null for a program without workouts. */
+export function nextSessionInRotation(program: UserProgram, recentWorkoutNames: readonly string[]): UserProgramSession | null {
+  if (program.sessions.length === 0) return null;
   for (const name of recentWorkoutNames) {
     const index = program.sessions.findIndex((session) => programSessionWorkoutName(program, session) === name);
     if (index >= 0) return program.sessions[(index + 1) % program.sessions.length];
@@ -169,4 +169,49 @@ export function plannedLoads(exercise: Pick<UserProgramExercise, 'sets' | 'loadK
     if (previousLoads.length === 0) return 0;
     return previousLoads[Math.min(index, previousLoads.length - 1)];
   });
+}
+
+/** What a logged or in-progress set contributes to a planned exercise. */
+export interface WorkoutSetLike {
+  kind: string;
+  reps: number | null;
+  durationSec: number | null;
+  distanceM: number | null;
+  addedLoadKg: number;
+  restSec: number | null;
+}
+
+export interface WorkoutExerciseLike {
+  exerciseId: string;
+  metric: string;
+  notes: string | null;
+  sets: readonly WorkoutSetLike[];
+}
+
+/**
+ * A workout turned into a workout of a program: one movement per exercise, as many sets as the
+ * working sets done (warm-ups only when there is nothing else), the first set's reps, hold or distance
+ * as the target, its load and rest, and the exercise note. A set without a value leaves the target open.
+ */
+export function sessionFromWorkout(name: string, exercises: readonly WorkoutExerciseLike[], newId: () => string): UserProgramSession {
+  return {
+    id: newId(),
+    name: name.trim(),
+    exercises: exercises.map((exercise) => {
+      const working = exercise.sets.filter((set) => set.kind !== 'warmup');
+      const used = working.length > 0 ? working : exercise.sets;
+      const first = used[0];
+      const raw = !first ? null : isTimedMetric(exercise.metric) ? first.durationSec : exercise.metric === 'distance' ? first.distanceM : first.reps;
+      const load = first && isLoadMetric(exercise.metric) && first.addedLoadKg !== 0 ? first.addedLoadKg : null;
+      return {
+        id: newId(),
+        exerciseId: exercise.exerciseId,
+        sets: Math.max(1, used.length),
+        target: raw && raw > 0 ? raw : null,
+        note: exercise.notes?.trim() || null,
+        restSeconds: first?.restSec != null && first.restSec >= 0 ? Math.round(first.restSec) : null,
+        loadKg: load,
+      };
+    }),
+  };
 }

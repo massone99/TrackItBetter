@@ -12,7 +12,7 @@ import { deleteUserProgram, duplicateUserProgram, getUserProgram } from '../../.
 import { readDefaultRest } from '../../../src/features/session/restDefaults';
 import { WorkoutInProgressSheet } from '../../../src/features/session/WorkoutInProgressSheet';
 import { getActiveWorkout, listRecentWorkoutNames } from '../../../src/features/session/repository';
-import { ActionButton, Body, Card, IconButton, Label, PageHeading, Screen, SectionTitle, Sheet, Text } from '../../../src/shared/components/ui';
+import { ActionButton, Body, Card, EmptyState, IconButton, Label, PageHeading, Screen, SectionTitle, Sheet, Text } from '../../../src/shared/components/ui';
 import { goBack } from '../../../src/shared/navigation/goBack';
 import { useTheme } from '../../../src/shared/theme/ThemeProvider';
 import { fonts } from '../../../src/shared/theme/typography';
@@ -60,7 +60,7 @@ export default function UserProgramScreen() {
   }
 
   const metricById = new Map([...info].map(([exerciseId, item]) => [exerciseId, item.metric]));
-  const nextId = nextSessionInRotation(program, recentNames).id;
+  const nextId = nextSessionInRotation(program, recentNames)?.id ?? null;
 
   const start = async (session: UserProgramSession) => {
     if (starting) return;
@@ -101,7 +101,7 @@ export default function UserProgramScreen() {
     <Screen>
       <PageHeading
         title={program.name}
-        subtitle={t('userProgram.daysPerWeek', { count: program.sessions.length })}
+        subtitle={program.sessions.length > 0 ? t('userProgram.daysPerWeek', { count: program.sessions.length }) : t('userProgram.noWorkoutsYet')}
         action={
           <View style={styles.actions}>
             <IconButton icon="copy-outline" label={t('userProgram.duplicate')} onPress={() => void duplicate()} />
@@ -113,8 +113,16 @@ export default function UserProgramScreen() {
       {active ? <Body>{t('userProgram.activeWorkout', { name: active.name })}</Body> : null}
       {error ? <Text style={[styles.error, { color: palette.warning }]}>{error}</Text> : null}
 
-      <Body>{t('userProgram.rotationHelp')}</Body>
+      {program.sessions.length > 0 ? <Body>{t('userProgram.rotationHelp')}</Body> : null}
       <SectionTitle title={t('userProgram.daysTitle')} />
+      {program.sessions.length === 0 ? (
+        <EmptyState
+          icon="albums-outline"
+          title={t('userProgram.noWorkoutsYet')}
+          body={t('userProgram.noWorkoutsBody')}
+          action={<View style={styles.emptyAction}><ActionButton icon="add" label={t('programBuilder.addDay')} onPress={() => router.push({ pathname: '/program-builder', params: { id: program.id } })} /></View>}
+        />
+      ) : null}
       {program.sessions.map((session, index) => (
         <Card key={session.id} style={[styles.session, session.id === nextId && { borderColor: palette.accentStrong }]}>
           <View style={styles.sessionHead}>
@@ -171,6 +179,7 @@ export default function UserProgramScreen() {
 const baseStyles = StyleSheet.create({
   flex: { flex: 1, gap: 4 },
   actions: { flexDirection: 'row', gap: 8 },
+  emptyAction: { alignSelf: 'stretch', marginTop: 6 },
   session: { gap: 12 },
   sessionHead: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
   sessionName: { fontFamily: fonts.display, fontSize: 22, lineHeight: 26 },

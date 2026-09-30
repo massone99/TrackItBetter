@@ -32,7 +32,7 @@ export async function saveUserProgram(program: Omit<UserProgram, 'id' | 'updated
     updatedAt: new Date().toISOString(),
   };
   if (validateUserProgram(next).length > 0) {
-    throw new Error('A program needs a name, at least one named training day, and a valid exercise in every day.');
+    throw new Error('A program needs a name, and every workout in it a name and at least one valid exercise.');
   }
   await initializeDatabase();
   const programs = await listUserPrograms();
@@ -96,11 +96,17 @@ function parseProgram(value: unknown): UserProgram | null {
     const day = WEEK_ORDER.indexOf(candidate.weekday as never);
     sessions.push({ id: candidate.id, name: candidate.name, exercises, order: (day >= 0 ? day : 7) * 1000 + position });
   }
-  if (sessions.length === 0) return null;
   return {
     id: item.id,
     name: item.name,
     sessions: sessions.sort((a, b) => a.order - b.order).map(({ order: _order, ...session }) => session),
     updatedAt: typeof item.updatedAt === 'string' ? item.updatedAt : new Date(0).toISOString(),
   };
+}
+
+/** Adds a workout to a program; returns the updated program, or null when it no longer exists. */
+export async function addSessionToProgram(programId: string, session: UserProgramSession): Promise<UserProgram | null> {
+  const program = await getUserProgram(programId);
+  if (!program) return null;
+  return saveUserProgram({ id: program.id, name: program.name, sessions: [...program.sessions, session] });
 }

@@ -42,7 +42,7 @@ export default function TodayScreen() {
       setData({
         active, goals, weekSets: progress.weekSets, bests, last: recent[0] ?? null,
         mobilityMinutes: Math.round(mobility.seconds / 60),
-        planned: programs.map((program) => ({ program, session: nextSessionInRotation(program, names) })),
+        planned: programs.flatMap((program) => { const session = nextSessionInRotation(program, names); return session ? [{ program, session }] : []; }),
       });
     }).catch(() => undefined);
     return () => { mounted = false; };

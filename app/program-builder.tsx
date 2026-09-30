@@ -61,7 +61,7 @@ export default function ProgramEditorScreen() {
   const { t } = useTranslation();
   const { palette } = useTheme();
   const navigation = useNavigation();
-  const [initial] = useState<Draft>(() => ({ name: '', sessions: id ? [] : [newSession(t('programBuilder.sessionDefault'))] }));
+  const [initial] = useState<Draft>(() => ({ name: '', sessions: [] }));
   const [loaded, setLoaded] = useState(!id);
   const [name, setName] = useState(initial.name);
   const [sessions, setSessions] = useState<UserProgramSession[]>(initial.sessions);
@@ -101,9 +101,6 @@ export default function ProgramEditorScreen() {
       const exercises = await listExercises();
       if (!mounted) return;
       setExerciseInfo(new Map(exercises.map((exercise) => [exercise.id, { name: exercise.name, metric: exercise.metric }])));
-      // An exercise created from this builder's picker joins the workout it was created for.
-      const created = takePendingExercise();
-      if (created) addExercise(created.sessionId, created.exerciseId, created.metric);
       if (id && !loaded) {
         const program = await getUserProgram(id);
         if (!mounted) return;
@@ -114,6 +111,9 @@ export default function ProgramEditorScreen() {
         }
         setLoaded(true);
       }
+      // An exercise created from this builder's picker joins the workout it was created for (after the program is loaded, which would overwrite it).
+      const created = takePendingExercise();
+      if (created) addExercise(created.sessionId, created.exerciseId, created.metric);
     })();
     return () => { mounted = false; };
   }, [id, loaded]));
@@ -162,7 +162,7 @@ export default function ProgramEditorScreen() {
       allowLeave.current = true;
       router.replace({ pathname: '/program/user/[id]', params: { id: saved.id } });
     } catch {
-      setErrors([{ code: 'noSessions' }]);
+      setErrors([{ code: 'invalidValue' }]);
     } finally {
       setSaving(false);
     }
@@ -189,7 +189,7 @@ export default function ProgramEditorScreen() {
       />
 
       <SectionTitle title={t('userProgram.daysTitle')} />
-      {sessions.length === 0 ? <EmptyState icon="calendar-outline" title={t('programBuilder.addDay')} body={t('userProgram.errors.noSessions')} /> : null}
+      {sessions.length === 0 ? <EmptyState icon="calendar-outline" title={t('userProgram.noWorkoutsYet')} body={t('userProgram.noWorkoutsBody')} /> : null}
       {sessions.map((session, index) => {
         const sessionErrors = errors.filter((error) => error.sessionId === session.id && !error.exerciseId);
         const dayClosed = closedDays.has(session.id) && sessionErrors.length === 0 && !errors.some((error) => error.sessionId === session.id);
@@ -329,7 +329,6 @@ export default function ProgramEditorScreen() {
       })}
       <ActionButton icon="add" label={t('programBuilder.addDay')} variant="ghost" onPress={() => {
         setSessions((current) => [...current, newSession(t('programBuilder.sessionDefault'))]);
-        clearError((error) => error.code === 'noSessions');
       }} />
 
       {errors.length > 0 ? <Text style={[styles.error, { color: palette.warning }]}>{t('userProgram.errors.fix')}</Text> : null}

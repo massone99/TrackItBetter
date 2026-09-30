@@ -8,6 +8,7 @@ import {
   plannedLoads,
   replaceExercise,
   programSessionWorkoutName,
+  sessionFromWorkout,
   sessionSetCount,
   validateUserProgram,
   type UserProgram,
@@ -45,8 +46,8 @@ describe('validateUserProgram', () => {
     ]);
   });
 
-  it('needs at least one day', () => {
-    expect(validateUserProgram(program({ sessions: [] }))).toEqual([{ code: 'noSessions' }]);
+  it('accepts a program with no workouts yet', () => {
+    expect(validateUserProgram(program({ sessions: [] }))).toEqual([]);
   });
 
   it('rejects a negative load but accepts an open one', () => {
@@ -116,12 +117,16 @@ describe('nextSessionInRotation', () => {
   const plan = program({ name: 'Plan', sessions: [session({ id: 'a', name: 'A' }), session({ id: 'b', name: 'B' }), session({ id: 'c', name: 'C' })] });
 
   it('starts from the first workout when none was done yet', () => {
-    expect(nextSessionInRotation(plan, ['Something else']).id).toBe('a');
+    expect(nextSessionInRotation(plan, ['Something else'])?.id).toBe('a');
   });
 
   it('proposes the workout after the latest one done, wrapping around', () => {
-    expect(nextSessionInRotation(plan, ['Plan · A', 'Plan · C']).id).toBe('b');
-    expect(nextSessionInRotation(plan, ['Other · A', 'Plan · C', 'Plan · B']).id).toBe('a');
+    expect(nextSessionInRotation(plan, ['Plan · A', 'Plan · C'])?.id).toBe('b');
+    expect(nextSessionInRotation(plan, ['Other · A', 'Plan · C', 'Plan · B'])?.id).toBe('a');
+  });
+
+  it('has nothing to propose for a program without workouts', () => {
+    expect(nextSessionInRotation(program({ sessions: [] }), ['Plan · A'])).toBeNull();
   });
 
   it('names workouts after program and session', () => {
@@ -180,5 +185,33 @@ describe('prescriptions without a target', () => {
     const open = estimateSessionSeconds({ exercises: [exercise({ target: null, sets: 2, restSeconds: 60 })] }, new Map([['push-up', 'reps']]));
     const fixed = estimateSessionSeconds({ exercises: [exercise({ target: 8, sets: 2, restSeconds: 60 })] }, new Map([['push-up', 'reps']]));
     expect(open).toBe(fixed);
+  });
+});
+
+describe('sessionFromWorkout', () => {
+  const set = (over: object) => ({ kind: 'working', reps: 8, durationSec: null, distanceM: null, addedLoadKg: 0, restSec: null, ...over });
+  let counter = 0;
+  const newId = () => `id${counter += 1}`;
+
+  it('turns a workout into a workout of a program: working sets, first set as target, load, rest and note', () => {
+    const result = sessionFromWorkout(' Push A ', [
+      { exerciseId: 'dip', metric: 'reps_load', notes: ' slow ', sets: [set({ kind: 'warmup', reps: 5 }), set({ reps: 6, addedLoadKg: 10, restSec: 120 }), set({ reps: 5, addedLoadKg: 10 })] },
+      { exerciseId: 'plank', metric: 'time', notes: null, sets: [set({ reps: null, durationSec: 30 })] },
+    ], newId);
+    expect(result.name).toBe('Push A');
+    expect(result.exercises).toMatchObject([
+      { exerciseId: 'dip', sets: 2, target: 6, loadKg: 10, restSeconds: 120, note: 'slow' },
+      { exerciseId: 'plank', sets: 1, target: 30, loadKg: null, restSeconds: null, note: null },
+    ]);
+    expect(validateUserProgram({ name: 'P', sessions: [result] })).toEqual([]);
+  });
+
+  it('leaves the target open when the first set has no value, and keeps warm-up-only exercises', () => {
+    const result = sessionFromWorkout('A', [
+      { exerciseId: 'a', metric: 'reps', notes: null, sets: [set({ reps: 0 })] },
+      { exerciseId: 'b', metric: 'reps', notes: null, sets: [set({ kind: 'warmup', reps: 10 })] },
+      { exerciseId: 'c', metric: 'reps', notes: null, sets: [] },
+    ], newId);
+    expect(result.exercises.map((item) => [item.sets, item.target])).toEqual([[1, null], [1, 10], [1, null]]);
   });
 });
