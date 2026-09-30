@@ -199,7 +199,7 @@ function SessionTile({ index, session, names, disabled, onPress }: { index: numb
       </View>
       <View style={[styles.movements, { borderTopColor: palette.border }]}>
         {list.slice(0, 4).map((name, position) => <Text key={position} numberOfLines={1} style={[styles.movement, { color: palette.text }]}>{name}</Text>)}
-        {list.length > 4 ? <Text style={[styles.movement, { color: palette.textMuted }]}>{t('log.pastMore', { count: list.length - 4 })}</Text> : null}
+        {list.length > 4 ? <Text style={[styles.movement, { color: palette.textMuted }]}>{t('log.pastMore', { more: list.length - 4 })}</Text> : null}
       </View>
     </Pressable>
   );
