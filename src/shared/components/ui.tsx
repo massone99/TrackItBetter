@@ -1,6 +1,6 @@
 import * as Haptics from "expo-haptics";
 import { router, useSegments } from "expo-router";
-import { Children, PropsWithChildren, ReactNode, Ref, useEffect, useState } from "react";
+import { Children, PropsWithChildren, ReactNode, Ref, useEffect, useRef, useState } from "react";
 import { Modal, Platform, Pressable, ScrollView, StyleSheet, Switch, TextInput, TextInputProps, TextProps, View, ViewProps } from "react-native";
 import { KeyboardLift, KeyboardScroll, type ScrollHandle } from "./keyboard";
 import { useAppInsets } from "../layout/useAppInsets";
@@ -222,7 +222,44 @@ export function ListRow({ icon, title, subtitle, onPress, trailing, tint, select
 }
 
 /** Compact − value + control for small bounded numbers. */
-export function Stepper({ label, value, display, step = 1, min = 0, max = 999, layout = "column", onChange }: {
+/**
+ * Press handlers for a +/- button: a tap acts once, holding repeats the action and speeds up,
+ * so a long range (a 3-minute rest, a 45 s hold) needs one press instead of dozens of taps.
+ */
+export function useRepeatPress(action: (multiplier: number) => void) {
+  const latest = useRef(action);
+  useEffect(() => { latest.current = action; });
+  const timer = useRef<ReturnType<typeof setInterval> | null>(null);
+  const stop = () => { if (timer.current) { clearInterval(timer.current); timer.current = null; } };
+  useEffect(() => stop, []);
+  return {
+    onPress: () => { tapFeedback(); latest.current(1); },
+    onLongPress: () => {
+      stop();
+      let ticks = 0;
+      timer.current = setInterval(() => { ticks += 1; latest.current(ticks > 8 ? 5 : 1); }, 110);
+    },
+    onPressOut: stop,
+    delayLongPress: 350,
+  };
+}
+
+function StepperButton({ icon, label, disabled, onStep }: { icon: IconName; label: string; disabled: boolean; onStep: (multiplier: number) => void }) {
+  const styles = useScaledStyles(baseStyles);
+  const { palette } = useTheme();
+  const handlers = useRepeatPress(onStep);
+  return (
+    <Pressable accessibilityRole="button" accessibilityLabel={label} hitSlop={8} disabled={disabled} {...handlers} style={[styles.stepperButton, { backgroundColor: palette.surfaceMuted, opacity: disabled ? 0.4 : 1 }]}>
+      <Icon name={icon} size={18} color={palette.text} />
+    </Pressable>
+  );
+}
+
+/**
+ * Value with - and + buttons (hold to repeat). With `editable` the value is tappable and typed
+ * ("1:30" works when `clock`); `presets` adds one-tap chips for the usual values.
+ */
+export function Stepper({ label, value, display, step = 1, min = 0, max = 999, layout = "column", editable = false, clock = false, presets, presetLabel, onChange }: {
   label: string;
   /** "row" puts the label on the left and the controls on the right, for stacked settings. */
   layout?: "column" | "row";
@@ -231,23 +268,40 @@ export function Stepper({ label, value, display, step = 1, min = 0, max = 999, l
   step?: number;
   min?: number;
   max?: number;
+  editable?: boolean;
+  /** Typed values are read as m:ss too. */
+  clock?: boolean;
+  /** Quick values shown as chips under the row. */
+  presets?: number[];
+  presetLabel?: (value: number) => string;
   onChange: (value: number) => void;
 }) {
   const styles = useScaledStyles(baseStyles);
   const { palette } = useTheme();
-  const change = (delta: number) => onChange(Math.min(max, Math.max(min, Math.round((value + delta) * 100) / 100)));
+  const clamp = (next: number) => Math.min(max, Math.max(min, Math.round(next * 100) / 100));
+  const change = (delta: number) => onChange(clamp(value + delta));
+  const shown = display ?? String(value);
   return (
-    <View style={layout === "row" ? styles.stepperRow : styles.stepper}>
-      <Text style={[layout === "row" ? styles.stepperRowLabel : styles.stepperLabel, { color: layout === "row" ? palette.text : palette.textMuted }]}>{label}</Text>
-      <View style={styles.stepperControls}>
-        <Pressable accessibilityRole="button" accessibilityLabel={`${label} −`} hitSlop={8} disabled={value <= min} onPress={() => { tapFeedback(); change(-step); }} style={[styles.stepperButton, { backgroundColor: palette.surfaceMuted, opacity: value <= min ? 0.4 : 1 }]}>
-          <Icon name="remove" size={15} color={palette.text} />
-        </Pressable>
-        <Text style={styles.stepperValue}>{display ?? String(value)}</Text>
-        <Pressable accessibilityRole="button" accessibilityLabel={`${label} +`} hitSlop={8} disabled={value >= max} onPress={() => { tapFeedback(); change(step); }} style={[styles.stepperButton, { backgroundColor: palette.surfaceMuted, opacity: value >= max ? 0.4 : 1 }]}>
-          <Icon name="add" size={15} color={palette.text} />
-        </Pressable>
+    <View>
+      <View style={layout === "row" ? styles.stepperRow : styles.stepper}>
+        <Text style={[layout === "row" ? styles.stepperRowLabel : styles.stepperLabel, { color: layout === "row" ? palette.text : palette.textMuted }]}>{label}</Text>
+        <View style={styles.stepperControls}>
+          <StepperButton icon="remove" label={`${label} −`} disabled={value <= min} onStep={(multiplier) => change(-step * multiplier)} />
+          {editable ? (
+            <NumberEdit value={value} display={shown} initialDraft={value < 0 ? "" : undefined} clock={clock} label={label} onCommit={(next) => onChange(clamp(next))} style={styles.stepperValue} />
+          ) : (
+            <Text style={styles.stepperValue}>{shown}</Text>
+          )}
+          <StepperButton icon="add" label={`${label} +`} disabled={value >= max} onStep={(multiplier) => change(step * multiplier)} />
+        </View>
       </View>
+      {presets && presets.length > 0 ? (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.presetRow}>
+          {presets.map((preset) => (
+            <Chip key={preset} label={presetLabel ? presetLabel(preset) : String(preset)} selected={value === preset} onPress={() => onChange(clamp(preset))} />
+          ))}
+        </ScrollView>
+      ) : null}
     </View>
   );
 }
@@ -412,13 +466,15 @@ export function Sheet({ visible, onClose, title, body, children }: PropsWithChil
  * A number shown as text that turns into a numeric field when tapped, so a value can be typed
  * instead of stepped. With `clock`, "1:30" is accepted as 90 seconds. Invalid input is discarded.
  */
-export function NumberEdit({ value, display, label, onCommit, clock = false, allowNegative = false, disabled = false, style }: {
+export function NumberEdit({ value, display, label, onCommit, initialDraft, clock = false, allowNegative = false, disabled = false, style }: {
   value: number;
   /** Text shown while not editing, e.g. "1:05". */
   display: string;
   /** Accessible name, e.g. "Reps, set 2". */
   label: string;
   onCommit: (value: number) => void;
+  /** What the field starts with when tapped, when that differs from the value (e.g. a placeholder value). */
+  initialDraft?: string;
   clock?: boolean;
   allowNegative?: boolean;
   disabled?: boolean;
@@ -457,7 +513,7 @@ export function NumberEdit({ value, display, label, onCommit, clock = false, all
       accessibilityHint={disabled ? undefined : display}
       disabled={disabled}
       hitSlop={6}
-      onPress={() => { tapFeedback(); setDraft(clock ? display : String(value)); }}
+      onPress={() => { tapFeedback(); setDraft(initialDraft ?? (clock ? display : String(value))); }}
     >
       <Text style={style}>{display}</Text>
     </Pressable>
@@ -541,7 +597,8 @@ const baseStyles = StyleSheet.create({
   stepperRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12, minHeight: 40 },
   stepperRowLabel: { flex: 1, fontFamily: fonts.medium, fontSize: 15 },
   stepperControls: { flexDirection: "row", alignItems: "center", gap: 6 },
-  stepperButton: { width: 30, height: 30, borderRadius: 15, alignItems: "center", justifyContent: "center" },
+  stepperButton: { width: 38, height: 38, borderRadius: 19, alignItems: "center", justifyContent: "center" },
+  presetRow: { gap: 8, paddingTop: 6, paddingBottom: 4 },
   stepperValue: { fontFamily: fonts.display, fontSize: 20, minWidth: 52, textAlign: "center", fontVariant: ["tabular-nums"] },
   field: { gap: 6 },
   input: { minHeight: 48, borderRadius: 12, borderWidth: 1.5, paddingHorizontal: 14, fontFamily: fonts.body, fontSize: 16, outlineWidth: 0 },

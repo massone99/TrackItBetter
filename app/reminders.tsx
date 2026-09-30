@@ -11,6 +11,7 @@ import {
   saveReminderSettings,
 } from "../src/features/reminders/notifications";
 import { ActionButton, Body, Card, Heading, Label, PageHeading, Screen } from "../src/shared/components/ui";
+import { TimeField } from "../src/shared/components/DateTimePickers";
 import { useTheme } from "../src/shared/theme/ThemeProvider";
 import { useScaledStyles } from "../src/shared/theme/useScaledStyles";
 
@@ -26,7 +27,7 @@ const weekdays = [
 
 export default function RemindersScreen() {
   const styles = useScaledStyles(baseStyles);
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { palette } = useTheme();
   const [settings, setSettings] = useState<ReminderSettings>({ enabled: false, hour: 18, minute: 0, weekdays: [2, 4, 6] });
   const [permission, setPermission] = useState<ReminderPermission>("undetermined");
@@ -85,14 +86,6 @@ export default function RemindersScreen() {
     }
   };
 
-  const adjustTime = (field: "hour" | "minute", amount: number) => {
-    setSaved(false);
-    setSettings((current) => {
-      if (field === "hour") return { ...current, hour: (current.hour + amount + 24) % 24 };
-      return { ...current, minute: (current.minute + amount + 60) % 60 };
-    });
-  };
-
   const toggleDay = (weekday: number) => {
     setSaved(false);
     setSettings((current) => ({
@@ -122,12 +115,7 @@ export default function RemindersScreen() {
       </Card>
 
       <Card>
-        <Label>{t("reminders.time")}</Label>
-        <View style={styles.timeRow}>
-          <TimePicker value={settings.hour} onChange={(amount) => adjustTime("hour", amount)} palette={palette} label={t("reminders.hour")} />
-          <Heading style={styles.colon}>:</Heading>
-          <TimePicker value={settings.minute} onChange={(amount) => adjustTime("minute", amount)} palette={palette} label={t("reminders.minute")} minuteStep />
-        </View>
+        <TimeField label={t("reminders.time")} hour={settings.hour} minute={settings.minute} locale={i18n.language} defaultOpen onChange={(hour, minute) => { setSaved(false); setSettings((current) => ({ ...current, hour, minute })); }} />
       </Card>
 
       <Card>
@@ -160,39 +148,10 @@ export default function RemindersScreen() {
   );
 }
 
-function TimePicker({
-  value,
-  onChange,
-  palette,
-  label,
-  minuteStep = false,
-}: {
-  value: number;
-  onChange: (amount: number) => void;
-  palette: ReturnType<typeof useTheme>["palette"];
-  label: string;
-  minuteStep?: boolean;
-}) {
-  const styles = useScaledStyles(baseStyles);
-  const formatted = String(value).padStart(2, "0");
-  return (
-    <View style={styles.timeColumn}>
-      <Pressable accessibilityRole="button" accessibilityLabel={`${label} +`} onPress={() => onChange(minuteStep ? 5 : 1)} style={[styles.stepButton, { backgroundColor: palette.surfaceMuted }]}><Label style={{ color: palette.text }}>＋</Label></Pressable>
-      <Heading accessibilityLabel={`${label} ${formatted}`} style={styles.timeValue}>{formatted}</Heading>
-      <Pressable accessibilityRole="button" accessibilityLabel={`${label} −`} onPress={() => onChange(minuteStep ? -5 : -1)} style={[styles.stepButton, { backgroundColor: palette.surfaceMuted }]}><Label style={{ color: palette.text }}>−</Label></Pressable>
-    </View>
-  );
-}
-
 const baseStyles = StyleSheet.create({
   statusRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   statusText: { flex: 1, gap: 5 },
   statusDot: { width: 13, height: 13, borderRadius: 7, marginLeft: 12 },
-  timeRow: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 13 },
-  timeColumn: { alignItems: "center", gap: 8 },
-  timeValue: { fontSize: 34, fontVariant: ["tabular-nums"] },
-  colon: { marginTop: -3, fontSize: 30 },
-  stepButton: { width: 54, height: 37, alignItems: "center", justifyContent: "center", borderRadius: 12 },
   dayRow: { flexDirection: "row", justifyContent: "space-between", gap: 5 },
   day: { width: 39, height: 42, alignItems: "center", justifyContent: "center", borderRadius: 12, borderWidth: 1 },
 });

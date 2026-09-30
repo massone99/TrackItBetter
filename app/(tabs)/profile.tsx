@@ -4,7 +4,6 @@ import { useTranslation } from "react-i18next";
 import { StyleSheet, View } from "react-native";
 import { Body, Card, Label, ListGroup, ListRow, PageHeading, Screen, SectionTitle, SegmentedControl, Stepper, SwitchRow } from "../../src/shared/components/ui";
 import { readDefaultRest, writeDefaultRest } from "../../src/features/session/restDefaults";
-import { formatClock } from "../../src/shared/utils/format";
 import { readBooleanPreference, RPE_PROMPT_KEY, writePreference } from "../../src/shared/settings/preferences";
 import { UI_SCALES, type UiScale } from "../../src/shared/theme/scale";
 import i18n, { setAppLanguage } from "../../src/shared/i18n";
@@ -75,8 +74,8 @@ export default function ProfileScreen() {
         />
       </ListGroup>
       <Card>
-        <Stepper layout="row" label={t("logger.restWorking")} value={rest.working} display={formatClock(rest.working)} step={15} min={0} max={600} onChange={(value) => changeRest("working", value)} />
-        <Stepper layout="row" label={t("logger.restWarmup")} value={rest.warmup} display={formatClock(rest.warmup)} step={15} min={0} max={600} onChange={(value) => changeRest("warmup", value)} />
+        <Stepper layout="row" label={t("logger.restWorking")} value={rest.working} display={t("userProgram.secondsValue", { value: rest.working })} step={15} min={0} max={600} editable presets={[30, 60, 90, 120, 180]} presetLabel={(value) => t("userProgram.secondsValue", { value })} onChange={(value) => changeRest("working", value)} />
+        <Stepper layout="row" label={t("logger.restWarmup")} value={rest.warmup} display={t("userProgram.secondsValue", { value: rest.warmup })} step={15} min={0} max={600} editable presets={[30, 60, 90, 120, 180]} presetLabel={(value) => t("userProgram.secondsValue", { value })} onChange={(value) => changeRest("warmup", value)} />
         <Body>{t("profile.restHint")}</Body>
       </Card>
 

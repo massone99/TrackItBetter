@@ -32,6 +32,7 @@ import { ActionButton, Body, Card, Heading, Icon, IconButton, Label, NumberEdit,
 import { useTheme } from '../../../src/shared/theme/ThemeProvider';
 import { fonts } from '../../../src/shared/theme/typography';
 import { useScaledStyles } from '../../../src/shared/theme/useScaledStyles';
+import { DateField, TimeField } from '../../../src/shared/components/DateTimePickers';
 import { goBack } from '../../../src/shared/navigation/goBack';
 
 type SetTarget = { exercise: SessionExercise; set: SessionSet };
@@ -382,7 +383,6 @@ function ExerciseSheet({ exercise, onClose, onChanged, onRemove }: { exercise: S
   );
 }
 
-const DAY_MS = 24 * 60 * 60 * 1000;
 
 /** Name, day, start time and length of a finished workout, edited with steppers. */
 function DetailsSheet({ workout, locale, onClose, onSave }: {
@@ -397,13 +397,6 @@ function DetailsSheet({ workout, locale, onClose, onSave }: {
   const [minutes, setMinutes] = useState(Math.max(1, Math.round((workout.endedAt.getTime() - workout.startedAt.getTime()) / 60_000)));
   const [error, setError] = useState<string | null>(null);
   const startDate = new Date(start);
-  const minutesOfDay = startDate.getHours() * 60 + startDate.getMinutes();
-  // Days before today, so the stepper cannot move a finished session into the future.
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const dayStart = new Date(startDate);
-  dayStart.setHours(0, 0, 0, 0);
-  const daysAgo = Math.round((today.getTime() - dayStart.getTime()) / DAY_MS);
 
   const save = async () => {
     if (!name.trim()) { setError(t('history.nameRequired')); return; }
@@ -419,27 +412,15 @@ function DetailsSheet({ workout, locale, onClose, onSave }: {
   return (
     <Sheet visible onClose={onClose} title={t('history.editDetails')}>
       <TextField label={t('history.name')} value={name} onChangeText={(value) => { setName(value); setError(null); }} maxLength={WORKOUT_NAME_MAX} />
-      <Stepper
-        layout="row"
-        label={t('history.day')}
-        // Counted back from today, so "+" moves later and stops at today.
-        value={-daysAgo}
-        display={startDate.toLocaleDateString(locale, { weekday: 'short', day: 'numeric', month: 'short' })}
-        min={-3650}
-        max={0}
-        onChange={(next) => { setStart(start + (next + daysAgo) * DAY_MS); setError(null); }}
-      />
-      <Stepper
-        layout="row"
+      <DateField label={t('history.day')} value={startDate} locale={locale} maxDate={new Date()} onChange={(next) => { setStart(next.getTime()); setError(null); }} />
+      <TimeField
         label={t('history.startTime')}
-        value={minutesOfDay}
-        display={startDate.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' })}
-        step={15}
-        min={0}
-        max={23 * 60 + 45}
-        onChange={(next) => { setStart(start + (next - minutesOfDay) * 60_000); setError(null); }}
+        hour={startDate.getHours()}
+        minute={startDate.getMinutes()}
+        locale={locale}
+        onChange={(hour, minute) => { const next = new Date(start); next.setHours(hour, minute, 0, 0); setStart(next.getTime()); setError(null); }}
       />
-      <Stepper layout="row" label={t('history.duration')} value={minutes} display={t('history.durationValue', { count: minutes })} step={5} min={1} max={600} onChange={setMinutes} />
+      <Stepper layout="row" label={t('history.duration')} value={minutes} display={t('history.durationValue', { count: minutes })} step={5} min={1} max={600} editable presets={[30, 45, 60, 75, 90]} presetLabel={(value) => t('history.durationValue', { count: value })} onChange={setMinutes} />
       {error ? <Body accessibilityLiveRegion="polite">{error}</Body> : null}
       <ActionButton icon="checkmark" label={t('common.save')} onPress={() => void save()} />
       <ActionButton label={t('common.cancel')} secondary onPress={onClose} />

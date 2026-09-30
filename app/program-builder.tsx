@@ -50,6 +50,8 @@ type Draft = { name: string; sessions: UserProgramSession[] };
 const LOAD_AUTO = -2.5;
 /** Stepper position meaning "no rest of its own": the default rest applies. */
 const REST_DEFAULT = -15;
+const REST_PRESETS = [30, 60, 90, 120, 180, 240];
+const HOLD_PRESETS = [10, 20, 30, 45, 60];
 
 export default function ProgramEditorScreen() {
   const styles = useScaledStyles(baseStyles);
@@ -76,6 +78,7 @@ export default function ProgramEditorScreen() {
   const [openExercises, setOpenExercises] = useState<Set<string>>(new Set());
   const flip = (set: Set<string>, key: string) => { const next = new Set(set); if (!next.delete(key)) next.add(key); return next; };
 
+  const defaultRest = readDefaultRest('working');
   const dirty = loaded && JSON.stringify({ name, sessions } satisfies Draft) !== snapshot;
 
   const clearError = (match: (error: ProgramError) => boolean) => setErrors((current) => current.filter((error) => !match(error)));
@@ -265,10 +268,13 @@ export default function ProgramEditorScreen() {
                     layout="row"
                     label={t('userProgram.rest')}
                     value={prescription.restSeconds ?? REST_DEFAULT}
-                    display={prescription.restSeconds == null ? t('userProgram.restDefault') : t('userProgram.secondsValue', { value: prescription.restSeconds })}
+                    display={prescription.restSeconds == null ? t('userProgram.restDefaultValue', { value: defaultRest }) : t('userProgram.secondsValue', { value: prescription.restSeconds })}
                     step={15}
                     min={REST_DEFAULT}
                     max={600}
+                    editable
+                    presets={REST_PRESETS}
+                    presetLabel={(value) => t('userProgram.secondsValue', { value })}
                     onChange={(value) => updateExercise(session.id, prescription.id, { restSeconds: value < 0 ? null : value })}
                   />
                   {isLoadMetric(metric) ? (
@@ -280,6 +286,7 @@ export default function ProgramEditorScreen() {
                       step={2.5}
                       min={LOAD_AUTO}
                       max={300}
+                      editable
                       onChange={(value) => updateExercise(session.id, prescription.id, { loadKg: value < 0 ? null : value })}
                     />
                   ) : null}
@@ -345,12 +352,12 @@ export default function ProgramEditorScreen() {
 function TargetStepper({ metric, value, onChange }: { metric: string; value: number; onChange: (value: number) => void }) {
   const { t } = useTranslation();
   if (isTimedMetric(metric)) {
-    return <Stepper layout="row" label={t('programBuilder.seconds')} value={value} display={t('userProgram.secondsValue', { value })} step={5} min={5} max={600} onChange={onChange} />;
+    return <Stepper layout="row" label={t('programBuilder.seconds')} value={value} display={t('userProgram.secondsValue', { value })} step={5} min={5} max={600} editable presets={HOLD_PRESETS} presetLabel={(preset) => t('userProgram.secondsValue', { value: preset })} onChange={onChange} />;
   }
   if (metric === 'distance') {
-    return <Stepper layout="row" label={t('programBuilder.meters')} value={value} display={t('userProgram.metersValue', { value })} step={10} min={10} max={5000} onChange={onChange} />;
+    return <Stepper layout="row" label={t('programBuilder.meters')} value={value} display={t('userProgram.metersValue', { value })} step={10} min={10} max={5000} editable onChange={onChange} />;
   }
-  return <Stepper layout="row" label={t('programBuilder.reps')} value={value} step={1} min={1} max={100} onChange={onChange} />;
+  return <Stepper layout="row" label={t('programBuilder.reps')} value={value} step={1} min={1} max={100} editable onChange={onChange} />;
 }
 
 function newSession(name: string): UserProgramSession {

@@ -61,6 +61,7 @@ import {
   TextField,
   Toast,
   tapFeedback,
+  useRepeatPress,
 } from '../../src/shared/components/ui';
 import { useKeyboardVisible } from '../../src/shared/components/keyboard';
 import { RpePicker } from '../../src/features/session/RpePicker';
@@ -813,7 +814,7 @@ function ExerciseCard({ exercise, previous, hold, onChange, onSetValue, onComple
                 </PopOnActivate>
               </View>
               <View style={[styles.colValue, styles.stepper]}>
-                {done ? null : <StepButton icon="remove" label="−" onPress={() => void onChange(set, field, distance ? -0.5 : timed ? -5 : -1)} />}
+                {done ? null : <StepButton icon="remove" label="−" onPress={(multiplier) => void onChange(set, field, (distance ? -0.5 : timed ? -5 : -1) * multiplier)} />}
                 {done || holding ? (
                   <Text style={[styles.setValue, { color: holding ? palette.accentStrong : palette.text }]}>{value}</Text>
                 ) : (
@@ -826,7 +827,7 @@ function ExerciseCard({ exercise, previous, hold, onChange, onSetValue, onComple
                     style={[styles.setValue, { color: palette.text }]}
                   />
                 )}
-                {done ? null : <StepButton icon="add" label="+" onPress={() => void onChange(set, field, distance ? 0.5 : timed ? 5 : 1)} />}
+                {done ? null : <StepButton icon="add" label="+" onPress={(multiplier) => void onChange(set, field, (distance ? 0.5 : timed ? 5 : 1) * multiplier)} />}
               </View>
               {loaded ? <View style={styles.colLoad}><LoadEditor key={`${set.id}:${set.addedLoadKg}`} setId={set.id} value={set.addedLoadKg} disabled={done} onSaved={onSaved} /></View> : null}
               <View style={[styles.colAction, styles.rowActions]}>
@@ -1095,15 +1096,17 @@ function TimerAction({ label, filled = false, onPress }: { label: string; filled
   );
 }
 
-function StepButton({ icon, label, onPress }: { icon: 'add' | 'remove'; label: string; onPress: () => void }) {
+/** Tap to step once, hold to repeat (faster after a moment). */
+function StepButton({ icon, label, onPress }: { icon: 'add' | 'remove'; label: string; onPress: (multiplier: number) => void }) {
   const styles = useScaledStyles(baseStyles);
   const { palette } = useTheme();
+  const handlers = useRepeatPress(onPress);
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={label}
       hitSlop={8}
-      onPress={() => { tapFeedback(); onPress(); }}
+      {...handlers}
       style={({ pressed }) => [styles.stepButton, { backgroundColor: palette.surfaceMuted, opacity: pressed ? 0.6 : 1 }]}
     >
       <Icon name={icon} size={16} color={palette.text} />
