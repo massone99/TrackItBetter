@@ -18,11 +18,13 @@ export type ExerciseChoice = { id: string; name: string; metric: string; categor
 const CATEGORIES = EXERCISE_CATEGORIES;
 
 /** Full-screen exercise search with category filters and an optional "create" entry. */
-export function ExercisePicker({ visible, title, subtitle, initialCategory = null, onChoose, onCreate, onClose }: {
+export function ExercisePicker({ visible, title, subtitle, initialCategory = null, include, onChoose, onCreate, onClose }: {
   visible: boolean;
   title: string;
   subtitle?: string;
   initialCategory?: string | null;
+  /** Limits the list, e.g. to exercises measured like another one. */
+  include?: (choice: ExerciseChoice) => boolean;
   onChoose: (choice: ExerciseChoice) => void;
   onCreate?: () => void;
   onClose: () => void;
@@ -47,7 +49,7 @@ export function ExercisePicker({ visible, title, subtitle, initialCategory = nul
 
   // Every opening starts from a clean search: leaving the picker clears what was typed.
   const leave = (action: () => void) => () => { setQuery(''); setCategory(initialCategory); action(); };
-  const filtered = choices.filter((choice) => !category || choice.category === category || choice.extraCategories.includes(`"${category}"`)).slice(0, 80);
+  const filtered = choices.filter((choice) => !include || include(choice)).filter((choice) => !category || choice.category === category || choice.extraCategories.includes(`"${category}"`)).slice(0, 80);
 
   return (
     <Modal visible={visible} animationType={reducedMotion || speed === 'off' ? 'none' : speed === 'fast' ? 'fade' : 'slide'} onRequestClose={leave(onClose)} statusBarTranslucent navigationBarTranslucent>

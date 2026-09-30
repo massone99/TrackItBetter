@@ -183,3 +183,56 @@ export async function getSessionRecords(workoutId: string): Promise<{ sets: SetR
 export async function getExerciseRecordSummary(exerciseId: string): Promise<ExerciseRecordSummary> {
   return exerciseRecordSummary(await loadRecordRows(), exerciseId);
 }
+
+export interface ExerciseHistorySet {
+  id: string;
+  kind: string;
+  reps: number | null;
+  durationSec: number | null;
+  distanceM: number | null;
+  addedLoadKg: number;
+  rpe: number | null;
+}
+
+export interface ExerciseHistorySession {
+  workoutId: string;
+  workoutName: string;
+  startedAt: Date;
+  notes: string | null;
+  sets: ExerciseHistorySet[];
+}
+
+/** Every finished session that included an exercise, newest first, with its completed sets in order. */
+export async function getExerciseHistory(exerciseId: string, limit?: number): Promise<ExerciseHistorySession[]> {
+  await initializeDatabase();
+  const rows = await db.select({
+    entryId: exerciseEntries.id,
+    notes: exerciseEntries.notes,
+    workoutId: workouts.id,
+    workoutName: workouts.name,
+    startedAt: workouts.startedAt,
+    setId: trainingSets.id,
+    index: trainingSets.index,
+    kind: trainingSets.kind,
+    reps: trainingSets.reps,
+    durationSec: trainingSets.durationSec,
+    distanceM: trainingSets.distanceM,
+    addedLoadKg: trainingSets.addedLoadKg,
+    rpe: trainingSets.rpe,
+  }).from(exerciseEntries)
+    .innerJoin(workouts, eq(workouts.id, exerciseEntries.workoutId))
+    .innerJoin(trainingSets, eq(trainingSets.entryId, exerciseEntries.id))
+    .where(and(eq(exerciseEntries.exerciseId, exerciseId), isNotNull(workouts.endedAt), isNotNull(trainingSets.completedAt)))
+    .orderBy(desc(workouts.startedAt), asc(exerciseEntries.order), asc(trainingSets.index));
+  const sessions = new Map<string, ExerciseHistorySession>();
+  for (const row of rows) {
+    let session = sessions.get(row.workoutId);
+    if (!session) {
+      if (limit !== undefined && sessions.size >= limit) break;
+      session = { workoutId: row.workoutId, workoutName: row.workoutName, startedAt: row.startedAt, notes: row.notes, sets: [] };
+      sessions.set(row.workoutId, session);
+    }
+    session.sets.push({ id: row.setId, kind: row.kind, reps: row.reps, durationSec: row.durationSec, distanceM: row.distanceM, addedLoadKg: row.addedLoadKg, rpe: row.rpe });
+  }
+  return [...sessions.values()];
+}

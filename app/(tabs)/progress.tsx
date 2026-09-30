@@ -5,8 +5,11 @@ import { ActivityIndicator, Platform, Pressable, StyleSheet, View } from 'react-
 import { Text } from '../../src/shared/components/Text';
 import { captureRef } from 'react-native-view-shot';
 import * as Sharing from 'expo-sharing';
-import { Body, Card, Heading, Label, ListGroup, ListRow, PageHeading, Screen, SectionTitle } from '../../src/shared/components/ui';
+import { Body, Card, Heading, Icon, Label, ListGroup, ListRow, PageHeading, Screen, SectionTitle } from '../../src/shared/components/ui';
 import { getProgressSnapshot } from '../../src/features/analytics/repository';
+import { readTrendChoice, selectTrends, writeTrendChoice, type TrendChoice } from '../../src/features/analytics/trendChoice';
+import { TrendSettings } from '../../src/features/analytics/TrendSettings';
+import { listExercises } from '../../src/features/exercises/repository';
 import type { ExerciseTrend, PersonalBest, ProgressSnapshot, TrendKind } from '../../src/features/analytics/summary';
 import { useTheme } from '../../src/shared/theme/ThemeProvider';
 import { formatBestValue, formatDuration, formatNumber } from '../../src/shared/utils/format';
@@ -48,10 +51,18 @@ export default function ProgressScreen() {
   const strings = i18n.language.toLowerCase().startsWith('it') ? copy.it : copy.en;
   const [snapshot, setSnapshot] = useState<ProgressSnapshot | null>(null);
   const [failed, setFailed] = useState(false);
+  const [trendChoice, setTrendChoice] = useState(readTrendChoice);
+  const [trendSettingsOpen, setTrendSettingsOpen] = useState(false);
+  const [exerciseNames, setExerciseNames] = useState<Map<string, string>>(new Map());
+  const changeTrendChoice = (next: TrendChoice) => { setTrendChoice(next); writeTrendChoice(next); };
+  const slots = snapshot ? selectTrends(snapshot.trends, trendChoice) : [];
 
   useFocusEffect(useCallback(() => {
     let active = true;
     setFailed(false);
+    // Choices can change elsewhere (an exercise moved or deleted), so they are read again on focus.
+    setTrendChoice(readTrendChoice());
+    void listExercises().then((rows) => { if (active) setExerciseNames(new Map(rows.map((row) => [row.id, row.name]))); }).catch(() => undefined);
     getProgressSnapshot().then((result) => {
       if (active) setSnapshot(result);
     }).catch(() => {
@@ -92,11 +103,23 @@ export default function ProgressScreen() {
           <Body>{snapshot.sessions} {i18n.language.toLowerCase().startsWith('it') ? 'sessioni registrate' : 'sessions logged'} · {snapshot.completedSets} {i18n.language.toLowerCase().startsWith('it') ? 'serie completate' : 'completed sets'}</Body>
         </Card>
         <Card>
-          <SectionTitle title={strings.trends} />
-          {snapshot.trends.length ? snapshot.trends.slice(0, 8).map((trend) => (
-            <TrendCard key={`${trend.exerciseId}-${trend.kind}`} trend={trend} label={strings.trendKind[trend.kind]} palette={palette} locale={i18n.language} />
+          <SectionTitle
+            title={strings.trends}
+            action={<Pressable accessibilityRole="button" hitSlop={10} onPress={() => setTrendSettingsOpen(true)} style={styles.customize}>
+              <Icon name="options-outline" size={16} color={palette.accentStrong} />
+              <Text style={[styles.customizeText, { color: palette.accentStrong }]}>{t('trendSettings.customize')}</Text>
+            </Pressable>}
+          />
+          {slots.length ? slots.map((slot) => slot.trend ? (
+            <TrendCard key={slot.exerciseId} trend={slot.trend} label={strings.trendKind[slot.trend.kind]} palette={palette} locale={i18n.language} />
+          ) : (
+            <Pressable key={slot.exerciseId} accessibilityRole="button" onPress={() => router.push({ pathname: '/exercise/[id]', params: { id: slot.exerciseId } })} style={[styles.pendingTrend, { borderTopColor: palette.border }]}>
+              <Text numberOfLines={1} style={[styles.exerciseName, { color: palette.text }]}>{exerciseNames.get(slot.exerciseId) ?? ''}</Text>
+              <Body>{t('trendSettings.notEnough')}</Body>
+            </Pressable>
           )) : <Body>{strings.trendEmpty}</Body>}
         </Card>
+        <TrendSettings visible={trendSettingsOpen} choice={trendChoice} onChange={changeTrendChoice} onClose={() => setTrendSettingsOpen(false)} />
         <Card>
           <SectionTitle title={strings.bests} />
           {snapshot.personalBests.length ? snapshot.personalBests.map((best) => (
@@ -258,6 +281,9 @@ function BestRow({ best, label, palette }: { best: PersonalBest; label: string; 
 
 const baseStyles = StyleSheet.create({
   metrics: { flexDirection: 'row', gap: 12 },
+  customize: { flexDirection: 'row', alignItems: 'center', gap: 5, minHeight: 36 },
+  customizeText: { fontWeight: '700', fontSize: 14 },
+  pendingTrend: { borderTopWidth: StyleSheet.hairlineWidth, paddingVertical: 12, gap: 2 },
   metricCard: { flex: 1, minHeight: 132, justifyContent: 'space-between' },
   metricValue: { fontSize: 34, fontWeight: '800', letterSpacing: -1 },
   volumeGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },

@@ -1,20 +1,23 @@
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ActivityIndicator, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
 import type { Exercise } from '../../src/db/schema';
 import { openReferenceVideo, ReferenceLinkSheet } from '../../src/features/exercises/ReferenceLinkSheet';
 import { movementTagLabel } from '../../src/features/exercises/ClassificationChoices';
-import { archiveCustomExercise, getExerciseById, setExerciseFavourite } from '../../src/features/exercises/repository';
+import { getExerciseById, setExerciseFavourite } from '../../src/features/exercises/repository';
+import { canTransfer, deleteExerciseWithHistory, getExerciseUsage, hideExercise, metricAfterTransfer, transferExerciseHistory, type ExerciseUsage } from '../../src/features/exercises/lifecycle';
+import { ExercisePicker, type ExerciseChoice } from '../../src/features/exercises/ExercisePicker';
+import { HistoryRow } from '../../src/features/exercises/HistoryRow';
 import { addExerciseToWorkout, getActiveWorkout, startWorkout } from '../../src/features/session/repository';
-import { getExerciseCycle, getExerciseEstimate, getExerciseRecordSummary, getExerciseWeekStats } from '../../src/features/analytics/repository';
+import { getExerciseCycle, getExerciseEstimate, getExerciseHistory, getExerciseRecordSummary, getExerciseWeekStats, type ExerciseHistorySession } from '../../src/features/analytics/repository';
 import type { ExerciseRecordSummary } from '../../src/features/analytics/records';
 import { formatRecordValue } from '../../src/features/analytics/recordLabels';
 import type { ExerciseEstimate } from '../../src/features/analytics/estimates';
 import type { ExerciseCycle, ExerciseWeek } from '../../src/features/analytics/mobility';
 import { formatMinutes, formatNumber } from '../../src/shared/utils/format';
 import { formatRpe } from '../../src/domain';
-import { ActionButton, Body, Icon, IconButton, ListGroup, ListRow, PageHeading, Screen, SectionTitle, Sheet, Text } from '../../src/shared/components/ui';
+import { ActionButton, Body, Icon, IconButton, ListGroup, ListRow, PageHeading, Screen, SectionTitle, Sheet, SwitchRow, Text, Toast } from '../../src/shared/components/ui';
 import { useTheme } from '../../src/shared/theme/ThemeProvider';
 import { fonts } from '../../src/shared/theme/typography';
 import { linkHost } from '../../src/shared/utils/url';
@@ -32,7 +35,7 @@ function readList(value: string): string[] {
 
 export default function ExerciseRoute() {
   const styles = useScaledStyles(baseStyles);
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, notice } = useLocalSearchParams<{ id: string; notice?: string }>();
   const { t, i18n } = useTranslation();
   const { palette } = useTheme();
   const [exercise, setExercise] = useState<Exercise | null>(null);
@@ -42,7 +45,15 @@ export default function ExerciseRoute() {
   const [estimate, setEstimate] = useState<ExerciseEstimate | null>(null);
   const [records, setRecords] = useState<ExerciseRecordSummary | null>(null);
   const [editingReference, setEditingReference] = useState(false);
-  const [confirmArchive, setConfirmArchive] = useState(false);
+  const [history, setHistory] = useState<ExerciseHistorySession[]>([]);
+  const [usage, setUsage] = useState<ExerciseUsage | null>(null);
+  // Removal: 'choose' offers hide or delete, 'delete' asks once more before deleting history.
+  const [removal, setRemoval] = useState<'choose' | 'delete' | null>(null);
+  const [transferOpen, setTransferOpen] = useState(false);
+  const [transferTo, setTransferTo] = useState<ExerciseChoice | null>(null);
+  const [deleteSource, setDeleteSource] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [toast, setToast] = useState<string | null>(notice ?? null);
 
   const reload = useCallback(async () => {
     const found = await getExerciseById(id);
@@ -53,6 +64,8 @@ export default function ExerciseRoute() {
     else if (found) setWeek(await getExerciseWeekStats(found.id, found.metric).catch(() => null));
     if (found) setEstimate(await getExerciseEstimate(found.id).catch(() => null));
     if (found) setRecords(await getExerciseRecordSummary(found.id).catch(() => null));
+    if (found) setHistory(await getExerciseHistory(found.id).catch(() => []));
+    if (found) setUsage(await getExerciseUsage(found.id).catch(() => null));
   }, [id]);
 
   useFocusEffect(useCallback(() => { void reload(); }, [reload]));
@@ -65,11 +78,36 @@ export default function ExerciseRoute() {
     router.push({ pathname: '/workout/[id]', params: { id: workoutId } });
   };
 
-  const archive = async () => {
+  const hide = async () => {
     if (!exercise) return;
-    setConfirmArchive(false);
-    await archiveCustomExercise(exercise.id);
+    setRemoval(null);
+    await hideExercise(exercise.id);
     goBack({ pathname: '/programs', params: { view: 'exercises' } });
+  };
+
+  const deleteAll = async () => {
+    if (!exercise || busy) return;
+    setBusy(true);
+    try {
+      await deleteExerciseWithHistory(exercise.id);
+      setRemoval(null);
+      goBack({ pathname: '/programs', params: { view: 'exercises' } });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const transfer = async () => {
+    if (!exercise || !transferTo || busy) return;
+    setBusy(true);
+    try {
+      await transferExerciseHistory(exercise.id, transferTo.id, { deleteSource });
+      const target = transferTo;
+      setTransferTo(null);
+      router.replace({ pathname: '/exercise/[id]', params: { id: target.id, notice: t('exerciseManage.transferred', { name: target.name }) } });
+    } finally {
+      setBusy(false);
+    }
   };
 
   if (loading) return <Screen><ActivityIndicator color={palette.accentStrong} /></Screen>;
@@ -224,11 +262,42 @@ export default function ExerciseRoute() {
         </View>
       ) : null}
 
+      <View style={styles.section}>
+        <SectionTitle title={t('exerciseManage.history')} />
+        {history.length > 0 ? (
+          <View style={[styles.history, { backgroundColor: palette.surface, borderColor: palette.border }]}>
+            {history.slice(0, 5).map((session, index) => (
+              <HistoryRow key={session.workoutId} session={session} metric={exercise.metric} locale={i18n.language} first={index === 0} />
+            ))}
+            {history.length > 5 ? (
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => router.push({ pathname: '/exercise/history/[id]', params: { id: exercise.id } })}
+                style={({ pressed }) => [styles.historyMore, { borderTopColor: palette.border, opacity: pressed ? 0.6 : 1 }]}
+              >
+                <Text style={[styles.historyMoreText, { color: palette.accentStrong }]}>{t('exerciseManage.allHistory', { count: history.length })}</Text>
+                <Icon name="chevron-forward" size={16} color={palette.accentStrong} />
+              </Pressable>
+            ) : null}
+          </View>
+        ) : <Body>{t('exerciseManage.historyEmpty')}</Body>}
+        {history.length > 0 ? (
+          <ListGroup>
+            <ListRow icon="analytics-outline" title={t('exerciseManage.fullAnalysis')} subtitle={t('exerciseManage.fullAnalysisBody')} onPress={() => router.push({ pathname: '/stats', params: { exerciseId: exercise.id } })} />
+          </ListGroup>
+        ) : null}
+      </View>
+
       <ActionButton icon="add" label={t('exercise.addToWorkout')} onPress={() => void beginWithExercise()} />
       <ActionButton icon="create-outline" label={t('exercise.edit')} secondary onPress={() => router.push({ pathname: '/exercise/new', params: { edit: exercise.id } })} />
-      {exercise.isCustom ? (
-        <ActionButton icon="archive-outline" label={t('exercise.removeFromLibrary')} variant="danger" onPress={() => setConfirmArchive(true)} />
-      ) : null}
+
+      <View style={styles.section}>
+        <SectionTitle title={t('exerciseManage.manage')} />
+        <ListGroup>
+          <ListRow icon="git-merge-outline" title={t('exerciseManage.transfer')} subtitle={t('exerciseManage.transferBody')} onPress={() => setTransferOpen(true)} />
+          <ListRow icon="trash-outline" tint={palette.warning} title={t('exerciseManage.remove')} subtitle={t('exerciseManage.removeBody')} onPress={() => setRemoval('choose')} />
+        </ListGroup>
+      </View>
 
       {editingReference ? (
         <ReferenceLinkSheet
@@ -241,10 +310,65 @@ export default function ExerciseRoute() {
         />
       ) : null}
 
-      <Sheet visible={confirmArchive} onClose={() => setConfirmArchive(false)} title={t('exercise.removeFromLibrary')} body={t('exercise.removeFromLibraryBody')}>
-        <ActionButton icon="archive-outline" label={t('logger.confirmRemove')} variant="danger" onPress={() => void archive()} />
-        <ActionButton label={t('common.cancel')} secondary onPress={() => setConfirmArchive(false)} />
+      <Sheet
+        visible={removal === 'choose'}
+        onClose={() => setRemoval(null)}
+        title={t('exerciseManage.removeTitle', { name: exercise.name })}
+        body={usage && usage.sets > 0 ? t('exerciseManage.removeUsage', { count: usage.sets, workouts: usage.workouts }) : t('exerciseManage.removeUnused')}
+      >
+        {usage && usage.sets > 0 ? (
+          <>
+            <ActionButton icon="eye-off-outline" label={t('exerciseManage.hide')} secondary onPress={() => void hide()} />
+            <Body style={styles.choiceHint}>{t('exerciseManage.hideBody')}</Body>
+            <ActionButton icon="trash-outline" label={t('exerciseManage.deleteAll')} variant="danger" onPress={() => setRemoval('delete')} />
+          </>
+        ) : (
+          <ActionButton icon="trash-outline" label={t('exerciseManage.deleteNow')} variant="danger" onPress={() => void deleteAll()} />
+        )}
+        <ActionButton label={t('common.cancel')} variant="ghost" onPress={() => setRemoval(null)} />
       </Sheet>
+
+      <Sheet visible={removal === 'delete'} onClose={() => setRemoval(null)} title={t('exerciseManage.deleteTitle', { name: exercise.name })} body={t('exerciseManage.deleteBody')}>
+        <ActionButton icon="trash-outline" label={t('exerciseManage.deleteConfirm')} variant="danger" disabled={busy} onPress={() => void deleteAll()} />
+        <ActionButton label={t('common.cancel')} secondary onPress={() => setRemoval(null)} />
+      </Sheet>
+
+      <ExercisePicker
+        visible={transferOpen}
+        title={t('exerciseManage.transferPick')}
+        subtitle={t('exerciseManage.transferPickBody')}
+        include={(choice) => choice.id !== exercise.id && canTransfer(exercise.metric, choice.metric)}
+        onChoose={(choice) => { setTransferOpen(false); setDeleteSource(true); setTransferTo(choice); }}
+        onClose={() => setTransferOpen(false)}
+      />
+
+      {transferTo ? (
+        <Sheet
+          visible
+          onClose={() => setTransferTo(null)}
+          title={t('exerciseManage.transferTitle')}
+          body={usage && usage.sets > 0
+            ? t('exerciseManage.transferSummary', { count: usage.sets, workouts: usage.workouts, from: exercise.name, to: transferTo.name })
+            : t('exerciseManage.transferNothing', { from: exercise.name, to: transferTo.name })}
+        >
+          <View style={[styles.transferPair, { backgroundColor: palette.surfaceMuted }]}>
+            <Text numberOfLines={2} style={[styles.transferName, { color: palette.textMuted }]}>{exercise.name}</Text>
+            <Icon name="arrow-forward" size={18} color={palette.accentStrong} />
+            <Text numberOfLines={2} style={[styles.transferName, { color: palette.text }]}>{transferTo.name}</Text>
+          </View>
+          {metricAfterTransfer(transferTo.metric, Boolean(usage?.hasLoad) || exercise.metric.endsWith('_load')) !== transferTo.metric ? (
+            <View style={styles.transferNote}>
+              <Icon name="barbell-outline" size={16} color={palette.accentStrong} />
+              <Body style={styles.flex}>{t('exerciseManage.transferLoad', { to: transferTo.name })}</Body>
+            </View>
+          ) : null}
+          <SwitchRow icon="trash-outline" title={t('exerciseManage.deleteSource', { name: exercise.name })} subtitle={t('exerciseManage.deleteSourceBody')} value={deleteSource} onChange={setDeleteSource} />
+          <ActionButton icon="git-merge-outline" label={t('exerciseManage.transferConfirm')} disabled={busy} onPress={() => void transfer()} />
+          <ActionButton label={t('common.cancel')} secondary onPress={() => setTransferTo(null)} />
+        </Sheet>
+      ) : null}
+
+      <Toast message={toast} onHide={() => setToast(null)} />
     </Screen>
   );
 }
@@ -277,6 +401,14 @@ function Tag({ label, icon }: { label: string; icon: 'body-outline' | 'construct
 
 const baseStyles = StyleSheet.create({
   section: { gap: 10 },
+  flex: { flex: 1 },
+  history: { borderRadius: 20, borderWidth: StyleSheet.hairlineWidth, overflow: 'hidden' },
+  historyMore: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, minHeight: 48, borderTopWidth: StyleSheet.hairlineWidth },
+  historyMoreText: { fontFamily: fonts.semibold, fontSize: 14 },
+  choiceHint: { marginTop: -4, marginBottom: 4 },
+  transferPair: { flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 16, paddingHorizontal: 16, paddingVertical: 14 },
+  transferName: { flex: 1, fontFamily: fonts.semibold, fontSize: 16 },
+  transferNote: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
   week: { flexDirection: 'row', borderRadius: 20, borderWidth: StyleSheet.hairlineWidth, paddingVertical: 14 },
   weekItem: { flex: 1, alignItems: 'center', gap: 2, paddingHorizontal: 6 },
   weekValue: { fontFamily: fonts.display, fontSize: 26, lineHeight: 30 },
