@@ -3,7 +3,7 @@ import { useCallback, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { Text } from '../../src/shared/components/Text';
-import { PastWorkoutSheet } from '../../src/features/session/PastWorkoutSheet';
+import { PastWorkoutFlow } from '../../src/features/session/PastWorkoutFlow';
 import { getActiveWorkout, listRecentWorkouts } from '../../src/features/session/repository';
 import type { WorkoutHistoryItem } from '../../src/features/session/repository';
 import { ActionButton, Body, Card, EmptyState, Heading, IconButton, PageHeading, Screen } from '../../src/shared/components/ui';
@@ -123,7 +123,7 @@ export default function LogScreen() {
           })}
         </>
       ) : null}
-      <PastWorkoutSheet visible={pastOpen} dateKey={selectedIsFuture ? null : selectedDate} onClose={() => setPastOpen(false)} />
+      <PastWorkoutFlow visible={pastOpen} dateKey={selectedIsFuture ? null : selectedDate} onClose={() => setPastOpen(false)} />
     </Screen>
   );
 }
