@@ -5,12 +5,13 @@ import { useTheme } from '../theme/ThemeProvider';
 import { fonts } from '../theme/typography';
 import { useScaledStyles } from '../theme/useScaledStyles';
 import { Chip, Icon, IconButton, Text, tapFeedback } from './ui';
+import { Wheel } from './Wheel';
 
 const dayStart = (date: Date) => new Date(date.getFullYear(), date.getMonth(), date.getDate());
 const sameDay = (a: Date, b: Date) => a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
 
 /** A tappable row (label left, value right) that unfolds its picker underneath. */
-function FieldRow({ label, value, icon, open, onToggle }: { label: string; value: string; icon: 'calendar-outline' | 'time-outline'; open: boolean; onToggle: () => void }) {
+export function FieldRow({ label, value, icon, open, onToggle }: { label: string; value: string; icon: 'calendar-outline' | 'time-outline' | 'timer-outline'; open: boolean; onToggle: () => void }) {
   const styles = useScaledStyles(baseStyles);
   const { palette } = useTheme();
   return (
@@ -130,23 +131,10 @@ export function TimeField({ label, hour, minute, locale, minuteStep = 5, default
     <View>
       <FieldRow label={label} icon="time-outline" open={open} value={text} onToggle={() => setOpen((current) => !current)} />
       {open ? (
-        <View style={[styles.panel, { backgroundColor: palette.surface, borderColor: palette.border }]}>
-          <Text style={[styles.groupLabel, { color: palette.textMuted }]}>{t('picker.hour')}</Text>
-          <View style={styles.chipGrid}>
-            {Array.from({ length: 24 }, (_, value) => (
-              <View key={value} style={styles.timeCell}>
-                <Chip label={two(value)} accessibilityLabel={`${t('picker.hour')} ${two(value)}`} selected={hour === value} onPress={() => onChange(value, minute)} />
-              </View>
-            ))}
-          </View>
-          <Text style={[styles.groupLabel, { color: palette.textMuted }]}>{t('picker.minute')}</Text>
-          <View style={styles.chipGrid}>
-            {minutes.map((value) => (
-              <View key={value} style={styles.timeCell}>
-                <Chip label={two(value)} accessibilityLabel={`${t('picker.minute')} ${two(value)}`} selected={minute === value} onPress={() => onChange(hour, value)} />
-              </View>
-            ))}
-          </View>
+        <View style={[styles.panel, styles.wheels, { backgroundColor: palette.surface, borderColor: palette.border }]}>
+          <Wheel label={t('picker.hour')} items={Array.from({ length: 24 }, (_, value) => ({ value, label: two(value) }))} value={hour} onChange={(next) => onChange(next, minute)} />
+          <Text style={[styles.colon, { color: palette.textMuted }]}>:</Text>
+          <Wheel label={t('picker.minute')} items={minutes.map((value) => ({ value, label: two(value) }))} value={minute} onChange={(next) => onChange(hour, next)} />
         </View>
       ) : null}
     </View>
@@ -166,7 +154,51 @@ const baseStyles = StyleSheet.create({
   cell: { width: `${100 / 7}%`, aspectRatio: 1, maxHeight: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 999 },
   cellText: { fontFamily: fonts.semibold, fontSize: 15, fontVariant: ['tabular-nums'] },
   shortcuts: { flexDirection: 'row', gap: 8 },
-  groupLabel: { fontFamily: fonts.medium, fontSize: 12 },
-  chipGrid: { flexDirection: 'row', flexWrap: 'wrap' },
-  timeCell: { width: `${100 / 6}%`, paddingVertical: 3, alignItems: 'center' },
+  wheels: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4 },
+  colon: { fontFamily: fonts.display, fontSize: 26 },
 });
+
+/**
+ * Duration in seconds (rest, hold): a pill with the value that opens minute and second wheels.
+ * With `defaultValue` a chip switches to "use the default" (value null).
+ */
+export function DurationField({ label, value, min = 0, max = 600, step = 5, defaultValue, format, onChange }: {
+  label: string;
+  value: number | null;
+  min?: number;
+  max?: number;
+  step?: number;
+  defaultValue?: number;
+  format: (seconds: number) => string;
+  onChange: (value: number | null) => void;
+}) {
+  const styles = useScaledStyles(baseStyles);
+  const { palette } = useTheme();
+  const { t } = useTranslation();
+  const [open, setOpen] = useState(false);
+  const effective = value ?? defaultValue ?? min;
+  const wholeMinutes = Math.floor(effective / 60);
+  const seconds = effective % 60;
+  const minuteItems = Array.from({ length: Math.floor(max / 60) + 1 }, (_, index) => ({ value: index, label: String(index) }));
+  const secondItems = Array.from({ length: Math.ceil(60 / step) }, (_, index) => ({ value: index * step, label: String(index * step).padStart(2, '0') }));
+  const set = (minutes: number, secs: number) => onChange(Math.min(max, Math.max(min, minutes * 60 + secs)));
+  return (
+    <View>
+      <FieldRow label={label} icon="timer-outline" open={open} value={value === null && defaultValue !== undefined ? t('userProgram.restDefaultValue', { value: defaultValue }) : format(effective)} onToggle={() => setOpen((current) => !current)} />
+      {open ? (
+        <View style={[styles.panel, { backgroundColor: palette.surface, borderColor: palette.border }]}>
+          <View style={styles.wheels}>
+            <Wheel label={t('picker.minutes')} items={minuteItems} value={wholeMinutes} onChange={(next) => set(next, seconds)} />
+            <Text style={[styles.colon, { color: palette.textMuted }]}>:</Text>
+            <Wheel label={t('picker.seconds')} items={secondItems} value={seconds - (seconds % step)} onChange={(next) => set(wholeMinutes, next)} />
+          </View>
+          {defaultValue !== undefined ? (
+            <View style={styles.shortcuts}>
+              <Chip label={t('userProgram.restDefaultValue', { value: defaultValue })} selected={value === null} onPress={() => onChange(null)} />
+            </View>
+          ) : null}
+        </View>
+      ) : null}
+    </View>
+  );
+}

@@ -17,6 +17,7 @@ import {
   type UserProgramExercise,
   type UserProgramSession,
 } from '../src/domain/userProgram';
+import { DurationField } from '../src/shared/components/DateTimePickers';
 import { ExercisePicker } from '../src/features/exercises/ExercisePicker';
 import { readDefaultRest } from '../src/features/session/restDefaults';
 import { takePendingExercise } from '../src/features/programs/pendingExercise';
@@ -48,10 +49,7 @@ type Draft = { name: string; sessions: UserProgramSession[] };
 
 /** Stepper value below zero stands for "reuse last time's load". */
 const LOAD_AUTO = -2.5;
-/** Stepper position meaning "no rest of its own": the default rest applies. */
-const REST_DEFAULT = -15;
-const REST_PRESETS = [30, 60, 90, 120, 180, 240];
-const HOLD_PRESETS = [10, 20, 30, 45, 60];
+
 
 export default function ProgramEditorScreen() {
   const styles = useScaledStyles(baseStyles);
@@ -264,18 +262,14 @@ export default function ProgramEditorScreen() {
                     <>
                   <Stepper layout="row" label={t('programBuilder.sets')} value={prescription.sets} step={1} min={1} max={10} onChange={(sets) => updateExercise(session.id, prescription.id, { sets })} />
                   <TargetStepper metric={metric} value={prescription.target} onChange={(target) => updateExercise(session.id, prescription.id, { target })} />
-                  <Stepper
-                    layout="row"
+                  <DurationField
                     label={t('userProgram.rest')}
-                    value={prescription.restSeconds ?? REST_DEFAULT}
-                    display={prescription.restSeconds == null ? t('userProgram.restDefaultValue', { value: defaultRest }) : t('userProgram.secondsValue', { value: prescription.restSeconds })}
-                    step={15}
-                    min={REST_DEFAULT}
+                    value={prescription.restSeconds ?? null}
                     max={600}
-                    editable
-                    presets={REST_PRESETS}
-                    presetLabel={(value) => t('userProgram.secondsValue', { value })}
-                    onChange={(value) => updateExercise(session.id, prescription.id, { restSeconds: value < 0 ? null : value })}
+                    step={5}
+                    defaultValue={defaultRest}
+                    format={(seconds) => t('userProgram.secondsValue', { value: seconds })}
+                    onChange={(restSeconds) => updateExercise(session.id, prescription.id, { restSeconds })}
                   />
                   {isLoadMetric(metric) ? (
                     <Stepper
@@ -352,7 +346,7 @@ export default function ProgramEditorScreen() {
 function TargetStepper({ metric, value, onChange }: { metric: string; value: number; onChange: (value: number) => void }) {
   const { t } = useTranslation();
   if (isTimedMetric(metric)) {
-    return <Stepper layout="row" label={t('programBuilder.seconds')} value={value} display={t('userProgram.secondsValue', { value })} step={5} min={5} max={600} editable presets={HOLD_PRESETS} presetLabel={(preset) => t('userProgram.secondsValue', { value: preset })} onChange={onChange} />;
+    return <DurationField label={t('programBuilder.seconds')} value={value} min={5} max={600} step={5} format={(seconds) => t('userProgram.secondsValue', { value: seconds })} onChange={(next) => onChange(next ?? value)} />;
   }
   if (metric === 'distance') {
     return <Stepper layout="row" label={t('programBuilder.meters')} value={value} display={t('userProgram.metersValue', { value })} step={10} min={10} max={5000} editable onChange={onChange} />;

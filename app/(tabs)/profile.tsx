@@ -2,7 +2,8 @@ import { router } from "expo-router";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { StyleSheet, View } from "react-native";
-import { Body, Card, Label, ListGroup, ListRow, PageHeading, Screen, SectionTitle, SegmentedControl, Stepper, SwitchRow } from "../../src/shared/components/ui";
+import { Body, Card, Label, ListGroup, ListRow, PageHeading, Screen, SectionTitle, SegmentedControl, SwitchRow } from "../../src/shared/components/ui";
+import { DurationField } from "../../src/shared/components/DateTimePickers";
 import { readDefaultRest, writeDefaultRest } from "../../src/features/session/restDefaults";
 import { readBooleanPreference, RPE_PROMPT_KEY, writePreference } from "../../src/shared/settings/preferences";
 import { UI_SCALES, type UiScale } from "../../src/shared/theme/scale";
@@ -74,8 +75,8 @@ export default function ProfileScreen() {
         />
       </ListGroup>
       <Card>
-        <Stepper layout="row" label={t("logger.restWorking")} value={rest.working} display={t("userProgram.secondsValue", { value: rest.working })} step={15} min={0} max={600} editable presets={[30, 60, 90, 120, 180]} presetLabel={(value) => t("userProgram.secondsValue", { value })} onChange={(value) => changeRest("working", value)} />
-        <Stepper layout="row" label={t("logger.restWarmup")} value={rest.warmup} display={t("userProgram.secondsValue", { value: rest.warmup })} step={15} min={0} max={600} editable presets={[30, 60, 90, 120, 180]} presetLabel={(value) => t("userProgram.secondsValue", { value })} onChange={(value) => changeRest("warmup", value)} />
+        <DurationField label={t("logger.restWorking")} value={rest.working} max={600} format={(seconds) => t("userProgram.secondsValue", { value: seconds })} onChange={(value) => changeRest("working", value ?? rest.working)} />
+        <DurationField label={t("logger.restWarmup")} value={rest.warmup} max={600} format={(seconds) => t("userProgram.secondsValue", { value: seconds })} onChange={(value) => changeRest("warmup", value ?? rest.warmup)} />
         <Body>{t("profile.restHint")}</Body>
       </Card>
 
