@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { Dimensions, StyleSheet, View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { useTheme } from '../theme/ThemeProvider';
-import { Icon, tapFeedback, useScrollControl } from './ui';
+import { tapFeedback, useScrollControl } from './ui';
 
 /** Distance from the screen's top and bottom edge inside which a drag scrolls the page, and its top speed (px per frame). */
 const EDGE_TOP = 150;
@@ -106,6 +106,7 @@ export function ReorderableList<T>({ items, keyOf, nameOf, gap = 12, onMove, onR
               handle: (
                 <Grip
                   name={nameOf(item)}
+                  active={dragged}
                   canUp={index > 0}
                   canDown={index < items.length - 1}
                   onStart={() => start(index)}
@@ -127,8 +128,23 @@ export function ReorderableList<T>({ items, keyOf, nameOf, gap = 12, onMove, onR
   );
 }
 
-function Grip({ name, canUp, canDown, onStart, onUpdate, onEnd, onNudge }: {
+/** The six-dot drag grip (two columns of three), drawn so it reads as "drag me" rather than as a menu. */
+function GripDots({ color }: { color: string }) {
+  return (
+    <View style={styles.dots}>
+      {[0, 1, 2].map((row) => (
+        <View key={row} style={styles.dotRow}>
+          <View style={[styles.dot, { backgroundColor: color }]} />
+          <View style={[styles.dot, { backgroundColor: color }]} />
+        </View>
+      ))}
+    </View>
+  );
+}
+
+function Grip({ name, active, canUp, canDown, onStart, onUpdate, onEnd, onNudge }: {
   name: string;
+  active: boolean;
   canUp: boolean;
   canDown: boolean;
   onStart: () => void;
@@ -160,7 +176,7 @@ function Grip({ name, canUp, canDown, onStart, onUpdate, onEnd, onNudge }: {
         hitSlop={{ top: 6, bottom: 6, left: 6, right: 10 }}
         style={styles.grip}
       >
-        <Icon name="reorder-two" size={22} color={palette.textMuted} />
+        <GripDots color={active ? palette.accentStrong : palette.textMuted} />
       </View>
     </GestureDetector>
   );
@@ -168,5 +184,8 @@ function Grip({ name, canUp, canDown, onStart, onUpdate, onEnd, onNudge }: {
 
 const styles = StyleSheet.create({
   grip: { width: 32, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
+  dots: { gap: 4 },
+  dotRow: { flexDirection: 'row', gap: 4 },
+  dot: { width: 4, height: 4, borderRadius: 2 },
   lifted: { zIndex: 10, elevation: 8, shadowColor: '#000', shadowOpacity: 0.18, shadowRadius: 14, shadowOffset: { width: 0, height: 8 } },
 });
