@@ -26,7 +26,8 @@ export function ExercisePicker({ visible, title, subtitle, initialCategory = nul
   /** Limits the list, e.g. to exercises measured like another one. */
   include?: (choice: ExerciseChoice) => boolean;
   onChoose: (choice: ExerciseChoice) => void;
-  onCreate?: () => void;
+  /** Called with what was typed in the search, so the new exercise can start with that name. */
+  onCreate?: (typed: string) => void;
   onClose: () => void;
 }) {
   const styles = useScaledStyles(baseStyles);
@@ -77,7 +78,7 @@ export function ExercisePicker({ visible, title, subtitle, initialCategory = nul
           {CATEGORIES.map((item) => <Chip key={item} label={t(`library.category.${item}`)} selected={category === item} onPress={() => setCategory(item)} />)}
         </ScrollView>
         <KeyboardScroll contentContainerStyle={[styles.list, { paddingBottom: insets.bottom + 24 }]}>
-          {onCreate ? <ListRow icon="create-outline" title={t('logger.createExercise')} onPress={leave(onCreate)} /> : null}
+          {onCreate ? <ListRow icon="create-outline" title={query.trim() ? t('logger.createNamed', { name: query.trim() }) : t('logger.createExercise')} subtitle={query.trim() ? t('logger.createNamedHint') : undefined} onPress={() => { const typed = query.trim(); leave(() => onCreate(typed))(); }} /> : null}
           {filtered.map((exercise) => (
             <ListRow
               key={exercise.id}

@@ -351,7 +351,7 @@ export default function ProgramEditorScreen() {
           setPickerFor(null);
           setReplacing(null);
         }}
-        onCreate={replacing ? undefined : () => { const sessionId = pickerFor; setPickerFor(null); router.push({ pathname: '/exercise/new', params: sessionId ? { addToProgram: sessionId } : {} }); }}
+        onCreate={replacing ? undefined : (name) => { const sessionId = pickerFor; setPickerFor(null); router.push({ pathname: '/exercise/new', params: { ...(sessionId ? { addToProgram: sessionId } : {}), ...(name ? { name } : {}) } }); }}
         onClose={() => { setPickerFor(null); setReplacing(null); }}
       />
 

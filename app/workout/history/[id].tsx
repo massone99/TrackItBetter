@@ -330,7 +330,7 @@ export default function PastWorkoutScreen() {
         title={t('workout.addExercise')}
         subtitle={t('history.pickerSubtitle')}
         onChoose={chooseExercise}
-        onCreate={() => { setPickerOpen(false); router.push({ pathname: '/exercise/new', params: { addToPast: id } }); }}
+        onCreate={(name) => { setPickerOpen(false); router.push({ pathname: '/exercise/new', params: { addToPast: id, ...(name ? { name } : {}) } }); }}
         onClose={() => setPickerOpen(false)}
       />
     </Screen>

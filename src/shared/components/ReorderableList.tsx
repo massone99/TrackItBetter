@@ -1,9 +1,14 @@
-import { useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { StyleSheet, View } from 'react-native';
+import { Dimensions, StyleSheet, View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { useTheme } from '../theme/ThemeProvider';
-import { Icon, tapFeedback } from './ui';
+import { Icon, tapFeedback, useScrollControl } from './ui';
+
+/** Distance from the screen's top and bottom edge inside which a drag scrolls the page, and its top speed (px per frame). */
+const EDGE_TOP = 150;
+const EDGE_BOTTOM = 170;
+const MAX_SPEED = 18;
 
 /** What a row gets to place in its header: the grip that starts the drag. */
 export interface ReorderRow { handle: ReactNode; dragging: boolean }
@@ -26,6 +31,36 @@ export function ReorderableList<T>({ items, keyOf, nameOf, gap = 12, onMove, onR
   const [heights, setHeights] = useState<ReadonlyMap<string, number>>(new Map());
   const heightOf = (key: string) => heights.get(key) ?? 0;
   const [drag, setDrag] = useState<{ from: number; over: number; offset: number } | null>(null);
+  const scroll = useScrollControl();
+  // What the finger is doing and where the page was when the grab began; the row follows both.
+  const pointer = useRef({ translation: 0, absoluteY: 0, startScroll: 0, from: -1 });
+  const timer = useRef<ReturnType<typeof setInterval> | null>(null);
+  const stop = () => { if (timer.current) { clearInterval(timer.current); timer.current = null; } };
+  useEffect(() => stop, []);
+
+  /** The row's offset from its slot: the finger's travel plus how far the page has scrolled since the grab. */
+  const follow = () => {
+    const { translation, startScroll, from } = pointer.current;
+    const offset = translation + (scroll ? scroll.getOffset() - startScroll : 0);
+    setDrag((current) => (current ? { ...current, offset, over: overFor(from, offset) } : current));
+  };
+  const start = (index: number) => {
+    tapFeedback();
+    pointer.current = { translation: 0, absoluteY: 0, startScroll: scroll?.getOffset() ?? 0, from: index };
+    setDrag({ from: index, over: index, offset: 0 });
+    stop();
+    // Near the top or bottom edge of the screen the page scrolls on its own, faster the closer the finger is.
+    timer.current = setInterval(() => {
+      if (!scroll) return;
+      const windowHeight = Dimensions.get('window').height;
+      const { absoluteY } = pointer.current;
+      const speed = absoluteY < EDGE_TOP ? -MAX_SPEED * Math.min(1, (EDGE_TOP - absoluteY) / EDGE_TOP)
+        : absoluteY > windowHeight - EDGE_BOTTOM ? MAX_SPEED * Math.min(1, (absoluteY - (windowHeight - EDGE_BOTTOM)) / EDGE_BOTTOM) : 0;
+      if (speed === 0) return;
+      scroll.scrollTo(Math.max(0, scroll.getOffset() + speed));
+      follow();
+    }, 16);
+  };
 
   const tops = () => {
     let top = 0;
@@ -73,9 +108,10 @@ export function ReorderableList<T>({ items, keyOf, nameOf, gap = 12, onMove, onR
                   name={nameOf(item)}
                   canUp={index > 0}
                   canDown={index < items.length - 1}
-                  onStart={() => { tapFeedback(); setDrag({ from: index, over: index, offset: 0 }); }}
-                  onUpdate={(offset) => setDrag((current) => (current ? { ...current, offset, over: overFor(current.from, offset) } : current))}
+                  onStart={() => start(index)}
+                  onUpdate={(translation, absoluteY) => { pointer.current.translation = translation; pointer.current.absoluteY = absoluteY; follow(); }}
                   onEnd={() => {
+                    stop();
                     const done = drag;
                     setDrag(null);
                     if (done && done.over !== done.from) { tapFeedback('success'); onMove(done.from, done.over); }
@@ -96,7 +132,7 @@ function Grip({ name, canUp, canDown, onStart, onUpdate, onEnd, onNudge }: {
   canUp: boolean;
   canDown: boolean;
   onStart: () => void;
-  onUpdate: (offset: number) => void;
+  onUpdate: (translation: number, absoluteY: number) => void;
   onEnd: () => void;
   onNudge: (delta: -1 | 1) => void;
 }) {
@@ -106,7 +142,7 @@ function Grip({ name, canUp, canDown, onStart, onUpdate, onEnd, onNudge }: {
     .runOnJS(true)
     .activateAfterLongPress(140)
     .onStart(onStart)
-    .onUpdate((event) => onUpdate(event.translationY))
+    .onUpdate((event) => onUpdate(event.translationY, event.absoluteY))
     .onEnd(onEnd)
     .onFinalize((_event, success) => { if (!success) onEnd(); });
   return (

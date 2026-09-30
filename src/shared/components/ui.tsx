@@ -1,6 +1,6 @@
 import * as Haptics from "expo-haptics";
 import { router, useSegments } from "expo-router";
-import { Children, PropsWithChildren, ReactNode, Ref, useEffect, useRef, useState } from "react";
+import { Children, PropsWithChildren, ReactNode, Ref, createContext, useContext, useEffect, useImperativeHandle, useRef, useState } from "react";
 import { Modal, Platform, Pressable, ScrollView, StyleSheet, Switch, TextInput, TextInputProps, TextProps, View, ViewProps } from "react-native";
 import { KeyboardLift, KeyboardScroll, type ScrollHandle } from "./keyboard";
 import { useAppInsets } from "../layout/useAppInsets";
@@ -23,20 +23,35 @@ export function tapFeedback(kind: "light" | "success" = "light") {
   else void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => undefined);
 }
 
+/** Lets something inside a screen (a drag in progress) read and move the page's scroll position. */
+export interface ScrollControl { getOffset: () => number; scrollTo: (y: number) => void }
+const ScrollControlContext = createContext<ScrollControl | null>(null);
+export const useScrollControl = () => useContext(ScrollControlContext);
+
 /** Scrolling page. `overlay` is drawn above the scroll view (e.g. a toast), not inside it. */
 export function Screen({ children, contentContainerStyle, overlay, scrollRef }: PropsWithChildren<{ contentContainerStyle?: ViewProps["style"]; overlay?: ReactNode; scrollRef?: Ref<ScrollHandle> }>) {
   const styles = useScaledStyles(baseStyles);
   const { palette } = useTheme();
   const insets = useAppInsets();
+  const inner = useRef<ScrollHandle | null>(null);
+  const offset = useRef(0);
+  const [control] = useState<ScrollControl>(() => ({
+    getOffset: () => offset.current,
+    scrollTo: (y) => inner.current?.scrollTo({ y, animated: false }),
+  }));
+  // The page's own handle (scroll to the next superset exercise) and the drag auto-scroll share one scroll view.
+  useImperativeHandle(scrollRef, () => ({ scrollTo: (options) => inner.current?.scrollTo(options) }), []);
   return (
     <View style={[styles.flexFill, { backgroundColor: palette.background }]}>
       <KeyboardScroll
-        scrollRef={scrollRef}
+        scrollRef={inner}
+        scrollEventThrottle={16}
+        onScroll={(event) => { offset.current = event.nativeEvent.contentOffset.y; }}
         style={{ backgroundColor: palette.background }}
         contentContainerStyle={[styles.screen, { paddingTop: Math.max(insets.top, 14) + 10, paddingBottom: insets.bottom + 36 }, contentContainerStyle]}
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.column}>{children}</View>
+        <ScrollControlContext.Provider value={control}><View style={styles.column}>{children}</View></ScrollControlContext.Provider>
       </KeyboardScroll>
       {/* The status bar is transparent: this strip keeps scrolled content from showing under its icons. */}
       <View pointerEvents="none" style={[styles.statusScrim, { height: insets.top, backgroundColor: palette.background }]} />

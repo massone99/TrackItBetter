@@ -428,10 +428,10 @@ export default function WorkoutScreen() {
     await refresh(workout.id);
   };
 
-  const createExercise = () => {
+  const createExercise = (name: string) => {
     if (!workout) return;
     setPickerOpen(false);
-    router.push({ pathname: '/exercise/new', params: { addTo: workout.id } });
+    router.push({ pathname: '/exercise/new', params: { addTo: workout.id, ...(name ? { name } : {}) } });
   };
 
   const sheetExercise = setSheet ? workout?.exercises.find((item) => item.entryId === setSheet.exercise.entryId) : undefined;

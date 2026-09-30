@@ -151,7 +151,7 @@ export default function RoutineBuilderScreen() {
           setError(null);
           setSteps((current) => [...current, newStep(choice.id, choice.metric === 'time' || choice.metric === 'time_load' ? 'hold' : 'reps')]);
         }}
-        onCreate={() => { setPickerOpen(false); router.push('/exercise/new'); }}
+        onCreate={(name) => { setPickerOpen(false); router.push({ pathname: '/exercise/new', params: name ? { name } : {} }); }}
         onClose={() => setPickerOpen(false)}
       />
 

@@ -31,7 +31,8 @@ export default function NewExerciseRoute() {
   // Set when editing an existing exercise (catalog or custom) instead of creating one.
   // Set when opened from the program builder: the new exercise goes into that workout of the program.
   // Set when opened from a finished (past) workout: the exercise is added to it as done.
-  const { addTo, addToPast, addToProgram, edit } = useLocalSearchParams<{ addTo?: string; addToPast?: string; addToProgram?: string; edit?: string }>();
+  // `name` prefills the name field, e.g. what was searched for in a picker before choosing "create".
+  const { addTo, addToPast, addToProgram, edit, name: suggestedName } = useLocalSearchParams<{ addTo?: string; addToPast?: string; addToProgram?: string; edit?: string; name?: string }>();
   const { t } = useTranslation();
   const { palette } = useTheme();
   const [saving, setSaving] = useState(false);
@@ -40,7 +41,7 @@ export default function NewExerciseRoute() {
   const [detailsOpen, setDetailsOpen] = useState(false);
   const { control, handleSubmit, reset, setValue, getValues, formState: { errors } } = useForm<ExerciseFormValues>({
     resolver: zodResolver(exerciseFormSchema),
-    defaultValues: EMPTY_EXERCISE_FORM,
+    defaultValues: { ...EMPTY_EXERCISE_FORM, name: edit ? EMPTY_EXERCISE_FORM.name : suggestedName?.slice(0, 80) ?? EMPTY_EXERCISE_FORM.name },
   });
   const [category, extraCategories, movementTag, movementGroup] = useWatch({ control, name: ['category', 'extraCategories', 'movementTag', 'movementGroup'] });
   const detailErrors = Boolean(errors.equipment || errors.cues || errors.demoUrl);
