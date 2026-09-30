@@ -1,8 +1,8 @@
 import { migrateDatabase } from '../../../db/migrations';
 import { seedCatalogIfEmpty } from '../../../db/seed/import';
 import { createCustomExercise } from '../../exercises/customRepository';
-import { getActiveWorkout } from '../../session/repository';
-import { startUserProgramSession } from '../startUserSession';
+import { getActiveWorkout, getCompletedWorkout } from '../../session/repository';
+import { logPastUserProgramSession, startUserProgramSession } from '../startUserSession';
 import { getUserProgram, saveUserProgram } from '../userPrograms';
 
 jest.mock('../../../db/client', () => {
@@ -64,5 +64,28 @@ describe('starting a workout from a program', () => {
     const workoutId = await startUserProgramSession(program, program.sessions[0]);
     const rests = (await getActiveWorkout(workoutId))!.exercises.map((exercise) => exercise.sets.map((set) => set.restSec));
     expect(rests).toEqual([[null], [null, null], [45]]);
+  });
+});
+
+describe('logging a program workout as a past session', () => {
+  beforeAll(() => { real.sqlite.prepare('DELETE FROM workout').run(); });
+  const program = { id: 'pp', name: 'Past', updatedAt: '', sessions: [{ id: 's', name: 'A', exercises: [{ id: 'e1', exerciseId: 'push-up', sets: 3, target: 8, restSeconds: 60 }] }] };
+
+  it('creates a finished workout at the given time with every set done', async () => {
+    const startedAt = new Date(Date.now() - 3 * 24 * 3600_000);
+    const workoutId = await logPastUserProgramSession(program, program.sessions[0], startedAt, 45);
+
+    const workout = (await getCompletedWorkout(workoutId))!;
+    expect(workout.name).toBe('Past · A');
+    expect(workout.startedAt.getTime()).toBe(startedAt.getTime());
+    expect(workout.endedAt.getTime() - workout.startedAt.getTime()).toBe(45 * 60_000);
+    expect(workout.exercises[0].sets).toHaveLength(3);
+    expect(workout.exercises[0].sets.every((set) => set.completedAt && set.reps === 8)).toBe(true);
+    expect(await getActiveWorkout()).toBeNull();
+  });
+
+  it('leaves nothing behind when the start is in the future', async () => {
+    await expect(logPastUserProgramSession(program, program.sessions[0], new Date(Date.now() + 3600_000), 60)).rejects.toThrow();
+    expect(await getActiveWorkout()).toBeNull();
   });
 });

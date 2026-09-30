@@ -364,6 +364,24 @@ export async function createPastWorkout(input: { name: string; startedAt: Date; 
   return workoutId;
 }
 
+/**
+ * Turns a workout just built from a template into a finished one in the past: it gets its start
+ * and end, and every set counts as done at the end. Used to log a program workout after the fact.
+ */
+export async function convertToPastWorkout(workoutId: string, startedAt: Date, minutes: number): Promise<void> {
+  const start = startedAt.getTime();
+  if (!Number.isFinite(start) || start > Date.now()) throw new RangeError('A past workout cannot start in the future');
+  const endedAt = new Date(start + Math.min(600, Math.max(1, Math.round(minutes))) * 60_000);
+  await initializeDatabase();
+  await db.transaction(async (tx) => {
+    await tx.update(workouts).set({ startedAt, endedAt }).where(eq(workouts.id, workoutId));
+    const entries = await tx.select({ id: exerciseEntries.id }).from(exerciseEntries).where(eq(exerciseEntries.workoutId, workoutId));
+    if (entries.length > 0) {
+      await tx.update(trainingSets).set({ completedAt: endedAt }).where(inArray(trainingSets.entryId, entries.map((entry) => entry.id)));
+    }
+  });
+}
+
 async function completedWorkoutEnd(workoutId: string): Promise<Date> {
   const [workout] = await db.select({ endedAt: workouts.endedAt }).from(workouts).where(eq(workouts.id, workoutId)).limit(1);
   if (!workout?.endedAt) throw new Error('Workout is not finished');

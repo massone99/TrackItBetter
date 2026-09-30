@@ -1,6 +1,6 @@
 import { isLoadMetric, isTimedMetric, plannedLoads, programSessionWorkoutName, type UserProgram, type UserProgramSession } from '../../domain/userProgram';
 import { getExerciseById } from '../exercises/repository';
-import { addExerciseToWorkout, addSet, deleteWorkout, getActiveWorkout, getPreviousPerformance, startWorkout, updateSet } from '../session/repository';
+import { addExerciseToWorkout, addSet, convertToPastWorkout, deleteWorkout, getActiveWorkout, getPreviousPerformance, startWorkout, updateSet } from '../session/repository';
 
 /**
  * Starts a workout from one day of a self-made program: every movement gets exactly the planned
@@ -16,6 +16,25 @@ export async function startUserProgramSession(program: UserProgram, session: Use
   const workoutId = await startWorkout(programSessionWorkoutName(program, session));
   try {
     await fillWorkout(workoutId, known);
+  } catch (error) {
+    await deleteWorkout(workoutId).catch(() => undefined);
+    throw error;
+  }
+  return workoutId;
+}
+
+/**
+ * Logs one day of a program as a session that already happened: the same sets, targets and loads
+ * as starting it, all marked done, starting at `startedAt`. Returns the finished workout's id.
+ */
+export async function logPastUserProgramSession(program: UserProgram, session: UserProgramSession, startedAt: Date, minutes: number): Promise<string> {
+  const known = (await Promise.all(session.exercises.map(async (prescription) => ((await getExerciseById(prescription.exerciseId)) ? prescription : null))))
+    .filter((prescription): prescription is UserProgramSession['exercises'][number] => prescription !== null);
+  if (known.length === 0) throw new Error('None of the movements of this workout exist any more.');
+  const workoutId = await startWorkout(programSessionWorkoutName(program, session));
+  try {
+    await fillWorkout(workoutId, known);
+    await convertToPastWorkout(workoutId, startedAt, minutes);
   } catch (error) {
     await deleteWorkout(workoutId).catch(() => undefined);
     throw error;

@@ -296,11 +296,11 @@ export function Stepper({ label, value, display, step = 1, min = 0, max = 999, l
         </View>
       </View>
       {presets && presets.length > 0 ? (
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.presetRow}>
+        <View style={styles.presetRow}>
           {presets.map((preset) => (
             <Chip key={preset} label={presetLabel ? presetLabel(preset) : String(preset)} selected={value === preset} onPress={() => onChange(clamp(preset))} />
           ))}
-        </ScrollView>
+        </View>
       ) : null}
     </View>
   );
@@ -598,7 +598,7 @@ const baseStyles = StyleSheet.create({
   stepperRowLabel: { flex: 1, fontFamily: fonts.medium, fontSize: 15 },
   stepperControls: { flexDirection: "row", alignItems: "center", gap: 6 },
   stepperButton: { width: 38, height: 38, borderRadius: 19, alignItems: "center", justifyContent: "center" },
-  presetRow: { gap: 8, paddingTop: 6, paddingBottom: 4 },
+  presetRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, paddingTop: 6, paddingBottom: 4 },
   stepperValue: { fontFamily: fonts.display, fontSize: 20, minWidth: 52, textAlign: "center", fontVariant: ["tabular-nums"] },
   field: { gap: 6 },
   input: { minHeight: 48, borderRadius: 12, borderWidth: 1.5, paddingHorizontal: 14, fontFamily: fonts.body, fontSize: 16, outlineWidth: 0 },

@@ -5,7 +5,8 @@ import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { estimateSessionSeconds, nextSessionInRotation, sessionSetCount, type UserProgram, type UserProgramSession } from '../../../src/domain/userProgram';
 import { listExercises } from '../../../src/features/exercises/repository';
 import { describePrescription } from '../../../src/features/programs/describe';
-import { startUserProgramSession } from '../../../src/features/programs/startUserSession';
+import { defaultPastStart } from '../../../src/features/session/pastStart';
+import { logPastUserProgramSession, startUserProgramSession } from '../../../src/features/programs/startUserSession';
 import { deleteUserProgram, duplicateUserProgram, getUserProgram } from '../../../src/features/programs/userPrograms';
 import { readDefaultRest } from '../../../src/features/session/restDefaults';
 import { WorkoutInProgressSheet } from '../../../src/features/session/WorkoutInProgressSheet';
@@ -75,6 +76,21 @@ export default function UserProgramScreen() {
     }
   };
 
+  /** Logs this day as a finished session (yesterday evening by default) and opens it to set the day and time. */
+  const logPast = async (session: UserProgramSession) => {
+    if (starting) return;
+    setStarting(session.id);
+    setError(null);
+    try {
+      const workoutId = await logPastUserProgramSession(program, session, defaultPastStart(null), 60);
+      router.push({ pathname: '/workout/history/[id]', params: { id: workoutId, edit: '1' } });
+    } catch (reason) {
+      setError(`${t('programBuilder.startError')} (${reason instanceof Error ? reason.message : String(reason)})`);
+    } finally {
+      setStarting(null);
+    }
+  };
+
   const duplicate = async () => {
     const copy = await duplicateUserProgram(program.id, t('userProgram.copyName', { name: program.name }));
     if (copy) router.replace({ pathname: '/program/user/[id]', params: { id: copy.id } });
@@ -122,6 +138,7 @@ export default function UserProgramScreen() {
             disabled={starting !== null}
             onPress={() => void start(session)}
           />
+          <ActionButton icon="time-outline" label={t('userProgram.logPast')} variant="ghost" disabled={starting !== null} onPress={() => void logPast(session)} />
         </Card>
       ))}
 
