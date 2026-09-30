@@ -21,6 +21,7 @@ import {
 } from '../src/domain/userProgram';
 import { DurationField } from '../src/shared/components/DateTimePickers';
 import { ExercisePicker } from '../src/features/exercises/ExercisePicker';
+import { openExercisePage } from '../src/features/exercises/openExercise';
 import { readDefaultRest } from '../src/features/session/restDefaults';
 import { takePendingExercise } from '../src/features/programs/pendingExercise';
 import { listExercises } from '../src/features/exercises/repository';
@@ -254,6 +255,9 @@ export default function ProgramEditorScreen() {
                     accessibilityLabel={t(isOpen ? 'logger.collapse' : 'logger.expand', { name: exerciseName })}
                     accessibilityState={{ expanded: isOpen }}
                     onPress={() => setOpenExercises((current) => flip(current, prescription.id))}
+                    onLongPress={() => openExercisePage(prescription.exerciseId)}
+                    accessibilityActions={[{ name: 'longpress', label: t('logger.openExercise') }]}
+                    onAccessibilityAction={(event) => { if (event.nativeEvent.actionName === 'longpress') openExercisePage(prescription.exerciseId); }}
                     style={styles.header}
                   >
                     <View style={styles.flex}>

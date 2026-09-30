@@ -6,6 +6,7 @@ import { eq } from 'drizzle-orm';
 import { ActivityIndicator, Pressable, StyleSheet, TextInput, View } from 'react-native';
 import { useAppInsets } from '../../src/shared/layout/useAppInsets';
 import { ExercisePicker, type ExerciseChoice } from '../../src/features/exercises/ExercisePicker';
+import { openExercisePage } from '../../src/features/exercises/openExercise';
 import { openReferenceVideo, ReferenceLinkSheet } from '../../src/features/exercises/ReferenceLinkSheet';
 import { db, initializeDatabase } from '../../src/db/client';
 import { settings as preferenceSettings } from '../../src/db/schema';
@@ -745,6 +746,9 @@ function ExerciseCard({ exercise, previous, hold, onChange, onSetValue, onComple
           accessibilityLabel={t(collapsed ? 'logger.expand' : 'logger.collapse', { name: exercise.name })}
           accessibilityState={{ expanded: !collapsed }}
           onPress={() => setCollapsed((value) => !value)}
+          onLongPress={() => openExercisePage(exercise.exerciseId)}
+          accessibilityActions={[{ name: 'longpress', label: t('logger.openExercise') }]}
+          onAccessibilityAction={(event) => { if (event.nativeEvent.actionName === 'longpress') openExercisePage(exercise.exerciseId); }}
           style={styles.flex}
         >
           {supersetLabel ? <Label style={{ color: palette.accentStrong }}>{supersetLabel}</Label> : null}

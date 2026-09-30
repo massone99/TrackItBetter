@@ -174,11 +174,14 @@ export function PageHeading({ title, subtitle, action }: { title: string; subtit
   );
 }
 
-export function ListRow({ icon, title, subtitle, onPress, trailing, tint, selected }: {
+export function ListRow({ icon, title, subtitle, onPress, onLongPress, longPressLabel, trailing, tint, selected }: {
   icon?: IconName;
   title: string;
   subtitle?: string;
   onPress?: () => void;
+  onLongPress?: () => void;
+  /** Screen-reader name of the long-press action. */
+  longPressLabel?: string;
   trailing?: ReactNode;
   tint?: string;
   /** For a list of choices: true marks the current one with a check; false leaves room for it. Leave undefined for a normal row. */
@@ -211,6 +214,9 @@ export function ListRow({ icon, title, subtitle, onPress, trailing, tint, select
           accessibilityLabel={subtitle ? `${title}, ${subtitle}` : title}
           accessibilityState={selected !== undefined ? { selected } : undefined}
           onPress={() => { tapFeedback(); onPress(); }}
+          onLongPress={onLongPress}
+          accessibilityActions={onLongPress ? [{ name: "longpress", label: longPressLabel }] : undefined}
+          onAccessibilityAction={onLongPress ? (event) => { if (event.nativeEvent.actionName === "longpress") onLongPress(); } : undefined}
           style={({ pressed }) => [styles.listRow, { backgroundColor: pressed ? palette.surfaceMuted : "transparent" }]}
         >
           {content}

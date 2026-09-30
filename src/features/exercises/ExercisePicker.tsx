@@ -10,6 +10,7 @@ import { fonts } from '../../shared/theme/typography';
 import { useScaledStyles } from '../../shared/theme/useScaledStyles';
 import { EXERCISE_CATEGORIES } from './categories';
 import { listExercises } from './repository';
+import { openExercisePage } from './openExercise';
 import { useAnimationSettings } from '../../shared/settings/AnimationProvider';
 
 export type ExerciseChoice = { id: string; name: string; metric: string; category: string; extraCategories: string; level: number | null };
@@ -82,6 +83,9 @@ export function ExercisePicker({ visible, title, subtitle, initialCategory = nul
               title={exercise.name}
               subtitle={[t(`library.category.${exercise.category}`), t(`metric.${exercise.metric}`), exercise.level ? t('progression.level', { number: exercise.level }) : null].filter(Boolean).join(' · ')}
               onPress={leave(() => onChoose(exercise))}
+              // Long press opens the exercise page; the picker closes so the page is not hidden behind it.
+              onLongPress={leave(() => { onClose(); openExercisePage(exercise.id); })}
+              longPressLabel={t('logger.openExercise')}
               // The add icon sits beside the row's touch area, so it needs its own press handler.
               trailing={(
                 <Pressable

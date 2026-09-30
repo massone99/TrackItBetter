@@ -1,9 +1,10 @@
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ActivityIndicator, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
 import { estimateSessionSeconds, nextSessionInRotation, sessionSetCount, type UserProgram, type UserProgramSession } from '../../../src/domain/userProgram';
 import { listExercises } from '../../../src/features/exercises/repository';
+import { openExercisePage } from '../../../src/features/exercises/openExercise';
 import { describePrescription } from '../../../src/features/programs/describe';
 import { defaultPastStart } from '../../../src/features/session/pastStart';
 import { logPastUserProgramSession, startUserProgramSession } from '../../../src/features/programs/startUserSession';
@@ -126,11 +127,20 @@ export default function UserProgramScreen() {
             <Label>{t('userProgram.daySummary', { count: sessionSetCount(session), minutes: formatMinutes(estimateSessionSeconds(session, metricById, readDefaultRest('working'))) })}</Label>
           </View>
           {session.exercises.map((prescription) => (
-            <View key={prescription.id} style={[styles.exerciseRow, { borderTopColor: palette.border }]}>
+            <Pressable
+              key={prescription.id}
+              accessibilityRole="button"
+              accessibilityLabel={info.get(prescription.exerciseId)?.name ?? t('userProgram.exerciseMissing')}
+              accessibilityHint={t('logger.openExerciseHint')}
+              onLongPress={() => openExercisePage(prescription.exerciseId)}
+              accessibilityActions={[{ name: 'longpress', label: t('logger.openExercise') }]}
+              onAccessibilityAction={(event) => { if (event.nativeEvent.actionName === 'longpress') openExercisePage(prescription.exerciseId); }}
+              style={[styles.exerciseRow, { borderTopColor: palette.border }]}
+            >
               <Text style={styles.exerciseName} numberOfLines={2}>{info.get(prescription.exerciseId)?.name ?? t('userProgram.exerciseMissing')}</Text>
               <Text style={[styles.target, { color: palette.textMuted }]}>{describePrescription(prescription, metricById.get(prescription.exerciseId), t)}</Text>
               {prescription.note?.trim() ? <Text style={[styles.target, { color: palette.text }]}>{prescription.note.trim()}</Text> : null}
-            </View>
+            </Pressable>
           ))}
           <ActionButton
             icon="play"

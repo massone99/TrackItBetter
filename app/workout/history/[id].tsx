@@ -3,6 +3,7 @@ import { useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Pressable, StyleSheet, TextInput, View } from 'react-native';
 import { ExercisePicker, type ExerciseChoice } from '../../../src/features/exercises/ExercisePicker';
+import { openExercisePage } from '../../../src/features/exercises/openExercise';
 import {
   addExerciseToCompletedWorkout,
   addSetToCompletedWorkout,
@@ -160,11 +161,19 @@ export default function PastWorkoutScreen() {
         return (
           <Card key={exercise.entryId} style={styles.exerciseCard}>
             <View style={styles.exerciseHeader}>
-              <View style={styles.flex}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={exercise.name}
+                accessibilityHint={t('logger.openExerciseHint')}
+                onLongPress={() => openExercisePage(exercise.exerciseId)}
+                accessibilityActions={[{ name: 'longpress', label: t('logger.openExercise') }]}
+                onAccessibilityAction={(event) => { if (event.nativeEvent.actionName === 'longpress') openExercisePage(exercise.exerciseId); }}
+                style={styles.flex}
+              >
                 <Label>{t(`metric.${exercise.metric}`)}</Label>
                 <Heading>{exercise.name}</Heading>
                 {exercise.notes ? <Text numberOfLines={3} style={[styles.exerciseNote, { color: palette.textMuted }]}>{exercise.notes}</Text> : null}
-              </View>
+              </Pressable>
               <IconButton icon="ellipsis-horizontal" tone="plain" label={t('logger.options')} onPress={() => setExerciseFor(exercise)} />
             </View>
             {exercise.sets.map((set) => {
