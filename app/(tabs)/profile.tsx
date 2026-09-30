@@ -74,9 +74,10 @@ export default function ProfileScreen() {
           onChange={(next) => { setRpePrompt(next); writePreference(RPE_PROMPT_KEY, String(next)); }}
         />
       </ListGroup>
+      <SectionTitle title={t("profile.restTitle")} />
       <Card>
-        <DurationField label={t("logger.restWorking")} value={rest.working} max={600} presets={[30, 60, 90, 120, 180]} format={(seconds) => t("userProgram.secondsValue", { value: seconds })} onChange={(value) => changeRest("working", value ?? rest.working)} />
-        <DurationField label={t("logger.restWarmup")} value={rest.warmup} max={600} presets={[30, 60, 90, 120, 180]} format={(seconds) => t("userProgram.secondsValue", { value: seconds })} onChange={(value) => changeRest("warmup", value ?? rest.warmup)} />
+        <DurationField label={t("logger.restWorking")} value={rest.working} max={600} presets={[30, 60, 90, 120, 180]} format={(seconds) => t("userProgram.secondsValue", { value: seconds })} onChange={(value) => changeRest("working", value)} />
+        <DurationField label={t("logger.restWarmup")} value={rest.warmup} max={600} presets={[30, 60, 90, 120, 180]} format={(seconds) => t("userProgram.secondsValue", { value: seconds })} onChange={(value) => changeRest("warmup", value)} />
         <Body>{t("profile.restHint")}</Body>
       </Card>
 

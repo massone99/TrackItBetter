@@ -160,38 +160,34 @@ const baseStyles = StyleSheet.create({
 });
 
 /**
- * Duration in seconds (rest, hold): a pill with the value that opens minute and second wheels.
- * With `defaultValue` a chip switches to "use the default" (value null).
+ * Duration in seconds (rest, hold): a pill with the value that opens minute and second wheels,
+ * and one-tap presets under it that wrap onto more lines instead of scrolling.
  */
-export function DurationField({ label, value, min = 0, max = 600, step = 5, defaultValue, presets, format, onChange }: {
+export function DurationField({ label, value, min = 0, max = 600, step = 5, presets, format, onChange }: {
   label: string;
-  value: number | null;
+  value: number;
   min?: number;
   max?: number;
   step?: number;
-  defaultValue?: number;
-  /** One-tap values shown under the field, wrapping onto more lines instead of scrolling. */
   presets?: number[];
   format: (seconds: number) => string;
-  onChange: (value: number | null) => void;
+  onChange: (value: number) => void;
 }) {
   const styles = useScaledStyles(baseStyles);
   const { palette } = useTheme();
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
-  const effective = value ?? defaultValue ?? min;
-  const wholeMinutes = Math.floor(effective / 60);
-  const seconds = effective % 60;
+  const wholeMinutes = Math.floor(value / 60);
+  const seconds = value % 60;
   const minuteItems = Array.from({ length: Math.floor(max / 60) + 1 }, (_, index) => ({ value: index, label: String(index) }));
   const secondItems = Array.from({ length: Math.ceil(60 / step) }, (_, index) => ({ value: index * step, label: String(index * step).padStart(2, '0') }));
   const set = (minutes: number, secs: number) => onChange(Math.min(max, Math.max(min, minutes * 60 + secs)));
   return (
     <View>
-      <FieldRow label={label} icon="timer-outline" open={open} value={value === null && defaultValue !== undefined ? t('userProgram.restDefaultValue', { value: defaultValue }) : format(effective)} onToggle={() => setOpen((current) => !current)} />
-      {presets || defaultValue !== undefined ? (
+      <FieldRow label={label} icon="timer-outline" open={open} value={format(value)} onToggle={() => setOpen((current) => !current)} />
+      {presets && presets.length > 0 ? (
         <View style={styles.presets}>
-          {defaultValue !== undefined ? <Chip label={t('userProgram.restDefault')} selected={value === null} onPress={() => onChange(null)} /> : null}
-          {(presets ?? []).map((preset) => <Chip key={preset} label={format(preset)} selected={value === preset} onPress={() => onChange(Math.min(max, Math.max(min, preset)))} />)}
+          {presets.map((preset) => <Chip key={preset} label={format(preset)} selected={value === preset} onPress={() => onChange(Math.min(max, Math.max(min, preset)))} />)}
         </View>
       ) : null}
       {open ? (
