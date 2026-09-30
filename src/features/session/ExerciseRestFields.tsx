@@ -14,7 +14,7 @@ export function ExerciseRestFields({ entryId, exerciseId, onSaved }: { entryId: 
     void setEntryRest(entryId, kind, seconds).then(onSaved);
   };
   return <>
-    <DurationField label={t('logger.restWorking')} value={rest.working} max={600} format={(seconds) => t('userProgram.secondsValue', { value: seconds })} onChange={(value) => change('working', value ?? rest.working)} />
-    <DurationField label={t('logger.restWarmup')} value={rest.warmup} max={600} format={(seconds) => t('userProgram.secondsValue', { value: seconds })} onChange={(value) => change('warmup', value ?? rest.warmup)} />
+    <DurationField label={t('logger.restWorking')} value={rest.working} max={600} presets={[30, 60, 90, 120, 180]} format={(seconds) => t('userProgram.secondsValue', { value: seconds })} onChange={(value) => change('working', value ?? rest.working)} />
+    <DurationField label={t('logger.restWarmup')} value={rest.warmup} max={600} presets={[30, 60, 90, 120, 180]} format={(seconds) => t('userProgram.secondsValue', { value: seconds })} onChange={(value) => change('warmup', value ?? rest.warmup)} />
   </>;
 }

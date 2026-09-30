@@ -268,6 +268,7 @@ export default function ProgramEditorScreen() {
                     max={600}
                     step={5}
                     defaultValue={defaultRest}
+                    presets={[30, 60, 90, 120, 180]}
                     format={(seconds) => t('userProgram.secondsValue', { value: seconds })}
                     onChange={(restSeconds) => updateExercise(session.id, prescription.id, { restSeconds })}
                   />
@@ -346,7 +347,7 @@ export default function ProgramEditorScreen() {
 function TargetStepper({ metric, value, onChange }: { metric: string; value: number; onChange: (value: number) => void }) {
   const { t } = useTranslation();
   if (isTimedMetric(metric)) {
-    return <DurationField label={t('programBuilder.seconds')} value={value} min={5} max={600} step={5} format={(seconds) => t('userProgram.secondsValue', { value: seconds })} onChange={(next) => onChange(next ?? value)} />;
+    return <DurationField label={t('programBuilder.seconds')} value={value} min={5} max={600} step={5} presets={[10, 20, 30, 45, 60]} format={(seconds) => t('userProgram.secondsValue', { value: seconds })} onChange={(next) => onChange(next ?? value)} />;
   }
   if (metric === 'distance') {
     return <Stepper layout="row" label={t('programBuilder.meters')} value={value} display={t('userProgram.metersValue', { value })} step={10} min={10} max={5000} editable onChange={onChange} />;

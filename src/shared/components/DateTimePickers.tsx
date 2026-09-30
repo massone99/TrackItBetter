@@ -155,6 +155,7 @@ const baseStyles = StyleSheet.create({
   cellText: { fontFamily: fonts.semibold, fontSize: 15, fontVariant: ['tabular-nums'] },
   shortcuts: { flexDirection: 'row', gap: 8 },
   wheels: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4 },
+  presets: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingBottom: 8 },
   colon: { fontFamily: fonts.display, fontSize: 26 },
 });
 
@@ -162,13 +163,15 @@ const baseStyles = StyleSheet.create({
  * Duration in seconds (rest, hold): a pill with the value that opens minute and second wheels.
  * With `defaultValue` a chip switches to "use the default" (value null).
  */
-export function DurationField({ label, value, min = 0, max = 600, step = 5, defaultValue, format, onChange }: {
+export function DurationField({ label, value, min = 0, max = 600, step = 5, defaultValue, presets, format, onChange }: {
   label: string;
   value: number | null;
   min?: number;
   max?: number;
   step?: number;
   defaultValue?: number;
+  /** One-tap values shown under the field, wrapping onto more lines instead of scrolling. */
+  presets?: number[];
   format: (seconds: number) => string;
   onChange: (value: number | null) => void;
 }) {
@@ -185,6 +188,12 @@ export function DurationField({ label, value, min = 0, max = 600, step = 5, defa
   return (
     <View>
       <FieldRow label={label} icon="timer-outline" open={open} value={value === null && defaultValue !== undefined ? t('userProgram.restDefaultValue', { value: defaultValue }) : format(effective)} onToggle={() => setOpen((current) => !current)} />
+      {presets || defaultValue !== undefined ? (
+        <View style={styles.presets}>
+          {defaultValue !== undefined ? <Chip label={t('userProgram.restDefault')} selected={value === null} onPress={() => onChange(null)} /> : null}
+          {(presets ?? []).map((preset) => <Chip key={preset} label={format(preset)} selected={value === preset} onPress={() => onChange(Math.min(max, Math.max(min, preset)))} />)}
+        </View>
+      ) : null}
       {open ? (
         <View style={[styles.panel, { backgroundColor: palette.surface, borderColor: palette.border }]}>
           <View style={styles.wheels}>
@@ -192,11 +201,6 @@ export function DurationField({ label, value, min = 0, max = 600, step = 5, defa
             <Text style={[styles.colon, { color: palette.textMuted }]}>:</Text>
             <Wheel label={t('picker.seconds')} items={secondItems} value={seconds - (seconds % step)} onChange={(next) => set(wholeMinutes, next)} />
           </View>
-          {defaultValue !== undefined ? (
-            <View style={styles.shortcuts}>
-              <Chip label={t('userProgram.restDefaultValue', { value: defaultValue })} selected={value === null} onPress={() => onChange(null)} />
-            </View>
-          ) : null}
         </View>
       ) : null}
     </View>
