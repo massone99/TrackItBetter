@@ -36,6 +36,17 @@ const exerciseSchema = z.object({
   movementPattern: nullableString,
   // Added in schema v6; old backups omit both user-editable classifications.
   movementTag: nullableString.optional().refine((tag) => tag == null || (MOVEMENT_TAGS as readonly string[]).includes(canonicalizeMovementTag(tag) ?? '')),
+  // Added in schema v9. Missing lists are restored from the legacy single tag.
+  movementTags: z.string().optional().refine((value) => {
+    if (value === undefined) return true;
+    try {
+      const tags: unknown = JSON.parse(value);
+      return Array.isArray(tags) && tags.every((tag) => typeof tag === 'string'
+        && (MOVEMENT_TAGS as readonly string[]).includes(canonicalizeMovementTag(tag) ?? ''));
+    } catch {
+      return false;
+    }
+  }),
   movementGroup: z.enum(MOVEMENT_GROUP_IDS).nullable().optional(),
   primaryMuscles: z.string(),
   secondaryMuscles: z.string(),

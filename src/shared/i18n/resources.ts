@@ -1,6 +1,17 @@
 export const resources = {
   en: {
     translation: {
+      exerciseGrouping: {
+        title: "Group by",
+        dimensions: { category: "Main category", group: "Movement group", tag: "Movement tag" },
+        hint: "Combine groups, or turn them all off for an alphabetical list.",
+        tagsHint: "Exercises with multiple tags appear under each associated tag.",
+        untagged: "No movement tag",
+        tagsTitle: "Movement tags",
+        selectionHint: "Choose one or more tags. Tap a selected tag to remove it.",
+        removeTag: "Remove {{tag}}",
+        statsHint: "A set can count under multiple tags. The overall total counts each set once.",
+      },
       tabs: { today: "Today", log: "Log", programs: "Programs", progress: "Progress", library: "Library", profile: "You" },
       common: { startWorkout: "Start workout", resumeWorkout: "Resume workout", viewAll: "View all", comingSoon: "Coming soon", save: "Save", cancel: "Cancel", back: "Back", close: "Close", clear: "Clear", showMore: "Show more", collapseAll: "Collapse all", expandAll: "Expand all" },
       startup: { loadingTitle: "Setting up your training space", loadingBody: "Preparing your offline workout library…", errorTitle: "Could not open your training space", errorBody: "Your local workout data could not be prepared. Try again.", retry: "Try again" },
@@ -92,6 +103,17 @@ export const resources = {
   },
   it: {
     translation: {
+      exerciseGrouping: {
+        title: "Raggruppa per",
+        dimensions: { category: "Categoria principale", group: "Gruppo motorio", tag: "Etichetta di movimento" },
+        hint: "Combina i raggruppamenti o disattivali tutti per la lista alfabetica.",
+        tagsHint: "Gli esercizi con più etichette compaiono in ogni gruppo corrispondente.",
+        untagged: "Senza etichetta di movimento",
+        tagsTitle: "Etichette di movimento",
+        selectionHint: "Scegli una o più etichette. Tocca un'etichetta selezionata per rimuoverla.",
+        removeTag: "Rimuovi {{tag}}",
+        statsHint: "Una serie può contare per più etichette. Il totale complessivo conta ogni serie una volta.",
+      },
       tabs: { today: "Oggi", log: "Diario", programs: "Programmi", progress: "Progressi", library: "Libreria", profile: "Profilo" },
       common: { startWorkout: "Inizia allenamento", resumeWorkout: "Riprendi allenamento", viewAll: "Vedi tutto", comingSoon: "In arrivo", save: "Salva", cancel: "Annulla", back: "Indietro", close: "Chiudi", clear: "Cancella", showMore: "Mostra altri", collapseAll: "Comprimi tutti", expandAll: "Espandi tutti" },
       startup: { loadingTitle: "Prepariamo il tuo spazio di allenamento", loadingBody: "Prepariamo la libreria offline…", errorTitle: "Impossibile aprire il tuo spazio", errorBody: "Non è stato possibile preparare i dati locali. Riprova.", retry: "Riprova" },

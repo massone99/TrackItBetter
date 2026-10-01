@@ -174,6 +174,13 @@ END;
 PRAGMA user_version = 6;
 `;
 
+const multipleMovementTagsSchema = `
+ALTER TABLE exercise ADD COLUMN movement_tags TEXT NOT NULL DEFAULT '[]';
+UPDATE exercise SET movement_tags = json_array(trim(movement_tag))
+  WHERE movement_tag IS NOT NULL AND trim(movement_tag) <> '';
+PRAGMA user_version = 9;
+`;
+
 /** Applies numbered, local-first SQLite schema migrations once per database. */
 export async function migrateDatabase(database: SQLiteDatabase): Promise<void> {
   await database.execAsync('PRAGMA foreign_keys = ON;');
@@ -226,6 +233,12 @@ export async function migrateDatabase(database: SQLiteDatabase): Promise<void> {
   if (version < 8) {
     await database.withTransactionAsync(async () => {
       await database.execAsync(holdGroupsSchema);
+    });
+  }
+
+  if (version < 9) {
+    await database.withTransactionAsync(async () => {
+      await database.execAsync(multipleMovementTagsSchema);
     });
   }
 }

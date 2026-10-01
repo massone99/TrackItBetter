@@ -1,4 +1,4 @@
-import { canonicalizeMovementTag, MOVEMENT_GROUP_IDS } from '../exercises/movementCatalog';
+import { exerciseMovementTags, MOVEMENT_GROUP_IDS } from '../exercises/movementCatalog';
 
 export type StatsDimension = 'group' | 'tag' | 'exercise';
 export type StatsPeriodKind = 'session' | 'day' | 'week' | 'month';
@@ -17,6 +17,7 @@ export interface StatsSetRow {
   metric: string;
   movementGroup: string | null;
   movementTag: string | null;
+  movementTags?: string | null;
   reps: number | null;
   durationSec: number | null;
   addedLoadKg: number;
@@ -123,24 +124,28 @@ function aggregate(rows: readonly StatsSetRow[], { dimension, threshold }: Stats
   const summary = emptyMetrics();
   const items = new Map<string, StatsItem>();
   for (const row of rows) {
-    const [id, name] = itemKey(row, dimension);
-    let item = items.get(id);
-    if (!item) {
-      item = { id, name, metrics: emptyMetrics() };
-      items.set(id, item);
-    }
+    // Count the set once in the total, and once under each associated tag.
     addSet(summary, row, threshold);
-    addSet(item.metrics, row, threshold);
+    for (const [id, name] of itemKeys(row, dimension)) {
+      let item = items.get(id);
+      if (!item) {
+        item = { id, name, metrics: emptyMetrics() };
+        items.set(id, item);
+      }
+      addSet(item.metrics, row, threshold);
+    }
   }
   return { summary, items: [...items.values()].sort(compareItems) };
 }
 
-function itemKey(row: StatsSetRow, dimension: StatsDimension): [string, string] {
-  if (dimension === 'exercise') return [row.exerciseId, row.exerciseName];
-  const value = dimension === 'group'
-    ? ((MOVEMENT_GROUP_IDS as readonly string[]).includes(row.movementGroup ?? '') ? row.movementGroup : null)
-    : canonicalizeMovementTag(row.movementTag);
-  return value ? [value, value] : [OTHER_ID, OTHER_ID];
+function itemKeys(row: StatsSetRow, dimension: StatsDimension): [string, string][] {
+  if (dimension === 'exercise') return [[row.exerciseId, row.exerciseName]];
+  if (dimension === 'tag') {
+    const tags = exerciseMovementTags(row);
+    return tags.length ? tags.map((tag) => [tag, tag]) : [[OTHER_ID, OTHER_ID]];
+  }
+  const value = (MOVEMENT_GROUP_IDS as readonly string[]).includes(row.movementGroup ?? '') ? row.movementGroup : null;
+  return value ? [[value, value]] : [[OTHER_ID, OTHER_ID]];
 }
 
 function addSet(metrics: StatsMetrics, row: StatsSetRow, threshold: number) {

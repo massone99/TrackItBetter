@@ -135,6 +135,7 @@ export default function StatsScreen() {
       </Card>
 
       <Card>
+        {dimension === 'tag' && stats.items.length > 0 ? <Body>{t('exerciseGrouping.statsHint')}</Body> : null}
         {stats.items.length === 0 ? <Body>{strings.empty}</Body> : stats.items.map((item, index) => <View key={item.id} style={[styles.row, index > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: palette.border }]}>
           <View style={styles.rowHead}>
             <Text numberOfLines={1} style={[styles.rowName, { color: palette.text }]}>{itemName(item.id, item.name)}</Text>

@@ -63,6 +63,7 @@ export async function getTrainingStatsRows(): Promise<StatsSetRow[]> {
     metric: exercises.metric,
     movementGroup: exercises.movementGroup,
     movementTag: exercises.movementTag,
+    movementTags: exercises.movementTags,
     reps: trainingSets.reps,
     durationSec: trainingSets.durationSec,
     addedLoadKg: trainingSets.addedLoadKg,

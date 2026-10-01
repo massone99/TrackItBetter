@@ -44,7 +44,7 @@ export default function NewExerciseRoute() {
     resolver: zodResolver(exerciseFormSchema),
     defaultValues: { ...EMPTY_EXERCISE_FORM, name: edit ? EMPTY_EXERCISE_FORM.name : suggestedName?.slice(0, 80) ?? EMPTY_EXERCISE_FORM.name },
   });
-  const [category, extraCategories, movementTag, movementGroup] = useWatch({ control, name: ['category', 'extraCategories', 'movementTag', 'movementGroup'] });
+  const [category, extraCategories, movementTags, movementGroup] = useWatch({ control, name: ['category', 'extraCategories', 'movementTags', 'movementGroup'] });
   const detailErrors = Boolean(errors.equipment || errors.cues || errors.demoUrl);
 
   useEffect(() => {
@@ -151,9 +151,9 @@ export default function NewExerciseRoute() {
       </View>
 
       <ClassificationChoices
-        movementTag={movementTag}
+        movementTags={movementTags ?? []}
         movementGroup={movementGroup}
-        onTagChange={(value) => setValue('movementTag', value)}
+        onTagsChange={(value) => { setValue('movementTags', value); setValue('movementTag', value[0] ?? null); }}
         onGroupChange={(value) => setValue('movementGroup', value)}
       />
 

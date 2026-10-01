@@ -5,6 +5,7 @@ import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
 import type { Exercise } from '../../src/db/schema';
 import { openReferenceVideo, ReferenceLinkSheet } from '../../src/features/exercises/ReferenceLinkSheet';
 import { movementTagLabel } from '../../src/features/exercises/ClassificationChoices';
+import { exerciseMovementTags } from '../../src/features/exercises/movementCatalog';
 import { getExerciseById, setExerciseFavourite } from '../../src/features/exercises/repository';
 import { canTransfer, deleteExerciseWithHistory, getExerciseUsage, hideExercise, metricAfterTransfer, transferExerciseHistory, type ExerciseUsage } from '../../src/features/exercises/lifecycle';
 import { ExercisePicker, type ExerciseChoice } from '../../src/features/exercises/ExercisePicker';
@@ -120,6 +121,7 @@ export default function ExerciseRoute() {
   const equipment = readList(exercise.equipment);
   const muscles = readList(exercise.primaryMuscles);
   const extraCategories = readList(exercise.extraCategories).filter((item) => item !== exercise.category);
+  const movementTags = exerciseMovementTags(exercise);
   const kind = exercise.level ? t('progression.level', { number: exercise.level }) : exercise.isCustom ? t('exercise.custom') : t('exercise.foundation');
   return (
     <Screen>
@@ -139,7 +141,7 @@ export default function ExerciseRoute() {
         <ListRow
           icon="layers-outline"
           title={t('movement.classification')}
-          subtitle={`${t('movement.groupTitle')}: ${exercise.movementGroup ? t(`movement.groups.${exercise.movementGroup}`) : t('movement.none')} · ${t('movement.tagTitle')}: ${exercise.movementTag ? movementTagLabel(exercise.movementTag, t) : t('movement.none')}`}
+          subtitle={`${t('movement.groupTitle')}: ${exercise.movementGroup ? t(`movement.groups.${exercise.movementGroup}`) : t('movement.none')} · ${t('exerciseGrouping.tagsTitle')}: ${movementTags.length ? movementTags.map((tag) => movementTagLabel(tag, t)).join(', ') : t('movement.none')}`}
           onPress={() => router.push({ pathname: '/exercise/new', params: { edit: exercise.id } })}
         />
         {exercise.demoUrl ? (

@@ -20,6 +20,8 @@ export const exercises = sqliteTable(
     extraCategories: text('extra_categories').notNull().default('[]'),
     movementPattern: text('movement_pattern'),
     movementTag: text('movement_tag'),
+    /** JSON list of movement tags; movementTag keeps the first tag for legacy readers. */
+    movementTags: text('movement_tags').notNull().default('[]'),
     movementGroup: text('movement_group'),
     primaryMuscles: text('primary_muscles').notNull().default('[]'),
     secondaryMuscles: text('secondary_muscles').notNull().default('[]'),

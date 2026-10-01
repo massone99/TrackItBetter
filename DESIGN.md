@@ -142,6 +142,10 @@ The active workout exposes Collapse all / Expand all alongside individual exerci
 
 Exercise details and the exercise scope of Statistics include an additional reps-at-load analysis. Keep signed logged loads separate, including zero and assistance. Show the best set and total reps per completed session, the contributing sets, and the change from the previous session at that load. Retain every existing analysis metric and comparison control.
 
+The exercise library and picker share independent, remembered grouping controls for main category, movement group, and movement tag. Selected levels appear in that order; turning all of them off gives an alphabetical list. Tag grouping includes mobility exercises. Exercises without a classification stay visible, and result counts count each exercise once even when it appears under multiple tags.
+
+Exercise classification allows several movement tags, displayed as removable selected chips. Preserve existing single tags when upgrading or restoring older backups. Training totals credit a set to every associated tag while counting it once in the overall total; explain this where tag totals are shown.
+
 ## Elevation & Depth
 
 Use flat, bordered surfaces and tonal controls for ordinary content. Sheets use a dark scrim and native modal transitions. The existing actionable toast uses an offset shadow and native elevation; decorative shadows do not define cards.

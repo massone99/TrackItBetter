@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { normalizeVideoUrl } from '../../shared/utils/url';
 import { EXERCISE_CATEGORIES, type ExerciseCategory } from './categories';
 import type { CreateCustomExerciseInput, ExerciseMetric } from './customRepository';
-import { MOVEMENT_GROUP_IDS, MOVEMENT_TAGS, canonicalizeMovementTag, type MovementGroupId } from './movementCatalog';
+import { MOVEMENT_GROUP_IDS, MOVEMENT_TAGS, exerciseMovementTags, normalizeMovementTags, type MovementGroupId } from './movementCatalog';
 
 export { EXERCISE_CATEGORIES };
 export const EXERCISE_METRICS = ['reps', 'time', 'reps_load', 'time_load', 'distance'] as const satisfies readonly ExerciseMetric[];
@@ -16,6 +16,7 @@ export const exerciseFormSchema = z.object({
   cues: z.string().max(1000, 'customExercise.errors.cuesLength'),
   demoUrl: z.string().refine((value) => normalizeVideoUrl(value) !== undefined, 'logger.referenceInvalid'),
   movementTag: z.string().nullable(),
+  movementTags: z.array(z.string()).optional(),
   movementGroup: z.enum(MOVEMENT_GROUP_IDS as unknown as [MovementGroupId, ...MovementGroupId[]]).nullable(),
 });
 
@@ -34,6 +35,7 @@ export interface StoredExercise {
   cues: string;
   demoUrl: string | null;
   movementTag: string | null;
+  movementTags?: string | null;
   movementGroup: string | null;
 }
 
@@ -60,7 +62,7 @@ const isCategory = (value: string): value is ExerciseCategory => (EXERCISE_CATEG
 export function exerciseToFormValues(exercise: StoredExercise): ExerciseFormValues {
   const extras = [...new Set(readList(exercise.extraCategories).filter(isCategory))];
   const category = isCategory(exercise.category) ? exercise.category : extras[0] ?? 'push';
-  const tag = canonicalizeMovementTag(exercise.movementTag);
+  const tags = exerciseMovementTags(exercise).filter((tag) => (MOVEMENT_TAGS as readonly string[]).includes(tag));
   return {
     name: exercise.name,
     metric: (EXERCISE_METRICS as readonly string[]).includes(exercise.metric) ? exercise.metric as ExerciseMetric : 'reps',
@@ -69,13 +71,15 @@ export function exerciseToFormValues(exercise: StoredExercise): ExerciseFormValu
     equipment: readList(exercise.equipment).join(', '),
     cues: readList(exercise.cues).join('\n'),
     demoUrl: exercise.demoUrl ?? '',
-    movementTag: tag !== null && (MOVEMENT_TAGS as readonly string[]).includes(tag) ? tag : null,
+    movementTag: tags[0] ?? null,
+    movementTags: tags,
     movementGroup: (MOVEMENT_GROUP_IDS as readonly string[]).includes(exercise.movementGroup ?? '') ? exercise.movementGroup as MovementGroupId : null,
   };
 }
 
 /** What the repository saves for the submitted form. */
 export function formValuesToInput(values: ExerciseFormValues): CreateCustomExerciseInput {
+  const tags = normalizeMovementTags(values.movementTags ?? (values.movementTag ? [values.movementTag] : []));
   return {
     name: values.name.trim(),
     metric: values.metric,
@@ -84,7 +88,8 @@ export function formValuesToInput(values: ExerciseFormValues): CreateCustomExerc
     equipment: splitList(values.equipment, true),
     cues: splitList(values.cues),
     demoUrl: normalizeVideoUrl(values.demoUrl) ?? null,
-    movementTag: values.movementTag,
+    movementTag: tags[0] ?? null,
+    movementTags: tags,
     movementGroup: values.movementGroup,
   };
 }
