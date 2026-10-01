@@ -12,7 +12,8 @@ import { deleteUserProgram, duplicateUserProgram, getUserProgram } from '../../.
 import { readDefaultRest } from '../../../src/features/session/restDefaults';
 import { WorkoutInProgressSheet } from '../../../src/features/session/WorkoutInProgressSheet';
 import { getActiveWorkout, listRecentWorkoutNames } from '../../../src/features/session/repository';
-import { ActionButton, Body, Card, EmptyState, IconButton, Label, PageHeading, Screen, SectionTitle, Sheet, Text } from '../../../src/shared/components/ui';
+import { ActionButton, Body, Card, EmptyState, Icon, IconButton, Label, PageHeading, Screen, SectionTitle, Sheet, tapFeedback, Text } from '../../../src/shared/components/ui';
+import { readPreference, writePreference } from '../../../src/shared/settings/preferences';
 import { goBack } from '../../../src/shared/navigation/goBack';
 import { useTheme } from '../../../src/shared/theme/ThemeProvider';
 import { fonts } from '../../../src/shared/theme/typography';
@@ -20,6 +21,17 @@ import { useScaledStyles } from '../../../src/shared/theme/useScaledStyles';
 import { formatMinutes } from '../../../src/shared/utils/format';
 
 type ExerciseInfo = { name: string; metric: string };
+
+/** Workouts the person collapsed in a program, remembered per program. */
+const collapsedKey = (programId: string) => `program.${programId}.collapsed`;
+function readCollapsed(programId: string): Set<string> {
+  try {
+    const stored: unknown = JSON.parse(readPreference(collapsedKey(programId)) ?? '[]');
+    return new Set(Array.isArray(stored) ? stored.filter((item): item is string => typeof item === 'string') : []);
+  } catch {
+    return new Set();
+  }
+}
 
 export default function UserProgramScreen() {
   const styles = useScaledStyles(baseStyles);
@@ -35,6 +47,7 @@ export default function UserProgramScreen() {
   const [active, setActive] = useState<{ id: string; name: string } | null>(null);
   const [blockedBy, setBlockedBy] = useState<{ id: string; name: string } | null>(null);
   const [recentNames, setRecentNames] = useState<string[]>([]);
+  const [collapsed, setCollapsed] = useState<Set<string>>(() => readCollapsed(id));
 
   useFocusEffect(useCallback(() => {
     let mounted = true;
@@ -92,6 +105,18 @@ export default function UserProgramScreen() {
     }
   };
 
+  const saveCollapsed = (next: Set<string>) => {
+    tapFeedback();
+    setCollapsed(next);
+    writePreference(collapsedKey(program.id), JSON.stringify([...next]));
+  };
+  const toggle = (sessionId: string) => {
+    const next = new Set(collapsed);
+    if (!next.delete(sessionId)) next.add(sessionId);
+    saveCollapsed(next);
+  };
+  const allCollapsed = program.sessions.length > 0 && program.sessions.every((session) => collapsed.has(session.id));
+
   const duplicate = async () => {
     const copy = await duplicateUserProgram(program.id, t('userProgram.copyName', { name: program.name }));
     if (copy) router.replace({ pathname: '/program/user/[id]', params: { id: copy.id } });
@@ -114,7 +139,14 @@ export default function UserProgramScreen() {
       {error ? <Text style={[styles.error, { color: palette.warning }]}>{error}</Text> : null}
 
       {program.sessions.length > 0 ? <Body>{t('userProgram.rotationHelp')}</Body> : null}
-      <SectionTitle title={t('userProgram.daysTitle')} />
+      <SectionTitle
+        title={t('userProgram.daysTitle')}
+        action={program.sessions.length > 1 ? (
+          <Pressable accessibilityRole="button" hitSlop={8} onPress={() => saveCollapsed(allCollapsed ? new Set() : new Set(program.sessions.map((session) => session.id)))}>
+            <Text style={[styles.toggleAll, { color: palette.accentStrong }]}>{allCollapsed ? t('userProgram.expandAll') : t('userProgram.collapseAll')}</Text>
+          </Pressable>
+        ) : undefined}
+      />
       {program.sessions.length === 0 ? (
         <EmptyState
           icon="albums-outline"
@@ -125,16 +157,40 @@ export default function UserProgramScreen() {
       ) : null}
       {program.sessions.map((session, index) => (
         <Card key={session.id} style={[styles.session, session.id === nextId && { borderColor: palette.accentStrong }]}>
-          <View style={styles.sessionHead}>
-            <View style={styles.flex}>
-              <Label style={session.id === nextId ? { color: palette.accentStrong } : undefined}>
-                {session.id === nextId ? `${t('userProgram.dayNumber', { number: index + 1 })} · ${t('userProgram.nextLabel')}` : t('userProgram.dayNumber', { number: index + 1 })}
-              </Label>
-              <Text style={styles.sessionName}>{session.name}</Text>
-            </View>
-            <Label>{t('userProgram.daySummary', { count: sessionSetCount(session), minutes: formatMinutes(estimateSessionSeconds(session, metricById, readDefaultRest('working'))) })}</Label>
+          <View style={styles.sessionTop}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityState={{ expanded: !collapsed.has(session.id) }}
+              accessibilityLabel={collapsed.has(session.id) ? t('userProgram.expandDay', { name: session.name }) : t('userProgram.collapseDay', { name: session.name })}
+              onPress={() => toggle(session.id)}
+              style={styles.sessionHead}
+            >
+              <View style={styles.flex}>
+                <Label style={session.id === nextId ? { color: palette.accentStrong } : undefined}>
+                  {session.id === nextId ? `${t('userProgram.dayNumber', { number: index + 1 })} · ${t('userProgram.nextLabel')}` : t('userProgram.dayNumber', { number: index + 1 })}
+                </Label>
+                <Text style={styles.sessionName}>{session.name}</Text>
+              </View>
+              <View style={styles.headMeta}>
+                <Label>{t('userProgram.daySummary', { count: sessionSetCount(session), minutes: formatMinutes(estimateSessionSeconds(session, metricById, readDefaultRest('working'))) })}</Label>
+                <Icon name={collapsed.has(session.id) ? 'chevron-down' : 'chevron-up'} size={20} color={palette.textMuted} />
+              </View>
+            </Pressable>
+            {collapsed.has(session.id) ? (
+              <IconButton
+                icon="play"
+                tone={session.id === nextId ? 'accent' : 'muted'}
+                label={`${t('userProgram.start')} ${session.name}`}
+                disabled={starting !== null}
+                onPress={() => void start(session)}
+              />
+            ) : null}
           </View>
-          {session.exercises.map((prescription) => (
+          {collapsed.has(session.id) ? (
+            <Text numberOfLines={2} style={[styles.target, { color: palette.textMuted }]}>
+              {session.exercises.map((prescription) => info.get(prescription.exerciseId)?.name ?? t('userProgram.exerciseMissing')).join(' · ')}
+            </Text>
+          ) : session.exercises.map((prescription) => (
             <Pressable
               key={prescription.id}
               accessibilityRole="button"
@@ -150,14 +206,18 @@ export default function UserProgramScreen() {
               {prescription.note?.trim() ? <Text style={[styles.target, { color: palette.text }]}>{prescription.note.trim()}</Text> : null}
             </Pressable>
           ))}
-          <ActionButton
-            icon="play"
-            label={starting === session.id ? t('programBuilder.starting') : t('userProgram.start')}
-            secondary={session.id !== nextId}
-            disabled={starting !== null}
-            onPress={() => void start(session)}
-          />
-          <ActionButton icon="time-outline" label={t('userProgram.logPast')} variant="ghost" disabled={starting !== null} onPress={() => void logPast(session)} />
+          {collapsed.has(session.id) ? null : (
+            <>
+              <ActionButton
+                icon="play"
+                label={starting === session.id ? t('programBuilder.starting') : t('userProgram.start')}
+                secondary={session.id !== nextId}
+                disabled={starting !== null}
+                onPress={() => void start(session)}
+              />
+              <ActionButton icon="time-outline" label={t('userProgram.logPast')} variant="ghost" disabled={starting !== null} onPress={() => void logPast(session)} />
+            </>
+          )}
         </Card>
       ))}
 
@@ -181,7 +241,10 @@ const baseStyles = StyleSheet.create({
   actions: { flexDirection: 'row', gap: 8 },
   emptyAction: { alignSelf: 'stretch', marginTop: 6 },
   session: { gap: 12 },
-  sessionHead: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
+  sessionTop: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  sessionHead: { flex: 1, flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
+  headMeta: { alignItems: 'flex-end', gap: 4 },
+  toggleAll: { fontFamily: fonts.semibold, fontSize: 14 },
   sessionName: { fontFamily: fonts.display, fontSize: 22, lineHeight: 26 },
   exerciseRow: { borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 10, gap: 2 },
   exerciseName: { fontFamily: fonts.semibold, fontSize: 15 },

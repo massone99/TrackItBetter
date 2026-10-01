@@ -79,10 +79,14 @@ export default function ProgressScreen() {
         <ListRow icon="bar-chart-outline" title={strings.stats} onPress={() => router.push('/training-stats')} />
       </ListGroup>
       {snapshot ? <>
-        <View style={styles.metrics}>
-          <MetricCard title={strings.week} label={strings.sessions} value={snapshot.weekSessions} palette={palette} />
-          <MetricCard title={strings.week} label={strings.sets} value={snapshot.weekSets} palette={palette} />
-        </View>
+        <Card>
+          <Label>{strings.week}</Label>
+          <View style={styles.metrics}>
+            <WeekMetric label={strings.sessions} value={snapshot.weekSessions} palette={palette} />
+            <View style={[styles.metricDivider, { backgroundColor: palette.border }]} />
+            <WeekMetric label={strings.sets} value={snapshot.weekSets} palette={palette} />
+          </View>
+        </Card>
         {snapshot.weeklyBalance.totalSets > 0 && <Card>
           <SectionTitle title={strings.balance} />
           <BalanceMetric label={strings.pushPull} first={snapshot.weeklyBalance.pushSets} second={snapshot.weeklyBalance.pullSets} palette={palette} />
@@ -93,13 +97,14 @@ export default function ProgressScreen() {
         </Card>}
         <Card>
           <Label>{strings.volume}</Label>
-          <View style={styles.volumeGrid}>
-            <VolumeMetric label={strings.reps} value={`${snapshot.volume.reps}`} palette={palette} />
-            <VolumeMetric label={strings.holds} value={formatDuration(snapshot.volume.holdSeconds)} palette={palette} />
-            <VolumeMetric label={strings.distance} value={`${formatNumber(snapshot.volume.distanceMeters)} m`} palette={palette} />
-            <VolumeMetric label={strings.loadReps} value={`${formatNumber(snapshot.volume.loadRepsKg)} kg·rep`} palette={palette} />
-            <VolumeMetric label={strings.loadTime} value={`${formatNumber(snapshot.volume.loadSecondsKg)} kg·s`} palette={palette} />
-          </View>
+          {snapshot.volume.reps + snapshot.volume.holdSeconds + snapshot.volume.distanceMeters + snapshot.volume.loadRepsKg + snapshot.volume.loadSecondsKg > 0 ? <View style={styles.volumeGrid}>
+            {/* Only what was trained: a calisthenics log has no distance, a runner no loaded reps. */}
+            {snapshot.volume.reps > 0 ? <VolumeMetric label={strings.reps} value={`${snapshot.volume.reps}`} palette={palette} /> : null}
+            {snapshot.volume.holdSeconds > 0 ? <VolumeMetric label={strings.holds} value={formatDuration(snapshot.volume.holdSeconds)} palette={palette} /> : null}
+            {snapshot.volume.distanceMeters > 0 ? <VolumeMetric label={strings.distance} value={`${formatNumber(snapshot.volume.distanceMeters)} m`} palette={palette} /> : null}
+            {snapshot.volume.loadRepsKg > 0 ? <VolumeMetric label={strings.loadReps} value={`${formatNumber(snapshot.volume.loadRepsKg)} kg·rep`} palette={palette} /> : null}
+            {snapshot.volume.loadSecondsKg > 0 ? <VolumeMetric label={strings.loadTime} value={`${formatNumber(snapshot.volume.loadSecondsKg)} kg·s`} palette={palette} /> : null}
+          </View> : null}
           <Body>{snapshot.sessions} {i18n.language.toLowerCase().startsWith('it') ? 'sessioni registrate' : 'sessions logged'} · {snapshot.completedSets} {i18n.language.toLowerCase().startsWith('it') ? 'serie completate' : 'completed sets'}</Body>
         </Card>
         <Card>
@@ -220,13 +225,12 @@ function formatTrendDate(date: Date, locale: string): string {
   return new Intl.DateTimeFormat(locale, { day: 'numeric', month: 'short' }).format(date);
 }
 
-function MetricCard({ title, label, value, palette }: { title: string; label: string; value: number; palette: ReturnType<typeof useTheme>['palette'] }) {
+function WeekMetric({ label, value, palette }: { label: string; value: number; palette: ReturnType<typeof useTheme>['palette'] }) {
   const styles = useScaledStyles(baseStyles);
-  return <Card style={styles.metricCard}>
-    <Label>{title}</Label>
+  return <View style={styles.weekMetric}>
     <Text style={[styles.metricValue, { color: palette.text }]}>{value}</Text>
     <Body>{label}</Body>
-  </Card>;
+  </View>;
 }
 
 function VolumeMetric({ label, value, palette }: { label: string; value: string; palette: ReturnType<typeof useTheme>['palette'] }) {
@@ -280,11 +284,12 @@ function BestRow({ best, label, palette }: { best: PersonalBest; label: string; 
 }
 
 const baseStyles = StyleSheet.create({
-  metrics: { flexDirection: 'row', gap: 12 },
+  metrics: { flexDirection: 'row', gap: 16 },
+  weekMetric: { flex: 1 },
+  metricDivider: { width: StyleSheet.hairlineWidth },
   customize: { flexDirection: 'row', alignItems: 'center', gap: 5, minHeight: 36 },
   customizeText: { fontWeight: '700', fontSize: 14 },
   pendingTrend: { borderTopWidth: StyleSheet.hairlineWidth, paddingVertical: 12, gap: 2 },
-  metricCard: { flex: 1, minHeight: 132, justifyContent: 'space-between' },
   metricValue: { fontSize: 34, fontWeight: '800', letterSpacing: -1 },
   volumeGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   volumeItem: { width: '48%', minHeight: 65, justifyContent: 'center' },

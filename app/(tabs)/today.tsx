@@ -157,10 +157,14 @@ export default function TodayScreen() {
         </View>
       </Card>
 
-      <View style={styles.stats}>
+      {/* One strip with hairline dividers instead of four cramped tiles. */}
+      <View style={[styles.stats, { backgroundColor: palette.surface, borderColor: palette.border }]}>
         <Stat value={data.weekSets} label={t("home.setsWeek")} />
+        <View style={[styles.statDivider, { backgroundColor: palette.border }]} />
         <Stat value={goals?.currentStreak ?? 0} label={t("home.streak")} />
+        <View style={[styles.statDivider, { backgroundColor: palette.border }]} />
         <Stat value={goals?.totalSessions ?? 0} label={t("home.total")} />
+        <View style={[styles.statDivider, { backgroundColor: palette.border }]} />
         <Stat value={data.mobilityMinutes} label={t("mobilityStats.todayTile")} />
       </View>
 
@@ -229,11 +233,10 @@ function Tile({ icon, title, body, onPress }: { icon: IconName; title: string; b
 
 function Stat({ value, label }: { value: number; label: string }) {
   const styles = useScaledStyles(baseStyles);
-  const { palette } = useTheme();
   return (
-    <View style={[styles.stat, { backgroundColor: palette.surface, borderColor: palette.border }]}>
+    <View style={styles.stat}>
       <Numeral style={styles.statValue}>{value}</Numeral>
-      <Label>{label}</Label>
+      <Label numberOfLines={2} style={styles.statLabel}>{label}</Label>
     </View>
   );
 }
@@ -264,9 +267,11 @@ const baseStyles = StyleSheet.create({
   day: { alignItems: "center", gap: 6 },
   dayDot: { width: 36, height: 36, borderRadius: 18, borderWidth: 2, alignItems: "center", justifyContent: "center" },
   dayLabel: { fontFamily: fonts.semibold, fontSize: 12, textTransform: "capitalize" },
-  stats: { flexDirection: "row", gap: 10 },
-  stat: { flex: 1, borderRadius: 18, borderWidth: StyleSheet.hairlineWidth, paddingVertical: 14, paddingHorizontal: 14, gap: 2 },
-  statValue: { fontSize: 36, lineHeight: 40 },
+  stats: { flexDirection: "row", alignItems: "stretch", borderRadius: 20, borderWidth: StyleSheet.hairlineWidth, paddingVertical: 14 },
+  stat: { flex: 1, paddingHorizontal: 10, gap: 2, alignItems: "center" },
+  statLabel: { textAlign: "center" },
+  statDivider: { width: StyleSheet.hairlineWidth, marginVertical: 4 },
+  statValue: { fontSize: 32, lineHeight: 36 },
   link: { fontFamily: fonts.semibold, fontSize: 14 },
   bestValue: { fontFamily: fonts.display, fontSize: 22 },
 });

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, TextInput, View } from 'react-native';
 import { sessionSetCount, type UserProgram, type WorkoutExerciseLike } from '../../domain/userProgram';
 import { ActionButton, Body, Icon, Sheet, Text, TextField, tapFeedback } from '../../shared/components/ui';
 import { useTheme } from '../../shared/theme/ThemeProvider';
@@ -29,6 +29,7 @@ export function SaveToProgramSheet({ visible, defaultName, exercises, onClose, o
   const [choice, setChoice] = useState<Choice>('new');
   const [workoutName, setWorkoutName] = useState(defaultName);
   const [programName, setProgramName] = useState('');
+  const [query, setQuery] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -37,6 +38,7 @@ export function SaveToProgramSheet({ visible, defaultName, exercises, onClose, o
     let mounted = true;
     void listUserPrograms().then((found) => {
       if (!mounted) return;
+      setQuery('');
       setPrograms(found);
       // The program edited last is the most likely destination.
       const latest = [...found].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0];
@@ -45,6 +47,9 @@ export function SaveToProgramSheet({ visible, defaultName, exercises, onClose, o
     return () => { mounted = false; };
   }, [visible]);
 
+  const needle = query.trim().toLocaleLowerCase();
+  // The chosen program stays visible while searching, so the selection never disappears.
+  const shown = needle ? programs.filter((program) => program.id === choice || program.name.toLocaleLowerCase().includes(needle)) : programs;
   const empty = exercises.length === 0;
   const sets = exercises.reduce((sum, exercise) => sum + Math.max(1, exercise.sets.filter((set) => set.kind !== 'warmup').length || exercise.sets.length), 0);
   const valid = !empty && workoutName.trim().length > 0 && (choice !== 'new' || programName.trim().length > 0);
@@ -75,7 +80,30 @@ export function SaveToProgramSheet({ visible, defaultName, exercises, onClose, o
       {choice === 'new' ? (
         <TextField label={t('saveToProgram.programName')} value={programName} onChangeText={setProgramName} placeholder={t('programBuilder.namePlaceholder')} maxLength={60} />
       ) : null}
-      {programs.map((program) => (
+      {programs.length > 3 ? (
+        <View style={[styles.searchBox, { backgroundColor: palette.surface, borderColor: palette.border }]}>
+          <Icon name="search" size={18} color={palette.textMuted} />
+          <TextInput
+            accessibilityLabel={t('saveToProgram.search')}
+            placeholder={t('saveToProgram.search')}
+            placeholderTextColor={palette.textMuted}
+            value={query}
+            onChangeText={setQuery}
+            autoCorrect={false}
+            returnKeyType="search"
+            style={[styles.searchInput, { color: palette.text }]}
+          />
+          {query ? (
+            <Pressable accessibilityRole="button" accessibilityLabel={t('common.clear')} hitSlop={8} onPress={() => setQuery('')}>
+              <Icon name="close-circle" size={18} color={palette.textMuted} />
+            </Pressable>
+          ) : null}
+        </View>
+      ) : null}
+      {needle && !programs.some((program) => program.name.toLocaleLowerCase().includes(needle)) ? (
+        <Text style={[styles.optionBody, { color: palette.textMuted }]}>{t('saveToProgram.noMatch', { query: query.trim() })}</Text>
+      ) : null}
+      {shown.map((program) => (
         <Option
           key={program.id}
           icon="albums-outline"
@@ -117,6 +145,8 @@ function Option({ icon, title, body, selected, onPress }: { icon: 'add-circle' |
 }
 
 const baseStyles = StyleSheet.create({
+  searchBox: { flexDirection: 'row', alignItems: 'center', gap: 8, borderWidth: 1, borderRadius: 14, paddingHorizontal: 12, minHeight: 46 },
+  searchInput: { flex: 1, fontFamily: fonts.body, fontSize: 16, paddingVertical: 10 },
   heading: { fontFamily: fonts.medium, fontSize: 13, marginTop: 4 },
   option: { flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 18, paddingHorizontal: 14, paddingVertical: 12, minHeight: 64 },
   optionIcon: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
