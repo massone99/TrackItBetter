@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { Pressable, StyleSheet, TextInput, View } from 'react-native';
 import { ExercisePicker, type ExerciseChoice } from '../../../src/features/exercises/ExercisePicker';
 import { openExercisePage } from '../../../src/features/exercises/openExercise';
+import { describeSets } from '../../../src/features/exercises/describeSets';
 import {
   addExerciseToCompletedWorkout,
   addSetToCompletedWorkout,
@@ -58,6 +59,8 @@ export default function PastWorkoutScreen() {
   const [detailsOpen, setDetailsOpen] = useState(openDetails === '1');
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
+  // Exercises folded to a one-line summary, to skim a long workout.
+  const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(new Set());
   const [saveOpen, setSaveOpen] = useState(false);
   const [saved, setSaved] = useState<{ id: string; name: string } | null>(null);
   // The last removal, offered for a few seconds as "Restore".
@@ -157,6 +160,20 @@ export default function PastWorkoutScreen() {
       <Body>{t('history.editHelp')}</Body>
       {error ? <Text accessibilityLiveRegion="polite" style={[styles.error, { color: palette.warning }]}>{error}</Text> : null}
 
+      {workout.exercises.length > 1 ? (
+        <Pressable
+          accessibilityRole="button"
+          hitSlop={8}
+          onPress={() => {
+            tapFeedback();
+            setCollapsed(collapsed.size === workout.exercises.length ? new Set() : new Set(workout.exercises.map((item) => item.entryId)));
+          }}
+          style={styles.foldAll}
+        >
+          <Text style={[styles.foldAllText, { color: palette.accentStrong }]}>{collapsed.size === workout.exercises.length ? t('common.expandAll') : t('common.collapseAll')}</Text>
+        </Pressable>
+      ) : null}
+
       <ReorderableList
         items={workout.exercises}
         keyOf={(item) => item.entryId}
@@ -169,6 +186,7 @@ export default function PastWorkoutScreen() {
         const loaded = exercise.metric === 'reps_load' || exercise.metric === 'time_load';
         const metricField = timed ? 'durationSec' : distance ? 'distanceM' : 'reps';
         const step = distance ? 0.1 : timed ? 5 : 1;
+        const folded = collapsed.has(exercise.entryId);
         const unit = timed ? t('history.units.seconds') : distance ? t('history.units.meters') : t('history.units.reps');
         return (
           <Card key={exercise.entryId} style={styles.exerciseCard}>
@@ -178,18 +196,24 @@ export default function PastWorkoutScreen() {
                 accessibilityRole="button"
                 accessibilityLabel={exercise.name}
                 accessibilityHint={t('logger.openExerciseHint')}
+                accessibilityState={{ expanded: !folded }}
+                onPress={() => { tapFeedback(); setCollapsed((current) => { const next = new Set(current); if (!next.delete(exercise.entryId)) next.add(exercise.entryId); return next; }); }}
                 onLongPress={() => openExercisePage(exercise.exerciseId)}
                 accessibilityActions={[{ name: 'longpress', label: t('logger.openExercise') }]}
                 onAccessibilityAction={(event) => { if (event.nativeEvent.actionName === 'longpress') openExercisePage(exercise.exerciseId); }}
                 style={styles.flex}
               >
                 <Label>{t(`metric.${exercise.metric}`)}</Label>
-                <Heading>{exercise.name}</Heading>
+                <View style={styles.nameRow}>
+                  <Heading style={styles.flex}>{exercise.name}</Heading>
+                  <Icon name={folded ? 'chevron-down' : 'chevron-up'} size={18} color={palette.textMuted} />
+                </View>
+                {folded ? <Text numberOfLines={2} style={[styles.exerciseNote, { color: palette.text }]}>{describeSets(exercise.sets.filter((set) => set.completedAt), exercise.metric) || t('logger.setsProgress', { done: 0, total: exercise.sets.length })}</Text> : null}
                 {exercise.notes ? <Text numberOfLines={3} style={[styles.exerciseNote, { color: palette.textMuted }]}>{exercise.notes}</Text> : null}
               </Pressable>
               <IconButton icon="ellipsis-horizontal" tone="plain" label={t('logger.options')} onPress={() => setExerciseFor(exercise)} />
             </View>
-            {exercise.sets.map((set) => {
+            {(folded ? [] : exercise.sets).map((set) => {
               const value = timed ? set.durationSec ?? 0 : distance ? set.distanceM ?? 0 : set.reps ?? 0;
               const done = Boolean(set.completedAt);
               return (
@@ -236,14 +260,14 @@ export default function PastWorkoutScreen() {
                 </View>
               );
             })}
-            <Pressable
+            {folded ? null : <Pressable
               accessibilityRole="button"
               onPress={() => { tapFeedback(); void edit(() => addSetToCompletedWorkout(id, exercise.entryId)); }}
               style={({ pressed }) => [styles.addSet, { borderColor: palette.border, opacity: pressed ? 0.6 : 1 }]}
             >
               <Icon name="add" size={18} color={palette.accentStrong} />
               <Text style={[styles.addSetText, { color: palette.accentStrong }]}>{t('logger.addSet')}</Text>
-            </Pressable>
+            </Pressable>}
           </Card>
         );
         }}
@@ -497,6 +521,9 @@ const baseStyles = StyleSheet.create({
   flex: { flex: 1 },
   error: { fontFamily: fonts.medium, fontSize: 14 },
   exerciseCard: { gap: 4 },
+  foldAll: { alignSelf: 'flex-end', minHeight: 32, justifyContent: 'center' },
+  foldAllText: { fontFamily: fonts.semibold, fontSize: 14 },
+  nameRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   exerciseHeader: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, marginBottom: 4 },
   setBlock: { borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 8, paddingBottom: 4 },
   row: { minHeight: 50, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 6 },
