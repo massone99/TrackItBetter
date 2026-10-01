@@ -7,6 +7,7 @@ import { Chip, EmptyState, Icon, Label, ListGroup, ListRow, SectionTitle } from 
 import { iconForCategory } from '../../shared/components/categoryIcons';
 import { useTheme } from '../../shared/theme/ThemeProvider';
 import { useScaledStyles } from '../../shared/theme/useScaledStyles';
+import { fonts } from '../../shared/theme/typography';
 import { EXERCISE_CATEGORIES } from './categories';
 import { listExercises, setExerciseFavourite } from './repository';
 import { MOVEMENT_GROUPS, MOVEMENT_GROUP_IDS } from './movementCatalog';
@@ -107,10 +108,10 @@ export function LibraryView() {
 }
 
 const baseStyles = StyleSheet.create({
-  searchBox: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14, borderWidth: 1, borderRadius: 14, minHeight: 50 },
-  search: { flex: 1, minHeight: 48, fontSize: 16, outlineWidth: 0 },
+  searchBox: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, borderWidth: 1, borderRadius: 12, minHeight: 56 },
+  search: { flex: 1, minHeight: 48, fontFamily: fonts.body, fontSize: 16, outlineWidth: 0 },
   chipRow: { marginHorizontal: -20 },
   categories: { gap: 8, paddingHorizontal: 20 },
-  star: { width: 36, height: 44, alignItems: 'center', justifyContent: 'center' },
-  group: { gap: 8 },
+  star: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center' },
+  group: { gap: 12 },
 });

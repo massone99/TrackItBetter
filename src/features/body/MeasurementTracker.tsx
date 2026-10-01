@@ -1,7 +1,7 @@
 import { useFocusEffect } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import { Text } from '../../shared/components/Text';
 import {
   listMobilityTests,
@@ -15,7 +15,7 @@ import {
   recordMobilityTest,
   recordNamedMeasurement,
 } from './measurementsRepository';
-import { ActionButton, Body, Card, Heading, Label, PageHeading, Screen, SegmentedControl } from '../../shared/components/ui';
+import { ActionButton, Body, Card, Chip, Heading, Label, PageHeading, Screen, SectionTitle, SegmentedControl, TextField } from '../../shared/components/ui';
 import { useTheme } from '../../shared/theme/ThemeProvider';
 import { useScaledStyles } from '../../shared/theme/useScaledStyles';
 
@@ -110,7 +110,7 @@ export function MeasurementTracker({ mode }: { mode: TrackerMode }) {
         <View style={styles.options}>
           {(mode === 'measurements' ? namedMeasurementOptions : mobilityTestOptions).map(({ id }) => {
             const selected = mode === 'measurements' ? measurement === id : test === id;
-            return <Pressable key={id} accessibilityRole="button" accessibilityState={{ selected }} onPress={() => mode === 'measurements' ? setMeasurement(id as NamedMeasurementId) : setTest(id as MobilityTestId)} style={[styles.chip, { backgroundColor: selected ? palette.accent : palette.surfaceMuted }]}><Text style={{ color: selected ? palette.accentText : palette.text, fontWeight: '700' }}>{text[id as keyof typeof text]}</Text></Pressable>;
+            return <Chip key={id} label={text[id as keyof typeof text]} selected={selected} onPress={() => mode === 'measurements' ? setMeasurement(id as NamedMeasurementId) : setTest(id as MobilityTestId)} />;
           })}
         </View>
         {mode === 'measurements' ? (
@@ -121,22 +121,19 @@ export function MeasurementTracker({ mode }: { mode: TrackerMode }) {
             {selectedMobility.sideAware ? <SegmentedControl value={side} onChange={setSide} options={sides.map((item) => ({ value: item, label: text[item] }))} /> : null}
           </>
         )}
-        <Label>{text.value} · {mode === 'measurements' ? (unit === 'cm' ? text.cm : text.inch) : selectedMobility.unit === 'deg' ? text.degree : text.cm}</Label>
-        <TextInput
-          accessibilityLabel={text.value}
+        <TextField
+          label={`${text.value} · ${mode === 'measurements' ? (unit === 'cm' ? text.cm : text.inch) : selectedMobility.unit === 'deg' ? text.degree : text.cm}`}
           value={value}
           onChangeText={setValue}
           keyboardType="numbers-and-punctuation"
           placeholder={mode === 'mobility' && (test === 'pike' || test === 'splits') ? '0' : '0.0'}
-          placeholderTextColor={palette.textMuted}
-          style={[styles.input, { color: palette.text, borderColor: palette.border, backgroundColor: palette.surfaceMuted }]}
+          error={error ? text.validation : null}
         />
-        {error ? <Body style={{ color: palette.warning }}>{text.validation}</Body> : null}
         <ActionButton label={text.save} onPress={() => void save()} />
       </Card>
-      <Label>{text.history}</Label>
+      <SectionTitle title={text.history} />
       {rows.length === 0 ? <Body>{text.empty}</Body> : entriesByKind.map(([kind, entries]) => (
-        <View key={kind}>
+        <View key={kind} style={styles.historyGroup}>
           <Heading>{titleForKind(kind)}</Heading>
           <TrendChart entries={entries.slice(0, 8)} label={text.trend} palette={palette} />
           {entries.slice(0, 5).map((entry) => (
@@ -189,14 +186,13 @@ function TrendChart({
 
 const baseStyles = StyleSheet.create({
   options: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  chip: { paddingVertical: 9, paddingHorizontal: 12, borderRadius: 14 },
-  input: { minHeight: 54, paddingHorizontal: 15, borderWidth: 1, borderRadius: 14, fontSize: 20, fontWeight: '700' },
-  historyRow: { minHeight: 48, borderBottomWidth: StyleSheet.hairlineWidth, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  historyGroup: { gap: 8 },
+  historyRow: { minHeight: 56, borderBottomWidth: StyleSheet.hairlineWidth, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 8, paddingVertical: 10 },
   chart: { borderRadius: 14, padding: 12, marginTop: 8, marginBottom: 8, gap: 10 },
-  chartLabel: { fontSize: 11, fontWeight: '800', letterSpacing: 1 },
+  chartLabel: { fontSize: 13, fontWeight: '600' },
   chartBars: { height: 76, flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-around', gap: 6 },
   chartColumn: { flex: 1, alignItems: 'center', justifyContent: 'flex-end', gap: 5 },
   chartBarTrack: { width: '65%', height: 58, borderRadius: 5, justifyContent: 'flex-end', overflow: 'hidden' },
   chartBar: { width: '100%', borderRadius: 5 },
-  chartDate: { fontSize: 9 },
+  chartDate: { fontSize: 11 },
 });

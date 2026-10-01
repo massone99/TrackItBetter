@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ActionButton, SegmentedControl, Stepper } from '../../shared/components/ui';
+import { ActionButton, SegmentedControl } from '../../shared/components/ui';
+import { DurationField } from '../../shared/components/DateTimePickers';
 import { formatClock } from '../../shared/utils/format';
 import { linkWithNext, setSupersetRest, unlinkEntry, type SessionExercise } from './repository';
 import { parseSupersetType, type SupersetRest } from './superset';
@@ -22,7 +23,7 @@ export function SupersetFields({ exercise, hasNext, onChanged }: { exercise: Ses
         options={[{ value: 'round', label: t('superset.restRound') }, { value: 'between', label: t('superset.restBetween') }]}
       />
       {rest.mode === 'between' ? (
-        <Stepper layout="row" label={t('superset.betweenLabel')} value={rest.betweenSec} display={formatClock(rest.betweenSec)} step={5} min={5} max={180} onChange={(betweenSec) => save({ mode: 'between', betweenSec })} />
+        <DurationField label={t('superset.betweenLabel')} value={rest.betweenSec} format={formatClock} step={5} min={5} max={180} presets={[15, 30, 60, 90]} onChange={(betweenSec) => save({ mode: 'between', betweenSec })} />
       ) : null}
     </> : null}
     {hasNext ? <ActionButton icon="link" label={t(groupId ? 'superset.addNext' : 'superset.link')} secondary onPress={() => void linkWithNext(exercise.entryId).then(onChanged)} /> : null}

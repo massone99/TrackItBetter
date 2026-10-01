@@ -5,13 +5,14 @@ import { ActivityIndicator, Platform, Pressable, StyleSheet, View } from 'react-
 import { Text } from '../../src/shared/components/Text';
 import { captureRef } from 'react-native-view-shot';
 import * as Sharing from 'expo-sharing';
-import { Body, Card, Heading, Icon, Label, ListGroup, ListRow, PageHeading, Screen, SectionTitle } from '../../src/shared/components/ui';
+import { Body, Card, Heading, Icon, Label, ListGroup, ListRow, Metric, PageHeading, Screen, SectionTitle } from '../../src/shared/components/ui';
 import { getProgressSnapshot } from '../../src/features/analytics/repository';
 import { readTrendChoice, selectTrends, writeTrendChoice, type TrendChoice } from '../../src/features/analytics/trendChoice';
 import { TrendSettings } from '../../src/features/analytics/TrendSettings';
 import { listExercises } from '../../src/features/exercises/repository';
 import type { ExerciseTrend, PersonalBest, ProgressSnapshot, TrendKind } from '../../src/features/analytics/summary';
 import { useTheme } from '../../src/shared/theme/ThemeProvider';
+import { fonts } from '../../src/shared/theme/typography';
 import { formatBestValue, formatDuration, formatNumber } from '../../src/shared/utils/format';
 import { useScaledStyles } from '../../src/shared/theme/useScaledStyles';
 
@@ -74,19 +75,19 @@ export default function ProgressScreen() {
   return (
     <Screen>
       <PageHeading title={t('progress.title')} subtitle={t('progress.subtitle')} />
+      {snapshot ? <Card>
+        <SectionTitle title={strings.week} />
+        <View style={styles.metrics}>
+          <Metric label={strings.sessions} value={snapshot.weekSessions} />
+          <View style={[styles.metricDivider, { backgroundColor: palette.border }]} />
+          <Metric label={strings.sets} value={snapshot.weekSets} />
+        </View>
+      </Card> : null}
       <ListGroup>
         <ListRow icon="stats-chart-outline" title={t('stats.open')} subtitle={t('stats.openBody')} onPress={() => router.push('/stats')} />
         <ListRow icon="bar-chart-outline" title={strings.stats} onPress={() => router.push('/training-stats')} />
       </ListGroup>
       {snapshot ? <>
-        <Card>
-          <Label>{strings.week}</Label>
-          <View style={styles.metrics}>
-            <WeekMetric label={strings.sessions} value={snapshot.weekSessions} palette={palette} />
-            <View style={[styles.metricDivider, { backgroundColor: palette.border }]} />
-            <WeekMetric label={strings.sets} value={snapshot.weekSets} palette={palette} />
-          </View>
-        </Card>
         {snapshot.weeklyBalance.totalSets > 0 && <Card>
           <SectionTitle title={strings.balance} />
           <BalanceMetric label={strings.pushPull} first={snapshot.weeklyBalance.pushSets} second={snapshot.weeklyBalance.pullSets} palette={palette} />
@@ -169,7 +170,7 @@ function TrendCard({ trend, label, palette, locale }: { trend: ExerciseTrend; la
       </View>
       <View style={styles.trendLatest}>
         <Text style={[styles.bestValue, { color: palette.accentStrong }]}>{formatNumber(latest)}{trendUnit(trend.kind)}</Text>
-        <Text style={[styles.trendDelta, { color: delta >= 0 ? palette.accentStrong : palette.textMuted }]}>{deltaText}</Text>
+        <Text style={[styles.trendDelta, { color: delta > 0 ? palette.success : palette.textMuted }]}>{deltaText}</Text>
       </View>
     </View>
     {latestEstimate != null ? <Text style={[styles.trendEstimate, { color: palette.record }]}>{t('estimate.trendLine', { value: `${formatNumber(Math.round(latestEstimate))}${trendUnit(trend.kind)}` })}</Text> : null}
@@ -184,6 +185,7 @@ function TrendCard({ trend, label, palette, locale }: { trend: ExerciseTrend; la
 /** One line for the logged values and, when there is one, a lighter line for the RPE estimate on the same scale. */
 function TrendLine({ values, estimate, color, estimateColor, muted }: { values: number[]; estimate?: (number | null)[]; color: string; estimateColor: string; muted: string }) {
   const styles = useScaledStyles(baseStyles);
+  const { palette } = useTheme();
   const [width, setWidth] = useState(280);
   const height = 58;
   const inset = 5;
@@ -210,7 +212,7 @@ function TrendLine({ values, estimate, color, estimateColor, muted }: { values: 
     {segments(estimatePoints, estimateColor, 'estimate', true)}
     {estimatePoints.map((point, index) => <View key={`estimate-point-${index}`} style={[styles.chartEstimatePoint, { left: point.x - 3, top: point.y - 3, backgroundColor: estimateColor }]} />)}
     {segments(points, color, 'line')}
-    {points.map((point, index) => <View key={`point-${index}`} style={[styles.chartPoint, { left: point.x - 4, top: point.y - 4, borderColor: color, backgroundColor: 'white' }]} />)}
+    {points.map((point, index) => <View key={`point-${index}`} style={[styles.chartPoint, { left: point.x - 4, top: point.y - 4, borderColor: color, backgroundColor: palette.surface }]} />)}
   </View>;
 }
 
@@ -223,14 +225,6 @@ function trendUnit(kind: TrendKind): string {
 
 function formatTrendDate(date: Date, locale: string): string {
   return new Intl.DateTimeFormat(locale, { day: 'numeric', month: 'short' }).format(date);
-}
-
-function WeekMetric({ label, value, palette }: { label: string; value: number; palette: ReturnType<typeof useTheme>['palette'] }) {
-  const styles = useScaledStyles(baseStyles);
-  return <View style={styles.weekMetric}>
-    <Text style={[styles.metricValue, { color: palette.text }]}>{value}</Text>
-    <Body>{label}</Body>
-  </View>;
 }
 
 function VolumeMetric({ label, value, palette }: { label: string; value: string; palette: ReturnType<typeof useTheme>['palette'] }) {
@@ -285,16 +279,14 @@ function BestRow({ best, label, palette }: { best: PersonalBest; label: string; 
 
 const baseStyles = StyleSheet.create({
   metrics: { flexDirection: 'row', gap: 16 },
-  weekMetric: { flex: 1 },
   metricDivider: { width: StyleSheet.hairlineWidth },
-  customize: { flexDirection: 'row', alignItems: 'center', gap: 5, minHeight: 36 },
+  customize: { flexDirection: 'row', alignItems: 'center', gap: 5, minHeight: 48 },
   customizeText: { fontWeight: '700', fontSize: 14 },
   pendingTrend: { borderTopWidth: StyleSheet.hairlineWidth, paddingVertical: 12, gap: 2 },
-  metricValue: { fontSize: 34, fontWeight: '800', letterSpacing: -1 },
   volumeGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  volumeItem: { width: '48%', minHeight: 65, justifyContent: 'center' },
-  volumeValue: { fontSize: 18, fontWeight: '800' },
-  volumeLabel: { fontSize: 12 },
+  volumeItem: { width: '48%', minHeight: 76, justifyContent: 'center', gap: 4 },
+  volumeValue: { fontFamily: fonts.display, fontSize: 26, lineHeight: 32, fontVariant: ['tabular-nums'] },
+  volumeLabel: { fontSize: 14, lineHeight: 20 },
   balanceRow: { minHeight: 48, borderTopWidth: StyleSheet.hairlineWidth, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
   balanceLabel: { flex: 1, fontSize: 13 },
   balanceValue: { minWidth: 54, textAlign: 'right', fontSize: 15, fontWeight: '800' },
@@ -304,7 +296,7 @@ const baseStyles = StyleSheet.create({
   bestShareCard: { padding: 14, borderRadius: 15, gap: 4 },
   bestBrand: { fontSize: 11, fontWeight: '900', letterSpacing: 1 },
   shareControl: { gap: 4 },
-  shareBestButton: { minHeight: 38, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  shareBestButton: { minHeight: 48, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   trendCard: { borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 12, paddingBottom: 8, gap: 8 },
   trendHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
   trendLatest: { alignItems: 'flex-end' },
@@ -320,7 +312,7 @@ const baseStyles = StyleSheet.create({
   trendDate: { fontSize: 12 },
   bestText: { flex: 1, gap: 3 },
   exerciseName: { fontSize: 15, fontWeight: '700' },
-  bestValue: { fontSize: 16, fontWeight: '800' },
+  bestValue: { fontFamily: fonts.display, fontSize: 24, lineHeight: 30, fontVariant: ['tabular-nums'] },
   empty: { gap: 6, paddingVertical: 10 },
   loadingCard: { minHeight: 170, alignItems: 'center', justifyContent: 'center' },
   retry: { fontWeight: '700', padding: 8 },

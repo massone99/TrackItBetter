@@ -1,0 +1,81 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-01T12:17:18Z",
+  "title": "Design System: TrackItBetter",
+  "extensions": {
+    "colorMeta": {
+      "accent": { "role": "primary", "displayName": "Gym-mat blue" },
+      "background": { "role": "neutral", "displayName": "Chalk" },
+      "text": { "role": "neutral", "displayName": "Steel" },
+      "record": { "role": "secondary", "displayName": "Birch record highlight" }
+    },
+    "typographyMeta": {
+      "title": { "displayName": "Page title", "purpose": "Native screen context." },
+      "metric": { "displayName": "Measurement", "purpose": "Real counts and measurements with tabular figures." }
+    },
+    "breakpoints": [
+      { "name": "content-column", "value": "640px" },
+      { "name": "navigation-rail", "value": "768px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Browser specimen of the native primary action at default interface scale.",
+      "html": "<button class=\"ds-primary\">Start workout</button>",
+      "css": ".ds-primary{background:#2F45C8;color:#FFFFFF;border:0;border-radius:12px;padding:13px 18px;min-height:54px;font-family:Barlow,sans-serif;font-size:16px;font-weight:600;line-height:22px;cursor:pointer}.ds-primary:hover{opacity:.9}.ds-primary:active{opacity:.8;transform:scale(.985)}.ds-primary:focus-visible{outline:2px solid #2F45C8;outline-offset:3px}"
+    },
+    {
+      "name": "Secondary Button",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "Tonal supporting action.",
+      "html": "<button class=\"ds-secondary\">Add exercise</button>",
+      "css": ".ds-secondary{background:#E8EDF0;color:#19262E;border:0;border-radius:12px;padding:13px 18px;min-height:54px;font-family:Barlow,sans-serif;font-size:16px;font-weight:600;line-height:22px;cursor:pointer}.ds-secondary:hover{opacity:.9}.ds-secondary:active{opacity:.8;transform:scale(.985)}.ds-secondary:focus-visible{outline:2px solid #2F45C8;outline-offset:3px}"
+    },
+    {
+      "name": "Labeled Input",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "Persistent label and visible focus treatment.",
+      "html": "<label class=\"ds-field\">Workout name<input class=\"ds-input\" value=\"Bodyweight session\" /></label>",
+      "css": ".ds-field{display:grid;gap:6px;color:#536571;font-family:Barlow,sans-serif;font-size:13px;font-weight:500;line-height:19px}.ds-input{background:#FFFFFF;color:#19262E;border:1.5px solid #D6DFE5;border-radius:12px;padding:12px 16px;min-height:52px;font:16px Barlow,sans-serif;box-sizing:border-box}.ds-input:hover{border-color:#536571}.ds-input:focus-visible{outline:none;border-color:#2F45C8}"
+    },
+    {
+      "name": "Selected Chip",
+      "kind": "chip",
+      "refersTo": "chip-selected",
+      "description": "Tonal selection with a defined border and accessible pressed state.",
+      "html": "<button class=\"ds-chip\" aria-pressed=\"true\">Bodyweight</button>",
+      "css": ".ds-chip{background:#DFE3F8;color:#2F45C8;border:1px solid #2F45C8;border-radius:12px;padding:10px 14px;min-height:48px;font:600 14px/20px Barlow,sans-serif;cursor:pointer}.ds-chip:hover{opacity:.9}.ds-chip:active{opacity:.75}.ds-chip:focus-visible{outline:2px solid #2F45C8;outline-offset:3px}"
+    },
+    {
+      "name": "Card",
+      "kind": "card",
+      "refersTo": "card",
+      "description": "Ordinary bordered content surface; the specimen contains illustrative labels only.",
+      "html": "<section class=\"ds-card\"><h3>Training volume</h3><p>Your logged repetitions, holds, and load.</p></section>",
+      "css": ".ds-card{background:#FFFFFF;color:#19262E;border:1px solid #D6DFE5;border-radius:16px;padding:16px;font-family:Barlow,sans-serif}.ds-card h3{margin:0 0 12px;font-size:18px;font-weight:600;line-height:25px}.ds-card p{margin:0;color:#536571;font-size:15px;line-height:22px}"
+    },
+    {
+      "name": "Tab Selection",
+      "kind": "nav",
+      "description": "Selected destination specimen; the app uses Ionicons and retains all five destinations.",
+      "html": "<nav class=\"ds-nav\"><button aria-current=\"page\" class=\"ds-tab\"><span class=\"ds-indicator\">Today</span></button><button class=\"ds-tab\">Progress</button></nav>",
+      "css": ".ds-nav{display:flex;gap:12px;background:#FFFFFF;border-top:1px solid #D6DFE5;padding:8px;font-family:Barlow,sans-serif}.ds-tab{border:0;background:transparent;color:#536571;min-height:48px;padding:8px;font:600 12px/16px Barlow,sans-serif;cursor:pointer}.ds-indicator{display:block;border-radius:999px;background:#DFE3F8;color:#2F45C8;padding:6px 14px}.ds-tab:hover{opacity:.8}.ds-tab:active{opacity:.7}.ds-tab:focus-visible{outline:2px solid #2F45C8;outline-offset:2px}"
+    }
+  ],
+  "narrative": {
+    "northStar": "Chalk, steel, birch",
+    "overview": "Clear tasks, readable measurements, and recoverable actions for one-handed training. Preserve the established brand, real training information, English and Italian copy, and local data model.",
+    "keyCharacteristics": ["Readable measurements", "Consistent native controls", "Measured progress", "Recoverable actions"],
+    "rules": [
+      { "name": "Semantic feedback", "body": "Blue identifies actions; green identifies completion; warm brown identifies personal records.", "section": "colors" },
+      { "name": "Preserve information", "body": "Reorganize controls and hierarchy while keeping data, routes, translated copy, units, and actions.", "section": "components" }
+    ],
+    "dos": ["Use the shared native components and theme roles.", "Keep progress grounded in actual logged activity."],
+    "donts": ["Do not fabricate achievements or training data.", "Do not treat browser specimens as native screenshot evidence."]
+  }
+}

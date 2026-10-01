@@ -272,8 +272,8 @@ function SourceButton({ icon, label, onPress }: { icon: 'camera-outline' | 'imag
 const baseStyles = StyleSheet.create({
   editRow: { gap: 8 },
   sources: { flexDirection: 'row', gap: 10 },
-  source: { flex: 1, alignItems: 'center', gap: 8, paddingVertical: 14, paddingHorizontal: 6, borderRadius: 18, borderWidth: StyleSheet.hairlineWidth },
-  sourceLabel: { fontFamily: fonts.medium, fontSize: 13, textAlign: 'center' },
+  source: { flex: 1, alignItems: 'center', gap: 10, paddingVertical: 16, paddingHorizontal: 6, borderRadius: 16, borderWidth: 1 },
+  sourceLabel: { fontFamily: fonts.semibold, fontSize: 14, lineHeight: 20, textAlign: 'center' },
   iconCircle: { width: 44, height: 44, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
   frames: { gap: 10 },
   frameStrip: { gap: 8 },
@@ -283,9 +283,9 @@ const baseStyles = StyleSheet.create({
   error: { fontFamily: fonts.medium, fontSize: 14, textAlign: 'center' },
   center: { textAlign: 'center' },
   result: { gap: 10 },
-  resultRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  resultRow: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: 12 },
   warning: { fontFamily: fonts.medium, fontSize: 14 },
   joints: { gap: 4 },
-  jointRow: { flexDirection: 'row', justifyContent: 'space-between' },
+  jointRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 12, minHeight: 32 },
   jointStrong: { fontFamily: fonts.display, fontSize: 17 },
 });

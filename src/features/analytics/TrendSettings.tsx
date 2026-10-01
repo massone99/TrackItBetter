@@ -78,7 +78,7 @@ export function TrendSettings({ visible, choice, onChange, onClose }: { visible:
 }
 
 const baseStyles = StyleSheet.create({
-  list: { borderRadius: 18, borderWidth: StyleSheet.hairlineWidth, overflow: 'hidden' },
+  list: { borderRadius: 16, borderWidth: 1, overflow: 'hidden' },
   empty: { padding: 16 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingLeft: 14, paddingRight: 4, minHeight: 52 },
   position: { width: 22, fontFamily: fonts.display, fontSize: 18, fontVariant: ['tabular-nums'] },

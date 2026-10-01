@@ -2,10 +2,10 @@ import * as ImagePicker from 'expo-image-picker';
 import { useFocusEffect } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Alert, Image, Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { Alert, Image, Pressable, StyleSheet, View } from 'react-native';
 import { Text } from '../src/shared/components/Text';
 import { addProgressPhoto, deleteProgressPhoto, listProgressPhotos, type ProgressPhoto } from '../src/features/photos/repository';
-import { ActionButton, Body, Card, Heading, PageHeading, Screen, Sheet } from '../src/shared/components/ui';
+import { ActionButton, Body, Card, Heading, PageHeading, Screen, Sheet, TextField } from '../src/shared/components/ui';
 import { useTheme } from '../src/shared/theme/ThemeProvider';
 import { useScaledStyles } from '../src/shared/theme/useScaledStyles';
 
@@ -82,13 +82,11 @@ export default function ProgressPhotosScreen() {
       <PageHeading title={t('photos.title')} subtitle={t('photos.subtitle')} />
       <Card>
         <Heading>{t('photos.addTitle')}</Heading>
-        <TextInput
-          accessibilityLabel={t('photos.noteLabel')}
+        <TextField
+          label={t('photos.noteLabel')}
           value={note}
           onChangeText={setNote}
           placeholder={t('photos.notePlaceholder')}
-          placeholderTextColor={palette.textMuted}
-          style={[styles.input, { color: palette.text, backgroundColor: palette.surfaceMuted, borderColor: palette.border }]}
         />
         <ActionButton label={busy ? t('photos.saving') : t('photos.take')} onPress={() => void addPhoto('camera')} />
         <ActionButton label={t('photos.choose')} secondary onPress={() => void addPhoto('library')} />
@@ -153,7 +151,6 @@ export default function ProgressPhotosScreen() {
 }
 
 const baseStyles = StyleSheet.create({
-  input: { minHeight: 50, paddingHorizontal: 14, borderWidth: 1, borderRadius: 13, fontSize: 15 },
   photoCard: { padding: 10, overflow: 'hidden' },
   image: { width: '100%', aspectRatio: 0.85, borderRadius: 15, backgroundColor: '#222' },
   caption: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, paddingHorizontal: 5 },
@@ -169,5 +166,5 @@ const baseStyles = StyleSheet.create({
   compareDates: { flexDirection: 'row', justifyContent: 'space-between' },
   sliderTrack: { minHeight: 48, borderRadius: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 3, overflow: 'hidden' },
   sliderFill: { position: 'absolute', height: 4, left: 0 },
-  sliderButton: { width: 44, height: 44, borderRadius: 12, zIndex: 1, alignItems: 'center', justifyContent: 'center' },
+  sliderButton: { width: 48, height: 48, borderRadius: 12, zIndex: 1, alignItems: 'center', justifyContent: 'center' },
 });

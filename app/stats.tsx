@@ -3,6 +3,7 @@ import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { ActivityIndicator, BackHandler, Pressable, StyleSheet, View } from 'react-native';
 import { Text } from '../src/shared/components/Text';
+import { fonts } from '../src/shared/theme/typography';
 import { Body, Card, Chip, EmptyState, Heading, Icon, IconButton, Label, ListGroup, ListRow, PageHeading, Screen, SectionTitle, SegmentedControl, Sheet, Stepper, TextField } from '../src/shared/components/ui';
 import { getExploreData } from '../src/features/analytics/repository';
 import {
@@ -25,6 +26,8 @@ import {
   type TrainingKind,
 } from '../src/features/analytics/explore';
 import { StatsChart } from '../src/features/analytics/components/StatsChart';
+import { RepsAtLoadCard } from '../src/features/analytics/components/RepsAtLoadCard';
+import { repsAtLoadFromExplore } from '../src/features/analytics/repsAtLoad';
 import { useTheme } from '../src/shared/theme/ThemeProvider';
 import { useScaledStyles } from '../src/shared/theme/useScaledStyles';
 import { formatMinutes, formatNumber } from '../src/shared/utils/format';
@@ -103,6 +106,7 @@ export default function StatsScreen() {
   const bucket = selectedIndex != null ? buckets[selectedIndex] : null;
   const breakdown = useMemo(() => (data && bucket ? buildBreakdown(data, scope, primary, bucket, rpeThreshold) : []), [data, bucket, scope, primary, rpeThreshold]);
   const level = nextLevel(scope);
+  const loadProgress = useMemo(() => data ? repsAtLoadFromExplore(data, scope) : [], [data, scope]);
 
   const locale = i18n.language;
   const dateFormat = (options: Intl.DateTimeFormatOptions, date: Date) => new Intl.DateTimeFormat(locale, options).format(date);
@@ -288,11 +292,15 @@ export default function StatsScreen() {
                     onPress={() => narrow(level, item.key)}
                     style={({ pressed }) => [styles.breakdownRow, { opacity: pressed ? 0.6 : 1 }]}
                   >
-                    <Text numberOfLines={2} style={[styles.breakdownName, { color: palette.text }]}>{label}</Text>
-                    <View style={[styles.breakdownTrack, { backgroundColor: palette.surfaceMuted }]}>
-                      <View style={[styles.breakdownFill, { width: `${Math.max(4, (item.value / breakdown[0].value) * 100)}%`, backgroundColor: palette.accent }]} />
+                    <View style={styles.breakdownCopy}>
+                      <View style={styles.breakdownHead}>
+                        <Text style={[styles.breakdownName, { color: palette.text }]}>{label}</Text>
+                        <Text style={[styles.breakdownValue, { color: palette.text }]}>{value}</Text>
+                      </View>
+                      <View style={[styles.breakdownTrack, { backgroundColor: palette.surfaceMuted }]}>
+                        <View style={[styles.breakdownFill, { width: `${Math.max(4, (item.value / breakdown[0].value) * 100)}%`, backgroundColor: palette.accent }]} />
+                      </View>
                     </View>
-                    <Text style={[styles.breakdownValue, { color: palette.text }]}>{value}</Text>
                     <View style={styles.breakdownChevron}>{open ? <Icon name="chevron-forward" size={16} color={palette.textMuted} /> : null}</View>
                   </Pressable>
                 );
@@ -313,6 +321,7 @@ export default function StatsScreen() {
             </ListGroup>
           </Card>
         ) : buckets.some((item) => item.workoutIds.length) ? <Body>{t('stats.selectHint')}</Body> : null}
+        {scope.exerciseId && loadProgress.length > 0 ? <RepsAtLoadCard key={scope.exerciseId} groups={loadProgress} /> : null}
       </>}
 
       <Sheet visible={sheet === 'category' || sheet === 'pattern' || sheet === 'exercise'} onClose={() => { setSheet(null); setSearch(''); }} title={sheet ? t(`stats.${sheet === 'metric' || sheet === 'secondary' ? 'metric' : sheet}`) : ''}>
@@ -382,22 +391,24 @@ const baseStyles = StyleSheet.create({
   metricRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
   metricPick: { gap: 6, flexShrink: 1 },
   pager: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  pagerSpacer: { width: 40, height: 40 },
+  pagerSpacer: { width: 48, height: 48 },
   pagerRange: { flex: 1, textAlign: 'center', fontSize: 13 },
   thresholdBox: { gap: 4 },
   legend: { flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' },
   legendSwatch: { width: 10, height: 10, borderRadius: 2 },
   legendLine: { width: 14, height: 2, marginLeft: 8 },
   legendText: { fontSize: 12 },
-  totals: { flexDirection: 'row', gap: 24 },
-  total: { gap: 2 },
-  totalValue: { fontSize: 26, fontWeight: '800' },
-  totalLabel: { fontSize: 12 },
-  breakdownRow: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 44 },
-  breakdownName: { width: '34%', fontSize: 13, fontWeight: '600' },
-  breakdownTrack: { flex: 1, height: 8, borderRadius: 4, overflow: 'hidden' },
+  totals: { flexDirection: 'row', flexWrap: 'wrap', gap: 24 },
+  total: { flexShrink: 1, gap: 4 },
+  totalValue: { fontFamily: fonts.display, fontSize: 32, lineHeight: 38, fontVariant: ['tabular-nums'] },
+  totalLabel: { fontSize: 14, lineHeight: 20 },
+  breakdownRow: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 64, paddingVertical: 10 },
+  breakdownCopy: { flex: 1, gap: 8 },
+  breakdownHead: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'baseline', gap: 8 },
+  breakdownName: { flexGrow: 1, flexShrink: 1, fontSize: 15, lineHeight: 21, fontWeight: '600' },
+  breakdownTrack: { height: 6, borderRadius: 4, overflow: 'hidden' },
   breakdownFill: { height: '100%', borderRadius: 4 },
-  breakdownValue: { minWidth: 64, textAlign: 'right', fontSize: 12, fontWeight: '700' },
+  breakdownValue: { textAlign: 'right', fontSize: 14, fontWeight: '600', fontVariant: ['tabular-nums'] },
   breakdownChevron: { width: 16, alignItems: 'center' },
   family: { gap: 6, marginBottom: 6 },
 });

@@ -3,7 +3,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import * as Speech from 'expo-speech';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useAppInsets } from '../../../src/shared/layout/useAppInsets';
 import { expandRoutine, type MobilitySegment, type MobilitySide } from '../../../src/domain/mobilityPlan';
 import { openReferenceVideo } from '../../../src/features/exercises/ReferenceLinkSheet';
@@ -246,17 +246,17 @@ export default function MobilityPlayerScreen() {
         ))}
       </View>
 
-      <View style={styles.center}>
+      <ScrollView style={styles.centerScroll} contentContainerStyle={styles.center} showsVerticalScrollIndicator={false}>
         <Text style={[styles.phase, { color: soft }]}>{label}</Text>
-        <Text style={[styles.drillName, { color: ink }]} numberOfLines={3}>{drill?.name}</Text>
+        <Text style={[styles.drillName, { color: ink }]}>{drill?.name}</Text>
         <View style={styles.badges}>
           {sideLabel ? <Badge text={sideLabel} dark={isWork} /> : null}
           {step && step.rounds > 1 && segment.kind === 'work' ? <Badge text={t('mobility.round', { round: segment.round, rounds: step.rounds })} dark={isWork} /> : null}
         </View>
         {repsMode ? (
-          <Text style={[styles.timer, { color: ink }]}>{t('mobility.repsValue', { count: segment.reps ?? 0 })}</Text>
+          <Text style={[styles.timer, { color: ink }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.5}>{t('mobility.repsValue', { count: segment.reps ?? 0 })}</Text>
         ) : (
-          <Text accessibilityLiveRegion="polite" style={[styles.timer, { color: ink }]}>{formatClock((remainingMs ?? 0) / 1000 + 0.999)}</Text>
+          <Text accessibilityLiveRegion="polite" style={[styles.timer, { color: ink }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.5}>{formatClock((remainingMs ?? 0) / 1000 + 0.999)}</Text>
         )}
         {drill?.cue && (isWork || segment.kind === 'prep') ? <Text style={[styles.cue, { color: soft }]}>{drill.cue}</Text> : null}
         {drill?.demoUrl ? (
@@ -265,7 +265,7 @@ export default function MobilityPlayerScreen() {
             <Text style={[styles.referenceText, { color: ink }]}>{t('logger.referenceOpen')}</Text>
           </Pressable>
         ) : null}
-      </View>
+      </ScrollView>
 
       <Text style={[styles.nextUp, { color: soft }]}>{nextName ? t('mobility.nextUp', { name: nextName }) : !nextWork ? t('mobility.lastOne') : ' '}</Text>
 
@@ -334,21 +334,22 @@ const baseStyles = StyleSheet.create({
   segmentsBar: { flexDirection: 'row', gap: 4, marginTop: 14 },
   segmentTrack: { flex: 1, height: 5, borderRadius: 3, overflow: 'hidden' },
   segmentFill: { height: '100%', borderRadius: 3 },
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 10, paddingHorizontal: 8 },
+  centerScroll: { flex: 1 },
+  center: { flexGrow: 1, justifyContent: 'center', alignItems: 'center', gap: 12, paddingHorizontal: 8, paddingVertical: 16 },
   phase: { fontFamily: fonts.semibold, fontSize: 17 },
   drillName: { fontFamily: fonts.display, fontSize: 40, lineHeight: 44, textAlign: 'center' },
-  badges: { flexDirection: 'row', gap: 8, minHeight: 30 },
+  badges: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 8, minHeight: 30 },
   badge: { paddingHorizontal: 12, minHeight: 30, borderRadius: 999, justifyContent: 'center' },
   badgeText: { fontFamily: fonts.semibold, fontSize: 14 },
-  timer: { fontFamily: fonts.display, fontSize: 112, lineHeight: 118, fontVariant: ['tabular-nums'] },
+  timer: { width: '100%', textAlign: 'center', fontFamily: fonts.display, fontSize: 104, lineHeight: 114, fontVariant: ['tabular-nums'] },
   cue: { fontFamily: fonts.body, fontSize: 16, lineHeight: 23, textAlign: 'center', maxWidth: 420 },
-  reference: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 6 },
+  reference: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 48, paddingVertical: 10 },
   referenceText: { fontFamily: fonts.semibold, fontSize: 15, textDecorationLine: 'underline' },
   nextUp: { textAlign: 'center', fontFamily: fonts.medium, fontSize: 15, marginBottom: 18 },
-  controls: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 28 },
+  controls: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 24 },
   mainButton: { width: 84, height: 84, borderRadius: 42, alignItems: 'center', justifyContent: 'center' },
   sideButton: { width: 58, height: 58, borderRadius: 29, alignItems: 'center', justifyContent: 'center' },
-  addTen: { alignSelf: 'center', paddingVertical: 12, paddingHorizontal: 20 },
+  addTen: { alignSelf: 'center', minHeight: 48, justifyContent: 'center', paddingVertical: 12, paddingHorizontal: 20 },
   addTenText: { fontFamily: fonts.semibold, fontSize: 16 },
   addTenSpacer: { height: 44 },
 });

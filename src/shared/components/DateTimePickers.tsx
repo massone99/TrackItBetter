@@ -4,21 +4,23 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { useTheme } from '../theme/ThemeProvider';
 import { fonts } from '../theme/typography';
 import { useScaledStyles } from '../theme/useScaledStyles';
-import { Chip, Icon, IconButton, Text, tapFeedback } from './ui';
+import { ActionButton, Body, Chip, Icon, IconButton, Sheet, Text, TextField, tapFeedback } from './ui';
 import { Wheel } from './Wheel';
+import { formatClock } from '../utils/format';
 
 const dayStart = (date: Date) => new Date(date.getFullYear(), date.getMonth(), date.getDate());
 const sameDay = (a: Date, b: Date) => a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
 
 /** A tappable row (label left, value right) that unfolds its picker underneath. */
-export function FieldRow({ label, value, icon, open, onToggle }: { label: string; value: string; icon: 'calendar-outline' | 'time-outline' | 'timer-outline'; open: boolean; onToggle: () => void }) {
+export function FieldRow({ label, value, icon, open, disabled = false, onToggle }: { label: string; value: string; icon: 'calendar-outline' | 'time-outline' | 'timer-outline'; open: boolean; disabled?: boolean; onToggle: () => void }) {
   const styles = useScaledStyles(baseStyles);
   const { palette } = useTheme();
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={`${label}: ${value}`}
-      accessibilityState={{ expanded: open }}
+      accessibilityState={{ expanded: open, disabled }}
+      disabled={disabled}
       onPress={() => { tapFeedback(); onToggle(); }}
       style={styles.row}
     >
@@ -144,7 +146,7 @@ export function TimeField({ label, hour, minute, locale, minuteStep = 5, default
 const baseStyles = StyleSheet.create({
   row: { minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
   rowLabel: { flex: 1, fontFamily: fonts.medium, fontSize: 15 },
-  rowValue: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12, minHeight: 40, borderRadius: 12 },
+  rowValue: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8, paddingHorizontal: 12, paddingVertical: 8, minHeight: 48, borderRadius: 12 },
   rowValueText: { fontFamily: fonts.semibold, fontSize: 16, fontVariant: ['tabular-nums'] },
   panel: { borderWidth: StyleSheet.hairlineWidth, borderRadius: 16, padding: 12, gap: 8, marginBottom: 6 },
   monthHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
@@ -157,13 +159,20 @@ const baseStyles = StyleSheet.create({
   wheels: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4 },
   presets: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingBottom: 8 },
   colon: { fontFamily: fonts.display, fontSize: 26 },
+  durationInputs: { flexDirection: 'row', gap: 12 },
+  durationInput: { flex: 1 },
+  durationAdjust: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 16 },
+  durationValue: { fontFamily: fonts.display, fontSize: 32, lineHeight: 38, fontVariant: ['tabular-nums'] },
+  compactDurationWrapper: { flexShrink: 1 },
+  compactDuration: { minWidth: 64, minHeight: 48, paddingHorizontal: 8, paddingVertical: 8, borderRadius: 12, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  compactDurationText: { fontFamily: fonts.display, fontSize: 24, lineHeight: 30, fontVariant: ['tabular-nums'] },
 });
 
 /**
- * Duration in seconds (rest, hold): a pill with the value that opens minute and second wheels,
- * and one-tap presets under it that wrap onto more lines instead of scrolling.
+ * Edit an exact duration in minutes and seconds. The draft is applied only on Save;
+ * opening or cancelling never writes a value. Existing row presets remain one-tap shortcuts.
  */
-export function DurationField({ label, value, min = 0, max = 600, step = 5, presets, format, onChange }: {
+export function DurationField({ label, value, min = 0, max = 600, step = 5, presets, format, compact = false, disabled = false, onChange }: {
   label: string;
   value: number;
   min?: number;
@@ -171,34 +180,80 @@ export function DurationField({ label, value, min = 0, max = 600, step = 5, pres
   step?: number;
   presets?: number[];
   format: (seconds: number) => string;
+  compact?: boolean;
+  disabled?: boolean;
   onChange: (value: number) => void;
 }) {
   const styles = useScaledStyles(baseStyles);
   const { palette } = useTheme();
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
-  const wholeMinutes = Math.floor(value / 60);
-  const seconds = value % 60;
-  const minuteItems = Array.from({ length: Math.floor(max / 60) + 1 }, (_, index) => ({ value: index, label: String(index) }));
-  const secondItems = Array.from({ length: Math.ceil(60 / step) }, (_, index) => ({ value: index * step, label: String(index * step).padStart(2, '0') }));
-  const set = (minutes: number, secs: number) => onChange(Math.min(max, Math.max(min, minutes * 60 + secs)));
+  const [minutes, setMinutes] = useState('0');
+  const [seconds, setSeconds] = useState('0');
+  // Imported or measured durations above a configured limit can still be retained and edited.
+  const upperBound = Math.max(max, Math.round(value));
+  const numeric = /^\d+$/.test(minutes) && /^\d+$/.test(seconds);
+  const draft = numeric ? Number(minutes) * 60 + Number(seconds) : NaN;
+  const validParts = numeric && Number(seconds) < 60 && Number.isSafeInteger(draft);
+  const valid = validParts && draft >= min && draft <= upperBound;
+  const error = !validParts ? t('durationPicker.invalid') : draft < min
+    ? t('durationPicker.minimum', { min: formatClock(min) }) : draft > upperBound
+      ? t('durationPicker.maximum', { max: formatClock(upperBound) }) : null;
+  const setDraft = (next: number) => {
+    const clamped = Math.min(upperBound, Math.max(min, Math.round(next)));
+    setMinutes(String(Math.floor(clamped / 60)));
+    setSeconds(String(clamped % 60).padStart(2, '0'));
+  };
+  const show = () => {
+    // Seed the exact current value, including seconds that are not multiples of the quick step.
+    const whole = Math.max(0, Math.round(value));
+    setMinutes(String(Math.floor(whole / 60)));
+    setSeconds(String(whole % 60).padStart(2, '0'));
+    setOpen(true);
+  };
   return (
-    <View>
-      <FieldRow label={label} icon="timer-outline" open={open} value={format(value)} onToggle={() => setOpen((current) => !current)} />
-      {presets && presets.length > 0 ? (
+    <View style={compact ? styles.compactDurationWrapper : undefined}>
+      {compact ? <Pressable
+        accessibilityRole="button" accessibilityLabel={`${label}: ${format(value)}`}
+        accessibilityHint={t('durationPicker.hint')} accessibilityState={{ expanded: open, disabled }} disabled={disabled}
+        onPress={() => { tapFeedback(); show(); }}
+        style={({ pressed }) => [styles.compactDuration, { backgroundColor: palette.surfaceMuted, borderColor: open ? palette.accentStrong : palette.border, opacity: disabled ? 0.45 : pressed ? 0.75 : 1 }]}
+      >
+        <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75} style={[styles.compactDurationText, { color: palette.text }]}>{format(value)}</Text>
+      </Pressable> : <FieldRow label={label} icon="timer-outline" open={open} disabled={disabled} value={format(value)} onToggle={show} />}
+      {!compact && !disabled && presets && presets.length > 0 ? (
         <View style={styles.presets}>
-          {presets.map((preset) => <Chip key={preset} label={format(preset)} selected={value === preset} onPress={() => onChange(Math.min(max, Math.max(min, preset)))} />)}
+          {presets.map((preset) => <Chip key={preset} label={format(preset)} selected={value === preset} onPress={() => onChange(Math.min(upperBound, Math.max(min, preset)))} />)}
         </View>
       ) : null}
-      {open ? (
-        <View style={[styles.panel, { backgroundColor: palette.surface, borderColor: palette.border }]}>
-          <View style={styles.wheels}>
-            <Wheel label={t('picker.minutes')} items={minuteItems} value={wholeMinutes} onChange={(next) => set(next, seconds)} />
-            <Text style={[styles.colon, { color: palette.textMuted }]}>:</Text>
-            <Wheel label={t('picker.seconds')} items={secondItems} value={seconds - (seconds % step)} onChange={(next) => set(wholeMinutes, next)} />
-          </View>
+      {open ? <Sheet visible onClose={() => setOpen(false)} title={label} body={t('durationPicker.hint')}>
+        <View style={styles.durationInputs}>
+          <View style={styles.durationInput}><TextField label={t('picker.minutes')} value={minutes} onChangeText={setMinutes} keyboardType="number-pad" selectTextOnFocus /></View>
+          <View style={styles.durationInput}><TextField label={t('picker.seconds')} value={seconds} onChangeText={setSeconds} keyboardType="number-pad" selectTextOnFocus /></View>
         </View>
-      ) : null}
+        {error ? <Body style={{ color: palette.warning }}>{error}</Body> : null}
+        <View style={styles.durationAdjust}>
+          <IconButton icon="remove" label={t('durationPicker.decrease')} disabled={!validParts || draft <= min} onPress={() => setDraft(draft - step)} />
+          <Text style={[styles.durationValue, { color: palette.text }]}>{validParts ? formatClock(draft) : '—'}</Text>
+          <IconButton icon="add" label={t('durationPicker.increase')} disabled={!validParts || draft >= upperBound} onPress={() => setDraft(draft + step)} />
+        </View>
+        {presets?.length ? <View style={styles.presets}>{presets.filter((preset) => preset >= min && preset <= upperBound).map((preset) => <Chip key={preset} label={formatClock(preset)} selected={draft === preset} onPress={() => setDraft(preset)} />)}</View> : null}
+        <ActionButton label={t('common.save')} disabled={!valid || disabled} onPress={() => { if (valid) { onChange(draft); setOpen(false); } }} />
+        <ActionButton label={t('common.cancel')} variant="ghost" onPress={() => setOpen(false)} />
+      </Sheet> : null}
     </View>
   );
+}
+
+/** Shared hold editor for targets and measured sets; precision is one second, with quick presets. */
+export function HoldDurationField({ min = 0, max = Number.MAX_SAFE_INTEGER, ...props }: {
+  label: string;
+  value: number;
+  onChange: (seconds: number) => void;
+  compact?: boolean;
+  disabled?: boolean;
+  min?: number;
+  max?: number;
+}) {
+  return <DurationField {...props} min={min} max={max} step={5} presets={[10, 15, 20, 30, 45, 60, 90, 120]} format={formatClock} />;
 }

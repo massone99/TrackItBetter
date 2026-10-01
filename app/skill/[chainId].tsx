@@ -94,7 +94,7 @@ const baseStyles = StyleSheet.create({
   marker: { width: 28, height: 28, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
   connector: { flex: 1, width: 2, marginVertical: 4 },
   levelContent: { flex: 1, paddingBottom: 12 },
-  levelCard: { flex: 1, gap: 7, paddingVertical: 13, borderRadius: 17 },
-  levelTitle: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  levelCard: { flex: 1, gap: 10, paddingVertical: 16, borderRadius: 16 },
+  levelTitle: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: 8 },
   exerciseName: { fontSize: 16 },
 });

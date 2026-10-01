@@ -184,12 +184,12 @@ function Trend({ captures, better }: { captures: PoseCapture[]; better: 'higher'
 const baseStyles = StyleSheet.create({
   stretch: { alignSelf: 'stretch', marginTop: 6 },
   summary: { gap: 8 },
-  summaryRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  summaryRow: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: 12 },
   change: { fontFamily: fonts.semibold, fontSize: 14 },
   trend: { flexDirection: 'row', alignItems: 'flex-end', gap: 4, height: 64, marginTop: 6 },
   trendColumn: { flex: 1, height: '100%', justifyContent: 'flex-end' },
   trendBar: { borderRadius: 4, width: '100%' },
   compare: { flexDirection: 'row', gap: 10 },
-  compareItem: { flex: 1, gap: 6 },
+  compareItem: { flex: 1, minWidth: 0, gap: 10 },
   centerText: { textAlign: 'center' },
 });

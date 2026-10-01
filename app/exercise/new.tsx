@@ -216,5 +216,5 @@ export default function NewExerciseRoute() {
 const baseStyles = StyleSheet.create({
   field: { gap: 8 },
   choices: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
-  detailsToggle: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 44, borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 8 },
+  detailsToggle: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, minHeight: 48, borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 12 },
 });

@@ -138,8 +138,8 @@ const baseStyles = StyleSheet.create({
   session: { gap: 14 },
   sessionHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 },
   sessionTitle: { gap: 6, flex: 1 },
-  exerciseRow: { minHeight: 39, borderTopWidth: StyleSheet.hairlineWidth, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10 },
-  exerciseName: { fontSize: 14, fontWeight: "600", flex: 1 },
-  target: { fontSize: 13, fontWeight: "700" },
+  exerciseRow: { minHeight: 52, paddingVertical: 10, borderTopWidth: StyleSheet.hairlineWidth, flexDirection: "row", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: 10 },
+  exerciseName: { fontSize: 15, lineHeight: 21, fontWeight: "600", flex: 1 },
+  target: { flexShrink: 1, fontSize: 14, lineHeight: 20, fontWeight: "600", textAlign: "right" },
   footnote: { marginTop: -7 },
 });

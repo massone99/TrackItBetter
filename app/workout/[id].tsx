@@ -18,6 +18,7 @@ import type { ScrollHandle } from '../../src/shared/components/keyboard';
 import { getSessionRecords } from '../../src/features/analytics/repository';
 import type { RecordKind } from '../../src/features/analytics/records';
 import { ExerciseRestFields } from '../../src/features/session/ExerciseRestFields';
+import { HoldDurationField } from '../../src/shared/components/DateTimePickers';
 import {
   addExerciseToWorkout,
   addSet,
@@ -56,6 +57,7 @@ import {
   Label,
   NumberEdit,
   PageHeading,
+  ProgressMeter,
   Screen,
   SegmentedControl,
   Sheet,
@@ -95,6 +97,8 @@ export default function WorkoutScreen() {
   const itemExiting = duration(200) ? FadeOutLeft.duration(duration(200)) : undefined;
   const rowLayout = duration(240) ? LinearTransition.duration(duration(240)) : undefined;
   const [workout, setWorkout] = useState<ActiveWorkout | null>(null);
+  const [collapsedEntries, setCollapsedEntries] = useState<ReadonlyMap<string, boolean>>(new Map());
+  const completionState = useRef<ReadonlyMap<string, boolean>>(new Map());
   const [previous, setPrevious] = useState<Map<string, PreviousPerformance>>(new Map());
   const [loading, setLoading] = useState(true);
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -155,6 +159,14 @@ export default function WorkoutScreen() {
     const next = await getActiveWorkout(workoutId);
     setWorkout(next);
     if (!next) return;
+    const before = completionState.current;
+    const completed = new Map(next.exercises.map((exercise) => [exercise.entryId, exercise.sets.length > 0 && exercise.sets.every((set) => Boolean(set.completedAt))] as const));
+    setCollapsedEntries((current) => new Map(next.exercises.map((exercise) => {
+      const allDone = completed.get(exercise.entryId)!;
+      // Keep manual folding, while completing an exercise folds it and adding/reopening a set unfolds it.
+      return [exercise.entryId, before.get(exercise.entryId) !== allDone ? allDone : current.get(exercise.entryId) ?? allDone] as const;
+    })));
+    completionState.current = completed;
     setPrevious(await getPreviousPerformance(next.exercises.map((exercise) => exercise.exerciseId), next.id));
     const found = await getSessionRecords(next.id).catch(() => null);
     if (!found) return;
@@ -453,6 +465,7 @@ export default function WorkoutScreen() {
   if (!workout) return <Screen><PageHeading title={t('workout.unavailable')} subtitle={t('workout.finished')} /><ActionButton label={t('workout.backToToday')} onPress={() => router.replace('/(tabs)/today')} /></Screen>;
 
   const allSets = workout.exercises.flatMap((exercise) => exercise.sets);
+  const allCollapsed = workout.exercises.every((exercise) => collapsedEntries.get(exercise.entryId) ?? (exercise.sets.length > 0 && exercise.sets.every((set) => Boolean(set.completedAt))));
   const totalSets = allSets.length;
   const finishedExercises = workout.exercises.filter((exercise) => exercise.sets.length > 0 && exercise.sets.every((set) => set.completedAt)).length;
   const volumeKg = allSets.reduce((sum, set) => (set.completedAt && set.kind === 'working' && set.reps && set.addedLoadKg > 0 ? sum + set.reps * set.addedLoadKg : sum), 0);
@@ -482,9 +495,7 @@ export default function WorkoutScreen() {
               <Text style={[styles.summaryMuted, { color: palette.textMuted }]}>{t('logger.exercisesProgress', { done: finishedExercises, total: workout.exercises.length })}</Text>
               {volumeKg > 0 ? <Text style={[styles.summaryMuted, { color: palette.textMuted }]}>{formatNumber(Math.round(volumeKg))} kg</Text> : null}
             </View>
-            <View style={[styles.summaryTrack, { backgroundColor: palette.border }]}>
-              <View style={[styles.summaryFill, { backgroundColor: palette.accentStrong, width: `${Math.round((completedCount / totalSets) * 100)}%` }]} />
-            </View>
+            <ProgressMeter value={completedCount} total={totalSets} label={t('logger.setsProgress', { done: completedCount, total: totalSets })} tone={completedCount === totalSets ? 'success' : 'accent'} />
           </View>
         ) : null}
 
@@ -530,6 +541,14 @@ export default function WorkoutScreen() {
             <Text style={[styles.swipeHintText, { color: palette.accentStrong }]}>{t('logger.swipeHint')}</Text>
           </Animated.View>
         ) : null}
+        {workout.exercises.length > 0 ? <Pressable
+          accessibilityRole="button" accessibilityState={{ expanded: !allCollapsed }}
+          onPress={() => { tapFeedback(); setCollapsedEntries(new Map(workout.exercises.map((exercise) => [exercise.entryId, !allCollapsed]))); }}
+          style={({ pressed }) => [styles.foldAll, { opacity: pressed ? 0.75 : 1 }]}
+        >
+          <Icon name={allCollapsed ? 'chevron-down' : 'chevron-up'} size={18} color={palette.accentStrong} />
+          <Text style={[styles.foldAllText, { color: palette.accentStrong }]}>{t(allCollapsed ? 'common.expandAll' : 'common.collapseAll')}</Text>
+        </Pressable> : null}
         <View onLayout={(event) => { listTop.current = event.nativeEvent.layout.y; }}>
         <LayoutAnimationConfig skipEntering>
         <ReorderableList
@@ -543,6 +562,8 @@ export default function WorkoutScreen() {
             <Animated.View entering={exerciseEntering} exiting={itemExiting} layout={rowLayout}>
           <ExerciseCard
             exercise={exercise}
+            collapsed={collapsedEntries.get(exercise.entryId) ?? false}
+            onToggleCollapsed={() => setCollapsedEntries((current) => new Map(current).set(exercise.entryId, !(current.get(exercise.entryId) ?? false)))}
             handle={row.handle}
             previous={previous.get(exercise.exerciseId)}
             hold={hold.active}
@@ -734,9 +755,11 @@ export default function WorkoutScreen() {
 /** Rest end times by workout id, so leaving and reopening the workout keeps the same countdown. */
 const runningRests = new Map<string, number>();
 
-function ExerciseCard({ handle, exercise, previous, hold, onChange, onSetValue, onComplete, onStartHold, onFinishHold, onAddSet, onSetOptions, onUncomplete, onRemoveSet, onSwiped, rpePromptFor, onRpe, onDismissRpe, onOptions, onSaved, onToggleWarmup, onCopyPrevious, setRecords, volumeRecord, supersetLabel }: {
+function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, previous, hold, onChange, onSetValue, onComplete, onStartHold, onFinishHold, onAddSet, onSetOptions, onUncomplete, onRemoveSet, onSwiped, rpePromptFor, onRpe, onDismissRpe, onOptions, onSaved, onToggleWarmup, onCopyPrevious, setRecords, volumeRecord, supersetLabel }: {
   handle?: ReactNode;
   exercise: SessionExercise;
+  collapsed: boolean;
+  onToggleCollapsed: () => void;
   previous: PreviousPerformance | undefined;
   hold: ActiveHold | null;
   onChange: (set: SessionSet, field: 'reps' | 'durationSec' | 'distanceM' | 'addedLoadKg', delta: number) => Promise<void>;
@@ -774,10 +797,6 @@ function ExerciseCard({ handle, exercise, previous, hold, onChange, onSetValue, 
   const field = timed ? 'durationSec' : distance ? 'distanceM' : 'reps';
   const doneSets = exercise.sets.filter((set) => set.completedAt).length;
   const allDone = exercise.sets.length > 0 && doneSets === exercise.sets.length;
-  // A finished exercise folds to its results; reopening it (or adding a set) unfolds it again.
-  const [collapsed, setCollapsed] = useState(allDone);
-  const [wasAllDone, setWasAllDone] = useState(allDone);
-  if (wasAllDone !== allDone) { setWasAllDone(allDone); setCollapsed(allDone); }
   const results = exercise.sets.filter((set) => set.completedAt).map((set) => {
     const base = timed ? formatClock(set.durationSec ?? 0) : distance ? `${formatNumber(set.distanceM ?? 0)}m` : String(set.reps ?? 0);
     const label = set.kind === 'warmup' ? `W ${base}` : base;
@@ -788,14 +807,14 @@ function ExerciseCard({ handle, exercise, previous, hold, onChange, onSetValue, 
     : null;
 
   return (
-    <Card style={[styles.exerciseCard, supersetLabel ? { borderLeftWidth: 4, borderLeftColor: palette.accent } : null]}>
+    <Card style={[styles.exerciseCard, allDone ? { borderColor: palette.success } : supersetLabel ? { borderColor: palette.accentStrong } : null]}>
       <View style={styles.exerciseHeader}>
         {handle}
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={t(collapsed ? 'logger.expand' : 'logger.collapse', { name: exercise.name })}
           accessibilityState={{ expanded: !collapsed }}
-          onPress={() => setCollapsed((value) => !value)}
+          onPress={onToggleCollapsed}
           onLongPress={() => openExercisePage(exercise.exerciseId)}
           accessibilityActions={[{ name: 'longpress', label: t('logger.openExercise') }]}
           onAccessibilityAction={(event) => { if (event.nativeEvent.actionName === 'longpress') openExercisePage(exercise.exerciseId); }}
@@ -829,7 +848,6 @@ function ExerciseCard({ handle, exercise, previous, hold, onChange, onSetValue, 
       {collapsed ? null : <View style={[styles.columns, { borderBottomColor: palette.border }]}>
         <Label style={styles.colSet}>{t('logger.setCol')}</Label>
         <Label style={styles.colValue}>{timed ? t('logger.holdCol') : distance ? t('logger.distanceCol') : t('logger.repsCol')}</Label>
-        {loaded ? <Label style={styles.colLoad}>{t('logger.loadCol')}</Label> : null}
         <View style={styles.colAction} />
       </View>}
 
@@ -871,6 +889,8 @@ function ExerciseCard({ handle, exercise, previous, hold, onChange, onSetValue, 
                 {done ? null : <StepButton icon="remove" label="−" onPress={(multiplier) => void onChange(set, field, (distance ? -0.5 : timed ? -5 : -1) * multiplier)} />}
                 {done || holding ? (
                   <Text style={[styles.setValue, { color: holding ? palette.accentStrong : palette.text }]}>{value}</Text>
+                ) : timed ? (
+                  <HoldDurationField compact value={stored} label={`${t('logger.holdCol')} · ${t('logger.editValue', { number: set.index })}`} onChange={(next) => onSetValue(set, 'durationSec', next)} />
                 ) : (
                   <NumberEdit
                     value={stored}
@@ -883,9 +903,7 @@ function ExerciseCard({ handle, exercise, previous, hold, onChange, onSetValue, 
                 )}
                 {done ? null : <StepButton icon="add" label="+" onPress={(multiplier) => void onChange(set, field, (distance ? 0.5 : timed ? 5 : 1) * multiplier)} />}
               </View>
-              {loaded ? <View style={styles.colLoad}><LoadEditor key={`${set.id}:${set.addedLoadKg}`} setId={set.id} value={set.addedLoadKg} disabled={done} onSaved={onSaved} /></View> : null}
               <View style={[styles.colAction, styles.rowActions]}>
-                <IconButton icon="ellipsis-vertical" label={t('logger.setOptions', { number: set.index })} tone="plain" size={34} onPress={() => onSetOptions(set)} />
                 {done ? (
                   <Animated.View entering={checkEntering}>
                     <Pressable
@@ -895,7 +913,7 @@ function ExerciseCard({ handle, exercise, previous, hold, onChange, onSetValue, 
                       onPress={() => { tapFeedback(); onUncomplete(set); }}
                       style={[styles.checkButton, { backgroundColor: palette.success }]}
                     >
-                      <Icon name="checkmark" size={20} color="#FFFFFF" />
+                      <Icon name="checkmark" size={20} color={palette.successText} />
                     </Pressable>
                   </Animated.View>
                 ) : timed ? (
@@ -925,6 +943,13 @@ function ExerciseCard({ handle, exercise, previous, hold, onChange, onSetValue, 
               </View>
             </View>
             </SwipeableSetRow>
+            <View style={styles.setDetailRow}>
+              {loaded ? <View style={styles.loadField}>
+                <Label>{t('logger.loadCol')}</Label>
+                <LoadEditor key={`${set.id}:${set.addedLoadKg}`} setId={set.id} value={set.addedLoadKg} disabled={done} onSaved={onSaved} />
+              </View> : <View style={styles.flex} />}
+              <IconButton icon="ellipsis-horizontal" label={t('logger.setOptions', { number: set.index })} tone="plain" size={36} onPress={() => onSetOptions(set)} />
+            </View>
             {!done && lastTime ? (
               <Pressable
                 accessibilityRole="button"
@@ -1231,13 +1256,13 @@ const baseStyles = StyleSheet.create({
   readinessValue: { fontFamily: fonts.display, fontSize: 18 },
   emptyAction: { alignSelf: 'stretch', marginTop: 6, gap: 8 },
   exerciseCard: { paddingHorizontal: 14, paddingBottom: 12, gap: 6 },
+  foldAll: { alignSelf: 'flex-end', flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 48, paddingHorizontal: 8 },
+  foldAllText: { fontFamily: fonts.semibold, fontSize: 14 },
   exerciseHeader: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, paddingHorizontal: 4, marginBottom: 4 },
   summary: { borderWidth: StyleSheet.hairlineWidth, borderRadius: 16, paddingHorizontal: 16, paddingVertical: 12, gap: 8 },
-  summaryTop: { flexDirection: 'row', alignItems: 'baseline', gap: 12 },
+  summaryTop: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'baseline', gap: 12 },
   summaryText: { flex: 1, fontFamily: fonts.semibold, fontSize: 15 },
   summaryMuted: { fontFamily: fonts.medium, fontSize: 13 },
-  summaryTrack: { height: 4, borderRadius: 2, overflow: 'hidden' },
-  summaryFill: { height: 4, borderRadius: 2 },
   results: { fontFamily: fonts.semibold, fontSize: 15, marginTop: 2 },
   footerRow: { flexDirection: 'row', gap: 10 },
   nameRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
@@ -1246,10 +1271,11 @@ const baseStyles = StyleSheet.create({
   columns: { flexDirection: 'row', alignItems: 'center', paddingBottom: 6, paddingHorizontal: 4, borderBottomWidth: StyleSheet.hairlineWidth },
   colSet: { width: 44 },
   colValue: { flex: 1, textAlign: 'center' },
-  colLoad: { width: 78, alignItems: 'center', textAlign: 'center' },
-  colAction: { width: 80 },
-  setBlock: { borderRadius: 12, overflow: 'hidden' },
-  setRow: { flexDirection: 'row', alignItems: 'center', minHeight: 56, paddingHorizontal: 4 },
+  colAction: { width: 48 },
+  setBlock: { borderRadius: 12, overflow: 'hidden', paddingTop: 4 },
+  setRow: { flexDirection: 'row', alignItems: 'center', minHeight: 60, paddingHorizontal: 4 },
+  setDetailRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingLeft: 48, paddingRight: 4 },
+  loadField: { flex: 1, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8 },
   swipeHint: { flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: 14, paddingHorizontal: 14, paddingVertical: 10 },
   swipeHintText: { flex: 1, fontFamily: fonts.medium, fontSize: 14 },
   recordChip: { flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-start', borderRadius: 10, paddingHorizontal: 8, paddingVertical: 3, marginTop: 4 },
@@ -1262,20 +1288,20 @@ const baseStyles = StyleSheet.create({
   exerciseNote: { fontFamily: fonts.body, fontSize: 13, lineHeight: 18, marginTop: 4 },
   setBadge: { width: 36, height: 36, borderRadius: 9, alignItems: 'center', justifyContent: 'center' },
   setBadgeText: { fontFamily: fonts.display, fontSize: 16 },
-  stepper: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
-  setValue: { fontFamily: fonts.display, fontSize: 30, lineHeight: 34, minWidth: 52, textAlign: 'center', fontVariant: ['tabular-nums'] },
+  stepper: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
+  setValue: { fontFamily: fonts.display, fontSize: 28, lineHeight: 34, minWidth: 40, textAlign: 'center', fontVariant: ['tabular-nums'] },
   stepButton: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
-  loadInput: { width: 64, minHeight: 38, borderRadius: 10, textAlign: 'center', textAlignVertical: 'center', fontFamily: fonts.display, fontSize: 19, lineHeight: 23, paddingVertical: 0, paddingHorizontal: 6, includeFontPadding: false },
+  loadInput: { width: 76, minHeight: 48, borderRadius: 10, textAlign: 'center', textAlignVertical: 'center', fontFamily: fonts.display, fontSize: 20, lineHeight: 26, paddingVertical: 0, paddingHorizontal: 6, includeFontPadding: false },
   rowActions: { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 2 },
-  checkButton: { width: 42, height: 42, borderRadius: 13, alignItems: 'center', justifyContent: 'center' },
-  addSet: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, minHeight: 44, borderRadius: 12, borderWidth: 1, borderStyle: 'dashed', marginTop: 6 },
+  checkButton: { width: 48, height: 48, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  addSet: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, minHeight: 48, borderRadius: 12, borderWidth: 1, marginTop: 8 },
   addSetText: { fontFamily: fonts.semibold, fontSize: 15 },
   footerActions: { gap: 10, marginTop: 4 },
   timerBar: { position: 'absolute', left: 0, right: 0, bottom: 0, flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 22, paddingTop: 14, borderTopLeftRadius: 24, borderTopRightRadius: 24 },
   timerLabel: { fontFamily: fonts.medium, fontSize: 14, opacity: 0.85 },
   timerValue: { fontFamily: fonts.display, fontSize: 46, lineHeight: 50, fontVariant: ['tabular-nums'] },
   timerActions: { flexDirection: 'row', gap: 8 },
-  timerAction: { minWidth: 64, height: 46, borderRadius: 14, paddingHorizontal: 14, alignItems: 'center', justifyContent: 'center' },
+  timerAction: { minWidth: 64, minHeight: 48, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10, alignItems: 'center', justifyContent: 'center' },
   timerActionText: { fontFamily: fonts.semibold, fontSize: 15 },
   // The surrounding box carries the border, so the browser focus outline is replaced by it.
 });

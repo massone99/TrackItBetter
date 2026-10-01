@@ -120,12 +120,12 @@ export default function MobilityHubScreen() {
 
 const baseStyles = StyleSheet.create({
   emptyAction: { alignSelf: 'stretch', marginTop: 6 },
-  week: { flexDirection: 'row', borderRadius: 20, borderWidth: StyleSheet.hairlineWidth, paddingVertical: 14 },
+  week: { flexDirection: 'row', borderRadius: 16, borderWidth: 1, paddingVertical: 18 },
   weekItem: { flex: 1, alignItems: 'center', gap: 2, paddingHorizontal: 8 },
-  weekValue: { fontFamily: fonts.display, fontSize: 26, lineHeight: 30 },
-  weekLabel: { fontFamily: fonts.body, fontSize: 13, textAlign: 'center' },
+  weekValue: { fontFamily: fonts.display, fontSize: 32, lineHeight: 36, fontVariant: ['tabular-nums'] },
+  weekLabel: { fontFamily: fonts.medium, fontSize: 14, lineHeight: 20, textAlign: 'center' },
   weekDivider: { width: StyleSheet.hairlineWidth },
-  routine: { flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 20, borderWidth: StyleSheet.hairlineWidth, paddingLeft: 18, paddingRight: 12, paddingVertical: 12 },
+  routine: { flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 16, borderWidth: 1, paddingLeft: 16, paddingRight: 12, paddingVertical: 16 },
   routineCopy: { flex: 1, gap: 3, paddingVertical: 4 },
   routineName: { fontFamily: fonts.display, fontSize: 24, lineHeight: 28 },
   routineMeta: { fontFamily: fonts.body, fontSize: 14 },

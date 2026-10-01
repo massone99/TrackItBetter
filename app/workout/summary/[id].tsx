@@ -68,8 +68,8 @@ export default function WorkoutSummaryScreen() {
   return (
     <Screen>
       <View style={styles.header}>
-        <View style={[styles.badge, { backgroundColor: hasRecords ? palette.recordSoft : palette.accentSoft }]}>
-          <Icon name={hasRecords ? 'trophy' : 'checkmark-done'} size={30} color={hasRecords ? palette.record : palette.accentStrong} />
+        <View style={[styles.badge, { backgroundColor: hasRecords ? palette.recordSoft : palette.successSoft }]}>
+          <Icon name={hasRecords ? 'trophy' : 'checkmark-done'} size={30} color={hasRecords ? palette.record : palette.success} />
         </View>
         <Title>{t('summary.title')}</Title>
         <Body style={styles.subtitle}>{workout.name}</Body>
@@ -149,16 +149,16 @@ function Stat({ value, label }: { value: number | string; label: string }) {
 }
 
 const baseStyles = StyleSheet.create({
-  header: { alignItems: 'center', gap: 8, paddingTop: 24 },
-  badge: { width: 72, height: 72, borderRadius: 24, alignItems: 'center', justifyContent: 'center', marginBottom: 6 },
-  subtitle: { fontSize: 16 },
+  header: { alignItems: 'center', gap: 10, paddingTop: 20 },
+  badge: { width: 72, height: 72, borderRadius: 36, alignItems: 'center', justifyContent: 'center', marginBottom: 6 },
+  subtitle: { fontSize: 16, textAlign: 'center' },
   stats: { flexDirection: 'row', borderTopWidth: StyleSheet.hairlineWidth, borderBottomWidth: StyleSheet.hairlineWidth, paddingVertical: 16 },
-  stat: { flex: 1, alignItems: 'center', gap: 2 },
+  stat: { flex: 1, alignItems: 'center', gap: 4, paddingHorizontal: 6 },
   divider: { width: StyleSheet.hairlineWidth },
   records: { gap: 10 },
-  record: { flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 18, padding: 16 },
+  record: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 12, borderRadius: 16, padding: 16 },
   recordCopy: { flex: 1, gap: 2 },
   recordName: { fontFamily: fonts.semibold, fontSize: 16 },
-  recordValue: { fontFamily: fonts.display, fontSize: 22 },
+  recordValue: { fontFamily: fonts.display, fontSize: 26, lineHeight: 30, fontVariant: ['tabular-nums'] },
   noRecords: { textAlign: 'center', paddingHorizontal: 12 },
 });

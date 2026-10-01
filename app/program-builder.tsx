@@ -19,7 +19,7 @@ import {
   type UserProgramExercise,
   type UserProgramSession,
 } from '../src/domain/userProgram';
-import { DurationField } from '../src/shared/components/DateTimePickers';
+import { DurationField, HoldDurationField } from '../src/shared/components/DateTimePickers';
 import { ReorderableList } from '../src/shared/components/ReorderableList';
 import { ExercisePicker } from '../src/features/exercises/ExercisePicker';
 import { openExercisePage } from '../src/features/exercises/openExercise';
@@ -391,7 +391,7 @@ function TargetStepper({ metric, value, onChange }: { metric: string; value: num
     );
   }
   const control = isTimedMetric(metric)
-    ? <DurationField label={label} value={value} min={5} max={600} step={5} presets={[10, 20, 30, 45, 60]} format={(seconds) => t('userProgram.secondsValue', { value: seconds })} onChange={onChange} />
+    ? <HoldDurationField label={t('logger.holdCol')} value={value} min={1} max={600} onChange={onChange} />
     : metric === 'distance'
       ? <Stepper layout="row" label={label} value={value} display={t('userProgram.metersValue', { value })} step={10} min={10} max={5000} editable onChange={onChange} />
       : <Stepper layout="row" label={label} value={value} step={1} min={1} max={100} editable onChange={onChange} />;
@@ -404,7 +404,7 @@ function TargetStepper({ metric, value, onChange }: { metric: string; value: num
 }
 
 const targetStyles = StyleSheet.create({
-  open: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 44 },
+  open: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 10, minHeight: 48 },
   label: { fontFamily: fonts.medium, fontSize: 15 },
   hint: { flex: 1, fontFamily: fonts.body, fontSize: 14 },
   clear: { flexDirection: 'row', paddingTop: 4 },
@@ -416,15 +416,15 @@ function newSession(name: string): UserProgramSession {
 
 const baseStyles = StyleSheet.create({
   flex: { flex: 1, gap: 2 },
-  dayCard: { gap: 14 },
-  header: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  dayCard: { gap: 16 },
+  header: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   number: { width: 28, height: 28, borderRadius: 9, alignItems: 'center', justifyContent: 'center', marginRight: 6 },
   numberText: { fontFamily: fonts.display, fontSize: 16 },
-  dayTitle: { fontFamily: fonts.display, fontSize: 21, lineHeight: 24 },
+  dayTitle: { fontFamily: fonts.display, fontSize: 24, lineHeight: 28 },
   field: { gap: 8 },
   dayActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 4, marginTop: -6 },
   exerciseActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 4 },
-  exercise: { borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 12, gap: 2 },
+  exercise: { borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 16, gap: 8 },
   exerciseName: { fontFamily: fonts.semibold, fontSize: 16 },
   error: { fontFamily: fonts.medium, fontSize: 14 },
 });

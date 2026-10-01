@@ -1,5 +1,5 @@
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
 import type { Exercise } from '../../src/db/schema';
@@ -12,6 +12,8 @@ import { HistoryRow } from '../../src/features/exercises/HistoryRow';
 import { addExerciseToWorkout, getActiveWorkout, startWorkout } from '../../src/features/session/repository';
 import { getExerciseCycle, getExerciseEstimate, getExerciseHistory, getExerciseRecordSummary, getExerciseWeekStats, type ExerciseHistorySession } from '../../src/features/analytics/repository';
 import type { ExerciseRecordSummary } from '../../src/features/analytics/records';
+import { repsAtLoadFromHistory } from '../../src/features/analytics/repsAtLoad';
+import { RepsAtLoadCard } from '../../src/features/analytics/components/RepsAtLoadCard';
 import { formatRecordValue } from '../../src/features/analytics/recordLabels';
 import type { ExerciseEstimate } from '../../src/features/analytics/estimates';
 import type { ExerciseCycle, ExerciseWeek } from '../../src/features/analytics/mobility';
@@ -46,6 +48,7 @@ export default function ExerciseRoute() {
   const [records, setRecords] = useState<ExerciseRecordSummary | null>(null);
   const [editingReference, setEditingReference] = useState(false);
   const [history, setHistory] = useState<ExerciseHistorySession[]>([]);
+  const loadProgress = useMemo(() => repsAtLoadFromHistory(history), [history]);
   const [usage, setUsage] = useState<ExerciseUsage | null>(null);
   // Removal: 'choose' offers hide or delete, 'delete' asks once more before deleting history.
   const [removal, setRemoval] = useState<'choose' | 'delete' | null>(null);
@@ -237,6 +240,8 @@ export default function ExerciseRoute() {
         </View>
       ) : null}
 
+      {exercise.metric === 'reps' || exercise.metric === 'reps_load' ? <RepsAtLoadCard key={exercise.id} groups={loadProgress} /> : null}
+
       {estimate ? (
         <View style={styles.section}>
           <SectionTitle title={t('estimate.title')} />
@@ -402,18 +407,18 @@ function Tag({ label, icon }: { label: string; icon: 'body-outline' | 'construct
 const baseStyles = StyleSheet.create({
   section: { gap: 10 },
   flex: { flex: 1 },
-  history: { borderRadius: 20, borderWidth: StyleSheet.hairlineWidth, overflow: 'hidden' },
+  history: { borderRadius: 16, borderWidth: 1, overflow: 'hidden' },
   historyMore: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, minHeight: 48, borderTopWidth: StyleSheet.hairlineWidth },
   historyMoreText: { fontFamily: fonts.semibold, fontSize: 14 },
   choiceHint: { marginTop: -4, marginBottom: 4 },
   transferPair: { flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 16, paddingHorizontal: 16, paddingVertical: 14 },
   transferName: { flex: 1, fontFamily: fonts.semibold, fontSize: 16 },
   transferNote: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
-  week: { flexDirection: 'row', borderRadius: 20, borderWidth: StyleSheet.hairlineWidth, paddingVertical: 14 },
+  week: { flexDirection: 'row', borderRadius: 16, borderWidth: 1, paddingVertical: 18 },
   weekItem: { flex: 1, alignItems: 'center', gap: 2, paddingHorizontal: 6 },
-  weekValue: { fontFamily: fonts.display, fontSize: 26, lineHeight: 30 },
-  weekLabel: { fontFamily: fonts.body, fontSize: 13, textAlign: 'center' },
-  cues: { borderRadius: 20, borderWidth: StyleSheet.hairlineWidth, paddingHorizontal: 16, paddingVertical: 6 },
+  weekValue: { fontFamily: fonts.display, fontSize: 30, lineHeight: 34, fontVariant: ['tabular-nums'] },
+  weekLabel: { fontFamily: fonts.medium, fontSize: 14, lineHeight: 20, textAlign: 'center' },
+  cues: { borderRadius: 16, borderWidth: 1, paddingHorizontal: 16, paddingVertical: 8 },
   cue: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, paddingVertical: 9 },
   cueText: { flex: 1 },
   tags: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },

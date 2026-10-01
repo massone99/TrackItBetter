@@ -36,7 +36,7 @@ import { ActionButton, Body, Card, Heading, Icon, IconButton, Label, NumberEdit,
 import { useTheme } from '../../../src/shared/theme/ThemeProvider';
 import { fonts } from '../../../src/shared/theme/typography';
 import { useScaledStyles } from '../../../src/shared/theme/useScaledStyles';
-import { DateField, TimeField } from '../../../src/shared/components/DateTimePickers';
+import { DateField, HoldDurationField, TimeField } from '../../../src/shared/components/DateTimePickers';
 import { ReorderableList } from '../../../src/shared/components/ReorderableList';
 import { goBack } from '../../../src/shared/navigation/goBack';
 
@@ -231,19 +231,21 @@ export default function PastWorkoutScreen() {
                       </View>
                       <Text style={[styles.setStatus, { color: done ? palette.accentStrong : palette.textMuted }]}>{done ? t('history.setCompleted') : t('history.setIncomplete')}</Text>
                     </Pressable>
+                    <IconButton icon="ellipsis-horizontal" tone="plain" size={36} label={t('logger.setOptions', { number: set.index })} onPress={() => setSetFor({ exercise, set })} />
+                  </View>
+                  <View style={styles.setValues}>
                     <View style={styles.counter}>
                       <Pressable accessibilityRole="button" accessibilityLabel={t('history.decrease', { unit })} hitSlop={4} onPress={() => void adjust(set.id, metricField, Math.max(0, Math.round((value - step) * 100) / 100))} style={[styles.adjust, { backgroundColor: palette.surfaceMuted }]}><Icon name="remove" size={16} color={palette.text} /></Pressable>
-                      <NumberEdit
+                      {timed ? <HoldDurationField compact value={value} label={`${t('logger.holdCol')} · ${t('logger.editValue', { number: set.index })}`} onChange={(next) => void adjust(set.id, 'durationSec', next)} /> : <NumberEdit
                         value={value}
                         display={`${value} ${unit}`}
                         label={t('logger.editValue', { number: set.index })}
                         onCommit={(next) => void adjust(set.id, metricField, distance ? Math.round(next * 100) / 100 : Math.round(next))}
                         style={[styles.value, { color: palette.text }]}
-                      />
+                      />}
                       <Pressable accessibilityRole="button" accessibilityLabel={t('history.increase', { unit })} hitSlop={4} onPress={() => void adjust(set.id, metricField, Math.round((value + step) * 100) / 100)} style={[styles.adjust, { backgroundColor: palette.surfaceMuted }]}><Icon name="add" size={16} color={palette.text} /></Pressable>
                     </View>
                     {loaded ? <LoadEditor key={`${set.id}-${set.addedLoadKg}`} value={set.addedLoadKg} onSave={(next) => void adjust(set.id, 'addedLoadKg', next)} /> : null}
-                    <IconButton icon="ellipsis-vertical" tone="plain" size={36} label={t('logger.setOptions', { number: set.index })} onPress={() => setSetFor({ exercise, set })} />
                   </View>
                   {set.note || set.rpe !== null || set.clipCount > 0 ? (
                     <Pressable accessibilityRole="button" onPress={() => setSetFor({ exercise, set })} style={styles.noteRow}>
@@ -521,28 +523,29 @@ const baseStyles = StyleSheet.create({
   flex: { flex: 1 },
   error: { fontFamily: fonts.medium, fontSize: 14 },
   exerciseCard: { gap: 4 },
-  foldAll: { alignSelf: 'flex-end', minHeight: 32, justifyContent: 'center' },
+  foldAll: { alignSelf: 'flex-end', minHeight: 48, justifyContent: 'center' },
   foldAllText: { fontFamily: fonts.semibold, fontSize: 14 },
   nameRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   exerciseHeader: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, marginBottom: 4 },
   setBlock: { borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 8, paddingBottom: 4 },
   row: { minHeight: 50, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 6 },
-  setMeta: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 44 },
+  setMeta: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 48 },
+  setValues: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 12, paddingBottom: 8 },
   setBadge: { width: 30, height: 30, borderRadius: 9, alignItems: 'center', justifyContent: 'center' },
   setBadgeText: { fontFamily: fonts.display, fontSize: 16 },
   setStatus: { flexShrink: 1, fontFamily: fonts.medium, fontSize: 12 },
   counter: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-  adjust: { width: 36, height: 36, borderRadius: 11, alignItems: 'center', justifyContent: 'center' },
-  value: { minWidth: 58, textAlign: 'center', fontFamily: fonts.display, fontSize: 18 },
-  noteRow: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 32, paddingLeft: 38 },
+  adjust: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  value: { minWidth: 58, textAlign: 'center', fontFamily: fonts.display, fontSize: 24, lineHeight: 30 },
+  noteRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8, minHeight: 48 },
   noteText: { flex: 1, fontFamily: fonts.body, fontSize: 13 },
   noteTag: { flex: 0, fontFamily: fonts.semibold },
   clipChip: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, height: 22, borderRadius: 999 },
   clipText: { fontFamily: fonts.semibold, fontSize: 12 },
-  addSet: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, minHeight: 44, borderRadius: 12, borderWidth: 1, borderStyle: 'dashed', marginTop: 6 },
+  addSet: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, minHeight: 48, borderRadius: 12, borderWidth: 1, marginTop: 8 },
   addSetText: { fontFamily: fonts.semibold, fontSize: 15 },
   exerciseNote: { fontFamily: fonts.body, fontSize: 13, lineHeight: 18, marginTop: 4 },
   loadWrap: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  loadInput: { minWidth: 64, height: 38, borderRadius: 10, textAlign: 'center', textAlignVertical: 'center', fontFamily: fonts.display, fontSize: 17, lineHeight: 21, paddingVertical: 0, paddingHorizontal: 6, includeFontPadding: false },
+  loadInput: { minWidth: 64, minHeight: 48, borderRadius: 10, textAlign: 'center', textAlignVertical: 'center', fontFamily: fonts.display, fontSize: 20, lineHeight: 26, paddingVertical: 0, paddingHorizontal: 6, includeFontPadding: false },
   loadUnit: { fontFamily: fonts.medium, fontSize: 12 },
 });

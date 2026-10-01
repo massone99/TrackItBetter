@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Keyboard, Pressable, StyleSheet, TextInput, View } from 'react-native';
 import { Text } from '../src/shared/components/Text';
+import { HoldDurationField } from '../src/shared/components/DateTimePickers';
 import { WorkoutInProgressSheet } from '../src/features/session/WorkoutInProgressSheet';
 import { getActiveWorkout } from '../src/features/session/repository';
 import { defaultMicroTarget, getLastMicroSessionExercise, listMicroSessionExercises, listRecentMicroSessionExerciseIds, logMicroSession, pickRecent } from '../src/features/session/microSession';
@@ -103,11 +104,11 @@ export default function MicroSessionScreen() {
         {selected ? <>
           <Text numberOfLines={1} style={[styles.selectedName, { color: palette.text }]}>{selected.name}</Text>
           <Body>{t('micro.value')} · {unit}</Body>
-          <View style={styles.targetRow}>
+          {timed ? <HoldDurationField label={t('micro.value')} value={Number(value) || 0} min={1} onChange={(seconds) => setValue(String(seconds))} /> : <View style={styles.targetRow}>
             <Pressable accessibilityRole="button" accessibilityLabel={t('micro.decrease')} onPress={() => setValue(String(Math.max(increment, Number(value) - increment)))} style={[styles.adjust, { backgroundColor: palette.surfaceMuted }]}><Icon name="remove" size={18} color={palette.text} /></Pressable>
             <TextInput accessibilityLabel={`${t('micro.value')} ${unit}`} keyboardType="numbers-and-punctuation" value={value} onChangeText={setValue} style={[styles.value, { backgroundColor: palette.surfaceMuted, borderColor: palette.border, color: palette.text }]} />
             <Pressable accessibilityRole="button" accessibilityLabel={t('micro.increase')} onPress={() => setValue(String(Number(value || 0) + increment))} style={[styles.adjust, { backgroundColor: palette.surfaceMuted }]}><Icon name="add" size={18} color={palette.text} /></Pressable>
-          </View>
+          </View>}
           <ActionButton label={working ? t('micro.working') : t('micro.save')} onPress={() => void log()} />
           {message === 'done' ? <Body style={{ color: palette.accentStrong }}>{t('micro.done')}</Body> : message === 'error' ? <Body style={{ color: palette.warning }}>{t('micro.error')}</Body> : null}
         </> : <Body>{t('micro.empty')}</Body>}
@@ -136,12 +137,12 @@ export default function MicroSessionScreen() {
 const baseStyles = StyleSheet.create({
   selectedName: { fontSize: 18, fontFamily: 'Barlow_600SemiBold' },
   targetRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 12, marginVertical: 10 },
-  adjust: { width: 44, height: 44, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
-  value: { width: 96, height: 46, borderWidth: 1, borderRadius: 14, textAlign: 'center', fontSize: 20, fontWeight: '700' },
+  adjust: { width: 48, height: 48, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  value: { width: 96, minHeight: 52, borderWidth: 1, borderRadius: 12, textAlign: 'center', fontSize: 24, fontFamily: 'BarlowCondensed_700Bold' },
   section: { gap: 8, marginVertical: 8 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
-  search: { minHeight: 44, borderWidth: 1, borderRadius: 12, paddingHorizontal: 12 },
-  item: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 10 },
+  search: { minHeight: 52, borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, fontSize: 16, fontFamily: 'Barlow_400Regular' },
+  item: { minHeight: 56, flexDirection: 'row', alignItems: 'center', gap: 12 },
   itemName: { flex: 1, fontSize: 15 },
   itemUnit: { fontSize: 13 },
   check: { width: 18 },
