@@ -35,6 +35,21 @@ jobs:
       - name: Read version
         id: version
         run: echo "value=$(node -p "require('./app.json').expo.version")" >> "$GITHUB_OUTPUT"
+      - name: Read release notes
+        run: |
+          node --input-type=module <<'NODE'
+          import { readFileSync, writeFileSync } from 'node:fs';
+          import { join } from 'node:path';
+
+          const { expo: { version } } = JSON.parse(readFileSync('app.json', 'utf8'));
+          const lines = readFileSync('CHANGELOG.md', 'utf8').replace(/\r\n/g, '\n').split('\n');
+          const start = lines.findIndex((line) => line.startsWith(`## ${version} - `));
+          if (start < 0) throw new Error(`Missing CHANGELOG.md entry for ${version}`);
+          const end = lines.findIndex((line, index) => index > start && line.startsWith('## '));
+          const notes = lines.slice(start + 1, end < 0 ? undefined : end).join('\n').trim();
+          if (!notes) throw new Error(`Empty CHANGELOG.md entry for ${version}`);
+          writeFileSync(join(process.env.RUNNER_TEMP, 'release-notes.md'), `${notes}\n`);
+          NODE
       - name: Build arm64 APK
         run: npm run build:apk
       - uses: actions/upload-artifact@v4
@@ -68,4 +83,4 @@ jobs:
           gh release create "v${VERSION}" "build/TrackItBetter-${VERSION}.apk" \
             --target "$GITHUB_SHA" \
             --title "TrackItBetter ${VERSION}" \
-            --notes "Sideloadable Android APK (arm64-v8a). Program builder: exercises created there join the workout, new movements start with one set and an optional rest, and the picker opens clean. Movement tags are always visible by region, with both side-flexion directions and whole-spine tags. Starting a workout while one is open shows an alert with Resume; a failed program start no longer leaves a half-made workout."
+            --notes-file "$RUNNER_TEMP/release-notes.md"

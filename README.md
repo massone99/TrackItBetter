@@ -48,6 +48,10 @@ install an update whose `versionCode` is not higher), and syncs `package.json`/`
 Pushing the `app.json` change to `main` triggers the Android release workflow, which publishes
 `v<version>`.
 
+Release notes live in [CHANGELOG.md](CHANGELOG.md). Add a dated section for the new version when
+bumping it, using `## <version> - YYYY-MM-DD`. The release workflow uses that version's entry as the
+GitHub release description and stops if the entry is missing or empty.
+
 The generated project signs release builds with the debug keystore, which is fine for sideloading;
 use a real upload key (or `eas build -p android --profile preview`) for store distribution.
 
