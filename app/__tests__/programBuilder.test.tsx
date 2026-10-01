@@ -6,6 +6,20 @@ import { setPendingExercise } from '../../src/features/programs/pendingExercise'
 import ProgramBuilder from '../program-builder';
 
 jest.mock('react-native-keyboard-controller', () => jest.requireActual('react-native-keyboard-controller/jest'));
+jest.mock('react-native-reanimated', () => {
+  const { View } = jest.requireActual('react-native');
+  return {
+    __esModule: true,
+    default: { View, createAnimatedComponent: (component: unknown) => component },
+    useSharedValue: (initial: unknown) => ({ value: initial }),
+    useAnimatedStyle: (factory: () => object) => factory(),
+    withTiming: (value: unknown) => value,
+  };
+});
+jest.mock('react-native-gesture-handler', () => {
+  const chain: object = new Proxy(() => chain, { get: () => () => chain });
+  return { Gesture: { Pan: () => chain }, GestureDetector: ({ children }: { children: unknown }) => children };
+});
 jest.mock('expo-crypto', () => ({ randomUUID: jest.fn(() => 'session-1') }));
 jest.mock('expo-router', () => {
   const React = jest.requireActual('react');

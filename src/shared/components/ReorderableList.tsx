@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Dimensions, StyleSheet, View } from 'react-native';
+import { Dimensions, StyleSheet, View, type LayoutChangeEvent } from 'react-native';
+import Animated, { useAnimatedStyle, useSharedValue, withTiming, type SharedValue } from 'react-native-reanimated';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { useTheme } from '../theme/ThemeProvider';
 import { tapFeedback, useScrollControl } from './ui';
@@ -28,12 +29,21 @@ export function ReorderableList<T>({ items, keyOf, nameOf, gap = 12, onMove, onR
   onRowLayout?: (key: string, top: number) => void;
   renderRow: (item: T, index: number, row: ReorderRow) => ReactNode;
 }) {
-  const [heights, setHeights] = useState<ReadonlyMap<string, number>>(new Map());
-  const heightOf = (key: string) => heights.get(key) ?? 0;
-  const [drag, setDrag] = useState<{ from: number; over: number; offset: number } | null>(null);
+  // Row heights live in a ref: they are only read while dragging, so a layout never re-renders the list.
+  const heights = useRef(new Map<string, number>());
+  const heightOf = (key: string) => heights.current.get(key) ?? 0;
+  // Only which row is lifted is React state; the finger's travel and the neighbours' shifts are
+  // shared values, so a drag frame moves views on the UI thread instead of re-rendering every row.
+  const [lifted, setLifted] = useState<number | null>(null);
+  const motion = {
+    from: useSharedValue(-1),
+    over: useSharedValue(-1),
+    offset: useSharedValue(0),
+    travel: useSharedValue(0),
+  };
   const scroll = useScrollControl();
   // What the finger is doing and where the page was when the grab began; the row follows both.
-  const pointer = useRef({ translation: 0, absoluteY: 0, startScroll: 0, from: -1 });
+  const pointer = useRef({ translation: 0, absoluteY: 0, startScroll: 0, from: -1, over: -1 });
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
   const stop = () => { if (timer.current) { clearInterval(timer.current); timer.current = null; } };
   useEffect(() => stop, []);
@@ -42,12 +52,19 @@ export function ReorderableList<T>({ items, keyOf, nameOf, gap = 12, onMove, onR
   const follow = () => {
     const { translation, startScroll, from } = pointer.current;
     const offset = translation + (scroll ? scroll.getOffset() - startScroll : 0);
-    setDrag((current) => (current ? { ...current, offset, over: overFor(from, offset) } : current));
+    const over = overFor(from, offset);
+    pointer.current.over = over;
+    motion.offset.value = offset;
+    if (motion.over.value !== over) motion.over.value = over;
   };
   const start = (index: number) => {
     tapFeedback();
-    pointer.current = { translation: 0, absoluteY: 0, startScroll: scroll?.getOffset() ?? 0, from: index };
-    setDrag({ from: index, over: index, offset: 0 });
+    pointer.current = { translation: 0, absoluteY: 0, startScroll: scroll?.getOffset() ?? 0, from: index, over: index };
+    motion.travel.value = heightOf(keyOf(items[index])) + gap;
+    motion.offset.value = 0;
+    motion.over.value = index;
+    motion.from.value = index;
+    setLifted(index);
     stop();
     // Near the top or bottom edge of the screen the page scrolls on its own, faster the closer the finger is.
     timer.current = setInterval(() => {
@@ -61,20 +78,26 @@ export function ReorderableList<T>({ items, keyOf, nameOf, gap = 12, onMove, onR
       follow();
     }, 16);
   };
-
-  const tops = () => {
-    let top = 0;
-    return items.map((item) => { const at = top; top += (heightOf(keyOf(item))) + gap; return at; });
+  const finish = () => {
+    stop();
+    const { from, over } = pointer.current;
+    if (from < 0) return;
+    pointer.current.from = -1;
+    motion.from.value = -1;
+    motion.over.value = -1;
+    motion.offset.value = 0;
+    setLifted(null);
+    if (over !== from) { tapFeedback('success'); onMove(from, over); }
   };
+
   /** The position the dragged row's centre has reached. */
   const overFor = (from: number, offset: number) => {
-    const positions = tops();
-    const height = heightOf(keyOf(items[from]));
-    const centre = positions[from] + offset + height / 2;
+    let top = 0;
+    const positions = items.map((item) => { const at = top; top += heightOf(keyOf(item)) + gap; return at; });
+    const centre = positions[from] + offset + heightOf(keyOf(items[from])) / 2;
     let over = from;
     items.forEach((item, index) => {
-      const itemHeight = heightOf(keyOf(item));
-      if (centre >= positions[index] && centre <= positions[index] + itemHeight + gap) over = index;
+      if (centre >= positions[index] && centre <= positions[index] + heightOf(keyOf(item)) + gap) over = index;
     });
     if (centre < 0) over = 0;
     return over;
@@ -84,22 +107,18 @@ export function ReorderableList<T>({ items, keyOf, nameOf, gap = 12, onMove, onR
     <View style={{ gap }}>
       {items.map((item, index) => {
         const key = keyOf(item);
-        const dragged = drag?.from === index;
-        const grabbed = drag ? items[drag.from] : undefined;
-        const travel = (grabbed ? heightOf(keyOf(grabbed)) : 0) + gap;
-        // Rows between the grabbed one and where it would land make room for it.
-        const shift = !drag || dragged ? 0
-          : drag.over > drag.from && index > drag.from && index <= drag.over ? -travel
-          : drag.over < drag.from && index < drag.from && index >= drag.over ? travel : 0;
+        const dragged = lifted === index;
         return (
-          <View
+          <Row
             key={key}
+            index={index}
+            motion={motion}
+            dragged={dragged}
             onLayout={(event) => {
               const { height, y } = event.nativeEvent.layout;
-              setHeights((current) => (current.get(key) === height ? current : new Map(current).set(key, height)));
+              heights.current.set(key, height);
               onRowLayout?.(key, y);
             }}
-            style={[dragged && styles.lifted, { transform: [{ translateY: dragged ? drag!.offset : shift }] }]}
           >
             {renderRow(item, index, {
               dragging: dragged,
@@ -111,21 +130,38 @@ export function ReorderableList<T>({ items, keyOf, nameOf, gap = 12, onMove, onR
                   canDown={index < items.length - 1}
                   onStart={() => start(index)}
                   onUpdate={(translation, absoluteY) => { pointer.current.translation = translation; pointer.current.absoluteY = absoluteY; follow(); }}
-                  onEnd={() => {
-                    stop();
-                    const done = drag;
-                    setDrag(null);
-                    if (done && done.over !== done.from) { tapFeedback('success'); onMove(done.from, done.over); }
-                  }}
+                  onEnd={finish}
                   onNudge={(delta) => onMove(index, index + delta)}
                 />
               ),
             })}
-          </View>
+          </Row>
         );
       })}
     </View>
   );
+}
+
+interface Motion { from: SharedValue<number>; over: SharedValue<number>; offset: SharedValue<number>; travel: SharedValue<number> }
+
+/** One row: follows the finger when lifted, slides out of the way when the lifted row passes it. */
+function Row({ index, motion, dragged, onLayout, children }: {
+  index: number;
+  motion: Motion;
+  dragged: boolean;
+  onLayout: (event: LayoutChangeEvent) => void;
+  children: ReactNode;
+}) {
+  const animated = useAnimatedStyle(() => {
+    const from = motion.from.value;
+    if (from < 0) return { transform: [{ translateY: 0 }] };
+    if (index === from) return { transform: [{ translateY: motion.offset.value }] };
+    const over = motion.over.value;
+    const shift = over > from && index > from && index <= over ? -motion.travel.value
+      : over < from && index < from && index >= over ? motion.travel.value : 0;
+    return { transform: [{ translateY: withTiming(shift, { duration: 140 }) }] };
+  });
+  return <Animated.View onLayout={onLayout} style={[dragged && styles.lifted, animated]}>{children}</Animated.View>;
 }
 
 /** The six-dot drag grip (two columns of three), drawn so it reads as "drag me" rather than as a menu. */
