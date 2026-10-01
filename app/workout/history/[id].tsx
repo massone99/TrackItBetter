@@ -517,5 +517,5 @@ const baseStyles = StyleSheet.create({
   exerciseNote: { fontFamily: fonts.body, fontSize: 13, lineHeight: 18, marginTop: 4 },
   loadWrap: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   loadInput: { minWidth: 64, height: 38, borderRadius: 10, textAlign: 'center', textAlignVertical: 'center', fontFamily: fonts.display, fontSize: 17, lineHeight: 21, paddingVertical: 0, paddingHorizontal: 6, includeFontPadding: false },
-  loadUnit: { fontFamily: fonts.medium, fontSize: 11 },
+  loadUnit: { fontFamily: fonts.medium, fontSize: 12 },
 });

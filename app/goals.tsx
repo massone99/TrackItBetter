@@ -162,7 +162,7 @@ function heatColor(count: number, palette: ReturnType<typeof useTheme>['palette'
 const baseStyles = StyleSheet.create({
   targetRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   targetText: { flex: 1, gap: 3 },
-  adjustButton: { width: 42, height: 42, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
+  adjustButton: { width: 48, height: 48, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
   adjustText: { fontSize: 24, fontWeight: '800' },
   progressTrack: { height: 9, borderRadius: 6, overflow: 'hidden' },
   progressFill: { height: '100%', borderRadius: 6 },
@@ -178,12 +178,12 @@ const baseStyles = StyleSheet.create({
   legend: { flexDirection: 'row', alignItems: 'center', gap: 5, alignSelf: 'flex-end' },
   legendCell: { width: 12, height: 12, borderRadius: 3 },
   weekdayLabels: { justifyContent: 'space-between', paddingVertical: 1 },
-  weekday: { height: 12, width: 12, textAlign: 'center', fontSize: 10, fontWeight: '700' },
+  weekday: { minHeight: 16, width: 16, textAlign: 'center', fontSize: 12, fontWeight: '700' },
   achievementRow: { minHeight: 75, borderTopWidth: StyleSheet.hairlineWidth, flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 8 },
   badge: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
   badgeText: { fontSize: 20, fontWeight: '900' },
   achievementText: { flex: 1, gap: 2 },
   achievementTitle: { fontSize: 14, fontWeight: '800' },
-  achievementProgress: { fontSize: 11, fontWeight: '800', textAlign: 'right' },
+  achievementProgress: { fontSize: 12, fontWeight: '800', textAlign: 'right' },
   retry: { fontSize: 15, fontWeight: '800' },
 });

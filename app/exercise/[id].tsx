@@ -417,6 +417,6 @@ const baseStyles = StyleSheet.create({
   cue: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, paddingVertical: 9 },
   cueText: { flex: 1 },
   tags: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  tag: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 11, height: 30, borderRadius: 999 },
+  tag: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 11, minHeight: 30, borderRadius: 999 },
   tagText: { fontFamily: fonts.medium, fontSize: 13, textTransform: 'capitalize' },
 });

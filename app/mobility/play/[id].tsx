@@ -338,7 +338,7 @@ const baseStyles = StyleSheet.create({
   phase: { fontFamily: fonts.semibold, fontSize: 17 },
   drillName: { fontFamily: fonts.display, fontSize: 40, lineHeight: 44, textAlign: 'center' },
   badges: { flexDirection: 'row', gap: 8, minHeight: 30 },
-  badge: { paddingHorizontal: 12, height: 30, borderRadius: 999, justifyContent: 'center' },
+  badge: { paddingHorizontal: 12, minHeight: 30, borderRadius: 999, justifyContent: 'center' },
   badgeText: { fontFamily: fonts.semibold, fontSize: 14 },
   timer: { fontFamily: fonts.display, fontSize: 112, lineHeight: 118, fontVariant: ['tabular-nums'] },
   cue: { fontFamily: fonts.body, fontSize: 16, lineHeight: 23, textAlign: 'center', maxWidth: 420 },

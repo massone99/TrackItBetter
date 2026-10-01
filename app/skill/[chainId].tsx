@@ -42,7 +42,7 @@ export default function SkillScreen() {
     <Screen>
       <PageHeading title={chain.name} subtitle={chain.description} />
       {chain.suggestion && (
-        <Card style={styles.suggestion}>
+        <Card style={[styles.suggestion, { borderColor: palette.success }]}>
           <Label>{t('progression.nextStep')}</Label>
           <Heading style={styles.suggestionTitle}>
             {chain.suggestion.kind === 'advance'
@@ -86,7 +86,7 @@ export default function SkillScreen() {
 }
 
 const baseStyles = StyleSheet.create({
-  suggestion: { gap: 7, marginBottom: 18, borderColor: '#7A9B76' },
+  suggestion: { gap: 7, marginBottom: 18 },
   suggestionTitle: { fontSize: 17 },
   path: { gap: 4 },
   levelRow: { minHeight: 112, flexDirection: 'row', gap: 13 },

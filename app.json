@@ -3,17 +3,17 @@
     "name": "TrackItBetter",
     "slug": "track-it-better",
     "scheme": "trackitbetter",
-    "version": "0.6.9",
-    "orientation": "portrait",
+    "version": "0.6.10",
+    "orientation": "default",
     "userInterfaceStyle": "automatic",
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.trackitbetter.app",
-      "buildNumber": "22"
+      "buildNumber": "23"
     },
     "android": {
       "package": "com.trackitbetter.app",
-      "versionCode": 32,
+      "versionCode": 33,
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#2F45C8"
@@ -21,7 +21,8 @@
       "permissions": [
         "android.permission.USE_EXACT_ALARM",
         "android.permission.SCHEDULE_EXACT_ALARM"
-      ]
+      ],
+      "predictiveBackGestureEnabled": true
     },
     "web": {
       "bundler": "metro",

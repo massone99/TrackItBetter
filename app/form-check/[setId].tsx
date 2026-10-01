@@ -171,9 +171,9 @@ const baseStyles = StyleSheet.create({
   compactPanel: { minWidth: 140 },
   video: { width: '100%', aspectRatio: 1.35, backgroundColor: '#111', borderRadius: 14 },
   compareRow: { flexDirection: 'row', gap: 8 },
-  slowButton: { minHeight: 38, paddingHorizontal: 12, alignItems: 'center', justifyContent: 'center', borderRadius: 11 },
+  slowButton: { minHeight: 48, paddingHorizontal: 12, alignItems: 'center', justifyContent: 'center', borderRadius: 11 },
   clipCard: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 12 },
   clipDetails: { flex: 1, gap: 4 },
   clipDate: { fontSize: 14, fontWeight: '800' },
-  compareButton: { minHeight: 38, paddingHorizontal: 12, alignItems: 'center', justifyContent: 'center', borderRadius: 11 },
+  compareButton: { minHeight: 48, paddingHorizontal: 12, alignItems: 'center', justifyContent: 'center', borderRadius: 11 },
 });

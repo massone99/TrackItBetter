@@ -193,7 +193,7 @@ const baseStyles = StyleSheet.create({
   input: { minHeight: 54, paddingHorizontal: 15, borderWidth: 1, borderRadius: 14, fontSize: 20, fontWeight: '700' },
   historyRow: { minHeight: 48, borderBottomWidth: StyleSheet.hairlineWidth, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   chart: { borderRadius: 14, padding: 12, marginTop: 8, marginBottom: 8, gap: 10 },
-  chartLabel: { fontSize: 10, fontWeight: '800', letterSpacing: 1 },
+  chartLabel: { fontSize: 11, fontWeight: '800', letterSpacing: 1 },
   chartBars: { height: 76, flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-around', gap: 6 },
   chartColumn: { flex: 1, alignItems: 'center', justifyContent: 'flex-end', gap: 5 },
   chartBarTrack: { width: '65%', height: 58, borderRadius: 5, justifyContent: 'flex-end', overflow: 'hidden' },

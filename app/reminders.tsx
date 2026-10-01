@@ -153,5 +153,5 @@ const baseStyles = StyleSheet.create({
   statusText: { flex: 1, gap: 5 },
   statusDot: { width: 13, height: 13, borderRadius: 7, marginLeft: 12 },
   dayRow: { flexDirection: "row", justifyContent: "space-between", gap: 5 },
-  day: { width: 39, height: 42, alignItems: "center", justifyContent: "center", borderRadius: 12, borderWidth: 1 },
+  day: { width: 40, height: 48, alignItems: "center", justifyContent: "center", borderRadius: 12, borderWidth: 1 },
 });

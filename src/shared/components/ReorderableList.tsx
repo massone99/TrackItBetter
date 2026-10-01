@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Dimensions, StyleSheet, View, type LayoutChangeEvent } from 'react-native';
+import { StyleSheet, useWindowDimensions, View, type LayoutChangeEvent } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withTiming, type SharedValue } from 'react-native-reanimated';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { useTheme } from '../theme/ThemeProvider';
+import { useAnimationSettings } from '../settings/AnimationProvider';
 import { tapFeedback, useScrollControl } from './ui';
 
 /** Distance from the screen's top and bottom edge inside which a drag scrolls the page, and its top speed (px per frame). */
@@ -42,6 +43,10 @@ export function ReorderableList<T>({ items, keyOf, nameOf, gap = 12, onMove, onR
     travel: useSharedValue(0),
   };
   const scroll = useScrollControl();
+  // Follows rotation and window resizing (split screen, foldables) instead of reading the screen once.
+  const { height: windowHeight } = useWindowDimensions();
+  const { duration } = useAnimationSettings();
+  const shiftMs = duration(140);
   // What the finger is doing and where the page was when the grab began; the row follows both.
   const pointer = useRef({ translation: 0, absoluteY: 0, startScroll: 0, from: -1, over: -1 });
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -69,7 +74,6 @@ export function ReorderableList<T>({ items, keyOf, nameOf, gap = 12, onMove, onR
     // Near the top or bottom edge of the screen the page scrolls on its own, faster the closer the finger is.
     timer.current = setInterval(() => {
       if (!scroll) return;
-      const windowHeight = Dimensions.get('window').height;
       const { absoluteY } = pointer.current;
       const speed = absoluteY < EDGE_TOP ? -MAX_SPEED * Math.min(1, (EDGE_TOP - absoluteY) / EDGE_TOP)
         : absoluteY > windowHeight - EDGE_BOTTOM ? MAX_SPEED * Math.min(1, (absoluteY - (windowHeight - EDGE_BOTTOM)) / EDGE_BOTTOM) : 0;
@@ -113,6 +117,7 @@ export function ReorderableList<T>({ items, keyOf, nameOf, gap = 12, onMove, onR
             key={key}
             index={index}
             motion={motion}
+            shiftMs={shiftMs}
             dragged={dragged}
             onLayout={(event) => {
               const { height, y } = event.nativeEvent.layout;
@@ -145,9 +150,10 @@ export function ReorderableList<T>({ items, keyOf, nameOf, gap = 12, onMove, onR
 interface Motion { from: SharedValue<number>; over: SharedValue<number>; offset: SharedValue<number>; travel: SharedValue<number> }
 
 /** One row: follows the finger when lifted, slides out of the way when the lifted row passes it. */
-function Row({ index, motion, dragged, onLayout, children }: {
+function Row({ index, motion, shiftMs, dragged, onLayout, children }: {
   index: number;
   motion: Motion;
+  shiftMs: number;
   dragged: boolean;
   onLayout: (event: LayoutChangeEvent) => void;
   children: ReactNode;
@@ -159,7 +165,7 @@ function Row({ index, motion, dragged, onLayout, children }: {
     const over = motion.over.value;
     const shift = over > from && index > from && index <= over ? -motion.travel.value
       : over < from && index < from && index >= over ? motion.travel.value : 0;
-    return { transform: [{ translateY: withTiming(shift, { duration: 140 }) }] };
+    return { transform: [{ translateY: withTiming(shift, { duration: shiftMs }) }] };
   });
   return <Animated.View onLayout={onLayout} style={[dragged && styles.lifted, animated]}>{children}</Animated.View>;
 }

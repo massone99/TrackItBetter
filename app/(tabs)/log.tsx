@@ -10,6 +10,8 @@ import { ActionButton, Body, Card, EmptyState, Heading, IconButton, PageHeading,
 import { useTheme } from '../../src/shared/theme/ThemeProvider';
 import { useScaledStyles } from '../../src/shared/theme/useScaledStyles';
 
+const PAGE_SIZE = 30;
+
 export default function LogScreen() {
   const styles = useScaledStyles(baseStyles);
   const { t, i18n } = useTranslation();
@@ -31,6 +33,8 @@ export default function LogScreen() {
   useFocusEffect(useCallback(() => { void refresh(); }, [refresh]));
 
   const [pastOpen, setPastOpen] = useState(false);
+  // A long history renders in pages so the screen stays light after years of training.
+  const [shownCount, setShownCount] = useState(PAGE_SIZE);
   const [todayKey] = useState(() => localDateKey(new Date()));
   // Date keys are YYYY-MM-DD, so they compare as strings.
   const selectedIsFuture = selectedDate !== null && selectedDate > todayKey;
@@ -107,7 +111,7 @@ export default function LogScreen() {
             <Card style={styles.emptyDate}>
               <Body style={styles.center}>{t('log.noWorkoutsOnDate')}</Body>
             </Card>
-          ) : visibleWorkouts.map((workout) => {
+          ) : visibleWorkouts.slice(0, shownCount).map((workout) => {
         const duration = Math.max(0, Math.round((workout.endedAt.getTime() - workout.startedAt.getTime()) / 60_000));
         return (
           <Pressable key={workout.id} accessibilityRole="button" accessibilityLabel={t('log.openWorkout', { name: workout.name })} onPress={() => router.push({ pathname: '/workout/history/[id]', params: { id: workout.id } })}>
@@ -121,6 +125,7 @@ export default function LogScreen() {
           </Pressable>
         );
           })}
+          {visibleWorkouts.length > shownCount ? <ActionButton variant="ghost" label={t('common.showMore')} onPress={() => setShownCount((count) => count + PAGE_SIZE)} /> : null}
         </>
       ) : null}
       <PastWorkoutFlow visible={pastOpen} dateKey={selectedIsFuture ? null : selectedDate} onClose={() => setPastOpen(false)} />

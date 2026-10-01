@@ -159,7 +159,7 @@ const baseStyles = StyleSheet.create({
   caption: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, paddingHorizontal: 5 },
   captionText: { flex: 1, gap: 4 },
   date: { fontSize: 15, fontWeight: '800' },
-  compareButton: { minHeight: 42, borderRadius: 13, alignItems: 'center', justifyContent: 'center', marginTop: 2 },
+  compareButton: { minHeight: 48, borderRadius: 13, alignItems: 'center', justifyContent: 'center', marginTop: 2 },
   compareHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
   comparison: { width: '100%', aspectRatio: 0.9, overflow: 'hidden', borderRadius: 15, backgroundColor: '#222' },
   comparisonImage: { height: '100%' },
@@ -167,7 +167,7 @@ const baseStyles = StyleSheet.create({
   comparisonLabels: { ...StyleSheet.absoluteFill, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', padding: 10 },
   comparisonTag: { color: '#fff', backgroundColor: '#0009', paddingHorizontal: 8, paddingVertical: 5, borderRadius: 9, fontWeight: '800', overflow: 'hidden' },
   compareDates: { flexDirection: 'row', justifyContent: 'space-between' },
-  sliderTrack: { height: 38, borderRadius: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 3, overflow: 'hidden' },
+  sliderTrack: { minHeight: 48, borderRadius: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 3, overflow: 'hidden' },
   sliderFill: { position: 'absolute', height: 4, left: 0 },
-  sliderButton: { width: 32, height: 32, borderRadius: 12, zIndex: 1, alignItems: 'center', justifyContent: 'center' },
+  sliderButton: { width: 44, height: 44, borderRadius: 12, zIndex: 1, alignItems: 'center', justifyContent: 'center' },
 });
