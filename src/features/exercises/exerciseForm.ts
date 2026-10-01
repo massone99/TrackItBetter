@@ -10,6 +10,9 @@ export const EXERCISE_METRICS = ['reps', 'time', 'reps_load', 'time_load', 'dist
 export const exerciseFormSchema = z.object({
   name: z.string().trim().min(1, 'customExercise.errors.name').max(80, 'customExercise.errors.nameLength'),
   metric: z.enum(EXERCISE_METRICS),
+  // Optional in the input so older fixtures and callers continue to validate;
+  // every parsed form receives an explicit default for saving.
+  unilateral: z.boolean().optional().default(false),
   category: z.enum(EXERCISE_CATEGORIES),
   extraCategories: z.array(z.enum(EXERCISE_CATEGORIES)),
   equipment: z.string().max(240, 'customExercise.errors.equipmentLength'),
@@ -21,14 +24,17 @@ export const exerciseFormSchema = z.object({
 });
 
 export type ExerciseFormValues = z.infer<typeof exerciseFormSchema>;
+/** Input shape accepted by the resolver; defaults are applied in its output. */
+export type ExerciseFormInput = z.input<typeof exerciseFormSchema>;
 
 export const EMPTY_EXERCISE_FORM: ExerciseFormValues = {
-  name: '', metric: 'reps', category: 'push', extraCategories: [], equipment: '', cues: '', demoUrl: '', movementTag: null, movementGroup: null,
+  name: '', metric: 'reps', unilateral: false, category: 'push', extraCategories: [], equipment: '', cues: '', demoUrl: '', movementTag: null, movementGroup: null,
 };
 
 export interface StoredExercise {
   name: string;
   metric: string;
+  unilateral?: boolean | null;
   category: string;
   extraCategories: string;
   equipment: string;
@@ -66,6 +72,7 @@ export function exerciseToFormValues(exercise: StoredExercise): ExerciseFormValu
   return {
     name: exercise.name,
     metric: (EXERCISE_METRICS as readonly string[]).includes(exercise.metric) ? exercise.metric as ExerciseMetric : 'reps',
+    unilateral: exercise.unilateral === true,
     category,
     extraCategories: extras.filter((item) => item !== category),
     equipment: readList(exercise.equipment).join(', '),
@@ -83,6 +90,7 @@ export function formValuesToInput(values: ExerciseFormValues): CreateCustomExerc
   return {
     name: values.name.trim(),
     metric: values.metric,
+    unilateral: values.unilateral === true,
     category: values.category,
     extraCategories: [...new Set(values.extraCategories)].filter((item) => item !== values.category),
     equipment: splitList(values.equipment, true),

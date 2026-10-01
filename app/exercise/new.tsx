@@ -15,6 +15,7 @@ import {
   exerciseToFormValues,
   formValuesToInput,
   toggleExtraCategory,
+  type ExerciseFormInput,
   type ExerciseFormValues,
 } from '../../src/features/exercises/exerciseForm';
 import { ActionButton, Body, Chip, Icon, Label, PageHeading, Screen, TextField } from '../../src/shared/components/ui';
@@ -34,13 +35,13 @@ export default function NewExerciseRoute() {
   // `name` prefills the name field, e.g. what was searched for in a picker before choosing "create".
   // `replaceEntry` (with `addTo`) makes the new exercise take the place of that exercise of the workout; `replaceProgramExercise` (with `addToProgram`) does the same for a program workout.
   const { addTo, addToPast, addToProgram, edit, name: suggestedName, replaceEntry, replaceProgramExercise } = useLocalSearchParams<{ addTo?: string; addToPast?: string; addToProgram?: string; edit?: string; name?: string; replaceEntry?: string; replaceProgramExercise?: string }>();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { palette } = useTheme();
   const [saving, setSaving] = useState(false);
   // Why the last save failed, shown with the message so a failure on a phone can be reported.
   const [saveError, setSaveError] = useState<string | null>(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
-  const { control, handleSubmit, reset, setValue, getValues, formState: { errors } } = useForm<ExerciseFormValues>({
+  const { control, handleSubmit, reset, setValue, getValues, formState: { errors } } = useForm<ExerciseFormInput, unknown, ExerciseFormValues>({
     resolver: zodResolver(exerciseFormSchema),
     defaultValues: { ...EMPTY_EXERCISE_FORM, name: edit ? EMPTY_EXERCISE_FORM.name : suggestedName?.slice(0, 80) ?? EMPTY_EXERCISE_FORM.name },
   });
@@ -120,6 +121,13 @@ export default function NewExerciseRoute() {
             {EXERCISE_METRICS.map((metric) => <Chip key={metric} label={t(`customExercise.metrics.${metric}`)} selected={value === metric} onPress={() => onChange(metric)} />)}
           </View>
         )} />
+      </View>
+
+      <View style={styles.field}>
+        <Controller control={control} name="unilateral" render={({ field: { onChange, value } }) => {
+          const label = t('customExercise.unilateral', { defaultValue: i18n.language.startsWith('it') ? 'Monolaterale' : 'Unilateral' });
+          return <Chip label={label} accessibilityLabel={label} selected={value === true} onPress={() => onChange(value !== true)} />;
+        }} />
       </View>
 
       <View style={styles.field}>

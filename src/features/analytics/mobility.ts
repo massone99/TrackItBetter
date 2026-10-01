@@ -1,4 +1,5 @@
 import { rowCategories, type CompletedSetRow } from './summary';
+import { aggregatePairs } from '../../domain/setPairs';
 
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 
@@ -19,6 +20,7 @@ function inLastWeek(row: Pick<CompletedSetRow, 'workoutStartedAt'>, now: Date): 
 
 /** Seconds spent in mobility holds during one workout. */
 export function mobilitySecondsForWorkout(rows: readonly CompletedSetRow[], workoutId: string): number {
+  rows = aggregatePairs(rows);
   return rows.reduce((sum, row) => (row.workoutId === workoutId && isMobilityTimedSet(row) ? sum + row.durationSec! : sum), 0);
 }
 
@@ -30,6 +32,7 @@ export interface MobilityWeek {
 }
 
 export function buildMobilityWeek(rows: readonly CompletedSetRow[], now = new Date()): MobilityWeek {
+  rows = aggregatePairs(rows);
   let seconds = 0;
   const sessions = new Set<string>();
   for (const row of rows) {
@@ -50,6 +53,7 @@ export interface ExerciseWeek {
 
 /** Last-7-days volume and frequency of one exercise. */
 export function buildExerciseWeek(rows: readonly CompletedSetRow[], exerciseId: string, metric: string, now = new Date()): ExerciseWeek {
+  rows = aggregatePairs(rows);
   const timed = metric === 'time' || metric === 'time_load';
   let sets = 0;
   let seconds = 0;
@@ -122,6 +126,7 @@ function summarize(exerciseId: string, cycle: { start: Date; rows: CompletedSetR
 
 /** The exercise's week in progress, and the last finished one for comparison. */
 export function buildExerciseCycle(rows: readonly CompletedSetRow[], exerciseId: string, now = new Date()): { current: ExerciseCycle | null; previous: ExerciseCycle | null } {
+  rows = aggregatePairs(rows);
   const own = rows.filter((row) => row.exerciseId === exerciseId && row.workoutStartedAt <= now);
   const cycles = cyclesFor(own);
   const last = cycles.at(-1);

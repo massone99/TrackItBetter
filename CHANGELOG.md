@@ -2,6 +2,33 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.6.15 - 2026-10-02
+
+### Unilateral L/R sets
+
+- Edit the unilateral flag on built-in and custom exercises. New sets are linked
+  left/right pairs with independent reps, holds, distance, load, RPE, notes and videos.
+- A completed pair counts as one set. Finish is blocked when only one side is done;
+  the saved draft identifies the missing exercise, set and side. Fully skipped pairs
+  are excluded. Warm-up changes, removal and undo act on the whole pair.
+- Choose rest after each side or after the pair (default), with an exercise preference
+  and a current-workout override. Supersets advance after both sides; hold timers
+  keep each side's actual time.
+- Programs, repeat workouts, micro-sessions and guided mobility use the same pairs.
+  Three prescribed sets create three pairs; saving as a program keeps that count.
+- Statistics average real side contributions: 10×20 kg and 8×15 kg count as
+  160 kg·rep. Derived estimates are calculated per side before averaging. Pair RPE
+  is unknown unless both sides have RPE. Best sets use one actual pair.
+- Exercise analysis offers L/R average, L, R and a shared-scale L/R comparison.
+  Same-load comparisons require equal loads in the averaged pair; side views retain
+  signed load, including assistance. Records compare within the same scope.
+- Convert history explicitly using an atomic pair editor, assigning the original
+  row to a side while preserving its notes and videos. Legacy rows and unlinked L/R
+  sets retain their previous counts until explicitly converted.
+- Additive database migration v10 stores pair identity and rest preferences without
+  rewriting historical performances. Backup v3 carries them; v1/v2 remain importable.
+  To return to an older app version, restore a backup made before migration.
+
 ## 0.6.14 - 2026-10-01
 
 ### Organize the exercise library your way

@@ -1,3 +1,4 @@
+import { groupSets } from '../../domain/setPairs';
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Pressable, StyleSheet, TextInput, View } from 'react-native';
@@ -51,7 +52,7 @@ export function SaveToProgramSheet({ visible, defaultName, exercises, onClose, o
   // The chosen program stays visible while searching, so the selection never disappears.
   const shown = needle ? programs.filter((program) => program.id === choice || program.name.toLocaleLowerCase().includes(needle)) : programs;
   const empty = exercises.length === 0;
-  const sets = exercises.reduce((sum, exercise) => sum + Math.max(1, exercise.sets.filter((set) => set.kind !== 'warmup').length || exercise.sets.length), 0);
+  const sets = exercises.reduce((sum, exercise) => sum + Math.max(1, groupSets(exercise.sets.filter((set) => set.kind !== 'warmup')).length || groupSets(exercise.sets).length), 0);
   const valid = !empty && workoutName.trim().length > 0 && (choice !== 'new' || programName.trim().length > 0);
 
   const save = async () => {

@@ -63,7 +63,7 @@ describe('edit exercise', () => {
     save();
 
     await waitFor(() => expect(updateExercise).toHaveBeenCalledTimes(1));
-    expect(updateExercise).toHaveBeenCalledWith('tuck-planche', {
+    expect(updateExercise).toHaveBeenCalledWith('tuck-planche', { unilateral: false,
       name: 'Tuck Planche',
       metric: 'time',
       category: 'skill',

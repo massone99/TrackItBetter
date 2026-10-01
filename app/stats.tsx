@@ -10,6 +10,7 @@ import {
   availableMetrics,
   buildBreakdown,
   buildSeries,
+  computeMetric,
   DEFAULT_RPE_THRESHOLD,
   METRIC_BY_ID,
   METRICS,
@@ -32,12 +33,37 @@ import { useTheme } from '../src/shared/theme/ThemeProvider';
 import { useScaledStyles } from '../src/shared/theme/useScaledStyles';
 import { formatMinutes, formatNumber } from '../src/shared/utils/format';
 import { readPreference, writePreference } from '../src/shared/settings/preferences';
+import { aggregatePairs, type PairScope } from '../src/domain/setPairs';
+import type { CompletedSetRow } from '../src/features/analytics/summary';
 
 const RPE_THRESHOLD_KEY = 'stats.threshold';
 const GRANULARITIES: Granularity[] = ['workout', 'day', 'week', 'month'];
 const KINDS: TrainingKind[] = ['all', 'strength', 'mobility'];
 const FAMILIES: MetricFamily[] = ['counts', 'volume', 'mobility', 'performance', 'intensity'];
 type SheetKind = BreakdownLevel | 'metric' | 'secondary' | null;
+type ExercisePairScope = PairScope | 'compare';
+
+const PAIR_SCOPE_LABELS: Record<ExercisePairScope, string> = {
+  average: 'Media L/R', left: 'L', right: 'R', compare: 'Confronto L/R', legacy: 'Senza lato',
+};
+
+type PairRow = CompletedSetRow & {
+  pairId?: string | null;
+  side?: string | null;
+  pairMembers?: readonly PairRow[];
+};
+
+/** Select and freeze a pair scope before passing rows to metric code. The null pair id makes this
+ * selection idempotent when a downstream aggregation pass is added to the explorer. */
+function selectPairScope(data: ExploreData, pairScope: PairScope, exerciseId?: string): ExploreData {
+  const pairedOnly = pairScope === 'average' && exerciseId && data.rows.some((row) => row.exerciseId === exerciseId && row.pairId);
+  const source = pairedOnly ? data.rows.filter((row) => row.exerciseId !== exerciseId || row.pairId) : data.rows;
+  const rows = aggregatePairs(source as readonly PairRow[], pairScope);
+  return {
+    ...data,
+    rows: rows as readonly CompletedSetRow[],
+  };
+}
 
 function formatMetric(metric: MetricId, value: number): string {
   switch (METRIC_BY_ID[metric].unit) {
@@ -56,11 +82,15 @@ export default function StatsScreen() {
   const styles = useScaledStyles(baseStyles);
   const { t, i18n } = useTranslation();
   const { palette } = useTheme();
-  const params = useLocalSearchParams<{ exerciseId?: string; metric?: string }>();
+  const params = useLocalSearchParams<{ exerciseId?: string; metric?: string; pairScope?: string }>();
   const [data, setData] = useState<ExploreData | null>(null);
   const [failed, setFailed] = useState(false);
   const [granularity, setGranularity] = useState<Granularity>(params.exerciseId ? 'workout' : 'week');
   const [scope, setScope] = useState<Scope>({ kind: 'all' });
+  const [pairScope, setPairScope] = useState<ExercisePairScope>(() => {
+    if (params.pairScope === 'comparison') return 'compare';
+    return ['average', 'left', 'right', 'compare', 'legacy'].includes(params.pairScope ?? '') ? params.pairScope as ExercisePairScope : 'average';
+  });
   // Scopes left by drilling down, so back steps up one level instead of leaving the screen.
   const [trail, setTrail] = useState<Scope[]>([]);
   const [metric, setMetric] = useState<MetricId>('sets');
@@ -94,19 +124,45 @@ export default function StatsScreen() {
   }, [params.exerciseId, params.metric]);
   useFocusEffect(load);
 
-  const available = useMemo(() => (data ? availableMetrics(data, scope) : []), [data, scope]);
+  const exerciseRows = useMemo(() => {
+    if (!data || !scope.exerciseId) return [];
+    return data.rows.filter((row) => row.exerciseId === scope.exerciseId) as PairRow[];
+  }, [data, scope.exerciseId]);
+  const hasLateralRows = exerciseRows.some((row) => row.side === 'left' || row.side === 'right' || Boolean(row.pairId));
+  const hasLegacyRows = exerciseRows.some((row) => !row.pairId && (!row.side || row.side === 'both'));
+  const pairOptions = useMemo<ExercisePairScope[]>(() => {
+    if (!scope.exerciseId || !hasLateralRows) return ['average'];
+    return hasLegacyRows ? ['average', 'left', 'right', 'compare', 'legacy'] : ['average', 'left', 'right', 'compare'];
+  }, [scope.exerciseId, hasLateralRows, hasLegacyRows]);
+  const activePairScope: ExercisePairScope = scope.exerciseId && pairOptions.includes(pairScope) ? pairScope : 'average';
+  const viewData = useMemo(() => (data ? selectPairScope(data, activePairScope === 'compare' ? 'average' : activePairScope, scope.exerciseId) : null), [data, activePairScope, scope.exerciseId]);
+  const leftData = useMemo(() => (data && activePairScope === 'compare' ? selectPairScope(data, 'left') : null), [data, activePairScope]);
+  const rightData = useMemo(() => (data && activePairScope === 'compare' ? selectPairScope(data, 'right') : null), [data, activePairScope]);
+  const available = useMemo(() => (viewData ? availableMetrics(viewData, scope) : []), [viewData, scope]);
   const primary = available.includes(metric) ? metric : 'sets';
   const second = secondary && secondary !== primary && available.includes(secondary) ? secondary : null;
   const now = useMemo(() => new Date(), [data]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const series = useMemo(() => (data ? buildSeries(data, { granularity, scope, metric: primary, now, page, rpeThreshold }) : null), [data, granularity, scope, primary, now, page, rpeThreshold]);
-  const secondarySeries = useMemo(() => (data && second ? buildSeries(data, { granularity, scope, metric: second, now, page, rpeThreshold }) : null), [data, granularity, scope, second, now, page, rpeThreshold]);
+  const series = useMemo(() => (viewData ? buildSeries(viewData, { granularity, scope, metric: primary, now, page, rpeThreshold }) : null), [viewData, granularity, scope, primary, now, page, rpeThreshold]);
+  const secondarySeries = useMemo(() => (viewData && second ? buildSeries(viewData, { granularity, scope, metric: second, now, page, rpeThreshold }) : null), [viewData, granularity, scope, second, now, page, rpeThreshold]);
   const buckets = series?.buckets ?? [];
   const selectedIndex = selected != null && selected < buckets.length ? selected : buckets.length ? lastWithData(buckets) : null;
   const bucket = selectedIndex != null ? buckets[selectedIndex] : null;
-  const breakdown = useMemo(() => (data && bucket ? buildBreakdown(data, scope, primary, bucket, rpeThreshold) : []), [data, bucket, scope, primary, rpeThreshold]);
+  const breakdown = useMemo(() => (viewData && bucket ? buildBreakdown(viewData, scope, primary, bucket, rpeThreshold) : []), [viewData, bucket, scope, primary, rpeThreshold]);
   const level = nextLevel(scope);
-  const loadProgress = useMemo(() => data ? repsAtLoadFromExplore(data, scope) : [], [data, scope]);
+  const loadProgress = useMemo(() => viewData ? repsAtLoadFromExplore(viewData, scope) : [], [viewData, scope]);
+  const comparison = useMemo(() => {
+    if (activePairScope !== 'compare' || !leftData || !rightData || !series) return null;
+    const values = (source: ExploreData) => series.buckets.map((bucket) => {
+      const rows = source.rows.filter((row) => row.exerciseId === scope.exerciseId && bucket.workoutIds.includes(row.workoutId));
+      const workouts = source.workouts.filter((row) => bucket.workoutIds.includes(row.id));
+      return rows.length ? computeMetric(primary, rows, workouts, rpeThreshold) : null;
+    });
+    return {
+      left: values(leftData),
+      right: values(rightData),
+    };
+  }, [activePairScope, leftData, rightData, series, scope.exerciseId, primary, rpeThreshold]);
 
   const locale = i18n.language;
   const dateFormat = (options: Intl.DateTimeFormatOptions, date: Date) => new Intl.DateTimeFormat(locale, options).format(date);
@@ -130,7 +186,7 @@ export default function StatsScreen() {
 
   const resetView = () => { setPage(0); setSelected(null); };
   /** A new starting point (training kind): nothing to step back to. */
-  const changeScope = (next: Scope) => { setScope(next); setTrail([]); resetView(); };
+  const changeScope = (next: Scope) => { setScope(next); setPairScope('average'); setTrail([]); resetView(); };
   /** A step down (category, pattern, exercise): remembered so back can undo it. */
   const drillTo = (next: Scope) => {
     if (JSON.stringify(next) !== JSON.stringify(scope)) setTrail((steps) => [...steps, scope]);
@@ -146,7 +202,7 @@ export default function StatsScreen() {
     if (!data || !bucket || selectedIndex == null) { resetView(); return; }
     if (granularity !== 'workout') { setSelected(selectedIndex); return; }
     for (let candidate = 0; candidate < 100; candidate += 1) {
-      const found = buildSeries(data, { granularity, scope: next, metric: primary, now, page: candidate, rpeThreshold });
+      const found = buildSeries(viewData ?? data, { granularity, scope: next, metric: primary, now, page: candidate, rpeThreshold });
       const index = found.buckets.findIndex((item) => item.key === bucket.key);
       if (index >= 0) { setPage(candidate); setSelected(index); return; }
       if (!found.hasOlder) break;
@@ -174,6 +230,7 @@ export default function StatsScreen() {
     else if (kind === 'pattern') drillTo({ kind: scope.kind, category: scope.category, pattern: key });
     else {
       const row = key ? data?.rows.find((candidate) => candidate.exerciseId === key) : undefined;
+      if (row) setPairScope('average');
       drillTo(row ? scopeForExercise(scope, row) : { kind: scope.kind, category: scope.category, pattern: scope.pattern });
     }
     setSheet(null);
@@ -183,7 +240,7 @@ export default function StatsScreen() {
   const exerciseName = scope.exerciseId ? data?.rows.find((row) => row.exerciseId === scope.exerciseId)?.exerciseName : undefined;
   const previousValue = selectedIndex != null && selectedIndex > 0 ? buckets[selectedIndex - 1].value : null;
   const options = data && (sheet === 'category' || sheet === 'pattern' || sheet === 'exercise')
-    ? scopeOptions(data, scope, sheet).filter((option) => levelLabel(sheet, option.key, option.name).toLowerCase().includes(search.trim().toLowerCase()))
+    ? scopeOptions(viewData ?? data, scope, sheet).filter((option) => levelLabel(sheet, option.key, option.name).toLowerCase().includes(search.trim().toLowerCase()))
     : [];
   const choiceLevel: BreakdownLevel | null = sheet === 'category' || sheet === 'pattern' || sheet === 'exercise' ? sheet : null;
   const currentChoice = choiceLevel === 'category' ? scope.category : choiceLevel === 'pattern' ? scope.pattern : choiceLevel === 'exercise' ? scope.exerciseId : undefined;
@@ -211,6 +268,21 @@ export default function StatsScreen() {
           <Chip icon="git-branch-outline" label={scope.pattern ? patternLabel(scope.pattern) : `${t('stats.pattern')}: ${t('stats.any')}`} selected={Boolean(scope.pattern)} onPress={() => setSheet('pattern')} />
           <Chip icon="barbell-outline" label={exerciseName ?? `${t('stats.exercise')}: ${t('stats.any')}`} selected={Boolean(scope.exerciseId)} onPress={() => setSheet('exercise')} />
         </View>
+        {scope.exerciseId && pairOptions.length > 1 ? (
+          <View style={styles.pairScope}>
+            <Label>{t('stats.pairScope.title', { defaultValue: 'Lato' })}</Label>
+            <View style={styles.chips}>
+              {pairOptions.map((option) => (
+                <Chip
+                  key={option}
+                  label={t(`stats.pairScope.${option}`, { defaultValue: PAIR_SCOPE_LABELS[option] })}
+                  selected={activePairScope === option}
+                  onPress={() => { setPairScope(option); resetView(); }}
+                />
+              ))}
+            </View>
+          </View>
+        ) : null}
 
         <Card>
           <View style={styles.metricRow}>
@@ -235,14 +307,18 @@ export default function StatsScreen() {
           ) : (
             <StatsChart
               values={buckets.map((item) => item.value)}
-              secondary={secondarySeries?.buckets.map((item) => item.value)}
+              secondary={comparison ? undefined : secondarySeries?.buckets.map((item) => item.value)}
+              comparison={comparison ?? undefined}
+              sharedScale={Boolean(comparison)}
               labels={buckets.map(shortLabel)}
               selected={selectedIndex}
               onSelect={setSelected}
               formatPrimary={(value) => formatMetric(primary, value)}
               zeroBased={(METRIC_BY_ID[primary].family !== 'performance' && METRIC_BY_ID[primary].family !== 'intensity') || primary === 'trainingSec'}
               formatSecondary={second ? (value) => formatMetric(second, value) : undefined}
-              accessibilityLabel={(index) => `${periodTitle(buckets[index])}: ${valueText(primary, buckets[index].value)}`}
+              accessibilityLabel={(index) => comparison
+                ? `${periodTitle(buckets[index])}: L ${valueText(primary, comparison.left[index])}, R ${valueText(primary, comparison.right[index])}`
+                : `${periodTitle(buckets[index])}: ${valueText(primary, buckets[index].value)}`}
             />
           )}
           {primary === 'setsAtRpe' || second === 'setsAtRpe' ? (
@@ -251,7 +327,12 @@ export default function StatsScreen() {
               <Body style={styles.legendText}>{t('stats.rpeHint')}</Body>
             </View>
           ) : null}
-          {second ? (
+          {comparison ? (
+            <View style={styles.legend}>
+              <View style={[styles.legendLine, { backgroundColor: palette.record }]} /><Body style={styles.legendText}>L · {metricLabel(primary)}</Body>
+              <View style={[styles.legendLine, { backgroundColor: palette.accentStrong }]} /><Body style={styles.legendText}>R · {metricLabel(primary)}</Body>
+            </View>
+          ) : second ? (
             <View style={styles.legend}>
               <View style={[styles.legendSwatch, { backgroundColor: palette.accent }]} /><Body style={styles.legendText}>{metricLabel(primary)}</Body>
               <View style={[styles.legendLine, { backgroundColor: palette.record }]} /><Body style={styles.legendText}>{metricLabel(second)}</Body>
@@ -388,6 +469,7 @@ const baseStyles = StyleSheet.create({
   loading: { minHeight: 170, alignItems: 'center', justifyContent: 'center' },
   link: { fontWeight: '700', padding: 8 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  pairScope: { gap: 6 },
   metricRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
   metricPick: { gap: 6, flexShrink: 1 },
   pager: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },

@@ -241,4 +241,20 @@ export async function migrateDatabase(database: SQLiteDatabase): Promise<void> {
       await database.execAsync(multipleMovementTagsSchema);
     });
   }
+  if (version < 10) {
+    await database.withTransactionAsync(async () => {
+      await database.execAsync(`
+        ALTER TABLE exercise ADD COLUMN unilateral_rest_mode TEXT NOT NULL DEFAULT 'pair' CHECK (unilateral_rest_mode IN ('side', 'pair'));
+        ALTER TABLE exercise_entry ADD COLUMN unilateral_rest_mode TEXT CHECK (unilateral_rest_mode IN ('side', 'pair'));
+        ALTER TABLE training_set ADD COLUMN pair_id TEXT;
+        CREATE UNIQUE INDEX set_pair_side_idx ON training_set(pair_id, side) WHERE pair_id IS NOT NULL;
+        CREATE TRIGGER set_pair_insert BEFORE INSERT ON training_set WHEN NEW.pair_id IS NOT NULL BEGIN
+          SELECT RAISE(ABORT, 'Invalid unilateral pair') WHERE NEW.side NOT IN ('left', 'right') OR EXISTS (
+            SELECT 1 FROM training_set WHERE pair_id = NEW.pair_id AND (entry_id <> NEW.entry_id OR kind <> NEW.kind)
+          );
+        END;
+        PRAGMA user_version = 10;
+      `);
+    });
+  }
 }

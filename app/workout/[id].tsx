@@ -3,7 +3,8 @@ import * as Speech from 'expo-speech';
 import { useTranslation } from 'react-i18next';
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { eq } from 'drizzle-orm';
-import { ActivityIndicator, Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { groupSets, completedSetCount } from '../../src/domain/setPairs';
 import { useAppInsets } from '../../src/shared/layout/useAppInsets';
 import { ExercisePicker, type ExerciseChoice } from '../../src/features/exercises/ExercisePicker';
 import { openExercisePage } from '../../src/features/exercises/openExercise';
@@ -32,7 +33,6 @@ import {
   getPreviousPerformance,
   removeExerciseEntry,
   removeExerciseEntryWithUndo,
-  removeSet,
   removeSetWithUndo,
   restoreRemoved,
   uncompleteSet,
@@ -254,7 +254,7 @@ export default function WorkoutScreen() {
     if (exercise.groupId && !supersetLetters.has(exercise.groupId)) supersetLetters.set(exercise.groupId, String.fromCharCode(65 + supersetLetters.size));
   }
 
-  const completedCount = workout?.exercises.reduce((total, exercise) => total + exercise.sets.filter((set) => set.completedAt).length, 0) ?? 0;
+  const completedCount = workout?.exercises.reduce((total, exercise) => total + completedSetCount(exercise.sets), 0) ?? 0;
 
   const saveReadiness = async (field: 'sleep' | 'energy' | 'soreness', value: number) => {
     if (!workout) return;
@@ -341,6 +341,12 @@ export default function WorkoutScreen() {
   const afterSetDone = (setId: string) => {
     const exercise = workout?.exercises.find((item) => item.sets.some((set) => set.id === setId));
     const marked = workout?.exercises.map((item) => ({ ...item, sets: item.sets.map((set) => set.id === setId ? { ...set, completedAt: new Date() } : set) })) ?? [];
+    const finished = exercise?.sets.find((s) => s.id === setId);
+    if (finished?.pairId && exercise?.sets.some((s) => s.pairId === finished.pairId && s.id !== setId && !s.completedAt)) {
+      if (exercise.unilateralRestMode === 'side') startRestTimer(restAfter(setId));
+      else skipRest();
+      return;
+    }
     const step = exercise ? supersetStep(marked, exercise.entryId) : null;
     if (!step || step.endOfRound) startRestTimer(restAfter(setId));
     else if (step.mode === 'between' && step.betweenSec > 0) startRestTimer(step.betweenSec);
@@ -421,7 +427,8 @@ export default function WorkoutScreen() {
     setFinishOpen(false);
     void Speech.stop();
     void cancelRestFinishedNotification().catch(() => undefined);
-    await finishWorkout(workout.id);
+    try { await finishWorkout(workout.id); }
+    catch (error) { Alert.alert('Completa la coppia L / R', error instanceof Error ? error.message : String(error)); return; }
     router.replace({ pathname: '/workout/summary/[id]', params: { id: workout.id } });
   };
 
@@ -466,7 +473,7 @@ export default function WorkoutScreen() {
 
   const allSets = workout.exercises.flatMap((exercise) => exercise.sets);
   const allCollapsed = workout.exercises.every((exercise) => collapsedEntries.get(exercise.entryId) ?? (exercise.sets.length > 0 && exercise.sets.every((set) => Boolean(set.completedAt))));
-  const totalSets = allSets.length;
+  const totalSets = groupSets(allSets).length;
   const finishedExercises = workout.exercises.filter((exercise) => exercise.sets.length > 0 && exercise.sets.every((set) => set.completedAt)).length;
   const volumeKg = allSets.reduce((sum, set) => (set.completedAt && set.kind === 'working' && set.reps && set.addedLoadKg > 0 ? sum + set.reps * set.addedLoadKg : sum), 0);
   const readinessCount = [workout.sleep, workout.energy, workout.soreness].filter((value) => value !== null).length;
@@ -646,7 +653,7 @@ export default function WorkoutScreen() {
         title={t('logger.finishTitle')}
         body={completedCount > 0 ? t('logger.finishBody', { count: completedCount }) : t('logger.noCompleted')}
       >
-        {completedCount > 0 ? <ActionButton icon="flag" label={t('workout.finish')} onPress={() => void confirmFinish()} /> : null}
+        {workout.exercises.some((e) => e.sets.some((s) => s.completedAt)) ? <ActionButton icon="flag" label={t('workout.finish')} onPress={() => void confirmFinish()} /> : null}
         <ActionButton label={t('logger.keepGoing')} secondary onPress={() => setFinishOpen(false)} />
         {completedCount === 0 ? (
           <ActionButton icon="close-circle-outline" label={t('workout.discard')} variant="danger" onPress={() => { setFinishOpen(false); setDiscardOpen(true); }} />
@@ -795,8 +802,9 @@ function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, previous
   const distance = exercise.metric === 'distance';
   const loaded = exercise.metric === 'reps_load' || exercise.metric === 'time_load';
   const field = timed ? 'durationSec' : distance ? 'distanceM' : 'reps';
-  const doneSets = exercise.sets.filter((set) => set.completedAt).length;
-  const allDone = exercise.sets.length > 0 && doneSets === exercise.sets.length;
+  const doneSets = completedSetCount(exercise.sets);
+  const totalSets = groupSets(exercise.sets).length;
+  const allDone = totalSets > 0 && doneSets === totalSets;
   const results = exercise.sets.filter((set) => set.completedAt).map((set) => {
     const base = timed ? formatClock(set.durationSec ?? 0) : distance ? `${formatNumber(set.distanceM ?? 0)}m` : String(set.reps ?? 0);
     const label = set.kind === 'warmup' ? `W ${base}` : base;
@@ -827,7 +835,7 @@ function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, previous
           </View>
           <View style={styles.progressRow}>
             <Icon name={allDone ? 'checkmark-circle' : 'ellipse-outline'} size={14} color={allDone ? palette.success : palette.textMuted} />
-            <Label>{t('logger.setsProgress', { done: doneSets, total: exercise.sets.length })}</Label>
+            <Label>{t('logger.setsProgress', { done: doneSets, total: totalSets })}</Label>
           </View>
           {collapsed && results ? <Text numberOfLines={2} style={[styles.results, { color: palette.text }]}>{results}</Text> : null}
           {collapsed ? null : <Label>{previousText ? t('logger.lastTime', { value: previousText }) : t('logger.firstTime')}</Label>}
@@ -853,14 +861,17 @@ function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, previous
 
       {(collapsed ? [] : exercise.sets).map((set) => {
         const done = Boolean(set.completedAt);
-        const workingNumber = exercise.sets.filter((item) => item.kind === 'working' && item.index <= set.index).length;
+        const workingNumber = groupSets(exercise.sets.filter((item) => item.kind === 'working' && item.index <= set.index)).length;
+        const sideLabel = set.side === 'left' ? 'Sinistro (L)' : set.side === 'right' ? 'Destro (R)' : '';
         // Last time's working set at the same position; tapping it copies its values and note.
-        const lastTime = set.kind === 'working' ? previous?.sets[workingNumber - 1] ?? null : null;
+        const previousGroups = groupSets(previous?.sets ?? []);
+        const lastTime = set.kind === 'working' ? previousGroups[workingNumber - 1]?.find((s) => !set.pairId || s.side === set.side || !s.side || s.side === 'both') ?? null : null;
         const holding = hold?.setId === set.id;
         const stored = timed ? set.durationSec ?? 0 : distance ? set.distanceM ?? 0 : set.reps ?? 0;
         const value = holding && hold ? holdDisplay(hold) : timed ? formatClock(stored) : distance ? formatNumber(stored) : String(stored);
         return (
           <Animated.View key={set.id} entering={setEntering} exiting={itemExiting} layout={rowLayout} style={styles.setBlock}>
+            {set.pairId ? <Label>{`Serie ${set.index}: L / R · ${sideLabel}`}</Label> : null}
             <DoneTint done={done} color={palette.accentSoft} />
             <SwipeableSetRow
               done={done}
@@ -896,19 +907,19 @@ function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, previous
                     value={stored}
                     display={value}
                     clock={timed}
-                    label={t('logger.editValue', { number: set.index })}
+                    label={`${t('logger.editValue', { number: set.index })} ${sideLabel}`}
                     onCommit={(next) => onSetValue(set, field, timed || field === 'reps' ? Math.round(next) : next)}
                     style={[styles.setValue, { color: palette.text }]}
                   />
                 )}
-                {done ? null : <StepButton icon="add" label="+" onPress={(multiplier) => void onChange(set, field, (distance ? 0.5 : timed ? 5 : 1) * multiplier)} />}
+                {done ? null : <StepButton icon="add" label={`+ ${sideLabel}`} onPress={(multiplier) => void onChange(set, field, (distance ? 0.5 : timed ? 5 : 1) * multiplier)} />}
               </View>
               <View style={[styles.colAction, styles.rowActions]}>
                 {done ? (
                   <Animated.View entering={checkEntering}>
                     <Pressable
                       accessibilityRole="button"
-                      accessibilityLabel={t('workout.setCompleted')}
+                      accessibilityLabel={`${t('workout.setCompleted')} ${sideLabel}`}
                       accessibilityState={{ checked: true }}
                       onPress={() => { tapFeedback(); onUncomplete(set); }}
                       style={[styles.checkButton, { backgroundColor: palette.success }]}
@@ -919,7 +930,7 @@ function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, previous
                 ) : timed ? (
                   <Pressable
                     accessibilityRole="button"
-                    accessibilityLabel={holding ? t('logger.doneHold') : t('logger.startHold')}
+                    accessibilityLabel={`${holding ? t('logger.doneHold') : t('logger.startHold')} ${sideLabel}`}
                     accessibilityHint={holding ? undefined : t('logger.holdLongPressHint')}
                     accessibilityActions={holding ? undefined : [{ name: 'longpress', label: t('logger.markDoneNoTimer') }]}
                     onAccessibilityAction={(event) => { if (event.nativeEvent.actionName === 'longpress') onComplete(set); }}
@@ -933,7 +944,7 @@ function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, previous
                 ) : (
                   <Pressable
                     accessibilityRole="button"
-                    accessibilityLabel={t('workout.completeSet')}
+                    accessibilityLabel={`${t('workout.completeSet')} ${sideLabel}`}
                     onPress={() => onComplete(set)}
                     style={[styles.checkButton, { backgroundColor: palette.surfaceMuted, borderColor: palette.border, borderWidth: 1 }]}
                   >
@@ -946,7 +957,7 @@ function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, previous
             <View style={styles.setDetailRow}>
               {loaded ? <View style={styles.loadField}>
                 <Label>{t('logger.loadCol')}</Label>
-                <LoadEditor key={`${set.id}:${set.addedLoadKg}`} setId={set.id} value={set.addedLoadKg} disabled={done} onSaved={onSaved} />
+                <LoadEditor sideLabel={sideLabel} key={`${set.id}:${set.addedLoadKg}`} setId={set.id} value={set.addedLoadKg} disabled={done} onSaved={onSaved} />
               </View> : <View style={styles.flex} />}
               <IconButton icon="ellipsis-horizontal" label={t('logger.setOptions', { number: set.index })} tone="plain" size={36} onPress={() => onSetOptions(set)} />
             </View>
@@ -964,7 +975,7 @@ function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, previous
               </Pressable>
             ) : null}
             {rpePromptFor === set.id && set.completedAt ? (
-              <RpePicker inline value={set.rpe} onChange={(rpe) => onRpe(set, rpe)} onDismiss={onDismissRpe} />
+              <RpePicker sideLabel={sideLabel} inline value={set.rpe} onChange={(rpe) => onRpe(set, rpe)} onDismiss={onDismissRpe} />
             ) : set.note || set.clipCount > 0 || set.rpe !== null || setRecords.has(set.id) ? (
               <Pressable accessibilityRole="button" onPress={() => onSetOptions(set)} style={styles.setMeta}>
                 {setRecords.has(set.id) ? (
@@ -1041,8 +1052,7 @@ function SetSheet({ exercise, set, holdMode, onHoldMode, onClose, onChanged, onR
   const remove = async () => {
     if (needsConfirm && !confirming) { setConfirming(true); return; }
     onClose();
-    if (needsConfirm) await removeSet(set.id);
-    else onRemoved(await removeSetWithUndo(set.id));
+    onRemoved(await removeSetWithUndo(set.id));
     await onChanged();
   };
 
@@ -1215,7 +1225,7 @@ function ReadinessRow({ label, value, onChange }: { label: string; value: number
   </View>;
 }
 
-function LoadEditor({ setId, value, disabled, onSaved }: { setId: string; value: number; disabled: boolean; onSaved: () => Promise<void> }) {
+function LoadEditor({ setId, value, disabled, onSaved, sideLabel = '' }: { sideLabel?: string; setId: string; value: number; disabled: boolean; onSaved: () => Promise<void> }) {
   const styles = useScaledStyles(baseStyles);
   const { t } = useTranslation();
   const { palette } = useTheme();
@@ -1230,7 +1240,7 @@ function LoadEditor({ setId, value, disabled, onSaved }: { setId: string; value:
 
   return (
     <TextInput
-      accessibilityLabel={t('history.addedLoad')}
+      accessibilityLabel={`${t('history.addedLoad')} ${sideLabel}`}
       value={draft}
       editable={!disabled}
       onChangeText={setDraft}

@@ -1,3 +1,4 @@
+import { aggregatePairs } from '../../domain/setPairs';
 import { and, eq, inArray, isNotNull, ne } from 'drizzle-orm';
 import { db, initializeDatabase } from '../../db/client';
 import { exerciseEntries, exercises, formCheckVideos, settings, trainingSets, workouts } from '../../db/schema';
@@ -27,9 +28,9 @@ export async function getExerciseUsage(exerciseId: string): Promise<ExerciseUsag
     .innerJoin(workouts, eq(workouts.id, exerciseEntries.workoutId))
     .where(and(eq(exerciseEntries.exerciseId, exerciseId), isNotNull(workouts.endedAt)));
   if (entries.length === 0) return { workouts: 0, sets: 0, hasLoad: false };
-  const sets = await db.select({ load: trainingSets.addedLoadKg }).from(trainingSets)
+  const sets = await db.select({ load: trainingSets.addedLoadKg, pairId: trainingSets.pairId, side: trainingSets.side }).from(trainingSets)
     .where(and(inArray(trainingSets.entryId, entries.map((entry) => entry.id)), isNotNull(trainingSets.completedAt)));
-  return { workouts: new Set(entries.map((entry) => entry.workoutId)).size, sets: sets.length, hasLoad: sets.some((set) => set.load !== 0) };
+  return { workouts: new Set(entries.map((entry) => entry.workoutId)).size, sets: aggregatePairs(sets).length, hasLoad: sets.some((set) => set.load !== 0) };
 }
 
 /** Hides an exercise (catalog or custom) from the library and pickers; its history stays. */

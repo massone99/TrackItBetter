@@ -20,7 +20,8 @@ import type { ExerciseEstimate } from '../../src/features/analytics/estimates';
 import type { ExerciseCycle, ExerciseWeek } from '../../src/features/analytics/mobility';
 import { formatMinutes, formatNumber } from '../../src/shared/utils/format';
 import { formatRpe } from '../../src/domain';
-import { ActionButton, Body, Icon, IconButton, ListGroup, ListRow, PageHeading, Screen, SectionTitle, Sheet, SwitchRow, Text, Toast } from '../../src/shared/components/ui';
+import { ActionButton, Body, Icon, IconButton, ListGroup, ListRow, PageHeading, Screen, SectionTitle, SegmentedControl, Sheet, SwitchRow, Text, Toast } from '../../src/shared/components/ui';
+import { aggregatePairs, type PairScope } from '../../src/domain/setPairs';
 import { useTheme } from '../../src/shared/theme/ThemeProvider';
 import { fonts } from '../../src/shared/theme/typography';
 import { linkHost } from '../../src/shared/utils/url';
@@ -36,6 +37,13 @@ function readList(value: string): string[] {
   }
 }
 
+function historyForScope(history: readonly ExerciseHistorySession[], scope: PairScope): ExerciseHistorySession[] {
+  const hasPairs = history.some((session) => session.sets.some((s) => s.pairId));
+  return history.map((session) => {
+    return { ...session, sets: aggregatePairs(scope === 'average' && hasPairs ? session.sets.filter((s) => s.pairId) : session.sets, scope) };
+  });
+}
+
 export default function ExerciseRoute() {
   const styles = useScaledStyles(baseStyles);
   const { id, notice } = useLocalSearchParams<{ id: string; notice?: string }>();
@@ -49,7 +57,9 @@ export default function ExerciseRoute() {
   const [records, setRecords] = useState<ExerciseRecordSummary | null>(null);
   const [editingReference, setEditingReference] = useState(false);
   const [history, setHistory] = useState<ExerciseHistorySession[]>([]);
-  const loadProgress = useMemo(() => repsAtLoadFromHistory(history), [history]);
+  const [pairScope, setPairScope] = useState<PairScope>('average');
+  const scopedHistory = useMemo(() => historyForScope(history, pairScope), [history, pairScope]);
+  const loadProgress = useMemo(() => repsAtLoadFromHistory(scopedHistory), [scopedHistory]);
   const [usage, setUsage] = useState<ExerciseUsage | null>(null);
   // Removal: 'choose' offers hide or delete, 'delete' asks once more before deleting history.
   const [removal, setRemoval] = useState<'choose' | 'delete' | null>(null);
@@ -64,13 +74,13 @@ export default function ExerciseRoute() {
     setExercise(found);
     setLoading(false);
     // Mobility and stretching count their own week from the first day trained; the rest the last 7 days.
-    if (found && [found.category, ...readList(found.extraCategories)].includes('mobility')) setCycle(await getExerciseCycle(found.id).catch(() => null));
-    else if (found) setWeek(await getExerciseWeekStats(found.id, found.metric).catch(() => null));
-    if (found) setEstimate(await getExerciseEstimate(found.id).catch(() => null));
-    if (found) setRecords(await getExerciseRecordSummary(found.id).catch(() => null));
+    if (found && [found.category, ...readList(found.extraCategories)].includes('mobility')) setCycle(await getExerciseCycle(found.id, undefined, pairScope).catch(() => null));
+    else if (found) setWeek(await getExerciseWeekStats(found.id, found.metric, undefined, pairScope).catch(() => null));
+    if (found) setEstimate(await getExerciseEstimate(found.id, undefined, pairScope).catch(() => null));
+    if (found) setRecords(await getExerciseRecordSummary(found.id, pairScope).catch(() => null));
     if (found) setHistory(await getExerciseHistory(found.id).catch(() => []));
     if (found) setUsage(await getExerciseUsage(found.id).catch(() => null));
-  }, [id]);
+  }, [id, pairScope]);
 
   useFocusEffect(useCallback(() => { void reload(); }, [reload]));
 
@@ -123,6 +133,15 @@ export default function ExerciseRoute() {
   const extraCategories = readList(exercise.extraCategories).filter((item) => item !== exercise.category);
   const movementTags = exerciseMovementTags(exercise);
   const kind = exercise.level ? t('progression.level', { number: exercise.level }) : exercise.isCustom ? t('exercise.custom') : t('exercise.foundation');
+  const scopeTitle = t('exerciseAnalytics.scope', { defaultValue: i18n.language.startsWith('it') ? 'Vista' : 'View' });
+  const scopeLabels: Record<PairScope, string> = {
+    average: t('exerciseAnalytics.average', { defaultValue: i18n.language.startsWith('it') ? 'Media L/R' : 'L/R average' }),
+    left: t('exerciseAnalytics.left', { defaultValue: 'L' }),
+    right: t('exerciseAnalytics.right', { defaultValue: 'R' }),
+    legacy: t('exerciseAnalytics.legacy', { defaultValue: i18n.language.startsWith('it') ? 'Senza lato' : 'Without side' }),
+  };
+  const compareTitle = t('exerciseAnalytics.compareSides', { defaultValue: i18n.language.startsWith('it') ? 'Confronto L/R' : 'Compare L/R' });
+  const compareBody = t('exerciseAnalytics.compareSidesBody', { defaultValue: i18n.language.startsWith('it') ? 'Confronta le due serie sulla stessa scala.' : 'Compare both sides on the same scale.' });
   return (
     <Screen>
       <PageHeading
@@ -159,6 +178,15 @@ export default function ExerciseRoute() {
           <ListRow icon="git-branch-outline" title={t('exercise.viewProgression')} onPress={() => router.push({ pathname: '/skill/[chainId]', params: { chainId: exercise.chainId! } })} />
         ) : null}
       </ListGroup>
+
+      <View style={styles.section}>
+        <SectionTitle title={scopeTitle} />
+        <SegmentedControl<PairScope>
+          value={pairScope}
+          options={(Object.keys(scopeLabels) as PairScope[]).map((value) => ({ value, label: scopeLabels[value] }))}
+          onChange={setPairScope}
+        />
+      </View>
 
       {cues.length > 0 ? (
         <View style={styles.section}>
@@ -261,7 +289,7 @@ export default function ExerciseRoute() {
                 <ListRow
                   icon="stats-chart-outline"
                   title={t('estimate.seeTrend')}
-                  onPress={() => router.push({ pathname: '/stats', params: { exerciseId: exercise.id, metric: estimate.kind === 'reps' ? 'estMaxReps' : 'estMaxHold' } })}
+                  onPress={() => router.push({ pathname: '/stats', params: { exerciseId: exercise.id, metric: estimate.kind === 'reps' ? 'estMaxReps' : 'estMaxHold', pairScope } })}
                 />
               </ListGroup>
             </>
@@ -290,7 +318,8 @@ export default function ExerciseRoute() {
         ) : <Body>{t('exerciseManage.historyEmpty')}</Body>}
         {history.length > 0 ? (
           <ListGroup>
-            <ListRow icon="analytics-outline" title={t('exerciseManage.fullAnalysis')} subtitle={t('exerciseManage.fullAnalysisBody')} onPress={() => router.push({ pathname: '/stats', params: { exerciseId: exercise.id } })} />
+            <ListRow icon="analytics-outline" title={t('exerciseManage.fullAnalysis')} subtitle={t('exerciseManage.fullAnalysisBody')} onPress={() => router.push({ pathname: '/stats', params: { exerciseId: exercise.id, pairScope } })} />
+            <ListRow icon="git-branch-outline" title={compareTitle} subtitle={compareBody} onPress={() => router.push({ pathname: '/stats', params: { exerciseId: exercise.id, pairScope: 'comparison' } })} />
           </ListGroup>
         ) : null}
       </View>

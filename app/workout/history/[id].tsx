@@ -1,10 +1,13 @@
-import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
-import { useCallback, useState } from 'react';
-import { useTranslation } from 'react-i18next';
-import { Pressable, StyleSheet, TextInput, View } from 'react-native';
-import { ExercisePicker, type ExerciseChoice } from '../../../src/features/exercises/ExercisePicker';
-import { openExercisePage } from '../../../src/features/exercises/openExercise';
-import { describeSets } from '../../../src/features/exercises/describeSets';
+import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
+import { useCallback, useState } from "react";
+import { useTranslation } from "react-i18next";
+import { Pressable, StyleSheet, TextInput, View } from "react-native";
+import {
+  ExercisePicker,
+  type ExerciseChoice,
+} from "../../../src/features/exercises/ExercisePicker";
+import { openExercisePage } from "../../../src/features/exercises/openExercise";
+import { describeSets } from "../../../src/features/exercises/describeSets";
 import {
   addExerciseToCompletedWorkout,
   addSetToCompletedWorkout,
@@ -13,7 +16,6 @@ import {
   moveExerciseEntry,
   removeExerciseEntry,
   removeExerciseEntryWithUndo,
-  removeSet,
   removeSetWithUndo,
   restoreRemoved,
   setCompletedWorkoutSetDone,
@@ -23,22 +25,49 @@ import {
   repeatWorkoutIfIdle,
   updateSetRpe,
   WORKOUT_NAME_MAX,
-} from '../../../src/features/session/repository';
-import { SaveToProgramSheet } from '../../../src/features/programs/SaveToProgramSheet';
-import { WorkoutInProgressSheet } from '../../../src/features/session/WorkoutInProgressSheet';
-import type { CompletedWorkout, RemovedRows, SessionExercise, SessionSet } from '../../../src/features/session/repository';
-import { RpePicker } from '../../../src/features/session/RpePicker';
-import { ExerciseNoteField } from '../../../src/features/session/ExerciseNoteField';
-import { getWorkoutMobilitySeconds } from '../../../src/features/analytics/repository';
-import { formatMinutes } from '../../../src/shared/utils/format';
-import { formatRpe } from '../../../src/domain/rpe';
-import { ActionButton, Body, Card, Heading, Icon, IconButton, Label, NumberEdit, PageHeading, Screen, Sheet, Stepper, tapFeedback, Text, TextField, Toast } from '../../../src/shared/components/ui';
-import { useTheme } from '../../../src/shared/theme/ThemeProvider';
-import { fonts } from '../../../src/shared/theme/typography';
-import { useScaledStyles } from '../../../src/shared/theme/useScaledStyles';
-import { DateField, HoldDurationField, TimeField } from '../../../src/shared/components/DateTimePickers';
-import { ReorderableList } from '../../../src/shared/components/ReorderableList';
-import { goBack } from '../../../src/shared/navigation/goBack';
+} from "../../../src/features/session/repository";
+import { SaveToProgramSheet } from "../../../src/features/programs/SaveToProgramSheet";
+import { WorkoutInProgressSheet } from "../../../src/features/session/WorkoutInProgressSheet";
+import type {
+  CompletedWorkout,
+  RemovedRows,
+  SessionExercise,
+  SessionSet,
+} from "../../../src/features/session/repository";
+import { RpePicker } from "../../../src/features/session/RpePicker";
+import { ExerciseNoteField } from "../../../src/features/session/ExerciseNoteField";
+import { PairEditor } from "../../../src/features/session/PairEditor";
+import { getWorkoutMobilitySeconds } from "../../../src/features/analytics/repository";
+import { formatMinutes } from "../../../src/shared/utils/format";
+import { formatRpe } from "../../../src/domain/rpe";
+import {
+  ActionButton,
+  Body,
+  Card,
+  Heading,
+  Icon,
+  IconButton,
+  Label,
+  NumberEdit,
+  PageHeading,
+  Screen,
+  Sheet,
+  Stepper,
+  tapFeedback,
+  Text,
+  TextField,
+  Toast,
+} from "../../../src/shared/components/ui";
+import { useTheme } from "../../../src/shared/theme/ThemeProvider";
+import { fonts } from "../../../src/shared/theme/typography";
+import { useScaledStyles } from "../../../src/shared/theme/useScaledStyles";
+import {
+  DateField,
+  HoldDurationField,
+  TimeField,
+} from "../../../src/shared/components/DateTimePickers";
+import { ReorderableList } from "../../../src/shared/components/ReorderableList";
+import { goBack } from "../../../src/shared/navigation/goBack";
 
 type SetTarget = { exercise: SessionExercise; set: SessionSet };
 
@@ -54,9 +83,13 @@ export default function PastWorkoutScreen() {
   const [blockedBy, setBlockedBy] = useState<{ id: string; name: string } | null>(null);
   const [loadError, setLoadError] = useState(false);
   const [setFor, setSetFor] = useState<SetTarget | null>(null);
+  const [pairFor, setPairFor] = useState<(SetTarget & { pairedSet: SessionSet | null }) | null>(
+    null,
+  );
+  const [newPairFor, setNewPairFor] = useState<SessionExercise | null>(null);
   const [exerciseFor, setExerciseFor] = useState<SessionExercise | null>(null);
   // A just-created past workout opens on its details, so its day and time are set first.
-  const [detailsOpen, setDetailsOpen] = useState(openDetails === '1');
+  const [detailsOpen, setDetailsOpen] = useState(openDetails === "1");
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
   // Exercises folded to a one-line summary, to skim a long workout.
@@ -69,7 +102,10 @@ export default function PastWorkoutScreen() {
 
   const refresh = useCallback(async () => {
     try {
-      const [completed, mobility] = await Promise.all([getCompletedWorkout(id), getWorkoutMobilitySeconds(id)]);
+      const [completed, mobility] = await Promise.all([
+        getCompletedWorkout(id),
+        getWorkoutMobilitySeconds(id),
+      ]);
       setWorkout(completed);
       setMobilitySeconds(mobility);
       setLoadError(false);
@@ -81,7 +117,11 @@ export default function PastWorkoutScreen() {
   }, [id]);
 
   // Reloads on focus so clips added on the form-check screen show up when returning.
-  useFocusEffect(useCallback(() => { void refresh(); }, [refresh]));
+  useFocusEffect(
+    useCallback(() => {
+      void refresh();
+    }, [refresh]),
+  );
 
   /** Runs an edit, then reloads; a failure shows one message instead of losing the screen. */
   const edit = async (action: () => Promise<unknown>) => {
@@ -89,13 +129,16 @@ export default function PastWorkoutScreen() {
       await action();
       setError(null);
     } catch {
-      setError(t('history.saveError'));
+      setError(t("history.saveError"));
     }
     await refresh();
   };
 
-  const adjust = (setId: string, field: 'reps' | 'durationSec' | 'distanceM' | 'addedLoadKg', value: number) =>
-    edit(() => updateCompletedWorkoutSet(id, setId, field, value));
+  const adjust = (
+    setId: string,
+    field: "reps" | "durationSec" | "distanceM" | "addedLoadKg",
+    value: number,
+  ) => edit(() => updateCompletedWorkoutSet(id, setId, field, value));
 
   const chooseExercise = (choice: ExerciseChoice) => {
     setPickerOpen(false);
@@ -108,57 +151,132 @@ export default function PastWorkoutScreen() {
       await deleteWorkout(id);
       // Screens below (e.g. the workout summary) still show the deleted workout, so leave them all.
       if (router.canDismiss()) router.dismissAll();
-      router.navigate('/(tabs)/log');
+      router.navigate("/(tabs)/log");
     } catch {
-      setError(t('history.deleteError'));
+      setError(t("history.deleteError"));
     }
   };
 
-  if (loading) return <Screen><PageHeading title={t('history.title')} subtitle={t('history.loading')} /></Screen>;
-  if (loadError) return <Screen><PageHeading title={t('history.title')} subtitle={t('history.loadError')} /><ActionButton label={t('history.retry')} onPress={() => { setLoading(true); void refresh(); }} /><ActionButton label={t('history.back')} secondary onPress={() => goBack('/(tabs)/log')} /></Screen>;
-  if (!workout) return <Screen><PageHeading title={t('history.unavailable')} subtitle={t('history.unavailableBody')} /><ActionButton label={t('history.back')} onPress={() => goBack('/(tabs)/log')} /></Screen>;
+  if (loading)
+    return (
+      <Screen>
+        <PageHeading title={t("history.title")} subtitle={t("history.loading")} />
+      </Screen>
+    );
+  if (loadError)
+    return (
+      <Screen>
+        <PageHeading title={t("history.title")} subtitle={t("history.loadError")} />
+        <ActionButton
+          label={t("history.retry")}
+          onPress={() => {
+            setLoading(true);
+            void refresh();
+          }}
+        />
+        <ActionButton label={t("history.back")} secondary onPress={() => goBack("/(tabs)/log")} />
+      </Screen>
+    );
+  if (!workout)
+    return (
+      <Screen>
+        <PageHeading title={t("history.unavailable")} subtitle={t("history.unavailableBody")} />
+        <ActionButton label={t("history.back")} onPress={() => goBack("/(tabs)/log")} />
+      </Screen>
+    );
 
-  const duration = Math.max(0, Math.round((workout.endedAt.getTime() - workout.startedAt.getTime()) / 60_000));
-  const locale = i18n.language.startsWith('it') ? 'it-IT' : 'en-US';
-  const completedSets = workout.exercises.reduce((total, exercise) => total + exercise.sets.filter((set) => set.completedAt).length, 0);
-  const liveSet = setFor ? workout.exercises.find((item) => item.entryId === setFor.exercise.entryId)?.sets.find((item) => item.id === setFor.set.id) : undefined;
+  const duration = Math.max(
+    0,
+    Math.round((workout.endedAt.getTime() - workout.startedAt.getTime()) / 60_000),
+  );
+  const locale = i18n.language.startsWith("it") ? "it-IT" : "en-US";
+  const completedSets = workout.exercises.reduce(
+    (total, exercise) => total + exercise.sets.filter((set) => set.completedAt).length,
+    0,
+  );
+  const liveSet = setFor
+    ? workout.exercises
+        .find((item) => item.entryId === setFor.exercise.entryId)
+        ?.sets.find((item) => item.id === setFor.set.id)
+    : undefined;
 
   return (
     <Screen
-      overlay={(
+      overlay={
         <Toast
           message={undo?.message ?? null}
-          actionLabel={t('logger.restore')}
-          onAction={() => { const removed = undo?.removed; if (removed) void edit(() => restoreRemoved(removed)); }}
+          actionLabel={t("logger.restore")}
+          onAction={() => {
+            const removed = undo?.removed;
+            if (removed) void edit(() => restoreRemoved(removed));
+          }}
           onHide={hideUndo}
         />
-      )}
+      }
     >
       <PageHeading
         title={workout.name}
-        subtitle={t('history.subtitle', {
-          date: workout.startedAt.toLocaleString(locale, { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }),
+        subtitle={t("history.subtitle", {
+          date: workout.startedAt.toLocaleString(locale, {
+            weekday: "short",
+            day: "numeric",
+            month: "short",
+            hour: "2-digit",
+            minute: "2-digit",
+          }),
           duration,
-          unit: t('history.minutes'),
-          status: t('history.completed'),
+          unit: t("history.minutes"),
+          status: t("history.completed"),
         })}
-        action={<IconButton icon="create-outline" tone="accent" label={t('history.editDetails')} onPress={() => setDetailsOpen(true)} />}
+        action={
+          <IconButton
+            icon="create-outline"
+            tone="accent"
+            label={t("history.editDetails")}
+            onPress={() => setDetailsOpen(true)}
+          />
+        }
       />
       {mobilitySeconds > 0 ? (
         <View style={[styles.mobility, { backgroundColor: palette.accentSoft }]}>
           <Icon name="body-outline" size={16} color={palette.accentStrong} />
-          <Text style={[styles.mobilityText, { color: palette.accentStrong }]}>{t('mobilityStats.workoutLine', { time: formatMinutes(mobilitySeconds) })}</Text>
+          <Text style={[styles.mobilityText, { color: palette.accentStrong }]}>
+            {t("mobilityStats.workoutLine", { time: formatMinutes(mobilitySeconds) })}
+          </Text>
         </View>
       ) : null}
       <WorkoutInProgressSheet active={blockedBy} onClose={() => setBlockedBy(null)} />
-      <ActionButton icon="repeat" label={t('history.repeat')} onPress={() => void repeatWorkoutIfIdle(id).then((result) => {
-        if ('workoutId' in result) router.push({ pathname: '/workout/[id]', params: { id: result.workoutId } });
-        else setBlockedBy(result.active);
-      }).catch(() => setError(t('history.repeatError')))} />
-      <ActionButton icon="bookmark-outline" label={t('saveToProgram.action')} secondary onPress={() => setSaveOpen(true)} />
-      <ActionButton icon="share-social-outline" label={t('shareCard.action')} secondary onPress={() => router.push({ pathname: '/workout/share/[id]', params: { id } })} />
-      <Body>{t('history.editHelp')}</Body>
-      {error ? <Text accessibilityLiveRegion="polite" style={[styles.error, { color: palette.warning }]}>{error}</Text> : null}
+      <ActionButton
+        icon="repeat"
+        label={t("history.repeat")}
+        onPress={() =>
+          void repeatWorkoutIfIdle(id)
+            .then((result) => {
+              if ("workoutId" in result)
+                router.push({ pathname: "/workout/[id]", params: { id: result.workoutId } });
+              else setBlockedBy(result.active);
+            })
+            .catch(() => setError(t("history.repeatError")))
+        }
+      />
+      <ActionButton
+        icon="bookmark-outline"
+        label={t("saveToProgram.action")}
+        secondary
+        onPress={() => setSaveOpen(true)}
+      />
+      <ActionButton
+        icon="share-social-outline"
+        label={t("shareCard.action")}
+        secondary
+        onPress={() => router.push({ pathname: "/workout/share/[id]", params: { id } })}
+      />
+      <Body>{t("history.editHelp")}</Body>
+      {error ? (
+        <Text accessibilityLiveRegion="polite" style={[styles.error, { color: palette.warning }]}>
+          {error}
+        </Text>
+      ) : null}
 
       {workout.exercises.length > 1 ? (
         <Pressable
@@ -166,11 +284,19 @@ export default function PastWorkoutScreen() {
           hitSlop={8}
           onPress={() => {
             tapFeedback();
-            setCollapsed(collapsed.size === workout.exercises.length ? new Set() : new Set(workout.exercises.map((item) => item.entryId)));
+            setCollapsed(
+              collapsed.size === workout.exercises.length
+                ? new Set()
+                : new Set(workout.exercises.map((item) => item.entryId)),
+            );
           }}
           style={styles.foldAll}
         >
-          <Text style={[styles.foldAllText, { color: palette.accentStrong }]}>{collapsed.size === workout.exercises.length ? t('common.expandAll') : t('common.collapseAll')}</Text>
+          <Text style={[styles.foldAllText, { color: palette.accentStrong }]}>
+            {collapsed.size === workout.exercises.length
+              ? t("common.expandAll")
+              : t("common.collapseAll")}
+          </Text>
         </Pressable>
       ) : null}
 
@@ -179,123 +305,336 @@ export default function PastWorkoutScreen() {
         keyOf={(item) => item.entryId}
         nameOf={(item) => item.name}
         gap={20}
-        onMove={(from, to) => void edit(() => moveExerciseEntry(id, workout.exercises[from].entryId, to))}
+        onMove={(from, to) =>
+          void edit(() => moveExerciseEntry(id, workout.exercises[from].entryId, to))
+        }
         renderRow={(exercise, _index, row) => {
-        const timed = exercise.metric === 'time' || exercise.metric === 'time_load';
-        const distance = exercise.metric === 'distance';
-        const loaded = exercise.metric === 'reps_load' || exercise.metric === 'time_load';
-        const metricField = timed ? 'durationSec' : distance ? 'distanceM' : 'reps';
-        const step = distance ? 0.1 : timed ? 5 : 1;
-        const folded = collapsed.has(exercise.entryId);
-        const unit = timed ? t('history.units.seconds') : distance ? t('history.units.meters') : t('history.units.reps');
-        return (
-          <Card key={exercise.entryId} style={styles.exerciseCard}>
-            <View style={styles.exerciseHeader}>
-              {row.handle}
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={exercise.name}
-                accessibilityHint={t('logger.openExerciseHint')}
-                accessibilityState={{ expanded: !folded }}
-                onPress={() => { tapFeedback(); setCollapsed((current) => { const next = new Set(current); if (!next.delete(exercise.entryId)) next.add(exercise.entryId); return next; }); }}
-                onLongPress={() => openExercisePage(exercise.exerciseId)}
-                accessibilityActions={[{ name: 'longpress', label: t('logger.openExercise') }]}
-                onAccessibilityAction={(event) => { if (event.nativeEvent.actionName === 'longpress') openExercisePage(exercise.exerciseId); }}
-                style={styles.flex}
-              >
-                <Label>{t(`metric.${exercise.metric}`)}</Label>
-                <View style={styles.nameRow}>
-                  <Heading style={styles.flex}>{exercise.name}</Heading>
-                  <Icon name={folded ? 'chevron-down' : 'chevron-up'} size={18} color={palette.textMuted} />
-                </View>
-                {folded ? <Text numberOfLines={2} style={[styles.exerciseNote, { color: palette.text }]}>{describeSets(exercise.sets.filter((set) => set.completedAt), exercise.metric) || t('logger.setsProgress', { done: 0, total: exercise.sets.length })}</Text> : null}
-                {exercise.notes ? <Text numberOfLines={3} style={[styles.exerciseNote, { color: palette.textMuted }]}>{exercise.notes}</Text> : null}
-              </Pressable>
-              <IconButton icon="ellipsis-horizontal" tone="plain" label={t('logger.options')} onPress={() => setExerciseFor(exercise)} />
-            </View>
-            {(folded ? [] : exercise.sets).map((set) => {
-              const value = timed ? set.durationSec ?? 0 : distance ? set.distanceM ?? 0 : set.reps ?? 0;
-              const done = Boolean(set.completedAt);
-              return (
-                <View key={set.id} style={[styles.setBlock, { borderColor: palette.border }]}>
-                  <View style={styles.row}>
-                    <Pressable
-                      accessibilityRole="checkbox"
-                      accessibilityState={{ checked: done }}
-                      accessibilityLabel={t('history.toggleDone', { number: set.index })}
-                      onPress={() => { tapFeedback(); void edit(() => setCompletedWorkoutSetDone(id, set.id, !done)); }}
-                      style={styles.setMeta}
-                    >
-                      <View style={[styles.setBadge, { backgroundColor: done ? palette.accent : palette.surfaceMuted }]}>
-                        {done ? <Icon name="checkmark" size={16} color={palette.accentText} /> : <Text style={[styles.setBadgeText, { color: palette.text }]}>{set.index}</Text>}
-                      </View>
-                      <Text style={[styles.setStatus, { color: done ? palette.accentStrong : palette.textMuted }]}>{done ? t('history.setCompleted') : t('history.setIncomplete')}</Text>
-                    </Pressable>
-                    <IconButton icon="ellipsis-horizontal" tone="plain" size={36} label={t('logger.setOptions', { number: set.index })} onPress={() => setSetFor({ exercise, set })} />
+          const timed = exercise.metric === "time" || exercise.metric === "time_load";
+          const distance = exercise.metric === "distance";
+          const loaded = exercise.metric === "reps_load" || exercise.metric === "time_load";
+          const metricField = timed ? "durationSec" : distance ? "distanceM" : "reps";
+          const step = distance ? 0.1 : timed ? 5 : 1;
+          const folded = collapsed.has(exercise.entryId);
+          const unit = timed
+            ? t("history.units.seconds")
+            : distance
+              ? t("history.units.meters")
+              : t("history.units.reps");
+          return (
+            <Card key={exercise.entryId} style={styles.exerciseCard}>
+              <View style={styles.exerciseHeader}>
+                {row.handle}
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={exercise.name}
+                  accessibilityHint={t("logger.openExerciseHint")}
+                  accessibilityState={{ expanded: !folded }}
+                  onPress={() => {
+                    tapFeedback();
+                    setCollapsed((current) => {
+                      const next = new Set(current);
+                      if (!next.delete(exercise.entryId)) next.add(exercise.entryId);
+                      return next;
+                    });
+                  }}
+                  onLongPress={() => openExercisePage(exercise.exerciseId)}
+                  accessibilityActions={[{ name: "longpress", label: t("logger.openExercise") }]}
+                  onAccessibilityAction={(event) => {
+                    if (event.nativeEvent.actionName === "longpress")
+                      openExercisePage(exercise.exerciseId);
+                  }}
+                  style={styles.flex}
+                >
+                  <Label>{t(`metric.${exercise.metric}`)}</Label>
+                  <View style={styles.nameRow}>
+                    <Heading style={styles.flex}>{exercise.name}</Heading>
+                    <Icon
+                      name={folded ? "chevron-down" : "chevron-up"}
+                      size={18}
+                      color={palette.textMuted}
+                    />
                   </View>
-                  <View style={styles.setValues}>
-                    <View style={styles.counter}>
-                      <Pressable accessibilityRole="button" accessibilityLabel={t('history.decrease', { unit })} hitSlop={4} onPress={() => void adjust(set.id, metricField, Math.max(0, Math.round((value - step) * 100) / 100))} style={[styles.adjust, { backgroundColor: palette.surfaceMuted }]}><Icon name="remove" size={16} color={palette.text} /></Pressable>
-                      {timed ? <HoldDurationField compact value={value} label={`${t('logger.holdCol')} · ${t('logger.editValue', { number: set.index })}`} onChange={(next) => void adjust(set.id, 'durationSec', next)} /> : <NumberEdit
-                        value={value}
-                        display={`${value} ${unit}`}
-                        label={t('logger.editValue', { number: set.index })}
-                        onCommit={(next) => void adjust(set.id, metricField, distance ? Math.round(next * 100) / 100 : Math.round(next))}
-                        style={[styles.value, { color: palette.text }]}
-                      />}
-                      <Pressable accessibilityRole="button" accessibilityLabel={t('history.increase', { unit })} hitSlop={4} onPress={() => void adjust(set.id, metricField, Math.round((value + step) * 100) / 100)} style={[styles.adjust, { backgroundColor: palette.surfaceMuted }]}><Icon name="add" size={16} color={palette.text} /></Pressable>
-                    </View>
-                    {loaded ? <LoadEditor key={`${set.id}-${set.addedLoadKg}`} value={set.addedLoadKg} onSave={(next) => void adjust(set.id, 'addedLoadKg', next)} /> : null}
-                  </View>
-                  {set.note || set.rpe !== null || set.clipCount > 0 ? (
-                    <Pressable accessibilityRole="button" onPress={() => setSetFor({ exercise, set })} style={styles.noteRow}>
-                      {set.rpe !== null ? <Text style={[styles.noteText, styles.noteTag, { color: palette.accentStrong }]}>{t('logger.rpeTag', { value: formatRpe(set.rpe) })}</Text> : null}
-                      {set.clipCount > 0 ? (
-                        <View style={[styles.clipChip, { backgroundColor: palette.accentSoft }]}>
-                          <Icon name="videocam" size={12} color={palette.accentStrong} />
-                          <Text style={[styles.clipText, { color: palette.accentStrong }]}>{t('logger.clip', { count: set.clipCount })}</Text>
-                        </View>
-                      ) : null}
-                      {set.note ? <Text numberOfLines={2} style={[styles.noteText, { color: palette.textMuted }]}>{set.note}</Text> : null}
-                    </Pressable>
+                  {folded ? (
+                    <Text numberOfLines={2} style={[styles.exerciseNote, { color: palette.text }]}>
+                      {describeSets(
+                        exercise.sets.filter((set) => set.completedAt),
+                        exercise.metric,
+                      ) || t("logger.setsProgress", { done: 0, total: exercise.sets.length })}
+                    </Text>
                   ) : null}
-                </View>
-              );
-            })}
-            {folded ? null : <Pressable
-              accessibilityRole="button"
-              onPress={() => { tapFeedback(); void edit(() => addSetToCompletedWorkout(id, exercise.entryId)); }}
-              style={({ pressed }) => [styles.addSet, { borderColor: palette.border, opacity: pressed ? 0.6 : 1 }]}
-            >
-              <Icon name="add" size={18} color={palette.accentStrong} />
-              <Text style={[styles.addSetText, { color: palette.accentStrong }]}>{t('logger.addSet')}</Text>
-            </Pressable>}
-          </Card>
-        );
+                  {exercise.notes ? (
+                    <Text
+                      numberOfLines={3}
+                      style={[styles.exerciseNote, { color: palette.textMuted }]}
+                    >
+                      {exercise.notes}
+                    </Text>
+                  ) : null}
+                </Pressable>
+                <IconButton
+                  icon="ellipsis-horizontal"
+                  tone="plain"
+                  label={t("logger.options")}
+                  onPress={() => setExerciseFor(exercise)}
+                />
+              </View>
+              {(folded ? [] : exercise.sets).map((set) => {
+                const value = timed
+                  ? (set.durationSec ?? 0)
+                  : distance
+                    ? (set.distanceM ?? 0)
+                    : (set.reps ?? 0);
+                const done = Boolean(set.completedAt);
+                const side = set.side === "right" ? "R" : set.side === "left" ? "L" : null;
+                const pairLabel = side
+                  ? `${t("history.set", { number: set.index, defaultValue: `Set ${set.index}` })}: L / R · ${side}`
+                  : t("history.set", { number: set.index, defaultValue: `Set ${set.index}` });
+                const pairedSet = set.pairId
+                  ? (exercise.sets.find(
+                      (candidate) => candidate.pairId === set.pairId && candidate.id !== set.id,
+                    ) ?? null)
+                  : null;
+                return (
+                  <View key={set.id} style={[styles.setBlock, { borderColor: palette.border }]}>
+                    <View style={styles.row}>
+                      <Pressable
+                        accessibilityRole="checkbox"
+                        accessibilityState={{ checked: done }}
+                        accessibilityLabel={
+                          side
+                            ? `${t("history.toggleDone", { number: set.index })}, ${side === "L" ? "Left" : "Right"}`
+                            : t("history.toggleDone", { number: set.index })
+                        }
+                        onPress={() => {
+                          tapFeedback();
+                          void edit(() => setCompletedWorkoutSetDone(id, set.id, !done));
+                        }}
+                        style={styles.setMeta}
+                      >
+                        <View
+                          style={[
+                            styles.setBadge,
+                            { backgroundColor: done ? palette.accent : palette.surfaceMuted },
+                          ]}
+                        >
+                          {done ? (
+                            <Icon name="checkmark" size={16} color={palette.accentText} />
+                          ) : (
+                            <Text style={[styles.setBadgeText, { color: palette.text }]}>
+                              {set.index}
+                            </Text>
+                          )}
+                        </View>
+                        <View style={styles.setStatusWrap}>
+                          <Text style={[styles.setLabel, { color: palette.text }]}>
+                            {pairLabel}
+                          </Text>
+                          <Text
+                            style={[
+                              styles.setStatus,
+                              { color: done ? palette.accentStrong : palette.textMuted },
+                            ]}
+                          >
+                            {done ? t("history.setCompleted") : t("history.setIncomplete")}
+                          </Text>
+                        </View>
+                      </Pressable>
+                      <IconButton
+                        icon="create-outline"
+                        tone="plain"
+                        size={36}
+                        label={
+                          set.pairId
+                            ? t("history.editPair", { defaultValue: "Edit left and right" })
+                            : t("history.convertPair", {
+                                defaultValue: "Convert set to left and right",
+                              })
+                        }
+                        onPress={() => setPairFor({ exercise, set, pairedSet })}
+                      />
+                      <IconButton
+                        icon="ellipsis-horizontal"
+                        tone="plain"
+                        size={36}
+                        label={t("logger.setOptions", { number: set.index })}
+                        onPress={() => setSetFor({ exercise, set })}
+                      />
+                    </View>
+                    <View style={styles.setValues}>
+                      <View style={styles.counter}>
+                        <Pressable
+                          accessibilityRole="button"
+                          accessibilityLabel={t("history.decrease", { unit })}
+                          hitSlop={4}
+                          onPress={() =>
+                            void adjust(
+                              set.id,
+                              metricField,
+                              Math.max(0, Math.round((value - step) * 100) / 100),
+                            )
+                          }
+                          style={[styles.adjust, { backgroundColor: palette.surfaceMuted }]}
+                        >
+                          <Icon name="remove" size={16} color={palette.text} />
+                        </Pressable>
+                        {timed ? (
+                          <HoldDurationField
+                            compact
+                            value={value}
+                            label={`${t("logger.holdCol")} · ${t("logger.editValue", { number: set.index })}`}
+                            onChange={(next) => void adjust(set.id, "durationSec", next)}
+                          />
+                        ) : (
+                          <NumberEdit
+                            value={value}
+                            display={`${value} ${unit}`}
+                            label={t("logger.editValue", { number: set.index })}
+                            onCommit={(next) =>
+                              void adjust(
+                                set.id,
+                                metricField,
+                                distance ? Math.round(next * 100) / 100 : Math.round(next),
+                              )
+                            }
+                            style={[styles.value, { color: palette.text }]}
+                          />
+                        )}
+                        <Pressable
+                          accessibilityRole="button"
+                          accessibilityLabel={t("history.increase", { unit })}
+                          hitSlop={4}
+                          onPress={() =>
+                            void adjust(set.id, metricField, Math.round((value + step) * 100) / 100)
+                          }
+                          style={[styles.adjust, { backgroundColor: palette.surfaceMuted }]}
+                        >
+                          <Icon name="add" size={16} color={palette.text} />
+                        </Pressable>
+                      </View>
+                      {loaded ? (
+                        <LoadEditor
+                          key={`${set.id}-${set.addedLoadKg}`}
+                          value={set.addedLoadKg}
+                          onSave={(next) => void adjust(set.id, "addedLoadKg", next)}
+                        />
+                      ) : null}
+                    </View>
+                    {set.note || set.rpe !== null || set.clipCount > 0 ? (
+                      <Pressable
+                        accessibilityRole="button"
+                        onPress={() => setSetFor({ exercise, set })}
+                        style={styles.noteRow}
+                      >
+                        {set.rpe !== null ? (
+                          <Text
+                            style={[
+                              styles.noteText,
+                              styles.noteTag,
+                              { color: palette.accentStrong },
+                            ]}
+                          >
+                            {t("logger.rpeTag", { value: formatRpe(set.rpe) })}
+                          </Text>
+                        ) : null}
+                        {set.clipCount > 0 ? (
+                          <View style={[styles.clipChip, { backgroundColor: palette.accentSoft }]}>
+                            <Icon name="videocam" size={12} color={palette.accentStrong} />
+                            <Text style={[styles.clipText, { color: palette.accentStrong }]}>
+                              {t("logger.clip", { count: set.clipCount })}
+                            </Text>
+                          </View>
+                        ) : null}
+                        {set.note ? (
+                          <Text
+                            numberOfLines={2}
+                            style={[styles.noteText, { color: palette.textMuted }]}
+                          >
+                            {set.note}
+                          </Text>
+                        ) : null}
+                      </Pressable>
+                    ) : null}
+                  </View>
+                );
+              })}
+              {folded ? null : (
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={() => {
+                    tapFeedback();
+                    if (exercise.unilateral) setNewPairFor(exercise);
+                    else void edit(() => addSetToCompletedWorkout(id, exercise.entryId));
+                  }}
+                  style={({ pressed }) => [
+                    styles.addSet,
+                    { borderColor: palette.border, opacity: pressed ? 0.6 : 1 },
+                  ]}
+                >
+                  <Icon name="add" size={18} color={palette.accentStrong} />
+                  <Text style={[styles.addSetText, { color: palette.accentStrong }]}>
+                    {t("logger.addSet")}
+                  </Text>
+                </Pressable>
+              )}
+            </Card>
+          );
         }}
       />
 
-      <ActionButton icon="add" label={t('workout.addExercise')} secondary onPress={() => setPickerOpen(true)} />
-      <ActionButton icon="trash-outline" label={t('history.delete')} variant="danger" onPress={() => setDeleteOpen(true)} />
+      <ActionButton
+        icon="add"
+        label={t("workout.addExercise")}
+        secondary
+        onPress={() => setPickerOpen(true)}
+      />
+      <ActionButton
+        icon="trash-outline"
+        label={t("history.delete")}
+        variant="danger"
+        onPress={() => setDeleteOpen(true)}
+      />
 
       {setFor && liveSet ? (
         <SetSheet
           key={liveSet.id}
-          title={`${setFor.exercise.name} · ${t('logger.setTitle', { number: liveSet.index })}`}
+          title={`${setFor.exercise.name} · ${t("logger.setTitle", { number: liveSet.index })}`}
           set={liveSet}
           onRpe={(rpe) => edit(() => updateSetRpe(liveSet.id, rpe))}
           onSaveNote={(note) => edit(() => updateSetNote(liveSet.id, note))}
-          onVideo={() => { setSetFor(null); router.push({ pathname: '/form-check/[setId]', params: { setId: liveSet.id } }); }}
+          onVideo={() => {
+            setSetFor(null);
+            router.push({ pathname: "/form-check/[setId]", params: { setId: liveSet.id } });
+          }}
           onRemove={() => {
             setSetFor(null);
-            // Clips cannot be brought back, so only a set without clips gets "Restore".
-            if (liveSet.clipCount > 0) { void edit(() => removeSet(liveSet.id)); return; }
             void edit(async () => {
               const removed = await removeSetWithUndo(liveSet.id);
-              if (removed) setUndo({ message: t('logger.removedSet', { number: liveSet.index }), removed });
+              if (removed)
+                setUndo({ message: t("logger.removedSet", { number: liveSet.index }), removed });
             });
           }}
           onClose={() => setSetFor(null)}
+        />
+      ) : null}
+
+      {newPairFor ? (
+        <PairEditor key={`new-${newPairFor.entryId}`} visible workoutId={id} exercise={newPairFor}
+          newPair entryId={newPairFor.entryId} onClose={() => setNewPairFor(null)}
+          onSaved={() => { setNewPairFor(null); void refresh(); }} />
+      ) : null}
+      {pairFor ? (
+        <PairEditor
+          key={`${pairFor.set.id}-${pairFor.pairedSet?.id ?? "legacy"}`}
+          visible
+          workoutId={id}
+          exercise={pairFor.exercise}
+          set={pairFor.set}
+          pairedSet={pairFor.pairedSet}
+          onClose={() => setPairFor(null)}
+          onSaved={() => {
+            setPairFor(null);
+            void refresh();
+          }}
         />
       ) : null}
 
@@ -305,10 +644,14 @@ export default function PastWorkoutScreen() {
         onChanged={() => void refresh()}
         onRemove={(exercise) => {
           setExerciseFor(null);
-          if (exercise.sets.some((set) => set.clipCount > 0)) { void edit(() => removeExerciseEntry(exercise.entryId)); return; }
+          if (exercise.sets.some((set) => set.clipCount > 0)) {
+            void edit(() => removeExerciseEntry(exercise.entryId));
+            return;
+          }
           void edit(async () => {
             const removed = await removeExerciseEntryWithUndo(exercise.entryId);
-            if (removed) setUndo({ message: t('logger.removedExercise', { name: exercise.name }), removed });
+            if (removed)
+              setUndo({ message: t("logger.removedExercise", { name: exercise.name }), removed });
           });
         }}
       />
@@ -329,34 +672,53 @@ export default function PastWorkoutScreen() {
       <Sheet
         visible={deleteOpen}
         onClose={() => setDeleteOpen(false)}
-        title={t('history.deleteTitle', { name: workout.name })}
-        body={t('history.deleteBody', { count: completedSets })}
+        title={t("history.deleteTitle", { name: workout.name })}
+        body={t("history.deleteBody", { count: completedSets })}
       >
-        <ActionButton icon="trash-outline" label={t('history.deleteConfirm')} variant="danger" onPress={() => void confirmDelete()} />
-        <ActionButton label={t('common.cancel')} secondary onPress={() => setDeleteOpen(false)} />
+        <ActionButton
+          icon="trash-outline"
+          label={t("history.deleteConfirm")}
+          variant="danger"
+          onPress={() => void confirmDelete()}
+        />
+        <ActionButton label={t("common.cancel")} secondary onPress={() => setDeleteOpen(false)} />
       </Sheet>
 
       <SaveToProgramSheet
         visible={saveOpen}
         defaultName={workout.name}
-        exercises={workout.exercises.map((exercise) => ({ ...exercise, sets: exercise.sets.filter((set) => set.completedAt) }))}
+        exercises={workout.exercises.map((exercise) => ({
+          ...exercise,
+          sets: exercise.sets.filter((set) => set.completedAt),
+        }))}
         onClose={() => setSaveOpen(false)}
-        onSaved={(program) => { setSaveOpen(false); setSaved({ id: program.id, name: program.name }); }}
+        onSaved={(program) => {
+          setSaveOpen(false);
+          setSaved({ id: program.id, name: program.name });
+        }}
       />
       <Toast
-        message={saved ? t('saveToProgram.saved', { name: saved.name }) : null}
-        actionLabel={t('saveToProgram.open')}
-        onAction={() => { if (saved) router.push({ pathname: '/program/user/[id]', params: { id: saved.id } }); }}
+        message={saved ? t("saveToProgram.saved", { name: saved.name }) : null}
+        actionLabel={t("saveToProgram.open")}
+        onAction={() => {
+          if (saved) router.push({ pathname: "/program/user/[id]", params: { id: saved.id } });
+        }}
         onHide={() => setSaved(null)}
         bottomOffset={0}
       />
 
       <ExercisePicker
         visible={pickerOpen}
-        title={t('workout.addExercise')}
-        subtitle={t('history.pickerSubtitle')}
+        title={t("workout.addExercise")}
+        subtitle={t("history.pickerSubtitle")}
         onChoose={chooseExercise}
-        onCreate={(name) => { setPickerOpen(false); router.push({ pathname: '/exercise/new', params: { addToPast: id, ...(name ? { name } : {}) } }); }}
+        onCreate={(name) => {
+          setPickerOpen(false);
+          router.push({
+            pathname: "/exercise/new",
+            params: { addToPast: id, ...(name ? { name } : {}) },
+          });
+        }}
         onClose={() => setPickerOpen(false)}
       />
     </Screen>
@@ -364,7 +726,15 @@ export default function PastWorkoutScreen() {
 }
 
 /** Note, RPE, clip and removal for one set; removing a set with clips asks once more first. */
-function SetSheet({ title, set, onRpe, onSaveNote, onVideo, onRemove, onClose }: {
+function SetSheet({
+  title,
+  set,
+  onRpe,
+  onSaveNote,
+  onVideo,
+  onRemove,
+  onClose,
+}: {
   title: string;
   set: SessionSet;
   onRpe: (rpe: number | null) => Promise<void>;
@@ -374,82 +744,159 @@ function SetSheet({ title, set, onRpe, onSaveNote, onVideo, onRemove, onClose }:
   onClose: () => void;
 }) {
   const { t } = useTranslation();
-  const [note, setNote] = useState(set.note ?? '');
+  const [note, setNote] = useState(set.note ?? "");
   const [rpe, setRpe] = useState(set.rpe);
   const [confirming, setConfirming] = useState(false);
   const close = () => {
     onClose();
-    if ((set.note ?? '') !== note.trim()) void onSaveNote(note);
+    if ((set.note ?? "") !== note.trim()) void onSaveNote(note);
   };
   return (
-    <Sheet visible onClose={close} title={title} body={confirming ? t('logger.removeCompletedWarning') : undefined}>
+    <Sheet
+      visible
+      onClose={close}
+      title={title}
+      body={confirming ? t("logger.removeCompletedWarning") : undefined}
+    >
       {confirming ? (
         <>
-          <ActionButton icon="trash-outline" label={t('logger.confirmRemove')} variant="danger" onPress={onRemove} />
-          <ActionButton label={t('common.cancel')} secondary onPress={() => setConfirming(false)} />
+          <ActionButton
+            icon="trash-outline"
+            label={t("logger.confirmRemove")}
+            variant="danger"
+            onPress={onRemove}
+          />
+          <ActionButton label={t("common.cancel")} secondary onPress={() => setConfirming(false)} />
         </>
       ) : (
         <>
-          <RpePicker value={rpe} onChange={(next) => { setRpe(next); void onRpe(next); }} />
-          <TextField label={t('logger.noteLabel')} value={note} onChangeText={setNote} placeholder={t('logger.notePlaceholder')} multiline maxLength={500} />
+          <RpePicker
+            value={rpe}
+            onChange={(next) => {
+              setRpe(next);
+              void onRpe(next);
+            }}
+          />
+          <TextField
+            label={t("logger.noteLabel")}
+            value={note}
+            onChangeText={setNote}
+            placeholder={t("logger.notePlaceholder")}
+            multiline
+            maxLength={500}
+          />
           <ActionButton
-            icon={set.clipCount > 0 ? 'play-circle-outline' : 'videocam-outline'}
-            label={set.clipCount > 0 ? t('logger.videoView', { count: set.clipCount }) : t('logger.videoAttach')}
+            icon={set.clipCount > 0 ? "play-circle-outline" : "videocam-outline"}
+            label={
+              set.clipCount > 0
+                ? t("logger.videoView", { count: set.clipCount })
+                : t("logger.videoAttach")
+            }
             secondary
             onPress={onVideo}
           />
-          <ActionButton icon="trash-outline" label={t('logger.removeSet')} variant="danger" onPress={() => (set.clipCount > 0 ? setConfirming(true) : onRemove())} />
-          <ActionButton label={t('logger.done')} onPress={close} />
+          <ActionButton
+            icon="trash-outline"
+            label={t("logger.removeSet")}
+            variant="danger"
+            onPress={() => (set.clipCount > 0 ? setConfirming(true) : onRemove())}
+          />
+          <ActionButton label={t("logger.done")} onPress={close} />
         </>
       )}
     </Sheet>
   );
 }
 
-function ExerciseSheet({ exercise, onClose, onChanged, onRemove }: { exercise: SessionExercise | null; onClose: () => void; onChanged: () => void; onRemove: (exercise: SessionExercise) => void }) {
+function ExerciseSheet({
+  exercise,
+  onClose,
+  onChanged,
+  onRemove,
+}: {
+  exercise: SessionExercise | null;
+  onClose: () => void;
+  onChanged: () => void;
+  onRemove: (exercise: SessionExercise) => void;
+}) {
   const { t } = useTranslation();
   const [confirming, setConfirming] = useState(false);
-  const close = () => { setConfirming(false); onClose(); };
+  const close = () => {
+    setConfirming(false);
+    onClose();
+  };
   return (
     <Sheet
       visible={exercise !== null}
       onClose={close}
-      title={confirming ? t('logger.removeExerciseTitle', { name: exercise?.name ?? '' }) : exercise?.name ?? t('logger.options')}
-      body={confirming ? t('logger.removeExerciseBody', { count: exercise?.sets.length ?? 0 }) : undefined}
+      title={
+        confirming
+          ? t("logger.removeExerciseTitle", { name: exercise?.name ?? "" })
+          : (exercise?.name ?? t("logger.options"))
+      }
+      body={
+        confirming
+          ? t("logger.removeExerciseBody", { count: exercise?.sets.length ?? 0 })
+          : undefined
+      }
     >
       {confirming ? (
         <>
-          <ActionButton icon="trash-outline" label={t('logger.confirmRemove')} variant="danger" onPress={() => { setConfirming(false); if (exercise) onRemove(exercise); }} />
-          <ActionButton label={t('common.cancel')} secondary onPress={() => setConfirming(false)} />
+          <ActionButton
+            icon="trash-outline"
+            label={t("logger.confirmRemove")}
+            variant="danger"
+            onPress={() => {
+              setConfirming(false);
+              if (exercise) onRemove(exercise);
+            }}
+          />
+          <ActionButton label={t("common.cancel")} secondary onPress={() => setConfirming(false)} />
         </>
       ) : (
         <>
-          {exercise ? <ExerciseNoteField key={exercise.entryId} entryId={exercise.entryId} initial={exercise.notes} onSaved={onChanged} /> : null}
+          {exercise ? (
+            <ExerciseNoteField
+              key={exercise.entryId}
+              entryId={exercise.entryId}
+              initial={exercise.notes}
+              onSaved={onChanged}
+            />
+          ) : null}
           <ActionButton
             icon="construct-outline"
-            label={t('logger.editExercise')}
+            label={t("logger.editExercise")}
             secondary
             onPress={() => {
               if (!exercise) return;
               const exerciseId = exercise.exerciseId;
               close();
-              router.push({ pathname: '/exercise/new', params: { edit: exerciseId } });
+              router.push({ pathname: "/exercise/new", params: { edit: exerciseId } });
             }}
           />
-          <ActionButton icon="trash-outline" label={t('logger.removeExercise')} variant="danger" onPress={() => {
-            if (exercise?.sets.some((set) => set.clipCount > 0)) setConfirming(true);
-            else if (exercise) onRemove(exercise);
-          }} />
-          <ActionButton label={t('common.cancel')} secondary onPress={close} />
+          <ActionButton
+            icon="trash-outline"
+            label={t("logger.removeExercise")}
+            variant="danger"
+            onPress={() => {
+              if (exercise?.sets.some((set) => set.clipCount > 0)) setConfirming(true);
+              else if (exercise) onRemove(exercise);
+            }}
+          />
+          <ActionButton label={t("common.cancel")} secondary onPress={close} />
         </>
       )}
     </Sheet>
   );
 }
 
-
 /** Name, day, start time and length of a finished workout, edited with steppers. */
-function DetailsSheet({ workout, locale, onClose, onSave }: {
+function DetailsSheet({
+  workout,
+  locale,
+  onClose,
+  onSave,
+}: {
   workout: CompletedWorkout;
   locale: string;
   onClose: () => void;
@@ -458,36 +905,78 @@ function DetailsSheet({ workout, locale, onClose, onSave }: {
   const { t } = useTranslation();
   const [name, setName] = useState(workout.name);
   const [start, setStart] = useState(workout.startedAt.getTime());
-  const [minutes, setMinutes] = useState(Math.max(1, Math.round((workout.endedAt.getTime() - workout.startedAt.getTime()) / 60_000)));
+  const [minutes, setMinutes] = useState(
+    Math.max(1, Math.round((workout.endedAt.getTime() - workout.startedAt.getTime()) / 60_000)),
+  );
   const [error, setError] = useState<string | null>(null);
   const startDate = new Date(start);
 
   const save = async () => {
-    if (!name.trim()) { setError(t('history.nameRequired')); return; }
+    if (!name.trim()) {
+      setError(t("history.nameRequired"));
+      return;
+    }
     const startedAt = new Date(start);
-    if (startedAt.getTime() > Date.now()) { setError(t('history.futureStart')); return; }
+    if (startedAt.getTime() > Date.now()) {
+      setError(t("history.futureStart"));
+      return;
+    }
     try {
       await onSave({ name, startedAt, endedAt: new Date(start + minutes * 60_000) });
     } catch {
-      setError(t('history.saveError'));
+      setError(t("history.saveError"));
     }
   };
 
   return (
-    <Sheet visible onClose={onClose} title={t('history.editDetails')}>
-      <TextField label={t('history.name')} value={name} onChangeText={(value) => { setName(value); setError(null); }} maxLength={WORKOUT_NAME_MAX} />
-      <DateField label={t('history.day')} value={startDate} locale={locale} maxDate={new Date()} onChange={(next) => { setStart(next.getTime()); setError(null); }} />
+    <Sheet visible onClose={onClose} title={t("history.editDetails")}>
+      <TextField
+        label={t("history.name")}
+        value={name}
+        onChangeText={(value) => {
+          setName(value);
+          setError(null);
+        }}
+        maxLength={WORKOUT_NAME_MAX}
+      />
+      <DateField
+        label={t("history.day")}
+        value={startDate}
+        locale={locale}
+        maxDate={new Date()}
+        onChange={(next) => {
+          setStart(next.getTime());
+          setError(null);
+        }}
+      />
       <TimeField
-        label={t('history.startTime')}
+        label={t("history.startTime")}
         hour={startDate.getHours()}
         minute={startDate.getMinutes()}
         locale={locale}
-        onChange={(hour, minute) => { const next = new Date(start); next.setHours(hour, minute, 0, 0); setStart(next.getTime()); setError(null); }}
+        onChange={(hour, minute) => {
+          const next = new Date(start);
+          next.setHours(hour, minute, 0, 0);
+          setStart(next.getTime());
+          setError(null);
+        }}
       />
-      <Stepper layout="row" label={t('history.duration')} value={minutes} display={t('history.durationValue', { count: minutes })} step={5} min={1} max={600} editable presets={[30, 45, 60, 75, 90]} presetLabel={(value) => t('history.durationValue', { count: value })} onChange={setMinutes} />
+      <Stepper
+        layout="row"
+        label={t("history.duration")}
+        value={minutes}
+        display={t("history.durationValue", { count: minutes })}
+        step={5}
+        min={1}
+        max={600}
+        editable
+        presets={[30, 45, 60, 75, 90]}
+        presetLabel={(value) => t("history.durationValue", { count: value })}
+        onChange={setMinutes}
+      />
       {error ? <Body accessibilityLiveRegion="polite">{error}</Body> : null}
-      <ActionButton icon="checkmark" label={t('common.save')} onPress={() => void save()} />
-      <ActionButton label={t('common.cancel')} secondary onPress={onClose} />
+      <ActionButton icon="checkmark" label={t("common.save")} onPress={() => void save()} />
+      <ActionButton label={t("common.cancel")} secondary onPress={onClose} />
     </Sheet>
   );
 }
@@ -500,52 +989,122 @@ function LoadEditor({ value, onSave }: { value: number; onSave: (value: number) 
   return (
     <View style={styles.loadWrap}>
       <TextInput
-        accessibilityLabel={t('history.addedLoad')}
+        accessibilityLabel={t("history.addedLoad")}
         keyboardType="numbers-and-punctuation"
         value={draft}
         onChangeText={setDraft}
         selectTextOnFocus
         onEndEditing={() => {
-          const parsed = Number(draft.replace(',', '.'));
-          if (draft.trim() !== '' && Number.isFinite(parsed)) onSave(parsed);
+          const parsed = Number(draft.replace(",", "."));
+          if (draft.trim() !== "" && Number.isFinite(parsed)) onSave(parsed);
           else setDraft(String(value));
         }}
         style={[styles.loadInput, { backgroundColor: palette.surfaceMuted, color: palette.text }]}
       />
-      <Text style={[styles.loadUnit, { color: palette.textMuted }]}>{t('history.units.kg')}</Text>
+      <Text style={[styles.loadUnit, { color: palette.textMuted }]}>{t("history.units.kg")}</Text>
     </View>
   );
 }
 
 const baseStyles = StyleSheet.create({
-  mobility: { flexDirection: 'row', alignItems: 'center', gap: 8, alignSelf: 'flex-start', borderRadius: 999, paddingHorizontal: 12, paddingVertical: 6, marginTop: -8 },
+  mobility: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    alignSelf: "flex-start",
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    marginTop: -8,
+  },
   mobilityText: { fontFamily: fonts.semibold, fontSize: 14 },
   flex: { flex: 1 },
   error: { fontFamily: fonts.medium, fontSize: 14 },
   exerciseCard: { gap: 4 },
-  foldAll: { alignSelf: 'flex-end', minHeight: 48, justifyContent: 'center' },
+  foldAll: { alignSelf: "flex-end", minHeight: 48, justifyContent: "center" },
   foldAllText: { fontFamily: fonts.semibold, fontSize: 14 },
-  nameRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  exerciseHeader: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, marginBottom: 4 },
+  nameRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+  exerciseHeader: { flexDirection: "row", alignItems: "flex-start", gap: 8, marginBottom: 4 },
   setBlock: { borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 8, paddingBottom: 4 },
-  row: { minHeight: 50, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 6 },
-  setMeta: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 48 },
-  setValues: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 12, paddingBottom: 8 },
-  setBadge: { width: 30, height: 30, borderRadius: 9, alignItems: 'center', justifyContent: 'center' },
+  row: {
+    minHeight: 50,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 6,
+  },
+  setMeta: { flex: 1, flexDirection: "row", alignItems: "center", gap: 10, minHeight: 48 },
+  setValues: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+    paddingBottom: 8,
+  },
+  setBadge: {
+    width: 30,
+    height: 30,
+    borderRadius: 9,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   setBadgeText: { fontFamily: fonts.display, fontSize: 16 },
+  setStatusWrap: { flex: 1, gap: 2 },
+  setLabel: { fontFamily: fonts.semibold, fontSize: 13 },
   setStatus: { flexShrink: 1, fontFamily: fonts.medium, fontSize: 12 },
-  counter: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-  adjust: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
-  value: { minWidth: 58, textAlign: 'center', fontFamily: fonts.display, fontSize: 24, lineHeight: 30 },
-  noteRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8, minHeight: 48 },
+  counter: { flexDirection: "row", alignItems: "center", gap: 5 },
+  adjust: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  value: {
+    minWidth: 58,
+    textAlign: "center",
+    fontFamily: fonts.display,
+    fontSize: 24,
+    lineHeight: 30,
+  },
+  noteRow: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 8, minHeight: 48 },
   noteText: { flex: 1, fontFamily: fonts.body, fontSize: 13 },
   noteTag: { flex: 0, fontFamily: fonts.semibold },
-  clipChip: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, height: 22, borderRadius: 999 },
+  clipChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 8,
+    height: 22,
+    borderRadius: 999,
+  },
   clipText: { fontFamily: fonts.semibold, fontSize: 12 },
-  addSet: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, minHeight: 48, borderRadius: 12, borderWidth: 1, marginTop: 8 },
+  addSet: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    minHeight: 48,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginTop: 8,
+  },
   addSetText: { fontFamily: fonts.semibold, fontSize: 15 },
   exerciseNote: { fontFamily: fonts.body, fontSize: 13, lineHeight: 18, marginTop: 4 },
-  loadWrap: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  loadInput: { minWidth: 64, minHeight: 48, borderRadius: 10, textAlign: 'center', textAlignVertical: 'center', fontFamily: fonts.display, fontSize: 20, lineHeight: 26, paddingVertical: 0, paddingHorizontal: 6, includeFontPadding: false },
+  loadWrap: { flexDirection: "row", alignItems: "center", gap: 4 },
+  loadInput: {
+    minWidth: 64,
+    minHeight: 48,
+    borderRadius: 10,
+    textAlign: "center",
+    textAlignVertical: "center",
+    fontFamily: fonts.display,
+    fontSize: 20,
+    lineHeight: 26,
+    paddingVertical: 0,
+    paddingHorizontal: 6,
+    includeFontPadding: false,
+  },
   loadUnit: { fontFamily: fonts.medium, fontSize: 12 },
 });

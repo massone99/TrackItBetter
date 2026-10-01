@@ -1,3 +1,4 @@
+import { aggregatePairs, samePairValue } from '../../domain/setPairs';
 import { matchesScope, type ExploreData, type Scope } from './explore';
 import type { ExerciseHistorySession } from './repository';
 
@@ -50,7 +51,7 @@ function groupRepSets(sets: readonly RepSet[]): RepsAtLoadGroup[] {
 
 /** The exercise page already loads completed history, including warm-ups that we omit here. */
 export function repsAtLoadFromHistory(history: readonly ExerciseHistorySession[]): RepsAtLoadGroup[] {
-  return groupRepSets(history.flatMap((session) => session.sets.filter((set) => set.kind === 'working').map((set) => ({
+  return groupRepSets(history.flatMap((session) => aggregatePairs(session.sets).filter((set) => set.kind === 'working' && samePairValue(set, (s) => s.addedLoadKg)).map((set) => ({
     workoutId: session.workoutId, workoutName: session.workoutName, startedAt: session.startedAt,
     loadKg: set.addedLoadKg, reps: set.reps,
   }))));
@@ -60,7 +61,7 @@ export function repsAtLoadFromHistory(history: readonly ExerciseHistorySession[]
 export function repsAtLoadFromExplore(data: ExploreData, scope: Scope): RepsAtLoadGroup[] {
   if (!scope.exerciseId) return [];
   const workouts = new Map(data.workouts.map((workout) => [workout.id, workout]));
-  return groupRepSets(data.rows.filter((row) => matchesScope(row, scope) && (row.metric === 'reps' || row.metric === 'reps_load')).map((row) => ({
+  return groupRepSets(aggregatePairs(data.rows).filter((row) => matchesScope(row, scope) && samePairValue(row, (s) => s.addedLoadKg) && (row.metric === 'reps' || row.metric === 'reps_load')).map((row) => ({
     workoutId: row.workoutId, workoutName: workouts.get(row.workoutId)?.name ?? row.exerciseName,
     startedAt: row.workoutStartedAt, loadKg: row.addedLoadKg, reps: row.reps,
   })));

@@ -1,5 +1,6 @@
 import { router, useLocalSearchParams } from "expo-router";
 import { useState } from "react";
+import { groupSets } from '../../src/domain/setPairs';
 import { ActivityIndicator, Alert, StyleSheet, View } from "react-native";
 import { Text } from "../../src/shared/components/Text";
 import { WorkoutInProgressSheet } from "../../src/features/session/WorkoutInProgressSheet";
@@ -38,9 +39,12 @@ export default function ProgramRoute() {
       for (const { entryId, prescription } of entries) {
         const metric = active?.exercises.find((exercise) => exercise.entryId === entryId)?.metric;
         const timed = metric === "time" || metric === "time_load";
-        const setIds = active?.exercises.find((exercise) => exercise.entryId === entryId)?.sets.map((set) => set.id) ?? [];
-        while (setIds.length < prescription.sets) setIds.push(await addSet(entryId));
-        for (const setId of setIds.slice(0, prescription.sets)) {
+        let sets = active?.exercises.find((exercise) => exercise.entryId === entryId)?.sets ?? [];
+        while (groupSets(sets).length < prescription.sets) {
+          await addSet(entryId);
+          sets = (await getActiveWorkout(workoutId))?.exercises.find((exercise) => exercise.entryId === entryId)?.sets ?? [];
+        }
+        for (const { id: setId } of sets) {
           await updateSet(setId, "restSec", prescription.restSeconds);
           if (timed && prescription.target.seconds !== undefined) await updateSet(setId, "durationSec", prescription.target.seconds);
           if (!timed && prescription.target.reps !== undefined) await updateSet(setId, "reps", prescription.target.reps);

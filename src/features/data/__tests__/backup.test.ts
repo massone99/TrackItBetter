@@ -34,11 +34,33 @@ const capture = {
   base64: 'AAAA',
 };
 
-const backup = (data: object) => JSON.stringify({ format: 'trackitbetter-backup', version: 2, exportedAt: '2026-09-27T10:00:00.000Z', data });
+const backup = (data: object, version = 2) => JSON.stringify({ format: 'trackitbetter-backup', version, exportedAt: '2026-09-27T10:00:00.000Z', data });
+
+const workout = {
+  id: 'workout-1', name: 'Workout', startedAt: '2026-09-27T10:00:00.000Z', endedAt: null,
+  notes: null, sleep: null, energy: null, soreness: null, sessionRpe: null, bodyweightKg: null,
+};
+
+const entry = {
+  id: 'entry-1', workoutId: 'workout-1', exerciseId: 'push-up', order: 0,
+  groupId: null, groupType: null, notes: null,
+};
+
+const set = (id: string, side: 'left' | 'right', completedAt: string | null = null, pairId = 'pair-1') => ({
+  id, entryId: 'entry-1', index: 1, kind: 'working', reps: 8, durationSec: null, distanceM: null,
+  addedLoadKg: 0, band: null, rpe: null, rir: null, side, tempo: null, restSec: null, note: null,
+  completedAt, pairId,
+});
 
 describe('parseBackup', () => {
   it('accepts backups made before pose captures existed', () => {
     expect(() => parseBackup(backup(emptyData))).not.toThrow();
+  });
+
+  it('accepts v1 backups and supplies defaults for unilateral fields', () => {
+    const { progressPhotos: _photos, ...v1Data } = emptyData;
+    const parsed = parseBackup(backup({ ...v1Data, exercises: [exercise] }, 1));
+    expect(parsed.data.exercises[0].unilateralRestMode).toBe('pair');
   });
 
   it('accepts older exercises without movement classifications and new classified exercises', () => {
@@ -76,5 +98,45 @@ describe('parseBackup', () => {
   it('rejects invalid pose captures before touching the database', () => {
     expect(() => parseBackup(backup({ ...emptyData, poseCaptures: [{ ...capture, level: 9 }] }))).toThrow();
     expect(() => parseBackup(backup({ ...emptyData, poseCaptures: [{ ...capture, fileName: '../escape.jpg' }] }))).toThrow();
+  });
+
+  it('accepts a complete v3 pair and keeps side-specific values', () => {
+    const parsed = parseBackup(backup({
+      ...emptyData,
+      exercises: [{ ...exercise, unilateralRestMode: 'side' }],
+      workouts: [workout],
+      exerciseEntries: [{ ...entry, unilateralRestMode: 'pair' }],
+      trainingSets: [set('set-left', 'left'), { ...set('set-right', 'right'), reps: 10 }],
+    }, 3));
+    expect(parsed.data.exercises[0].unilateralRestMode).toBe('side');
+    expect(parsed.data.exerciseEntries[0].unilateralRestMode).toBe('pair');
+    expect(parsed.data.trainingSets.map(({ side, reps }) => [side, reps])).toEqual([['left', 8], ['right', 10]]);
+  });
+
+  it('rejects malformed and cross-entry pairs', () => {
+    const base = {
+      ...emptyData,
+      exercises: [exercise],
+      workouts: [workout],
+      exerciseEntries: [entry],
+    };
+    expect(() => parseBackup(backup({ ...base, trainingSets: [set('set-left', 'left')] }, 3))).toThrow();
+    expect(() => parseBackup(backup({ ...base, trainingSets: [set('set-left', 'left'), { ...set('set-right', 'right'), entryId: 'missing-entry' }] }, 3))).toThrow();
+    expect(() => parseBackup(backup({ ...base, trainingSets: [set('set-left', 'left'), { ...set('set-right', 'right'), side: 'left' }] }, 3))).toThrow();
+  });
+
+  it('allows an unfinished pair in a draft but rejects one in an ended workout', () => {
+    const draft = {
+      ...emptyData,
+      exercises: [exercise],
+      workouts: [workout],
+      exerciseEntries: [entry],
+      trainingSets: [set('set-left', 'left', '2026-09-27T10:05:00.000Z'), set('set-right', 'right')],
+    };
+    expect(() => parseBackup(backup(draft, 3))).not.toThrow();
+    expect(() => parseBackup(backup({
+      ...draft,
+      workouts: [{ ...workout, endedAt: '2026-09-27T11:00:00.000Z' }],
+    }, 3))).toThrow();
   });
 });

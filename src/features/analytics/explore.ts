@@ -1,4 +1,5 @@
 import { estimateOneRepMax } from '../../domain';
+import { aggregatePairs, realMean } from '../../domain/setPairs';
 import { setEstimate } from './estimates';
 import { isMobilityRow, isMobilityTimedSet } from './mobility';
 import { getEffectiveLoad, rowCategories, rowPattern, type CompletedSetRow } from './summary';
@@ -111,6 +112,7 @@ export const DEFAULT_RPE_THRESHOLD = 8;
 
 /** One metric over a set of rows and the workouts they belong to. */
 export function computeMetric(metric: MetricId, rows: readonly CompletedSetRow[], workouts: readonly ExploreWorkout[], rpeThreshold = DEFAULT_RPE_THRESHOLD): number | null {
+  rows = aggregatePairs(rows);
   switch (metric) {
     case 'setsAtRpe': return rows.filter((row) => row.rpe != null && row.rpe >= rpeThreshold).length;
     case 'sessions': return new Set(rows.map((row) => row.workoutId)).size;
@@ -119,8 +121,8 @@ export function computeMetric(metric: MetricId, rows: readonly CompletedSetRow[]
     case 'reps': return sum(rows, (row) => (isRepMetric(row) ? row.reps : null));
     case 'holdSec': return sum(rows, (row) => (isTimeMetric(row) ? row.durationSec : null));
     case 'distanceM': return sum(rows, (row) => (row.metric === 'distance' ? row.distanceM : null));
-    case 'loadReps': return sum(rows, (row) => (row.metric === 'reps_load' ? loadTimes(row, row.reps) : null));
-    case 'loadSec': return sum(rows, (row) => (row.metric === 'time_load' ? loadTimes(row, row.durationSec) : null));
+    case 'loadReps': return sum(rows, (row) => (row.metric === 'reps_load' ? realMean(row, (side) => loadTimes(side, side.reps)) : null));
+    case 'loadSec': return sum(rows, (row) => (row.metric === 'time_load' ? realMean(row, (side) => loadTimes(side, side.durationSec)) : null));
     case 'mobilityHoldSec': return sum(rows, (row) => (isMobilityTimedSet(row) ? row.durationSec : null));
     case 'mobilitySets': return rows.filter(isMobilityRow).length;
     case 'bestReps': return max(rows, (row) => (isRepMetric(row) ? row.reps : null));
@@ -335,6 +337,7 @@ function loadTimes(row: CompletedSetRow, amount: number | null): number | null {
 }
 
 function oneRepMax(row: CompletedSetRow): number | null {
+  if (row.pairMembers) return realMean(row, oneRepMax);
   if (row.metric !== 'reps_load' || row.reps == null || row.reps <= 0 || row.reps > BEST_E1RM_MAX_REPS) return null;
   const load = getEffectiveLoad(row);
   if (load == null) return null;

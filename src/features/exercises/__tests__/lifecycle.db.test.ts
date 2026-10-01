@@ -33,7 +33,7 @@ async function logSet(exerciseId: string, reps: number, load = 0): Promise<strin
   const { id } = real.sqlite.prepare('SELECT id FROM training_set WHERE entry_id = ?').get(entryId) as { id: string };
   await updateSet(id, 'reps', reps);
   if (load) await updateSet(id, 'addedLoadKg', load);
-  await completeSet(id);
+  for (const row of real.sqlite.prepare('SELECT id FROM training_set WHERE entry_id = ?').all(entryId) as { id: string }[]) await completeSet(row.id);
   await finishWorkout(workoutId);
   return workoutId;
 }

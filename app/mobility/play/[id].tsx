@@ -3,7 +3,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import * as Speech from 'expo-speech';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useAppInsets } from '../../../src/shared/layout/useAppInsets';
 import { expandRoutine, type MobilitySegment, type MobilitySide } from '../../../src/domain/mobilityPlan';
 import { openReferenceVideo } from '../../../src/features/exercises/ReferenceLinkSheet';
@@ -11,7 +11,7 @@ import { getExerciseById } from '../../../src/features/exercises/repository';
 import { getMobilityRoutine, type MobilityRoutine } from '../../../src/features/mobility/routines';
 import { logCompletedWorkout, type LoggedSetInput } from '../../../src/features/session/repository';
 import { ActionButton, Icon, IconButton, PageHeading, Screen, Sheet, tapFeedback, Text } from '../../../src/shared/components/ui';
-import { readBooleanPreference, writePreference } from '../../../src/shared/settings/preferences';
+import { readBooleanPreference, readPreference, writePreference } from '../../../src/shared/settings/preferences';
 import { useTheme } from '../../../src/shared/theme/ThemeProvider';
 import { fonts } from '../../../src/shared/theme/typography';
 import { useScaledStyles } from '../../../src/shared/theme/useScaledStyles';
@@ -22,7 +22,15 @@ import { goBack } from '../../../src/shared/navigation/goBack';
 const VOICE_KEY = 'mobility.voice';
 
 type DrillInfo = { name: string; cue: string | null; demoUrl: string | null };
-type Performed = { stepIndex: number; side: MobilitySide | null; seconds: number | null; reps: number | null; completedAt: Date };
+type Performed = { stepIndex: number; round?: number; side: MobilitySide | null; seconds: number | null; reps: number | null; completedAt: Date };
+
+function readDraft(id: string): { records: [number, Performed][]; index: number; startedAt: number } | null {
+  try {
+    const value = JSON.parse(readPreference(`mobility.draft.${id}`) ?? 'null');
+    if (!value || !Array.isArray(value.records)) return null;
+    return { ...value, records: value.records.map(([key, row]: [number, Performed]) => [key, { ...row, completedAt: new Date(row.completedAt) }]) };
+  } catch { return null; }
+}
 
 function readCues(value: string): string | null {
   try {
@@ -42,24 +50,32 @@ export default function MobilityPlayerScreen() {
   const insets = useAppInsets();
   const [routine, setRoutine] = useState<MobilityRoutine | null | undefined>(undefined);
   const [drills, setDrills] = useState<DrillInfo[]>([]);
-  const [index, setIndex] = useState(0);
+  const [index, setIndex] = useState(() => readDraft(id)?.index ?? 0);
   const [endsAt, setEndsAt] = useState<number | null>(null);
   const [pausedRemaining, setPausedRemaining] = useState<number | null>(null);
   const [now, setNow] = useState(() => Date.now());
-  const [performed, setPerformed] = useState<Map<number, Performed>>(new Map());
+  const [performed, setPerformed] = useState<Map<number, Performed>>(() => new Map(readDraft(id)?.records ?? []));
   const [ending, setEnding] = useState(false);
   const [voice, setVoice] = useState(() => readBooleanPreference(VOICE_KEY, true));
-  const startedAt = useRef(new Date());
+  const [initialStart] = useState(() => new Date(readDraft(id)?.startedAt ?? Date.now()));
+  const startedAt = useRef(initialStart);
   const finished = useRef(false);
   const started = useRef(false);
+  useEffect(() => {
+    if (!finished.current) writePreference(`mobility.draft.${id}`, JSON.stringify({ records: [...performed], index, startedAt: startedAt.current.getTime() }));
+  }, [id, performed, index]);
 
   useEffect(() => {
     let mounted = true;
     void (async () => {
       const found = await getMobilityRoutine(id);
       if (!mounted) return;
-      setRoutine(found);
       if (!found) return;
+      const resolved = await Promise.all(found.steps.map(async (step) => {
+        const exercise = await getExerciseById(step.exerciseId);
+        return { ...step, perSide: step.perSide || !!exercise?.unilateral, unilateralRestMode: exercise?.unilateralRestMode ?? 'pair' as const };
+      }));
+      setRoutine({ ...found, steps: resolved });
       const infos = await Promise.all(found.steps.map(async (step) => {
         const exercise = await getExerciseById(step.exerciseId);
         return { name: exercise?.name ?? '—', cue: exercise ? readCues(exercise.cues) : null, demoUrl: exercise?.demoUrl ?? null };
@@ -90,12 +106,23 @@ export default function MobilityPlayerScreen() {
 
   const finish = useCallback(async (records: Map<number, Performed>) => {
     if (finished.current || !routine) return;
+    const missing = [...records.values()].find((row) => row.side && ![...records.values()].some((other) => other.stepIndex === row.stepIndex && other.round === row.round && other.side && other.side !== row.side));
+    if (missing) {
+      const missingIndex = segments.findIndex((s) => s.kind === 'work' && s.stepIndex === missing.stepIndex && s.round === missing.round && s.side !== missing.side);
+      Alert.alert('Completa la coppia L / R', `${drills[missing.stepIndex]?.name ?? ''} · Serie ${missing.round}: ${missing.side === 'left' ? 'Destro' : 'Sinistro'} mancante`);
+      if (missingIndex >= 0) {
+        const target = segments[missingIndex];
+        setIndex(missingIndex); setEndsAt(null);
+        setPausedRemaining(target.kind === 'work' && target.mode === 'hold' ? (target.durationSec ?? 0) * 1000 : null);
+      }
+      return;
+    }
     finished.current = true;
     void Speech.stop();
     const byStep = new Map<number, LoggedSetInput[]>();
     for (const record of [...records.values()].sort((a, b) => a.completedAt.getTime() - b.completedAt.getTime())) {
       const sets = byStep.get(record.stepIndex) ?? [];
-      sets.push({ durationSec: record.seconds, reps: record.reps, side: record.side ?? 'both', completedAt: record.completedAt });
+      sets.push({ pairId: record.side ? `${record.stepIndex}:${record.round}` : null, durationSec: record.seconds, reps: record.reps, side: record.side ?? 'both', completedAt: record.completedAt });
       byStep.set(record.stepIndex, sets);
     }
     if (byStep.size === 0) { goBack('/mobility'); return; }
@@ -105,8 +132,9 @@ export default function MobilityPlayerScreen() {
       endedAt: new Date(),
       entries: [...byStep.entries()].sort(([a], [b]) => a - b).map(([stepIndex, sets]) => ({ exerciseId: routine.steps[stepIndex].exerciseId, sets })),
     });
+    writePreference(`mobility.draft.${id}`, 'null');
     router.replace({ pathname: '/workout/summary/[id]', params: { id: workoutId } });
-  }, [routine]);
+  }, [routine, segments, drills, id]);
 
   const goTo = useCallback((next: number, records: Map<number, Performed>) => {
     if (next >= segments.length) { void finish(records); return; }
@@ -137,15 +165,14 @@ export default function MobilityPlayerScreen() {
   useEffect(() => {
     if (started.current || segments.length === 0 || drills.length === 0) return;
     started.current = true;
-    startedAt.current = new Date();
-    goTo(0, new Map());
-  }, [segments, drills, goTo]);
+    goTo(index, performed);
+  }, [segments, drills, goTo, index, performed]);
 
   const completeCurrent = useCallback((records: Map<number, Performed>) => {
     if (!segment) return records;
     if (segment.kind !== 'work') return records;
     const next = new Map(records);
-    next.set(index, { stepIndex: segment.stepIndex, side: segment.side, seconds: segment.durationSec, reps: segment.reps, completedAt: new Date() });
+    next.set(index, { stepIndex: segment.stepIndex, round: segment.round, side: segment.side, seconds: segment.durationSec, reps: segment.reps, completedAt: new Date() });
     return next;
   }, [segment, index]);
 

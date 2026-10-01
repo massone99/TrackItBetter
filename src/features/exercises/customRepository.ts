@@ -9,6 +9,7 @@ export type { ExerciseCategory } from './categories';
 export type ExerciseMetric = 'reps' | 'time' | 'reps_load' | 'time_load' | 'distance';
 
 export interface CreateCustomExerciseInput {
+  unilateral?: boolean;
   name: string;
   metric: ExerciseMetric;
   category: ExerciseCategory;
@@ -54,6 +55,7 @@ export async function createCustomExercise(input: CreateCustomExerciseInput): Pr
     demoUrl: input.demoUrl ?? null,
     ...classification,
     isCustom: true,
+    unilateral: input.unilateral ?? false,
     createdAt: new Date(),
   });
 
@@ -69,6 +71,7 @@ export async function updateExercise(id: string, input: CreateCustomExerciseInpu
   const classification = classificationFields(input);
   await initializeDatabase();
   await db.update(exercises).set({
+    ...(input.unilateral === undefined ? {} : { unilateral: input.unilateral }),
     name: input.name.trim(),
     metric: input.metric,
     category: input.category,

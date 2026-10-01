@@ -1,5 +1,6 @@
 import { calculateEffectiveLoad, calculateVolume, detectPersonalRecords, estimateOneRepMax } from '../../domain';
 import { setEstimate } from './estimates';
+import { aggregatePairs, realMean, recordScope } from '../../domain/setPairs';
 
 export type ProgressMetric = 'reps' | 'time' | 'reps_load' | 'time_load' | 'distance';
 
@@ -20,6 +21,9 @@ export function rowPattern(row: Pick<CompletedSetRow, 'movementPattern' | 'movem
 }
 
 export interface CompletedSetRow {
+  pairId?: string | null;
+  side?: string;
+  pairMembers?: readonly CompletedSetRow[];
   workoutId: string;
   workoutStartedAt: Date;
   bodyweightKg: number | null;
@@ -105,6 +109,7 @@ export function buildProgressSnapshot(
   now = new Date(),
   completedWorkouts?: readonly CompletedWorkoutRow[],
 ): ProgressSnapshot {
+  rows = aggregatePairs(rows);
   const weekStart = now.getTime() - 7 * 24 * 60 * 60 * 1000;
   const allWorkouts = new Set<string>();
   const weeklyRows: CompletedSetRow[] = [];
@@ -129,8 +134,9 @@ export function buildProgressSnapshot(
 
   for (const row of rows) {
     if (!row.completedAt) continue;
+    const candidateId = `${row.exerciseId}\u0000${recordScope(row)}`;
     allWorkouts.add(row.workoutId);
-    exerciseNames.set(row.exerciseId, row.exerciseName);
+    exerciseNames.set(candidateId, `${row.exerciseName} ? ${recordScope(row) === 'legacy' ? 'senza lato' : recordScope(row) === 'average' ? 'Media L/R' : row.side === 'left' ? 'L' : 'R'}`);
     const metric = row.metric as ProgressMetric;
     const inWeek = row.workoutStartedAt.getTime() >= weekStart && row.workoutStartedAt.getTime() <= now.getTime();
     if (inWeek) {
@@ -155,20 +161,24 @@ export function buildProgressSnapshot(
     const trendValues: { kind: TrendKind; value: number }[] = [];
 
     if ((metric === 'reps' || metric === 'reps_load') && reps != null && reps > 0) {
-      candidates.push({ exerciseId: row.exerciseId, type: 'max_reps', value: reps, setId: row.setId, achievedAt: completedAt });
+      candidates.push({ exerciseId: candidateId, type: 'max_reps', value: reps, setId: row.setId, achievedAt: completedAt });
       trendValues.push({ kind: 'reps', value: reps });
     }
     if ((metric === 'time' || metric === 'time_load') && durationSec != null && durationSec > 0) {
-      candidates.push({ exerciseId: row.exerciseId, type: 'max_hold', value: durationSec, setId: row.setId, achievedAt: completedAt });
+      candidates.push({ exerciseId: candidateId, type: 'max_hold', value: durationSec, setId: row.setId, achievedAt: completedAt });
       trendValues.push({ kind: 'hold', value: durationSec });
     }
     if ((metric === 'reps_load' || metric === 'time_load') && effectiveLoad != null && effectiveLoad > 0) {
-      candidates.push({ exerciseId: row.exerciseId, type: 'max_load', value: effectiveLoad, setId: row.setId, achievedAt: completedAt });
+      candidates.push({ exerciseId: candidateId, type: 'max_load', value: effectiveLoad, setId: row.setId, achievedAt: completedAt });
       trendValues.push({ kind: row.leverageFactor != null ? 'effective_load' : 'added_load', value: row.leverageFactor != null ? effectiveLoad : row.addedLoadKg });
       if (metric === 'reps_load' && reps != null && reps > 0 && reps <= 36) {
         try {
-          const e1rm = estimateOneRepMax(effectiveLoad, reps);
-          candidates.push({ exerciseId: row.exerciseId, type: 'e1rm', value: e1rm, setId: row.setId, achievedAt: completedAt });
+          const e1rm = realMean(row, (side) => {
+            const load = getEffectiveLoad(side);
+            return load != null && side.reps != null && side.reps > 0 && side.reps <= 36 ? estimateOneRepMax(load, side.reps) : null;
+          });
+          if (e1rm === null) throw new Error('Missing side estimate');
+          candidates.push({ exerciseId: candidateId, type: 'e1rm', value: e1rm, setId: row.setId, achievedAt: completedAt });
           trendValues.push({ kind: 'estimated1rm', value: e1rm });
         } catch {
           // Invalid/incomplete sets do not contribute an estimated strength record.
@@ -177,9 +187,9 @@ export function buildProgressSnapshot(
     }
     if (metric === 'distance' && distanceM != null && distanceM > 0) {
       trendValues.push({ kind: 'distance', value: distanceM });
-      const current = distances.get(row.exerciseId);
+      const current = distances.get(candidateId);
       if (!current || distanceM > current.value) {
-        distances.set(row.exerciseId, { exerciseId: row.exerciseId, exerciseName: row.exerciseName, kind: 'distance', value: distanceM, achievedAt: row.completedAt });
+        distances.set(candidateId, { exerciseId: row.exerciseId, exerciseName: exerciseNames.get(candidateId)!, kind: 'distance', value: distanceM, achievedAt: row.completedAt });
       }
       distanceMeters += distanceM;
     }
@@ -209,14 +219,14 @@ export function buildProgressSnapshot(
     }
 
     if (metric === 'reps' || metric === 'reps_load') {
-      volumeSets.push({ reps, ...(metric === 'reps_load' && effectiveLoad != null ? { effectiveLoadKg: effectiveLoad } : {}) });
+      for (const side of row.pairMembers ?? [row]) volumeSets.push({ reps: (side.reps ?? 0) / (row.pairMembers?.length ?? 1), ...(metric === 'reps_load' && getEffectiveLoad(side) != null ? { effectiveLoadKg: getEffectiveLoad(side) } : {}) });
     } else if (metric === 'time' || metric === 'time_load') {
-      volumeSets.push({ durationSec, ...(metric === 'time_load' && effectiveLoad != null ? { effectiveLoadKg: effectiveLoad } : {}) });
+      for (const side of row.pairMembers ?? [row]) volumeSets.push({ durationSec: (side.durationSec ?? 0) / (row.pairMembers?.length ?? 1), ...(metric === 'time_load' && getEffectiveLoad(side) != null ? { effectiveLoadKg: getEffectiveLoad(side) } : {}) });
     }
   }
 
   const bests: PersonalBest[] = detectPersonalRecords(candidates).map((record) => ({
-    exerciseId: record.exerciseId,
+    exerciseId: record.exerciseId.split('\u0000')[0],
     exerciseName: exerciseNames.get(record.exerciseId) ?? record.exerciseId,
     kind: record.type === 'max_reps' ? 'reps' : record.type === 'max_hold' ? 'hold' : record.type === 'max_load' ? 'load' : record.type === 'e1rm' ? 'estimated1rm' : 'load',
     value: record.value,
@@ -287,6 +297,7 @@ function isLegPattern(pattern: string | null): boolean {
 }
 
 export function getEffectiveLoad(row: CompletedSetRow): number | undefined {
+  if (row.pairMembers) return realMean(row, getEffectiveLoad) ?? undefined;
   if (row.leverageFactor != null) {
     if (row.bodyweightKg == null) return undefined;
     try {
@@ -312,6 +323,7 @@ export interface WorkoutRecord {
  * workout's best. A first-ever attempt has nothing to beat, so it is not reported.
  */
 export function detectWorkoutRecords(rows: readonly CompletedSetRow[], workoutId: string): WorkoutRecord[] {
+  rows = aggregatePairs(rows);
   const current = rows.filter((row) => row.workoutId === workoutId && row.completedAt);
   if (current.length === 0) return [];
   const startedAt = current[0].workoutStartedAt.getTime();
@@ -336,7 +348,7 @@ function bestSetValues(rows: readonly CompletedSetRow[]) {
     if (metric === 'distance') values.push({ kind: 'distance', value: row.distanceM ?? undefined });
     for (const { kind, value } of values) {
       if (value == null || value <= 0) continue;
-      const key = `${row.exerciseId}:${kind}`;
+      const key = `${row.exerciseId}:${recordScope(row)}:${kind}`;
       const existing = best.get(key);
       if (!existing || value > existing.value) best.set(key, { exerciseId: row.exerciseId, exerciseName: row.exerciseName, kind, value });
     }

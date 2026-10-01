@@ -1,5 +1,6 @@
 import { estimateMaxHold, estimateMaxReps } from '../../domain';
 import type { CompletedSetRow } from './summary';
+import { aggregatePairs, realMean } from '../../domain/setPairs';
 
 /**
  * Capacity estimates for bodyweight work, read from each set's RPE. Loaded metrics are left out:
@@ -12,7 +13,11 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 const RECENT_DAYS = 30;
 
 /** The max reps or max hold one set suggests, or null for an unrated or loaded set. */
-export function setEstimate(row: Pick<CompletedSetRow, 'metric' | 'reps' | 'durationSec' | 'rpe'>): { kind: EstimateKind; value: number } | null {
+export function setEstimate(row: Pick<CompletedSetRow, 'metric' | 'reps' | 'durationSec' | 'rpe' | 'pairMembers'>): { kind: EstimateKind; value: number } | null {
+  if (row.pairMembers) {
+    const value = realMean(row as CompletedSetRow, (side) => setEstimate(side)?.value);
+    return value === null ? null : { kind: row.metric === 'reps' ? 'reps' : 'hold', value };
+  }
   if (row.metric === 'reps') {
     const value = estimateMaxReps(row.reps, row.rpe);
     return value == null ? null : { kind: 'reps', value };
@@ -34,6 +39,7 @@ export interface ExerciseEstimate {
 
 /** Null for exercises that cannot be estimated (loaded or distance) or have no completed sets. */
 export function buildExerciseEstimate(rows: readonly CompletedSetRow[], exerciseId: string, now = new Date()): ExerciseEstimate | null {
+  rows = aggregatePairs(rows);
   const exerciseRows = rows.filter((row) => row.exerciseId === exerciseId && row.completedAt);
   const metric = exerciseRows[0]?.metric;
   if (metric !== 'reps' && metric !== 'time') return null;

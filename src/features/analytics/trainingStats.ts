@@ -1,4 +1,5 @@
 import { exerciseMovementTags, MOVEMENT_GROUP_IDS } from '../exercises/movementCatalog';
+import { aggregatePairs, realMean } from '../../domain/setPairs';
 
 export type StatsDimension = 'group' | 'tag' | 'exercise';
 export type StatsPeriodKind = 'session' | 'day' | 'week' | 'month';
@@ -9,6 +10,9 @@ export const OTHER_ID = '__other__';
 const HISTORY_LENGTH = 8;
 
 export interface StatsSetRow {
+  pairId?: string | null;
+  side?: string;
+  pairMembers?: readonly StatsSetRow[];
   workoutId: string;
   workoutName: string;
   workoutStartedAt: Date;
@@ -79,6 +83,7 @@ function periodEnd(start: Date, kind: CalendarKind): Date {
 }
 
 export function buildTrainingStats(rows: readonly StatsSetRow[], options: StatsOptions): TrainingStats {
+  rows = aggregatePairs(rows);
   if (options.period === 'session') return buildSessionStats(rows, options);
   const kind = options.period;
   const latest = periodId(options.now ?? new Date(), kind);
@@ -151,16 +156,15 @@ function itemKeys(row: StatsSetRow, dimension: StatsDimension): [string, string]
 function addSet(metrics: StatsMetrics, row: StatsSetRow, threshold: number) {
   metrics.sets += 1;
   if (row.rpe != null && row.rpe >= threshold) metrics.setsAtThreshold += 1;
-  const load = Math.max(0, row.addedLoadKg);
   if (row.metric === 'reps' || row.metric === 'reps_load') {
     const reps = Math.max(0, row.reps ?? 0);
     metrics.reps += reps;
-    metrics.loadRepsKg += load * reps;
+    metrics.loadRepsKg += realMean(row, (side) => Math.max(0, side.addedLoadKg) * Math.max(0, side.reps ?? 0)) ?? 0;
   }
   if (row.metric === 'time' || row.metric === 'time_load') {
     const seconds = Math.max(0, row.durationSec ?? 0);
     metrics.holdSeconds += seconds;
-    metrics.loadSecondsKg += load * seconds;
+    metrics.loadSecondsKg += realMean(row, (side) => Math.max(0, side.addedLoadKg) * Math.max(0, side.durationSec ?? 0)) ?? 0;
   }
 }
 

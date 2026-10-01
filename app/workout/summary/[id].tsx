@@ -1,3 +1,4 @@
+import { aggregatePairs } from '../../../src/domain/setPairs';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -46,7 +47,7 @@ export default function WorkoutSummaryScreen() {
   if (loading) return <Screen><ActivityIndicator color={palette.accentStrong} /></Screen>;
   if (!workout) return <Screen><Title>{t('summary.title')}</Title><ActionButton label={t('summary.done')} onPress={done} /></Screen>;
 
-  const completedSets = workout.exercises.flatMap((exercise) => exercise.sets.filter((set) => set.completedAt));
+  const completedSets = aggregatePairs(workout.exercises.flatMap((exercise) => exercise.sets.filter((set) => set.completedAt)));
   const avgRpe = averageRpe(completedSets.map((set) => set.rpe));
   const minutes = Math.max(1, Math.round((workout.endedAt.getTime() - workout.startedAt.getTime()) / 60_000));
   const exerciseById = new Map(workout.exercises.map((exercise) => [exercise.exerciseId, exercise]));
