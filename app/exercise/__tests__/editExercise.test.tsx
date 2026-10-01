@@ -72,6 +72,7 @@ describe('edit exercise', () => {
       cues: ['Lean forward', 'Protract the shoulders'],
       demoUrl: null,
       movementTag: 'Shoulder flexion',
+      movementTags: ['Shoulder flexion'],
       movementGroup: 'vertical-push',
     });
     expect(goBack).toHaveBeenCalled();

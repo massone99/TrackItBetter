@@ -36,6 +36,7 @@ describe('updateExercise', () => {
       cues: '["Lean forward"]',
       demoUrl: 'https://youtu.be/x',
       movementTag: 'Shoulder flexion',
+      movementTags: '["Shoulder flexion"]',
       movementGroup: 'horizontal-push',
     } }]);
   });

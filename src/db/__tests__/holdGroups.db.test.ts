@@ -2,6 +2,7 @@ import exerciseSeed from '../seed/exercises.json';
 import progressionChains from '../seed/progression-chains.json';
 import { migrateDatabase } from '../migrations';
 import { migrateDatabaseV5 } from '../../test/fixtures/migrationsV5';
+import { migrateDatabaseV7 } from '../../test/fixtures/migrationsV7';
 import { createRealDatabase } from '../../test/realDatabase';
 
 type Row = { id: string; movement_group: string | null; extra_categories: string };
@@ -53,9 +54,9 @@ describe('hold groups migration', () => {
   it('does not overwrite an exercise the user classified before the update', async () => {
     const { real, ready } = legacyDatabase();
     await ready;
-    // Simulate a v7 database whose user already filed a catalog handstand under core.
-    await migrateDatabase(real.expo);
-    real.sqlite.exec(`PRAGMA user_version = 7; UPDATE exercise SET movement_group = NULL, extra_categories = '["core"]' WHERE id = 'pike-handstand-hold'; UPDATE exercise SET movement_group = NULL, extra_categories = '[]' WHERE id = 'wall-facing-handstand-hold'`);
+    // A real v7 database whose user already filed a catalog handstand under core.
+    await migrateDatabaseV7(real.expo);
+    real.sqlite.exec(`UPDATE exercise SET movement_group = NULL, extra_categories = '["core"]' WHERE id = 'pike-handstand-hold'; UPDATE exercise SET movement_group = NULL, extra_categories = '[]' WHERE id = 'wall-facing-handstand-hold'`);
     await migrateDatabase(real.expo);
     expect(row(real, 'pike-handstand-hold')).toMatchObject({ movement_group: null, extra_categories: '["core"]' });
     expect(row(real, 'wall-facing-handstand-hold')).toMatchObject({ movement_group: 'vertical-push', extra_categories: '["push"]' });

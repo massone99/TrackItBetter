@@ -50,11 +50,14 @@ describe('Sheet', () => {
   it('does not nest its content inside the close button', () => {
     const onClose = jest.fn();
     wrap(<Sheet visible onClose={onClose} title="Category"><ListRow title="Push" onPress={() => undefined} /></Sheet>);
-    const close = screen.getByRole('button', { name: 'Close' });
-    expect(within(close).queryByRole('button', { name: /Push/ })).toBeNull();
-    expect(within(close).queryByText('Category')).toBeNull();
-    fireEvent.press(close);
-    expect(onClose).toHaveBeenCalled();
+    const closeButtons = screen.getAllByRole('button', { name: 'Close' });
+    expect(closeButtons).toHaveLength(2);
+    for (const close of closeButtons) {
+      expect(within(close).queryByRole('button', { name: /Push/ })).toBeNull();
+      expect(within(close).queryByText('Category')).toBeNull();
+      fireEvent.press(close);
+    }
+    expect(onClose).toHaveBeenCalledTimes(closeButtons.length);
   });
 
   it('keeps taps on its content from closing it', () => {
