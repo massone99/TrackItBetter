@@ -63,3 +63,30 @@ describe('workout blocks', () => {
     expect(groups.every((group) => group === null)).toBe(true);
   });
 });
+
+describe('addWarmupSet', () => {
+  const sets = (workoutId: string) => real.sqlite
+    .prepare('SELECT s.set_index AS idx, s.kind AS kind, s.reps AS reps, s.side AS side FROM training_set s JOIN exercise_entry e ON e.id = s.entry_id WHERE e.workout_id = ? ORDER BY s.set_index, s.side')
+    .all(workoutId) as { idx: number; kind: string; reps: number; side: string }[];
+
+  it('puts warm-ups first, after the warm-ups already there, and renumbers the rest', async () => {
+    const { addWarmupSet } = jest.requireActual('../repository');
+    const { addSet } = jest.requireActual('../repository');
+    const workoutId = await startWorkout('W');
+    await addExerciseToWorkout(workoutId, 'push-up');
+    const entry = (real.sqlite.prepare('SELECT id FROM exercise_entry WHERE workout_id = ?').get(workoutId) as { id: string }).id;
+    await addSet(entry);
+    await addWarmupSet(entry);
+    await addWarmupSet(entry);
+    expect(sets(workoutId).map(({ idx, kind }) => `${idx}:${kind}`)).toEqual(['1:warmup', '2:warmup', '3:working', '4:working']);
+  });
+
+  it('adds a left/right pair for a unilateral exercise', async () => {
+    const { addWarmupSet } = jest.requireActual('../repository');
+    const workoutId = await startWorkout('W');
+    await addExerciseToWorkout(workoutId, 'reverse-lunge');
+    const entry = (real.sqlite.prepare('SELECT id FROM exercise_entry WHERE workout_id = ?').get(workoutId) as { id: string }).id;
+    await addWarmupSet(entry);
+    expect(sets(workoutId).map(({ idx, kind, side }) => `${idx}:${kind}:${side}`)).toEqual(['1:warmup:left', '1:warmup:right', '2:working:left', '2:working:right']);
+  });
+});

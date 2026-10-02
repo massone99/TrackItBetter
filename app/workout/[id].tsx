@@ -39,6 +39,7 @@ import {
   uncompleteSet,
   updateSetNote,
   setSetKind,
+  addWarmupSet,
   updateSetRpe,
   updateWorkoutReadiness,
   updateSet,
@@ -629,6 +630,7 @@ export default function WorkoutScreen() {
             onStartHold={startHoldFor}
             onFinishHold={() => void finishCurrentHold()}
             onAddSet={() => void addSet(exercise.entryId).then(() => refresh(workout.id))}
+            onAddWarmup={() => void addWarmupSet(exercise.entryId).then(() => refresh(workout.id))}
             onSetOptions={(set) => setSetSheet({ exercise, setId: set.id })}
             onToggleWarmup={(set) => void toggleWarmup(set)}
             setRecords={records.sets}
@@ -872,7 +874,7 @@ const nowMs = () => Date.now();
 /** Rest end times by workout id, so leaving and reopening the workout keeps the same countdown. */
 const runningRests = new Map<string, number>();
 
-function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, previous, hold, onChange, onSetValue, onComplete, onStartHold, onFinishHold, onAddSet, onSetOptions, onUncomplete, onRemoveSet, onSwiped, rpePromptFor, onRpe, onDismissRpe, onOptions, onSaved, onToggleWarmup, onCopyPrevious, setRecords, volumeRecord, supersetLabel, emomLabel: emomBadgeLabel }: {
+function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, previous, hold, onChange, onSetValue, onComplete, onStartHold, onFinishHold, onAddSet, onAddWarmup, onSetOptions, onUncomplete, onRemoveSet, onSwiped, rpePromptFor, onRpe, onDismissRpe, onOptions, onSaved, onToggleWarmup, onCopyPrevious, setRecords, volumeRecord, supersetLabel, emomLabel: emomBadgeLabel }: {
   handle?: ReactNode;
   exercise: SessionExercise;
   collapsed: boolean;
@@ -885,6 +887,7 @@ function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, previous
   onStartHold: (set: SessionSet) => void;
   onFinishHold: () => void;
   onAddSet: () => void;
+  onAddWarmup: () => void;
   onSetOptions: (set: SessionSet) => void;
   onUncomplete: (set: SessionSet) => void;
   onRemoveSet: (set: SessionSet) => void;
@@ -1121,10 +1124,16 @@ function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, previous
         );
       })}
 
-      {collapsed ? null : <Pressable accessibilityRole="button" onPress={() => { tapFeedback(); onAddSet(); }} style={({ pressed }) => [styles.addSet, { borderColor: palette.border, opacity: pressed ? 0.6 : 1 }]}>
-        <Icon name="add" size={18} color={palette.accentStrong} />
-        <Text style={[styles.addSetText, { color: palette.accentStrong }]}>{t('logger.addSet')}</Text>
-      </Pressable>}
+      {collapsed ? null : <View style={styles.addRow}>
+        <Pressable accessibilityRole="button" onPress={() => { tapFeedback(); onAddSet(); }} style={({ pressed }) => [styles.addSet, styles.addCell, { borderColor: palette.border, opacity: pressed ? 0.6 : 1 }]}>
+          <Icon name="add" size={18} color={palette.accentStrong} />
+          <Text style={[styles.addSetText, { color: palette.accentStrong }]}>{t('logger.addSet')}</Text>
+        </Pressable>
+        <Pressable accessibilityRole="button" accessibilityHint={t('logger.warmupHint')} onPress={() => { tapFeedback(); onAddWarmup(); }} style={({ pressed }) => [styles.addSet, styles.addCell, { borderColor: palette.border, borderStyle: 'dashed', opacity: pressed ? 0.6 : 1 }]}>
+          <Icon name="flame-outline" size={18} color={palette.textMuted} />
+          <Text style={[styles.addSetText, { color: palette.textMuted }]}>{t('logger.addWarmup')}</Text>
+        </Pressable>
+      </View>}
     </Card>
   );
 }
@@ -1478,6 +1487,8 @@ const baseStyles = StyleSheet.create({
   rowActions: { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 2 },
   checkButton: { width: 48, height: 48, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   addSet: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, minHeight: 48, borderRadius: 12, borderWidth: 1, marginTop: 8 },
+  addRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 },
+  addCell: { flex: 1, minWidth: 130, marginTop: 0 },
   addSetText: { fontFamily: fonts.semibold, fontSize: 15 },
   footerActions: { gap: 10, marginTop: 4 },
   timerBar: { position: 'absolute', left: 0, right: 0, bottom: 0, alignItems: 'center', paddingHorizontal: 22, paddingTop: 14, borderTopLeftRadius: 24, borderTopRightRadius: 24 },

@@ -680,6 +680,32 @@ export async function setSetKind(setId: string, kind: SetKind): Promise<void> {
   await db.update(trainingSets).set({ kind, restSec: null }).where(await pairCondition(setId));
 }
 
+/**
+ * Adds a warm-up set (a left/right pair for unilateral exercises) after the warm-ups the exercise already
+ * has and before its first working set, which is where warm-ups are done. It starts from the values of the
+ * set it follows, like any new set, and its own rest is left to the warm-up default.
+ */
+export async function addWarmupSet(entryId: string): Promise<string> {
+  const created = await addSet(entryId);
+  const rows = await db.select().from(trainingSets).where(eq(trainingSets.entryId, entryId)).orderBy(asc(trainingSets.index));
+  const added = rows.find((row) => row.id === created);
+  const groups = groupSets(rows);
+  const newGroup = groups.find((group) => group.some((row) => row.id === created));
+  if (!added || !newGroup) return created;
+  const others = groups.filter((group) => group !== newGroup);
+  const leading = others.findIndex((group) => group[0].kind !== 'warmup');
+  const position = leading < 0 ? others.length : leading;
+  const ordered = [...others.slice(0, position), newGroup, ...others.slice(position)];
+  await db.transaction(async (tx) => {
+    for (const [position2, group] of ordered.entries()) {
+      for (const row of group) {
+        await tx.update(trainingSets).set({ index: position2 + 1, ...(group === newGroup ? { kind: 'warmup', restSec: null } : {}) }).where(eq(trainingSets.id, row.id));
+      }
+    }
+  });
+  return created;
+}
+
 /** Sets the rest after every not-yet-completed set of one kind in an exercise. */
 export async function setEntryRest(entryId: string, kind: SetKind, seconds: number): Promise<void> {
   await initializeDatabase();
