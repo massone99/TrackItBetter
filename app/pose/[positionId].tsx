@@ -2,7 +2,7 @@ import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { StyleSheet, useWindowDimensions, View } from 'react-native';
-import { findPosition, nextLevelTarget, POSITIONS, type JointAngleId } from '../../src/domain/pose';
+import { displayedAngle, findPosition, nextLevelTarget, POSITIONS, type JointAngleId } from '../../src/domain/pose';
 import { OverlayLegend, useOverlaySettings } from '../../src/features/pose/OverlayLegend';
 import { LevelBadge } from '../../src/features/pose/LevelBadge';
 import { JointPicker, useJointSelection } from '../../src/features/pose/JointPicker';
@@ -54,6 +54,12 @@ export default function PoseHistoryScreen() {
   const date = (capture: PoseCapture) => capture.capturedAt.toLocaleDateString(i18n.language, { day: 'numeric', month: 'short', year: 'numeric' });
   const sideLabel = (capture: PoseCapture) => capture.side === 'left' ? t('pose.sideLeft') : capture.side === 'right' ? t('pose.sideRight') : null;
 
+  // A free analysis lists the picked joint angles instead of one value and a level.
+  const freeSummary = (capture: PoseCapture) => (position.measure(capture.pose, (capture.side as 'left' | 'right' | null)).joints ?? [])
+    .filter((joint) => jointIds.includes(joint.id))
+    .map((joint) => `${t(`pose.jointsShort.${joint.id}`)} ${t('pose.degrees', { value: Math.round(joint.value) })}`)
+    .join(' · ') || date(capture);
+
   const canvas = (capture: PoseCapture, width: number) => {
     const measurement = position.measure(capture.pose, position.sideAware ? (capture.side as 'left' | 'right' | null) : null);
     return (
@@ -62,8 +68,8 @@ export default function PoseHistoryScreen() {
         imageWidth={capture.width}
         imageHeight={capture.height}
         pose={capture.pose}
-        highlight={measurement.angle}
-        label={t('pose.degrees', { value: Math.round(capture.value) })}
+        highlight={displayedAngle(position, measurement, jointIds, focused).angle}
+        label={t('pose.degrees', { value: Math.round(position.generic ? displayedAngle(position, measurement, jointIds, focused).value : capture.value) })}
         settings={overlay}
         focused={focused}
         angles={measurement.joints?.filter((joint) => jointIds.includes(joint.id)).map((joint) => ({ ...joint, name: t(`pose.jointsShort.${joint.id}`), value: t('pose.degrees', { value: Math.round(joint.value) }) }))}
@@ -93,7 +99,7 @@ export default function PoseHistoryScreen() {
 
       {latest ? (
         <>
-          <Card style={styles.summary}>
+          {position.generic ? null : <Card style={styles.summary}>
             <View style={styles.summaryRow}>
               <View>
                 <Label>{t(`pose.positions.${position.id}.metric`)}</Label>
@@ -109,7 +115,7 @@ export default function PoseHistoryScreen() {
             </Body>
             {first ? <Text style={[styles.change, { color: palette.accentStrong }]}>{t('pose.change', { value: `${latest.value - first.value > 0 ? '+' : ''}${Math.round(latest.value - first.value)}` })}</Text> : null}
             <Trend captures={captures ?? []} better={position.better} />
-          </Card>
+          </Card>}
 
           <JointPicker position={position} selected={jointIds} onChange={setJointIds} />
           {first ? (
@@ -136,7 +142,7 @@ export default function PoseHistoryScreen() {
             {(captures ?? []).map((capture) => (
               <ListRow
                 key={capture.id}
-                title={`${t('pose.degrees', { value: Math.round(capture.value) })} · ${t('pose.level', { level: capture.level })}`}
+                title={position.generic ? freeSummary(capture) : `${t('pose.degrees', { value: Math.round(capture.value) })} · ${t('pose.level', { level: capture.level })}`}
                 subtitle={[date(capture), sideLabel(capture), capture.note || null].filter(Boolean).join(' · ')}
                 trailing={<IconButton icon="trash-outline" label={t('pose.delete')} tone="plain" size={34} onPress={() => setDeleting(capture)} />}
               />
