@@ -9,6 +9,7 @@ import { fonts } from '../../shared/theme/typography';
 import { useScaledStyles } from '../../shared/theme/useScaledStyles';
 import { saveWorkoutToProgram } from './saveWorkout';
 import { listUserPrograms } from './userPrograms';
+import { MAX_FONT_SCALE } from '../../shared/theme/scale';
 
 type Choice = 'new' | string;
 
@@ -84,7 +85,7 @@ export function SaveToProgramSheet({ visible, defaultName, exercises, onClose, o
       {programs.length > 3 ? (
         <View style={[styles.searchBox, { backgroundColor: palette.surface, borderColor: palette.border }]}>
           <Icon name="search" size={18} color={palette.textMuted} />
-          <TextInput
+          <TextInput maxFontSizeMultiplier={MAX_FONT_SCALE}
             accessibilityLabel={t('saveToProgram.search')}
             placeholder={t('saveToProgram.search')}
             placeholderTextColor={palette.textMuted}

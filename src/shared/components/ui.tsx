@@ -13,6 +13,7 @@ import { Icon, IconName } from "./Icon";
 import { Text } from "./Text";
 import { useScaledStyles } from "../theme/useScaledStyles";
 import { parseNumberInput } from "../utils/format";
+import { MAX_FONT_SCALE } from '../theme/scale';
 
 export { Text } from "./Text";
 export { Icon } from "./Icon";
@@ -176,7 +177,7 @@ export function IconButton({ icon, onPress, label, tone = "muted", size = 40, co
   disabled?: boolean;
 }) {
   const styles = useScaledStyles(baseStyles);
-  const { palette, scale } = useTheme();
+  const { palette, layoutScale: scale } = useTheme();
   const box = Math.max(MIN_TOUCH_TARGET, Math.round(size * scale));
   const background = tone === "accent" ? palette.accent : tone === "muted" ? palette.surfaceMuted : "transparent";
   const color = colorOverride ?? (tone === "accent" ? palette.accentText : palette.text);
@@ -477,7 +478,7 @@ export function SegmentedControl<T extends string>({ value, options, onChange }:
             onPress={() => { tapFeedback(); onChange(option.value); }}
             style={({ pressed }) => [styles.segmentOption, { minHeight: MIN_TOUCH_TARGET, opacity: pressed ? 0.75 : 1 }, selected && { backgroundColor: palette.surface }]}
           >
-            <Text style={[styles.segmentText, { color: selected ? palette.accentStrong : palette.textMuted }]}>{option.label}</Text>
+            <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7} style={[styles.segmentText, { color: selected ? palette.accentStrong : palette.textMuted }]}>{option.label}</Text>
           </Pressable>
         );
       })}
@@ -546,7 +547,7 @@ export function NumberEdit({ value, display, label, onCommit, initialDraft, cloc
   };
   if (draft !== null) {
     return (
-      <TextInput
+      <TextInput maxFontSizeMultiplier={MAX_FONT_SCALE}
         accessibilityLabel={label}
         autoFocus
         selectTextOnFocus
@@ -618,12 +619,12 @@ export function Toast({ message, actionLabel, onAction, onHide, bottomOffset = 0
 /** Labelled text input with an optional hint and error message. */
 export function TextField({ label, hint, error, style, multiline, onFocus, onBlur, ...props }: TextInputProps & { label?: string; hint?: string; error?: string | null }) {
   const styles = useScaledStyles(baseStyles);
-  const { palette, scale } = useTheme();
+  const { palette, layoutScale: scale } = useTheme();
   const [focused, setFocused] = useState(false);
   return (
     <View style={styles.field}>
       {label ? <Label>{label}</Label> : null}
-      <TextInput
+      <TextInput maxFontSizeMultiplier={MAX_FONT_SCALE}
         accessibilityLabel={label ?? props.placeholder}
         placeholderTextColor={palette.textMuted}
         multiline={multiline}
@@ -649,7 +650,7 @@ const baseStyles = StyleSheet.create({
   toastText: { flex: 1, fontFamily: fonts.medium, fontSize: 15 },
   toastAction: { paddingHorizontal: 6, paddingVertical: 6 },
   toastActionText: { fontFamily: fonts.semibold, fontSize: 15 },
-  numberInput: { minWidth: 64, height: 40, borderRadius: 10, borderWidth: 2, textAlign: "center", fontFamily: fonts.display, fontSize: 22, paddingHorizontal: 6, paddingVertical: 0 },
+  numberInput: { minWidth: 64, minHeight: 40, borderRadius: 10, borderWidth: 2, textAlign: "center", fontFamily: fonts.display, fontSize: 22, paddingHorizontal: 6, paddingVertical: 0 },
   statusScrim: { position: "absolute", top: 0, left: 0, right: 0 },
   stepper: { gap: 4, alignItems: "center" },
   stepperLabel: { fontFamily: fonts.medium, fontSize: 12 },

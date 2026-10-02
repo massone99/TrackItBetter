@@ -5,6 +5,7 @@ import { Body, Chip, Label } from '../../shared/components/ui';
 import { useTheme } from '../../shared/theme/ThemeProvider';
 import { useScaledStyles } from '../../shared/theme/useScaledStyles';
 import { MOVEMENT_GROUPS, MOVEMENT_TAG_SECTIONS, type MovementGroupId } from './movementCatalog';
+import { MAX_FONT_SCALE } from '../../shared/theme/scale';
 
 export function movementTagLabel(tag: string, translate: (key: string, options: { defaultValue: string }) => string): string {
   const key = tag.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
@@ -73,7 +74,7 @@ export function ClassificationChoices({ movementTag, movementTags, movementGroup
             <Chip label={t('movement.none')} selected />
           )}
         </View>
-        <TextInput
+        <TextInput maxFontSizeMultiplier={MAX_FONT_SCALE}
           accessibilityLabel={t('movement.searchTags')}
           value={query}
           onChangeText={setQuery}

@@ -1,8 +1,8 @@
 import { createContext, PropsWithChildren, useCallback, useContext, useMemo, useState } from "react";
-import { useColorScheme } from "react-native";
+import { useColorScheme, useWindowDimensions } from "react-native";
 import { readPreference, writePreference } from "../settings/preferences";
 import { Palette, palettes, ThemeMode } from "./palette";
-import { toUiScale, type UiScale } from "./scale";
+import { effectiveScale, toUiScale, type UiScale } from "./scale";
 
 type ThemePreference = ThemeMode | "system";
 
@@ -13,6 +13,8 @@ type ThemeContextValue = {
   setMode: (mode: ThemePreference) => void;
   /** Interface size multiplier chosen in settings (85–110 %). */
   scale: UiScale;
+  /** `scale` adjusted to the window width: what layouts and text are multiplied by. */
+  layoutScale: number;
   setScale: (scale: UiScale) => void;
 };
 
@@ -29,6 +31,8 @@ export function ThemeProvider({ children }: PropsWithChildren) {
   const systemScheme = useColorScheme();
   const [preference, setPreference] = useState<ThemePreference>(initialPreference);
   const [scale, setScaleState] = useState<UiScale>(() => toUiScale(readPreference(SCALE_KEY)));
+  const { width } = useWindowDimensions();
+  const layoutScale = effectiveScale(scale, width);
   const mode = preference === "system" ? (systemScheme === "dark" ? "dark" : "light") : preference;
   const setMode = useCallback((next: ThemePreference) => {
     setPreference(next);
@@ -39,8 +43,8 @@ export function ThemeProvider({ children }: PropsWithChildren) {
     writePreference(SCALE_KEY, String(next));
   }, []);
   const value = useMemo(
-    () => ({ mode, preference, palette: palettes[mode], setMode, scale, setScale }),
-    [mode, preference, setMode, scale, setScale],
+    () => ({ mode, preference, palette: palettes[mode], setMode, scale, layoutScale, setScale }),
+    [mode, preference, setMode, scale, layoutScale, setScale],
   );
 
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;

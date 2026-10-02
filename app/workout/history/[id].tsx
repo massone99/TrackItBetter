@@ -68,6 +68,7 @@ import {
 } from "../../../src/shared/components/DateTimePickers";
 import { ReorderableList } from "../../../src/shared/components/ReorderableList";
 import { goBack } from "../../../src/shared/navigation/goBack";
+import { MAX_FONT_SCALE } from '../../../src/shared/theme/scale';
 
 type SetTarget = { exercise: SessionExercise; set: SessionSet };
 
@@ -988,7 +989,7 @@ function LoadEditor({ value, onSave }: { value: number; onSave: (value: number) 
   const [draft, setDraft] = useState(String(value));
   return (
     <View style={styles.loadWrap}>
-      <TextInput
+      <TextInput maxFontSizeMultiplier={MAX_FONT_SCALE}
         accessibilityLabel={t("history.addedLoad")}
         keyboardType="numbers-and-punctuation"
         value={draft}
@@ -1076,7 +1077,7 @@ const baseStyles = StyleSheet.create({
     alignItems: "center",
     gap: 4,
     paddingHorizontal: 8,
-    height: 22,
+    minHeight: 22,
     borderRadius: 999,
   },
   clipText: { fontFamily: fonts.semibold, fontSize: 12 },

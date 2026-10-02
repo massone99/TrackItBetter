@@ -246,7 +246,7 @@ function Stat({ value, label }: { value: number; label: string }) {
 const baseStyles = StyleSheet.create({
   topline: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 12 },
   date: { flex: 1, fontSize: 14 },
-  streakPill: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, height: 30, borderRadius: 999 },
+  streakPill: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, minHeight: 30, paddingVertical: 2, borderRadius: 999 },
   streakText: { fontFamily: fonts.display, fontSize: 17 },
   greeting: { marginTop: -10, fontSize: 40, lineHeight: 44 },
   hero: { borderRadius: radii.surface, padding: 20, gap: 16 },

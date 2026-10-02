@@ -16,6 +16,7 @@ import { movementTagLabel } from './ClassificationChoices';
 import { groupExercises } from './groupExercises';
 import { ExerciseGroupingControls, ExerciseGroupingHeader, useExerciseGrouping } from './ExerciseGrouping';
 import { useAnimationSettings } from '../../shared/settings/AnimationProvider';
+import { MAX_FONT_SCALE } from '../../shared/theme/scale';
 
 export type ExerciseChoice = {
   id: string; name: string; metric: string; category: string; extraCategories: string; level: number | null;
@@ -73,7 +74,7 @@ export function ExercisePicker({ visible, title, subtitle, initialCategory = nul
         </View>
         <View style={[styles.searchBox, { backgroundColor: palette.surface, borderColor: palette.border }]}>
           <Icon name="search" size={18} color={palette.textMuted} />
-          <TextInput
+          <TextInput maxFontSizeMultiplier={MAX_FONT_SCALE}
             accessibilityLabel={t('workout.search')}
             placeholder={t('workout.search')}
             placeholderTextColor={palette.textMuted}

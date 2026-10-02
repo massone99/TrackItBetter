@@ -1,5 +1,5 @@
 import { Tabs } from "expo-router";
-import { View, useWindowDimensions } from "react-native";
+import { PixelRatio, View, useWindowDimensions } from "react-native";
 import { useTranslation } from "react-i18next";
 import { useAppInsets } from "../../src/shared/layout/useAppInsets";
 import { Icon, IconName } from "../../src/shared/components/Icon";
@@ -7,6 +7,7 @@ import { Text } from "../../src/shared/components/Text";
 import { useTheme } from "../../src/shared/theme/ThemeProvider";
 import { fonts } from "../../src/shared/theme/typography";
 import { MIN_TOUCH_TARGET, radii } from "../../src/shared/theme/tokens";
+import { MAX_FONT_SCALE } from "../../src/shared/theme/scale";
 
 const icons: Record<string, [IconName, IconName]> = {
   today: ["sunny-outline", "sunny"],
@@ -17,10 +18,13 @@ const icons: Record<string, [IconName, IconName]> = {
 };
 
 export default function TabLayout() {
-  const { palette, scale } = useTheme();
+  const { palette, layoutScale: scale } = useTheme();
   const { t } = useTranslation();
   const insets = useAppInsets();
   const expanded = useWindowDimensions().width >= 768;
+  // Labels follow the system font size (up to the app-wide cap), so the bar grows with them.
+  const labelScale = Math.min(PixelRatio.getFontScale(), MAX_FONT_SCALE);
+  const barHeight = Math.max(72, Math.round(76 * scale)) + Math.round(16 * scale * (labelScale - 1) * 2.5);
   return (
     <Tabs
       screenOptions={({ route }) => ({
@@ -42,12 +46,12 @@ export default function TabLayout() {
         } : {
           backgroundColor: palette.tabBar,
           borderTopColor: palette.border,
-          height: Math.max(72, Math.round(76 * scale)) + insets.bottom,
+          height: barHeight + insets.bottom,
           paddingTop: 8,
           paddingBottom: insets.bottom + 8,
         },
         tabBarLabel: ({ color, children }) => (
-          <Text style={{ color: String(color), fontFamily: fonts.semibold, fontSize: 12, lineHeight: 16, textAlign: "center", marginTop: 3 }}>{children}</Text>
+          <Text numberOfLines={1} style={{ color: String(color), fontFamily: fonts.semibold, fontSize: 12, lineHeight: 16, textAlign: "center", marginTop: 3 }}>{children}</Text>
         ),
         tabBarIcon: ({ color, focused }) => (
           <View style={{ width: 56, height: 30, borderRadius: radii.pill, alignItems: "center", justifyContent: "center", backgroundColor: focused ? palette.accentSoft : "transparent" }}>

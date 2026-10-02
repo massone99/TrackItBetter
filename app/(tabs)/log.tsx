@@ -155,7 +155,7 @@ const baseStyles = StyleSheet.create({
   monthButton: { width: 38, height: 38, alignItems: 'center', justifyContent: 'center' },
   monthTitle: { flex: 1, textAlign: 'center', textTransform: 'capitalize' },
   calendarGrid: { flexDirection: 'row', flexWrap: 'wrap' },
-  weekday: { width: '14.2857%', height: 32, textAlign: 'center', textAlignVertical: 'center', fontSize: 12, fontWeight: '700' },
+  weekday: { width: '14.2857%', minHeight: 32, textAlign: 'center', textAlignVertical: 'center', fontSize: 12, fontWeight: '700' },
   day: { width: '14.2857%', minHeight: 48, paddingVertical: 6, alignItems: 'center', justifyContent: 'center', borderRadius: 12 },
   dayDot: { width: 4, height: 4, borderRadius: 2, marginTop: 2 },
   dayDotPlaceholder: { width: 4, height: 4, marginTop: 2 },

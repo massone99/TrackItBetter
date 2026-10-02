@@ -23,3 +23,18 @@ describe('toUiScale', () => {
     expect(toUiScale(null)).toBe(1);
   });
 });
+
+describe('effectiveScale', () => {
+  const { effectiveScale, MAX_FONT_SCALE } = jest.requireActual('../scale');
+  it('keeps the chosen size on normal screens and tightens it on narrow ones', () => {
+    expect(effectiveScale(1, 390)).toBe(1);
+    expect(effectiveScale(1.1, 360)).toBe(1.1);
+    expect(effectiveScale(1, 350)).toBe(0.95);
+    expect(effectiveScale(1.1, 320)).toBe(0.99);
+    expect(effectiveScale(1, 0)).toBe(1);
+  });
+  it('caps what the system font size adds', () => {
+    expect(MAX_FONT_SCALE).toBeGreaterThan(1);
+    expect(MAX_FONT_SCALE).toBeLessThanOrEqual(1.5);
+  });
+});

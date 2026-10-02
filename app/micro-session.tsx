@@ -11,6 +11,7 @@ import { ActionButton, Body, Card, Chip, Label, PageHeading, Screen, Icon } from
 import { useTheme } from '../src/shared/theme/ThemeProvider';
 import { useScaledStyles } from '../src/shared/theme/useScaledStyles';
 import { goBack } from '../src/shared/navigation/goBack';
+import { MAX_FONT_SCALE } from '../src/shared/theme/scale';
 
 type Exercise = Awaited<ReturnType<typeof listMicroSessionExercises>>[number];
 
@@ -106,7 +107,7 @@ export default function MicroSessionScreen() {
           <Body>{t('micro.value')} · {unit}</Body>
           {timed ? <HoldDurationField label={t('micro.value')} value={Number(value) || 0} min={1} onChange={(seconds) => setValue(String(seconds))} /> : <View style={styles.targetRow}>
             <Pressable accessibilityRole="button" accessibilityLabel={t('micro.decrease')} onPress={() => setValue(String(Math.max(increment, Number(value) - increment)))} style={[styles.adjust, { backgroundColor: palette.surfaceMuted }]}><Icon name="remove" size={18} color={palette.text} /></Pressable>
-            <TextInput accessibilityLabel={`${t('micro.value')} ${unit}`} keyboardType="numbers-and-punctuation" value={value} onChangeText={setValue} style={[styles.value, { backgroundColor: palette.surfaceMuted, borderColor: palette.border, color: palette.text }]} />
+            <TextInput maxFontSizeMultiplier={MAX_FONT_SCALE} accessibilityLabel={`${t('micro.value')} ${unit}`} keyboardType="numbers-and-punctuation" value={value} onChangeText={setValue} style={[styles.value, { backgroundColor: palette.surfaceMuted, borderColor: palette.border, color: palette.text }]} />
             <Pressable accessibilityRole="button" accessibilityLabel={t('micro.increase')} onPress={() => setValue(String(Number(value || 0) + increment))} style={[styles.adjust, { backgroundColor: palette.surfaceMuted }]}><Icon name="add" size={18} color={palette.text} /></Pressable>
           </View>}
           <ActionButton label={working ? t('micro.working') : t('micro.save')} onPress={() => void log()} />
@@ -119,7 +120,7 @@ export default function MicroSessionScreen() {
       </View>}
       <View style={styles.section}>
         <Label>{t('micro.choose')}</Label>
-        <TextInput accessibilityLabel={t('micro.search')} placeholder={t('micro.search')} placeholderTextColor={palette.textMuted} value={query} onChangeText={setQuery} style={[styles.search, { backgroundColor: palette.surfaceMuted, color: palette.text, borderColor: palette.border }]} />
+        <TextInput maxFontSizeMultiplier={MAX_FONT_SCALE} accessibilityLabel={t('micro.search')} placeholder={t('micro.search')} placeholderTextColor={palette.textMuted} value={query} onChangeText={setQuery} style={[styles.search, { backgroundColor: palette.surfaceMuted, color: palette.text, borderColor: palette.border }]} />
         {exercises.length === 0 ? <Body>{t('micro.empty')}</Body> : exercises.map((exercise, index) => {
           const active = exercise.id === selected?.id;
           return <Pressable key={exercise.id} accessibilityRole="button" accessibilityState={{ selected: active }} onPress={() => selectExercise(exercise)} style={[styles.item, index > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: palette.border }]}>

@@ -14,6 +14,7 @@ import { exerciseMovementTags } from './movementCatalog';
 import { movementTagLabel } from './ClassificationChoices';
 import { groupExercises } from './groupExercises';
 import { ExerciseGroupingControls, ExerciseGroupingHeader, useExerciseGrouping } from './ExerciseGrouping';
+import { MAX_FONT_SCALE } from '../../shared/theme/scale';
 
 const categories = ['all', ...EXERCISE_CATEGORIES] as const;
 type CategoryFilter = (typeof categories)[number];
@@ -70,7 +71,7 @@ export function LibraryView() {
     <>
       <View style={[styles.searchBox, { backgroundColor: palette.surface, borderColor: palette.border }]}>
         <Icon name="search" size={18} color={palette.textMuted} />
-        <TextInput
+        <TextInput maxFontSizeMultiplier={MAX_FONT_SCALE}
           accessibilityLabel={t('library.search')}
           value={query}
           onChangeText={setQuery}

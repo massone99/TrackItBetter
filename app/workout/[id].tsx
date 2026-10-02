@@ -86,6 +86,7 @@ import { fonts } from '../../src/shared/theme/typography';
 import { formatClock, formatNumber } from '../../src/shared/utils/format';
 import { useScaledStyles } from '../../src/shared/theme/useScaledStyles';
 import { useAnimationSettings } from '../../src/shared/settings/AnimationProvider';
+import { MAX_FONT_SCALE } from '../../src/shared/theme/scale';
 
 const VOICE_CUES_KEY = 'workout.voice_cues.enabled';
 /** Set once the first set has been swiped, which hides the gesture hint. */
@@ -1364,7 +1365,7 @@ function LoadEditor({ setId, value, disabled, onSaved, sideLabel = '' }: { sideL
   };
 
   return (
-    <TextInput
+    <TextInput maxFontSizeMultiplier={MAX_FONT_SCALE}
       accessibilityLabel={`${t('history.addedLoad')} ${sideLabel}`}
       value={draft}
       editable={!disabled}
