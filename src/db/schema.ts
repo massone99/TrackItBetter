@@ -91,6 +91,8 @@ export const exerciseEntries = sqliteTable(
     groupId: text('group_id'),
     groupType: text('group_type'),
     unilateralRestMode: text('unilateral_rest_mode', { enum: ['side', 'pair'] }),
+    /** Part of the workout (warm-up, main work, mobility); null is the main work. */
+    block: text('block', { enum: ['warmup', 'main', 'mobility'] }),
     notes: text('notes'),
   },
   (table) => [index('entry_workout_order_idx').on(table.workoutId, table.order)],

@@ -8,6 +8,7 @@ import { isLoadMetric, measureOf } from '../../domain/userProgram';
 import type { SetKind } from './restDefaults';
 import { formatSupersetType, type SupersetRest } from './superset';
 import { groupSets, completedSetCount, validatePairs } from '../../domain/setPairs';
+import { blockAfterMove, blockOf, sortByBlock, type Block } from '../../domain/blocks';
 
 export interface SessionSet {
   pairId?: string | null;
@@ -33,6 +34,8 @@ export interface SessionExercise {
   unilateral?: boolean;
   unilateralRestMode?: 'side' | 'pair';
   unilateralRestOverride?: 'side' | 'pair' | null;
+  /** Part of the workout this exercise belongs to. */
+  block: Block;
   entryId: string;
   exerciseId: string;
   name: string;
@@ -235,6 +238,7 @@ async function loadSessionExercises(workoutId: string): Promise<SessionExercise[
       unilateralRestOverride: entry.unilateralRestMode,
       demoUrl: exercise.demoUrl,
       notes: entry.notes,
+      block: blockOf(entry.block),
       groupId: entry.groupId,
       groupType: entry.groupType,
       sets: sets.map((set) => ({
@@ -320,14 +324,58 @@ export async function addExerciseToWorkout(
     .from(exerciseEntries)
     .where(eq(exerciseEntries.workoutId, workoutId));
   const entryId = id();
+  // A mobility exercise joining a workout of other exercises goes to the mobility block (changeable in its options).
+  const [added] = await db.select({ category: exercises.category, extra: exercises.extraCategories }).from(exercises).where(eq(exercises.id, exerciseId)).limit(1);
+  const others = await db.select({ category: exercises.category, extra: exercises.extraCategories }).from(exerciseEntries)
+    .innerJoin(exercises, eq(exerciseEntries.exerciseId, exercises.id)).where(eq(exerciseEntries.workoutId, workoutId));
+  const isMobility = (row?: { category: string; extra: string }) => !!row && (row.category === 'mobility' || row.extra.includes('"mobility"'));
+  const block: Block | null = isMobility(added) && others.some((row) => !isMobility(row)) ? 'mobility' : null;
   await db.insert(exerciseEntries).values({
     id: entryId,
     workoutId,
     exerciseId,
     order: (lastOrder?.value ?? 0) + 1,
+    block,
   });
+  await normalizeBlockOrder(workoutId);
   await addSet(entryId);
   return entryId;
+}
+
+/** Renumbers a workout's exercises so every block is contiguous (warm-up, main work, mobility). */
+async function normalizeBlockOrder(workoutId: string): Promise<void> {
+  const entries = await db.select().from(exerciseEntries).where(eq(exerciseEntries.workoutId, workoutId)).orderBy(asc(exerciseEntries.order));
+  const sorted = sortByBlock(entries);
+  await db.transaction(async (tx) => {
+    for (const [position, entry] of sorted.entries()) {
+      if (entry.order !== position + 1) await tx.update(exerciseEntries).set({ order: position + 1 }).where(eq(exerciseEntries.id, entry.id));
+    }
+  });
+}
+
+/** Puts an exercise in a block of its workout; the exercises are kept grouped by block. */
+export async function setEntryBlock(entryId: string, block: Block): Promise<void> {
+  await initializeDatabase();
+  const [entry] = await db.select().from(exerciseEntries).where(eq(exerciseEntries.id, entryId));
+  if (!entry) throw new Error('Exercise not found');
+  const stored = block === 'main' ? null : block;
+  if ((entry.block ?? null) === stored) return;
+  await db.update(exerciseEntries).set({ block: stored }).where(eq(exerciseEntries.id, entryId));
+  await normalizeBlockOrder(entry.workoutId);
+  await splitBrokenSuperset(entry.workoutId, entryId);
+}
+
+/** A superset must stay contiguous: an exercise moved out of its run leaves the superset. */
+async function splitBrokenSuperset(workoutId: string, movedId: string): Promise<void> {
+  const entries = await db.select().from(exerciseEntries).where(eq(exerciseEntries.workoutId, workoutId)).orderBy(asc(exerciseEntries.order));
+  const moved = entries.find((entry) => entry.id === movedId);
+  if (!moved?.groupId) return;
+  const members = entries.filter((entry) => entry.groupId === moved.groupId);
+  const positions = members.map((entry) => entries.indexOf(entry));
+  if (positions[positions.length - 1] - positions[0] === members.length - 1) return;
+  await db.update(exerciseEntries).set({ groupId: null, groupType: null }).where(eq(exerciseEntries.id, movedId));
+  const rest = members.filter((entry) => entry.id !== movedId);
+  if (rest.length === 1) await db.update(exerciseEntries).set({ groupId: null, groupType: null }).where(eq(exerciseEntries.id, rest[0].id));
 }
 
 export async function addSet(entryId: string, pairValues?: { left: PairEditValues; right: PairEditValues }): Promise<string> {
@@ -769,7 +817,7 @@ export async function repeatWorkout(sourceId: string): Promise<string> {
     if (sets.length === 0) continue;
     order += 1;
     const entryId = id();
-    await db.insert(exerciseEntries).values({ id: entryId, workoutId, exerciseId: entry.exerciseId, order, notes: entry.notes, groupId: entry.groupId, groupType: entry.groupType, unilateralRestMode: entry.unilateralRestMode });
+    await db.insert(exerciseEntries).values({ id: entryId, workoutId, exerciseId: entry.exerciseId, order, notes: entry.notes, groupId: entry.groupId, groupType: entry.groupType, unilateralRestMode: entry.unilateralRestMode, block: entry.block });
     const pairIds = new Map(sets.filter((s) => s.pairId).map((s) => [s.pairId, id()]));
     validatePairs(sets, true);
     await db.insert(trainingSets).values(sets.map((set) => ({
@@ -955,10 +1003,13 @@ export async function moveExerciseEntry(workoutId: string, entryId: string, toIn
   const reordered = [...entries];
   const [moved] = reordered.splice(from, 1);
   reordered.splice(target, 0, moved);
+  // Dropped between two blocks, the exercise joins the block above it (the one below when it became first).
+  const movedBlock = blockAfterMove(reordered, target);
   await db.transaction(async (tx) => {
     for (const [position, entry] of reordered.entries()) {
       if (entry.order !== position + 1) await tx.update(exerciseEntries).set({ order: position + 1 }).where(eq(exerciseEntries.id, entry.id));
     }
+    if (blockOf(moved.block) !== movedBlock) await tx.update(exerciseEntries).set({ block: movedBlock === 'main' ? null : movedBlock }).where(eq(exerciseEntries.id, moved.id));
     if (!moved.groupId) return;
     const members = reordered.filter((entry) => entry.groupId === moved.groupId);
     const positions = members.map((entry) => reordered.indexOf(entry));

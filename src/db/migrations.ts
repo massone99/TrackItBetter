@@ -186,6 +186,11 @@ ALTER TABLE exercise ADD COLUMN mobility_mode TEXT CHECK (mobility_mode IN ('act
 PRAGMA user_version = 11;
 `;
 
+const workoutBlocksSchema = `
+ALTER TABLE exercise_entry ADD COLUMN block TEXT CHECK (block IN ('warmup', 'main', 'mobility'));
+PRAGMA user_version = 12;
+`;
+
 /** Applies numbered, local-first SQLite schema migrations once per database. */
 export async function migrateDatabase(database: SQLiteDatabase): Promise<void> {
   await database.execAsync('PRAGMA foreign_keys = ON;');
@@ -266,6 +271,12 @@ export async function migrateDatabase(database: SQLiteDatabase): Promise<void> {
   if (version < 11) {
     await database.withTransactionAsync(async () => {
       await database.execAsync(mobilityModeSchema);
+    });
+  }
+
+  if (version < 12) {
+    await database.withTransactionAsync(async () => {
+      await database.execAsync(workoutBlocksSchema);
     });
   }
 }

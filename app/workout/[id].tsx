@@ -45,6 +45,8 @@ import {
 } from '../../src/features/session/repository';
 import type { ActiveWorkout, PreviousPerformance, PreviousSetValues, RemovedRows, SessionExercise, SessionSet } from '../../src/features/session/repository';
 import { defaultHoldMode, rememberHoldMode, useHoldTimer, type ActiveHold } from '../../src/features/session/useHoldTimer';
+import { ExerciseBlockField } from '../../src/features/session/ExerciseBlockField';
+import { blockOf, usesBlocks, type Block } from '../../src/domain/blocks';
 import { clearEmomPlan, useEmom, type EmomAlertText } from '../../src/features/session/useEmom';
 import { EmomSetupSheet, emomFieldFor } from '../../src/features/session/EmomSetupSheet';
 import { emomLabel, type EmomPhase, type EmomPlan } from '../../src/domain/emom';
@@ -511,6 +513,7 @@ export default function WorkoutScreen() {
   const allSets = workout.exercises.flatMap((exercise) => exercise.sets);
   const allCollapsed = workout.exercises.every((exercise) => collapsedEntries.get(exercise.entryId) ?? (exercise.sets.length > 0 && exercise.sets.every((set) => Boolean(set.completedAt))));
   const totalSets = groupSets(allSets).length;
+  const showBlocks = usesBlocks(workout.exercises);
   const finishedExercises = workout.exercises.filter((exercise) => exercise.sets.length > 0 && exercise.sets.every((set) => set.completedAt)).length;
   const volumeKg = allSets.reduce((sum, set) => (set.completedAt && set.kind === 'working' && set.reps && set.addedLoadKg > 0 ? sum + set.reps * set.addedLoadKg : sum), 0);
   const readinessCount = [workout.sleep, workout.energy, workout.soreness].filter((value) => value !== null).length;
@@ -533,7 +536,7 @@ export default function WorkoutScreen() {
         />
 
         {totalSets > 0 ? (
-          <View style={[styles.summary, { backgroundColor: palette.surface, borderColor: palette.border }]}>
+          <View style={styles.summary}>
             <View style={styles.summaryTop}>
               <Text style={styles.summaryText}>{t('logger.setsProgress', { done: completedCount, total: totalSets })}</Text>
               <Text style={[styles.summaryMuted, { color: palette.textMuted }]}>{t('logger.exercisesProgress', { done: finishedExercises, total: workout.exercises.length })}</Text>
@@ -543,19 +546,29 @@ export default function WorkoutScreen() {
           </View>
         ) : null}
 
-        <Pressable
-          accessibilityRole="button"
-          accessibilityState={{ expanded: readinessOpen }}
-          onPress={() => setReadinessOpen((open) => !open)}
-          style={[styles.readinessToggle, { backgroundColor: palette.surface, borderColor: palette.border }]}
-        >
-          <Icon name={readinessCount === 3 ? 'checkmark-circle' : 'pulse-outline'} size={20} color={readinessCount === 3 ? palette.success : palette.accentStrong} />
-          <View style={styles.flex}>
-            <Text style={styles.readinessTitle}>{t('workout.readinessTitle')}</Text>
-            {lowReadiness ? <Text style={[styles.readinessHint, { color: palette.warning }]}>{t('workout.readinessSuggestion')}</Text> : null}
-          </View>
-          <Icon name={readinessOpen ? 'chevron-up' : 'chevron-down'} size={18} color={palette.textMuted} />
-        </Pressable>
+        <View style={styles.toolbar}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityState={{ expanded: readinessOpen }}
+            onPress={() => setReadinessOpen((open) => !open)}
+            style={styles.readinessToggle}
+          >
+            <Icon name={readinessCount === 3 ? 'checkmark-circle' : 'pulse-outline'} size={20} color={readinessCount === 3 ? palette.success : palette.accentStrong} />
+            <View style={styles.shrink}>
+              <Text style={[styles.readinessTitle, { color: palette.textMuted }]}>{t('workout.readinessTitle')}</Text>
+              {lowReadiness ? <Text style={[styles.readinessHint, { color: palette.warning }]}>{t('workout.readinessSuggestion')}</Text> : null}
+            </View>
+            <Icon name={readinessOpen ? 'chevron-up' : 'chevron-down'} size={18} color={palette.textMuted} />
+          </Pressable>
+          {workout.exercises.length > 0 ? <Pressable
+            accessibilityRole="button" accessibilityState={{ expanded: !allCollapsed }}
+            onPress={() => { tapFeedback(); setCollapsedEntries(new Map(workout.exercises.map((exercise) => [exercise.entryId, !allCollapsed]))); }}
+            style={({ pressed }) => [styles.foldAll, { opacity: pressed ? 0.75 : 1 }]}
+          >
+            <Icon name={allCollapsed ? 'chevron-down' : 'chevron-up'} size={18} color={palette.accentStrong} />
+            <Text style={[styles.foldAllText, { color: palette.accentStrong }]}>{t(allCollapsed ? 'common.expandAll' : 'common.collapseAll')}</Text>
+          </Pressable> : null}
+        </View>
         {readinessOpen ? (
           <Card style={styles.readinessCard}>
             <Body>{t('workout.readinessHelp')}</Body>
@@ -585,14 +598,6 @@ export default function WorkoutScreen() {
             <Text style={[styles.swipeHintText, { color: palette.accentStrong }]}>{t('logger.swipeHint')}</Text>
           </Animated.View>
         ) : null}
-        {workout.exercises.length > 0 ? <Pressable
-          accessibilityRole="button" accessibilityState={{ expanded: !allCollapsed }}
-          onPress={() => { tapFeedback(); setCollapsedEntries(new Map(workout.exercises.map((exercise) => [exercise.entryId, !allCollapsed]))); }}
-          style={({ pressed }) => [styles.foldAll, { opacity: pressed ? 0.75 : 1 }]}
-        >
-          <Icon name={allCollapsed ? 'chevron-down' : 'chevron-up'} size={18} color={palette.accentStrong} />
-          <Text style={[styles.foldAllText, { color: palette.accentStrong }]}>{t(allCollapsed ? 'common.expandAll' : 'common.collapseAll')}</Text>
-        </Pressable> : null}
         <View onLayout={(event) => { listTop.current = event.nativeEvent.layout.y; }}>
         <LayoutAnimationConfig skipEntering>
         <ReorderableList
@@ -602,8 +607,11 @@ export default function WorkoutScreen() {
           gap={20}
           onMove={(from, to) => void moveExerciseEntry(workout.id, workout.exercises[from].entryId, to).then(() => refresh(workout.id))}
           onRowLayout={(key, top) => { cardTops.current.set(key, listTop.current + top); }}
-          renderRow={(exercise, _index, row) => (
+          renderRow={(exercise, index, row) => (
             <Animated.View entering={exerciseEntering} exiting={itemExiting} layout={rowLayout}>
+          {showBlocks && (index === 0 || blockOf(workout.exercises[index - 1].block) !== exercise.block) ? (
+            <BlockHeader block={exercise.block} exercises={workout.exercises.filter((item) => item.block === exercise.block)} />
+          ) : null}
           <ExerciseCard
             exercise={exercise}
             collapsed={collapsedEntries.get(exercise.entryId) ?? false}
@@ -642,11 +650,13 @@ export default function WorkoutScreen() {
         {workout.exercises.length > 0 ? (
           <Animated.View layout={rowLayout} style={styles.footerActions}>
             <View style={styles.footerRow}>
-              <View style={styles.flex}><ActionButton icon="add" label={t('workout.addExercise')} secondary onPress={() => setPickerOpen(true)} /></View>
-              <View style={styles.flex}><ActionButton icon="flag-outline" label={t('workout.finish')} onPress={() => setFinishOpen(true)} /></View>
+              <View style={styles.footerCell}><ActionButton icon="add" label={t('workout.addExercise')} secondary onPress={() => setPickerOpen(true)} /></View>
+              <View style={styles.footerCell}><ActionButton icon="flag-outline" label={t('workout.finish')} onPress={() => setFinishOpen(true)} /></View>
             </View>
-            <ActionButton icon="bookmark-outline" label={t('saveToProgram.action')} variant="ghost" onPress={() => setSaveOpen(true)} />
-            <ActionButton icon="close-circle-outline" label={t('workout.discard')} variant="ghost" onPress={() => setDiscardOpen(true)} />
+            <View style={styles.footerRow}>
+              <View style={styles.footerCellWide}><ActionButton icon="bookmark-outline" label={t('saveToProgram.action')} variant="ghost" onPress={() => setSaveOpen(true)} /></View>
+              <View style={styles.footerCellWide}><ActionButton icon="close-circle-outline" label={t('workout.discard')} variant="ghost" onPress={() => setDiscardOpen(true)} /></View>
+            </View>
           </Animated.View>
         ) : null}
       </Screen>
@@ -732,6 +742,9 @@ export default function WorkoutScreen() {
       <Sheet visible={optionsFor !== null} onClose={() => setOptionsFor(null)} title={optionsFor?.name ?? t('logger.options')}>
         {optionsFor ? (
           <ExerciseNoteField key={optionsFor.entryId} entryId={optionsFor.entryId} initial={optionsFor.notes} onSaved={() => void refresh(workout.id)} />
+        ) : null}
+        {optionsFor ? (
+          <ExerciseBlockField key={`block-${optionsFor.entryId}-${optionsFor.block}`} entryId={optionsFor.entryId} value={optionsFor.block} onChanged={() => { setOptionsFor(null); void refresh(workout.id); }} />
         ) : null}
         {optionsFor ? (
           <SupersetFields
@@ -827,6 +840,21 @@ export default function WorkoutScreen() {
         onCreate={createExercise}
         onClose={() => { setPickerOpen(false); setReplacing(null); }}
       />
+    </View>
+  );
+}
+
+/** Names a block of the workout and shows how much of it is done; drawn above its first exercise. */
+function BlockHeader({ block, exercises }: { block: Block; exercises: SessionExercise[] }) {
+  const styles = useScaledStyles(baseStyles);
+  const { t } = useTranslation();
+  const { palette } = useTheme();
+  const done = exercises.reduce((sum, exercise) => sum + completedSetCount(exercise.sets), 0);
+  const total = exercises.reduce((sum, exercise) => sum + groupSets(exercise.sets).length, 0);
+  return (
+    <View accessibilityRole="header" style={[styles.blockHeader, { borderBottomColor: palette.border }]}>
+      <Text style={[styles.blockTitle, { color: palette.text }]}>{t(`workout.blocks.${block}`)}</Text>
+      <Text style={[styles.blockCount, { color: palette.textMuted }]}>{t('logger.setsProgress', { done, total })}</Text>
     </View>
   );
 }
@@ -1377,7 +1405,8 @@ function LoadEditor({ setId, value, disabled, onSaved, sideLabel = '' }: { sideL
 const baseStyles = StyleSheet.create({
   root: { flex: 1 },
   flex: { flex: 1 },
-  readinessToggle: { flexDirection: 'row', alignItems: 'center', gap: 12, borderWidth: StyleSheet.hairlineWidth, borderRadius: 16, paddingHorizontal: 16, paddingVertical: 13 },
+  readinessToggle: { flexShrink: 1, flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 44 },
+  shrink: { flexShrink: 1 },
   readinessTitle: { fontFamily: fonts.medium, fontSize: 15 },
   readinessHint: { fontFamily: fonts.body, fontSize: 13, marginTop: 2 },
   readinessCard: { gap: 10, marginTop: -10 },
@@ -1388,15 +1417,22 @@ const baseStyles = StyleSheet.create({
   readinessValue: { fontFamily: fonts.display, fontSize: 18 },
   emptyAction: { alignSelf: 'stretch', marginTop: 6, gap: 8 },
   exerciseCard: { paddingHorizontal: 14, paddingBottom: 12, gap: 6 },
-  foldAll: { alignSelf: 'flex-end', flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 48, paddingHorizontal: 8 },
+  blockHeader: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: 12, paddingBottom: 6, marginBottom: 10, borderBottomWidth: StyleSheet.hairlineWidth },
+  blockTitle: { fontFamily: fonts.semibold, fontSize: 16 },
+  blockCount: { fontFamily: fonts.medium, fontSize: 13 },
+  toolbar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
+  foldAll: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 44, paddingHorizontal: 8 },
   foldAllText: { fontFamily: fonts.semibold, fontSize: 14 },
   exerciseHeader: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, paddingHorizontal: 4, marginBottom: 4 },
-  summary: { borderWidth: StyleSheet.hairlineWidth, borderRadius: 16, paddingHorizontal: 16, paddingVertical: 12, gap: 8 },
+  summary: { gap: 8 },
   summaryTop: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'baseline', gap: 12 },
   summaryText: { flex: 1, fontFamily: fonts.semibold, fontSize: 15 },
   summaryMuted: { fontFamily: fonts.medium, fontSize: 13 },
   results: { fontFamily: fonts.semibold, fontSize: 15, marginTop: 2 },
-  footerRow: { flexDirection: 'row', gap: 10 },
+  footerRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  footerCell: { flex: 1, minWidth: 140 },
+  // Long labels: side by side only when each gets room for one line.
+  footerCellWide: { flex: 1, minWidth: 220 },
   nameRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   progressRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', columnGap: 5 },
   exerciseName: { fontFamily: fonts.display, fontSize: 24, lineHeight: 28 },

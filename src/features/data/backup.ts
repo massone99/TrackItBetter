@@ -105,6 +105,8 @@ const entrySchema = z.object({
   notes: nullableString,
   // Added in schema v10; null means the exercise preference applies.
   unilateralRestMode: z.enum(['side', 'pair']).nullable().default(null),
+  // Added in schema v12; null is the main work.
+  block: z.enum(['warmup', 'main', 'mobility']).nullable().default(null),
 }).strict();
 
 const setSchema = z.object({
