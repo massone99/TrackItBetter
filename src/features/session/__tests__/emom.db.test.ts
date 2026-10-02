@@ -49,6 +49,19 @@ describe('recordEmomRound', () => {
     expect(await countEmomRounds(entryId, new Date(0))).toBe(1);
   });
 
+  it('never fills a gap left before the last completed set', async () => {
+    const workoutId = await startWorkout('EMOM gap');
+    const entryId = await addExerciseToWorkout(workoutId, 'push-up');
+    await recordEmomRound(entryId, 'reps', 5, new Date(61_000));
+    await recordEmomRound(entryId, 'reps', 5, new Date(121_000));
+    const firstId = (real.sqlite.prepare('SELECT id FROM training_set WHERE entry_id = ? ORDER BY set_index LIMIT 1').get(entryId) as { id: string }).id;
+    real.sqlite.prepare('UPDATE training_set SET completed_at = NULL, reps = 3 WHERE id = ?').run(firstId);
+
+    await recordEmomRound(entryId, 'reps', 5, new Date(181_000));
+
+    expect(rows(entryId).map(({ reps, completedAt }) => [reps, completedAt])).toEqual([[3, null], [5, 121_000], [5, 181_000]]);
+  });
+
   it('refuses a finished workout', async () => {
     const workoutId = await startWorkout('Done');
     const entryId = await addExerciseToWorkout(workoutId, 'push-up');

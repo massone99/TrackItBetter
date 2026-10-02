@@ -429,7 +429,10 @@ export async function recordEmomRound(entryId: string, field: 'reps' | 'duration
     .innerJoin(workouts, eq(exerciseEntries.workoutId, workouts.id)).where(eq(exerciseEntries.id, entryId));
   if (!entry || entry.endedAt) throw new Error('Use the completed workout editor');
   const sets = await db.select().from(trainingSets).where(eq(trainingSets.entryId, entryId)).orderBy(asc(trainingSets.index));
-  const open = groupSets(sets).find((group) => group[0].kind === 'working' && group.every((set) => !set.completedAt));
+  // Only sets after the last completed one: a gap left by hand is never filled with a later round.
+  const groups = groupSets(sets);
+  const lastDone = groups.reduce((last, group, index) => (group.some((set) => set.completedAt) ? index : last), -1);
+  const open = groups.slice(lastDone + 1).find((group) => group[0].kind === 'working' && group.every((set) => !set.completedAt));
   const ids = open ? open.map((set) => set.id) : await (async () => {
     const created = await addSet(entryId);
     const [first] = await db.select({ pairId: trainingSets.pairId }).from(trainingSets).where(eq(trainingSets.id, created));

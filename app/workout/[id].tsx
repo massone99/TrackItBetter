@@ -446,6 +446,8 @@ export default function WorkoutScreen() {
   /** Swiped away: removed at once with "Restore", except a set with clips, which asks in its sheet. */
   const removeSetFromRow = async (exercise: SessionExercise, set: SessionSet) => {
     if (!workout) return;
+    // A recorded round of a running EMOM stays: removing it would let the clock record that round again.
+    if (set.completedAt && exercise.entryId === emomEntryId) return;
     if (set.clipCount > 0) { setSetSheet({ exercise, setId: set.id }); return; }
     if (hold.active?.setId === set.id) hold.stop();
     offerUndo(t('logger.removedSet', { number: set.index }), await removeSetWithUndo(set.id));
@@ -932,6 +934,9 @@ function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, previous
 
       {(collapsed ? [] : exercise.sets).map((set) => {
         const done = Boolean(set.completedAt);
+        // In a running EMOM a recorded round stays editable in place and keeps its check, so the round count holds.
+        const emomLocked = done && Boolean(emomBadgeLabel);
+        const showSteps = !done || emomLocked;
         const workingNumber = groupSets(exercise.sets.filter((item) => item.kind === 'working' && item.index <= set.index)).length;
         const sideLabel = set.side === 'left' ? 'Sinistro (L)' : set.side === 'right' ? 'Destro (R)' : '';
         // Last time's working set at the same position; tapping it copies its values and note.
@@ -968,7 +973,7 @@ function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, previous
                 </PopOnActivate>
               </View>
               <View style={[styles.colValue, styles.stepper]}>
-                {done ? null : <StepButton icon="remove" label="−" onPress={(multiplier) => void onChange(set, field, (distance ? -0.5 : timed ? -5 : -1) * multiplier)} />}
+                {showSteps ? <StepButton icon="remove" label="−" onPress={(multiplier) => void onChange(set, field, (distance ? -0.5 : timed ? -5 : -1) * multiplier)} /> : null}
                 {done || holding ? (
                   <Text style={[styles.setValue, { color: holding ? palette.accentStrong : palette.text }]}>{value}</Text>
                 ) : timed ? (
@@ -983,7 +988,7 @@ function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, previous
                     style={[styles.setValue, { color: palette.text }]}
                   />
                 )}
-                {done ? null : <StepButton icon="add" label={`+ ${sideLabel}`} onPress={(multiplier) => void onChange(set, field, (distance ? 0.5 : timed ? 5 : 1) * multiplier)} />}
+                {showSteps ? <StepButton icon="add" label={`+ ${sideLabel}`} onPress={(multiplier) => void onChange(set, field, (distance ? 0.5 : timed ? 5 : 1) * multiplier)} /> : null}
               </View>
               <View style={[styles.colAction, styles.rowActions]}>
                 {done ? (
@@ -991,7 +996,9 @@ function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, previous
                     <Pressable
                       accessibilityRole="button"
                       accessibilityLabel={`${t('workout.setCompleted')} ${sideLabel}`}
-                      accessibilityState={{ checked: true }}
+                      accessibilityState={{ checked: true, disabled: emomLocked }}
+                      accessibilityHint={emomLocked ? t('emom.editHint') : undefined}
+                      disabled={emomLocked}
                       onPress={() => { tapFeedback(); onUncomplete(set); }}
                       style={[styles.checkButton, { backgroundColor: palette.success }]}
                     >
