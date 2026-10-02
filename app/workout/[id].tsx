@@ -901,8 +901,6 @@ function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, previous
           onAccessibilityAction={(event) => { if (event.nativeEvent.actionName === 'longpress') openExercisePage(exercise.exerciseId); }}
           style={styles.flex}
         >
-          {supersetLabel ? <Label style={{ color: palette.accentStrong }}>{supersetLabel}</Label> : null}
-          {emomBadgeLabel ? <Label accessibilityLiveRegion="polite" style={{ color: palette.accentStrong }}>{emomBadgeLabel}</Label> : null}
           <View style={styles.nameRow}>
             <Heading style={[styles.exerciseName, styles.flex]}>{exercise.name}</Heading>
             <Icon name={collapsed ? 'chevron-down' : 'chevron-up'} size={18} color={palette.textMuted} />
@@ -910,6 +908,8 @@ function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, previous
           <View style={styles.progressRow}>
             <Icon name={allDone ? 'checkmark-circle' : 'ellipse-outline'} size={14} color={allDone ? palette.success : palette.textMuted} />
             <Label>{t('logger.setsProgress', { done: doneSets, total: totalSets })}</Label>
+            {supersetLabel ? <Label style={{ color: palette.accentStrong }}>{`· ${supersetLabel}`}</Label> : null}
+            {emomBadgeLabel ? <Label accessibilityLiveRegion="polite" style={{ color: palette.accentStrong }}>{`· ${emomBadgeLabel}`}</Label> : null}
           </View>
           {collapsed && results ? <Text numberOfLines={2} style={[styles.results, { color: palette.text }]}>{results}</Text> : null}
           {collapsed ? null : <Label>{previousText ? t('logger.lastTime', { value: previousText }) : t('logger.firstTime')}</Label>}
@@ -948,7 +948,6 @@ function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, previous
         const value = holding && hold ? holdDisplay(hold) : timed ? formatClock(stored) : distance ? formatNumber(stored) : String(stored);
         return (
           <Animated.View key={set.id} entering={setEntering} exiting={itemExiting} layout={rowLayout} style={styles.setBlock}>
-            {set.pairId ? <Label>{`Serie ${set.index}: L / R · ${sideLabel}`}</Label> : null}
             <DoneTint done={done} color={palette.accentSoft} />
             <SwipeableSetRow
               done={done}
@@ -970,6 +969,7 @@ function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, previous
                     style={[styles.setBadge, { backgroundColor: done ? palette.accent : palette.surfaceMuted }, set.kind === 'warmup' && { borderWidth: 1, borderStyle: 'dashed', borderColor: done ? palette.accentText : palette.textMuted }]}
                   >
                     <Text style={[styles.setBadgeText, { color: done ? palette.accentText : set.kind === 'warmup' ? palette.textMuted : palette.text }]}>{set.kind === 'warmup' ? 'W' : workingNumber}</Text>
+                    {set.side === 'left' || set.side === 'right' ? <Text style={[styles.setBadgeSide, { color: done ? palette.accentText : palette.textMuted }]}>{set.side === 'left' ? 'L' : 'R'}</Text> : null}
                   </Pressable>
                 </PopOnActivate>
               </View>
@@ -1033,31 +1033,23 @@ function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, previous
               </View>
             </View>
             </SwipeableSetRow>
-            <View style={styles.setDetailRow}>
-              {/* Same columns as the row above: the load sits under the value, the menu under the check. */}
+            <View style={[styles.setDetailRow, !loaded && styles.setDetailRowCompact]}>
+              {/* Same three columns as the row above: copy last time under the number, load under the value, menu under the check. */}
+              <View style={[styles.colSet, styles.detailCell]}>
+                {!done && lastTime ? (
+                  <IconButton icon="arrow-undo-outline" label={t('logger.copyPrevious', { value: describeSet(lastTime, exercise.metric) })} tone="plain" size={36} color={palette.accentStrong} onPress={() => onCopyPrevious(set, lastTime)} />
+                ) : null}
+              </View>
               <View style={styles.loadColumn}>
                 {loaded ? <View>
-                  <View pointerEvents="none" style={styles.loadLabel}><Label numberOfLines={1}>{t('logger.loadCol')}</Label></View>
                   <LoadEditor sideLabel={sideLabel} key={`${set.id}:${set.addedLoadKg}`} setId={set.id} value={set.addedLoadKg} disabled={done} onSaved={onSaved} />
+                  <View pointerEvents="none" style={styles.loadUnit}><Label>kg</Label></View>
                 </View> : null}
               </View>
-              <View style={[styles.colAction, styles.loadMenu]}>
+              <View style={[styles.colAction, styles.detailCell]}>
                 <IconButton icon="ellipsis-horizontal" label={t('logger.setOptions', { number: set.index })} tone="plain" size={36} onPress={() => onSetOptions(set)} />
               </View>
             </View>
-            {!done && lastTime ? (
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={t('logger.copyPrevious', { value: describeSet(lastTime, exercise.metric) })}
-                onPress={() => onCopyPrevious(set, lastTime)}
-                style={styles.previousRow}
-              >
-                <Icon name="arrow-undo-outline" size={13} color={palette.accentStrong} />
-                <Text numberOfLines={1} style={[styles.previousText, { color: palette.textMuted }]}>
-                  {t('logger.previousShort', { value: describeSet(lastTime, exercise.metric) })}{lastTime.note ? ` · ${lastTime.note}` : ''}
-                </Text>
-              </Pressable>
-            ) : null}
             {rpePromptFor === set.id && set.completedAt ? (
               <RpePicker sideLabel={sideLabel} inline value={set.rpe} onChange={(rpe) => onRpe(set, rpe)} onDismiss={onDismissRpe} />
             ) : set.note || set.clipCount > 0 || set.rpe !== null || setRecords.has(set.id) ? (
@@ -1262,7 +1254,7 @@ function TimerBar({ emom, hold, restSeconds, onFinishHold, onExtend, onSkip }: {
           <TimerAction label={t('emom.stopShort')} filled onPress={emom.onStop} />
         </View>
         <View style={styles.emomRow}>
-          <Text style={[styles.timerLabel, styles.flex, { color: palette.heroText }]}>{emom.valueLabel}</Text>
+          <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8} style={[styles.timerLabel, styles.flex, { color: palette.heroText }]}>{emom.valueLabel}</Text>
           <TimerAction label="−" accessibilityLabel={`${emom.valueLabel} −`} onPress={() => emom.onChange(-1)} />
           <Text accessibilityLiveRegion="polite" style={[styles.emomValueText, { color: palette.heroText }]}>{emom.value}</Text>
           <TimerAction label="+" accessibilityLabel={`${emom.valueLabel} +`} onPress={() => emom.onChange(1)} />
@@ -1406,7 +1398,7 @@ const baseStyles = StyleSheet.create({
   results: { fontFamily: fonts.semibold, fontSize: 15, marginTop: 2 },
   footerRow: { flexDirection: 'row', gap: 10 },
   nameRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  progressRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  progressRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', columnGap: 5 },
   exerciseName: { fontFamily: fonts.display, fontSize: 24, lineHeight: 28 },
   columns: { flexDirection: 'row', alignItems: 'center', paddingBottom: 6, paddingHorizontal: 4, borderBottomWidth: StyleSheet.hairlineWidth },
   colSet: { width: 44 },
@@ -1414,15 +1406,15 @@ const baseStyles = StyleSheet.create({
   colAction: { width: 48 },
   setBlock: { borderRadius: 12, overflow: 'hidden', paddingTop: 4 },
   setRow: { flexDirection: 'row', alignItems: 'center', minHeight: 60, paddingHorizontal: 4 },
-  setDetailRow: { flexDirection: 'row', alignItems: 'center', paddingLeft: 48, paddingRight: 4 },
+  setDetailRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 4 },
+  // Without a load field the row only holds two icon buttons: tuck it under the set instead of giving it a line of its own.
+  setDetailRowCompact: { marginTop: -12, marginBottom: -6 },
+  detailCell: { alignItems: 'center', justifyContent: 'center' },
   loadColumn: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  loadLabel: { position: 'absolute', right: '100%', top: 0, bottom: 0, marginRight: 8, justifyContent: 'center' },
-  loadMenu: { alignItems: 'center' },
+  loadUnit: { position: 'absolute', left: '100%', top: 0, bottom: 0, marginLeft: 8, justifyContent: 'center' },
   swipeHint: { flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: 14, paddingHorizontal: 14, paddingVertical: 10 },
   swipeHintText: { flex: 1, fontFamily: fonts.medium, fontSize: 14 },
   recordChip: { flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-start', borderRadius: 10, paddingHorizontal: 8, paddingVertical: 3, marginTop: 4 },
-  previousRow: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingLeft: 48, paddingRight: 12, paddingBottom: 8, marginTop: -4 },
-  previousText: { flex: 1, fontFamily: fonts.body, fontSize: 12 },
   setMeta: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingLeft: 48, paddingRight: 12, paddingBottom: 10, marginTop: -4 },
   clipChip: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, minHeight: 24, borderRadius: 999 },
   clipChipText: { fontFamily: fonts.semibold, fontSize: 12 },
@@ -1430,6 +1422,7 @@ const baseStyles = StyleSheet.create({
   exerciseNote: { fontFamily: fonts.body, fontSize: 13, lineHeight: 18, marginTop: 4 },
   setBadge: { width: 36, height: 36, borderRadius: 9, alignItems: 'center', justifyContent: 'center' },
   setBadgeText: { fontFamily: fonts.display, fontSize: 16 },
+  setBadgeSide: { fontFamily: fonts.semibold, fontSize: 10, lineHeight: 11, marginTop: -2 },
   stepper: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
   setValue: { fontFamily: fonts.display, fontSize: 28, lineHeight: 34, minWidth: 40, textAlign: 'center', fontVariant: ['tabular-nums'] },
   stepButton: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
