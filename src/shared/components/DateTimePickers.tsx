@@ -4,7 +4,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { useTheme } from '../theme/ThemeProvider';
 import { fonts } from '../theme/typography';
 import { useScaledStyles } from '../theme/useScaledStyles';
-import { ActionButton, Body, Chip, Icon, IconButton, Sheet, Text, TextField, tapFeedback } from './ui';
+import { ActionButton, Chip, Icon, IconButton, Sheet, Text, tapFeedback } from './ui';
 import { Wheel } from './Wheel';
 import { formatClock } from '../utils/format';
 
@@ -161,8 +161,8 @@ const baseStyles = StyleSheet.create({
   colon: { fontFamily: fonts.display, fontSize: 26 },
   durationInputs: { flexDirection: 'row', gap: 12 },
   durationInput: { flex: 1 },
-  durationAdjust: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 16 },
-  durationValue: { fontFamily: fonts.display, fontSize: 32, lineHeight: 38, fontVariant: ['tabular-nums'] },
+  durationAdjust: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 20 },
+  durationValue: { fontFamily: fonts.display, fontSize: 44, lineHeight: 50, minWidth: 120, textAlign: 'center', fontVariant: ['tabular-nums'] },
   compactDurationWrapper: { flexShrink: 1 },
   compactDuration: { minWidth: 64, minHeight: 48, paddingHorizontal: 8, paddingVertical: 8, borderRadius: 12, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
   compactDurationText: { fontFamily: fonts.display, fontSize: 24, lineHeight: 30, fontVariant: ['tabular-nums'] },
@@ -188,29 +188,23 @@ export function DurationField({ label, value, min = 0, max = 600, step = 5, pres
   const { palette } = useTheme();
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
-  const [minutes, setMinutes] = useState('0');
-  const [seconds, setSeconds] = useState('0');
+  const [draft, setDraftState] = useState(0);
   // Imported or measured durations above a configured limit can still be retained and edited.
   const upperBound = Math.max(max, Math.round(value));
-  const numeric = /^\d+$/.test(minutes) && /^\d+$/.test(seconds);
-  const draft = numeric ? Number(minutes) * 60 + Number(seconds) : NaN;
-  const validParts = numeric && Number(seconds) < 60 && Number.isSafeInteger(draft);
-  const valid = validParts && draft >= min && draft <= upperBound;
-  const error = !validParts ? t('durationPicker.invalid') : draft < min
-    ? t('durationPicker.minimum', { min: formatClock(min) }) : draft > upperBound
-      ? t('durationPicker.maximum', { max: formatClock(upperBound) }) : null;
-  const setDraft = (next: number) => {
-    const clamped = Math.min(upperBound, Math.max(min, Math.round(next)));
-    setMinutes(String(Math.floor(clamped / 60)));
-    setSeconds(String(clamped % 60).padStart(2, '0'));
-  };
+  const clamp = (next: number) => Math.min(upperBound, Math.max(min, Math.round(next)));
+  const setDraft = (next: number) => setDraftState(clamp(next));
+  // Minutes follow the range, but a hold of an hour or more never needs a longer drum than the value itself.
+  const minuteItems = useMemo(() => {
+    const top = Math.min(Math.floor(upperBound / 60), Math.max(30, Math.floor(value / 60)));
+    return Array.from({ length: top + 1 }, (_, minute) => ({ value: minute, label: String(minute) }));
+  }, [upperBound, value]);
+  const secondItems = useMemo(() => Array.from({ length: 60 }, (_, second) => ({ value: second, label: String(second).padStart(2, '0') })), []);
   const show = () => {
     // Seed the exact current value, including seconds that are not multiples of the quick step.
-    const whole = Math.max(0, Math.round(value));
-    setMinutes(String(Math.floor(whole / 60)));
-    setSeconds(String(whole % 60).padStart(2, '0'));
+    setDraftState(clamp(Math.max(0, Math.round(value))));
     setOpen(true);
   };
+  const choose = (preset: number) => { tapFeedback(); onChange(clamp(preset)); setOpen(false); };
   return (
     <View style={compact ? styles.compactDurationWrapper : undefined}>
       {compact ? <Pressable
@@ -226,19 +220,19 @@ export function DurationField({ label, value, min = 0, max = 600, step = 5, pres
           {presets.map((preset) => <Chip key={preset} label={format(preset)} selected={value === preset} onPress={() => onChange(Math.min(upperBound, Math.max(min, preset)))} />)}
         </View>
       ) : null}
-      {open ? <Sheet visible onClose={() => setOpen(false)} title={label} body={t('durationPicker.hint')}>
-        <View style={styles.durationInputs}>
-          <View style={styles.durationInput}><TextField label={t('picker.minutes')} value={minutes} onChangeText={setMinutes} keyboardType="number-pad" selectTextOnFocus /></View>
-          <View style={styles.durationInput}><TextField label={t('picker.seconds')} value={seconds} onChangeText={setSeconds} keyboardType="number-pad" selectTextOnFocus /></View>
-        </View>
-        {error ? <Body style={{ color: palette.warning }}>{error}</Body> : null}
+      {open ? <Sheet visible onClose={() => setOpen(false)} title={label}>
         <View style={styles.durationAdjust}>
-          <IconButton icon="remove" label={t('durationPicker.decrease')} disabled={!validParts || draft <= min} onPress={() => setDraft(draft - step)} />
-          <Text style={[styles.durationValue, { color: palette.text }]}>{validParts ? formatClock(draft) : '—'}</Text>
-          <IconButton icon="add" label={t('durationPicker.increase')} disabled={!validParts || draft >= upperBound} onPress={() => setDraft(draft + step)} />
+          <IconButton icon="remove" label={t('durationPicker.decrease')} disabled={draft <= min} onPress={() => setDraft(draft - step)} />
+          <Text accessibilityLiveRegion="polite" style={[styles.durationValue, { color: palette.text }]}>{formatClock(draft)}</Text>
+          <IconButton icon="add" label={t('durationPicker.increase')} disabled={draft >= upperBound} onPress={() => setDraft(draft + step)} />
         </View>
-        {presets?.length ? <View style={styles.presets}>{presets.filter((preset) => preset >= min && preset <= upperBound).map((preset) => <Chip key={preset} label={formatClock(preset)} selected={draft === preset} onPress={() => setDraft(preset)} />)}</View> : null}
-        <ActionButton label={t('common.save')} disabled={!valid || disabled} onPress={() => { if (valid) { onChange(draft); setOpen(false); } }} />
+        {presets?.length ? <View style={styles.presets}>{presets.filter((preset) => preset >= min && preset <= upperBound).map((preset) => <Chip key={preset} label={formatClock(preset)} selected={value === preset} onPress={() => choose(preset)} />)}</View> : null}
+        <View style={styles.wheels}>
+          <Wheel label={t('picker.minutes')} items={minuteItems} value={Math.floor(draft / 60)} width={96} onChange={(minute) => setDraft(minute * 60 + (draft % 60))} />
+          <Text style={[styles.colon, { color: palette.textMuted }]}>:</Text>
+          <Wheel label={t('picker.seconds')} items={secondItems} value={draft % 60} width={96} onChange={(second) => setDraft(Math.floor(draft / 60) * 60 + second)} />
+        </View>
+        <ActionButton label={t('common.save')} disabled={disabled} onPress={() => { onChange(draft); setOpen(false); }} />
         <ActionButton label={t('common.cancel')} variant="ghost" onPress={() => setOpen(false)} />
       </Sheet> : null}
     </View>
