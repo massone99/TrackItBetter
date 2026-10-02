@@ -45,6 +45,7 @@ import {
 } from '../../src/features/session/repository';
 import type { ActiveWorkout, PreviousPerformance, PreviousSetValues, RemovedRows, SessionExercise, SessionSet } from '../../src/features/session/repository';
 import { defaultHoldMode, rememberHoldMode, useHoldTimer, type ActiveHold } from '../../src/features/session/useHoldTimer';
+import { adjustedRest, REST_STEP_SEC } from '../../src/domain/restTimer';
 import { ExerciseBlockField } from '../../src/features/session/ExerciseBlockField';
 import { blockOf, usesBlocks, type Block } from '../../src/domain/blocks';
 import { clearEmomPlan, useEmom, type EmomAlertText } from '../../src/features/session/useEmom';
@@ -303,9 +304,11 @@ export default function WorkoutScreen() {
     }).catch(() => undefined);
   };
 
-  const extendRest = () => {
+  /** Moves the end of the running rest by a step; taking off more than is left ends it. */
+  const adjustRest = (deltaSec: number) => {
     if (restEndsAt === null) return;
-    const remaining = Math.ceil((restEndsAt + 15_000 - Date.now()) / 1000);
+    const remaining = adjustedRest(restEndsAt, nowMs(), deltaSec);
+    if (remaining === null) { skipRest(); return; }
     void cancelRestFinishedNotification().catch(() => undefined);
     startRestTimer(remaining);
   };
@@ -521,7 +524,7 @@ export default function WorkoutScreen() {
 
   return (
     <View style={[styles.root, { backgroundColor: palette.background }]}>
-      <Screen scrollRef={scrollRef} contentContainerStyle={{ paddingBottom: emom.plan ? 220 : 150 }}>
+      <Screen scrollRef={scrollRef} contentContainerStyle={{ paddingBottom: emom.plan ? 220 : 190 }}>
         <PageHeading
           title={workout.name}
           subtitle={t('workout.inProgress', { elapsed })}
@@ -673,7 +676,8 @@ export default function WorkoutScreen() {
         hold={hold.active}
         restSeconds={restSeconds}
         onFinishHold={() => void finishCurrentHold()}
-        onExtend={extendRest}
+        onExtend={() => adjustRest(REST_STEP_SEC)}
+        onReduce={() => adjustRest(-REST_STEP_SEC)}
         onSkip={skipRest}
       />
 
@@ -858,6 +862,9 @@ function BlockHeader({ block, exercises }: { block: Block; exercises: SessionExe
     </View>
   );
 }
+
+/** The current time, read inside event handlers only. */
+const nowMs = () => Date.now();
 
 /** Rest end times by workout id, so leaving and reopening the workout keeps the same countdown. */
 const runningRests = new Map<string, number>();
@@ -1255,12 +1262,13 @@ function emomBarLabel(phase: EmomPhase, plan: EmomPlan, t: (key: string, options
   return t('emom.notifyDone');
 }
 
-function TimerBar({ emom, hold, restSeconds, onFinishHold, onExtend, onSkip }: {
+function TimerBar({ emom, hold, restSeconds, onFinishHold, onExtend, onReduce, onSkip }: {
   emom: EmomBar | null;
   hold: ActiveHold | null;
   restSeconds: number | null;
   onFinishHold: () => void;
   onExtend: () => void;
+  onReduce: () => void;
   onSkip: () => void;
 }) {
   const styles = useScaledStyles(baseStyles);
@@ -1303,7 +1311,7 @@ function TimerBar({ emom, hold, restSeconds, onFinishHold, onExtend, onSkip }: {
   return (
     <View style={[styles.timerBar, { backgroundColor: palette.hero, paddingBottom: insets.bottom + 14 }]}>
       <View style={styles.timerInner}>
-      <View style={styles.flex}>
+      <View style={styles.timerReadout}>
         <Text style={[styles.timerLabel, { color: palette.heroText }]}>{label}</Text>
         <Text accessibilityLiveRegion="polite" style={[styles.timerValue, { color: palette.heroText }]}>{hold ? holdDisplay(hold) : formatClock(restSeconds ?? 0)}</Text>
       </View>
@@ -1311,6 +1319,7 @@ function TimerBar({ emom, hold, restSeconds, onFinishHold, onExtend, onSkip }: {
         <TimerAction label={countingDown ? t('common.cancel') : t('logger.doneHold')} filled onPress={onFinishHold} />
       ) : (
         <View style={styles.timerActions}>
+          <TimerAction label={t('logger.subtractTime')} onPress={onReduce} />
           <TimerAction label={t('logger.addTime')} onPress={onExtend} />
           <TimerAction label={t('logger.skip')} filled onPress={onSkip} />
         </View>
@@ -1469,14 +1478,15 @@ const baseStyles = StyleSheet.create({
   addSetText: { fontFamily: fonts.semibold, fontSize: 15 },
   footerActions: { gap: 10, marginTop: 4 },
   timerBar: { position: 'absolute', left: 0, right: 0, bottom: 0, alignItems: 'center', paddingHorizontal: 22, paddingTop: 14, borderTopLeftRadius: 24, borderTopRightRadius: 24 },
-  timerInner: { width: '100%', maxWidth: 640, flexDirection: 'row', alignItems: 'center', gap: 12 },
+  timerInner: { width: '100%', maxWidth: 640, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
   timerLabel: { fontFamily: fonts.medium, fontSize: 14, opacity: 0.85 },
   timerValue: { fontFamily: fonts.display, fontSize: 46, lineHeight: 50, fontVariant: ['tabular-nums'] },
+  timerReadout: { flexGrow: 1, minWidth: 110 },
   timerActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   emomInner: { flexDirection: 'column', alignItems: 'stretch', gap: 8 },
   emomRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   emomValueText: { fontFamily: fonts.display, fontSize: 26, lineHeight: 30, minWidth: 72, textAlign: 'center', fontVariant: ['tabular-nums'] },
-  timerAction: { minWidth: 64, minHeight: 48, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10, alignItems: 'center', justifyContent: 'center' },
+  timerAction: { minWidth: 56, minHeight: 48, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10, alignItems: 'center', justifyContent: 'center' },
   timerActionText: { fontFamily: fonts.semibold, fontSize: 15 },
   timerActionSymbol: { fontSize: 26, lineHeight: 30 },
   // The surrounding box carries the border, so the browser focus outline is replaced by it.
