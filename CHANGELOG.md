@@ -2,6 +2,20 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.7.0 - 2026-10-02
+
+### Active and passive mobility, totals by type
+
+- Mark mobility exercises as active (you move into the range with your own strength)
+  or passive (gravity, load or a partner takes you there). The choice is optional and
+  appears in the exercise form only while mobility is one of the categories.
+- Training totals have a Strength / Mobility filter, with Active / Passive for
+  mobility. In the mobility view each movement tag shows the time held first, so you
+  can see the weekly minutes spent on, for example, shoulder flexion.
+- Additive database migration v11 stores the mobility type. Backups carry it; older
+  backups remain importable. To return to an older app version, restore a backup made
+  before migration.
+
 ## 0.6.15 - 2026-10-02
 
 ### Unilateral L/R sets
