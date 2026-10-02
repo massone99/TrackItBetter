@@ -2,6 +2,17 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.10.0 - 2026-10-02
+
+### Free pose analysis
+
+- A new "Free analysis" (group "Any exercise") for movements outside the catalogue: no position
+  formula and no levels, only the joint angles you pick (shoulder, hip, elbow, knee, lean), each
+  0-180 degrees on the side you choose.
+- The angle in focus, else the first picked one, is drawn on the photo; the result card, history
+  and overview list the picked angles instead of a value and a level. Misplaced points can still be
+  dragged into place.
+
 ## 0.9.1 - 2026-10-02
 
 ### Warm-up sets
