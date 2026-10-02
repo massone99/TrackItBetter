@@ -2,6 +2,47 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.9.0 - 2026-10-02
+
+### Workout blocks and a calmer workout screen
+
+- Put each exercise of a workout in a block: warm-up, main work or mobility. Blocks stay in that
+  order, get a header with their progress once any exercise leaves the main work, and a dragged
+  exercise joins the block it is dropped in. A mobility exercise added to a workout of other
+  exercises goes to the mobility block by itself.
+- Every workout opens with its exercises folded; one added later opens so it can be logged, and
+  starting an EMOM unfolds its exercise.
+- The summary and readiness rows lose their cards, collapse all shares the readiness row, and
+  the footer links wrap instead of squeezing their labels.
+- Each set reads as one block on three aligned columns: copy last time, load and set menu under
+  the set number, the reps and the check. The left or right side sits in the set badge.
+- Layouts hold on narrow phones and large system fonts: font size is capped, the tab bar grows
+  with its labels (they were clipped), and fixed sizes around text became flexible.
+
+### Timers and durations
+
+- Take 15 s off a running rest with the new −15 s button.
+- The duration sheet used for holds and rests shows a large time with − and + steps, one-tap quick
+  durations, minute and second wheels, and lets you type seconds or m:ss.
+- EMOM rounds prefill with the value of the last completed round instead of the target.
+
+### Mobility and totals
+
+- Mark mobility exercises as active or passive. Training totals can be filtered to strength,
+  mobility, or active/passive mobility, and in mobility each movement tag leads with the time held.
+
+### Pose analysis
+
+- The source buttons (photo, gallery, video) no longer fail silently, the gallery path does not ask
+  for a library permission it does not need, and every failure ends in a message naming the step
+  and the cause.
+
+### Data
+
+- Additive migrations v11 (mobility type) and v12 (workout blocks). Backups carry both; older
+  backups remain importable. To return to an older app version, restore a backup made before
+  migration.
+
 ## 0.8.0 - 2026-10-02
 
 ### EMOM inside a workout
