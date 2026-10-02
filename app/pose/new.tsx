@@ -79,34 +79,32 @@ export default function NewPoseCheckScreen() {
 
   const pick = async (source: 'camera' | 'photo' | 'video') => {
     setError(null);
-    const permission = source === 'camera'
-      ? await ImagePicker.requestCameraPermissionsAsync()
-      : await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!permission.granted) { setError(t('pose.permission')); return; }
-    const options: ImagePicker.ImagePickerOptions = { mediaTypes: source === 'video' ? ['videos'] : ['images'], quality: 1, videoMaxDuration: 60 };
-    const result = source === 'camera' ? await ImagePicker.launchCameraAsync(options) : await ImagePicker.launchImageLibraryAsync(options);
-    const asset = result.canceled ? null : result.assets[0];
-    if (!asset) return;
-    setAnalysis(null);
-    setFrames([]);
-    setSelectedFrame(null);
-    if (source === 'video') {
-      setBusy(t('pose.analysing'));
-      try {
-        setFrames(await extractFrames(asset.uri, asset.duration ?? 0));
-      } catch (failure) {
-        setError(withDetail(t('pose.error'), failure));
-      } finally {
-        setBusy(null);
-      }
-      return;
-    }
-    setBusy(t('pose.analysing'));
     try {
-      const image = await normalizeImage(asset.uri, asset.width, asset.height);
-      await analyse(image, 'photo');
+      // Only the camera needs a permission: the system gallery picker hands over the chosen file without one,
+      // so asking for library access could only get in the way (or fail) before it opens.
+      if (source === 'camera') {
+        const permission = await ImagePicker.requestCameraPermissionsAsync();
+        if (!permission.granted) { setError(t('pose.permission')); return; }
+      }
+      const options: ImagePicker.ImagePickerOptions = { mediaTypes: source === 'video' ? ['videos'] : ['images'], quality: 1, videoMaxDuration: 60 };
+      const result = source === 'camera' ? await ImagePicker.launchCameraAsync(options) : await ImagePicker.launchImageLibraryAsync(options);
+      const asset = result.canceled ? null : result.assets[0];
+      if (!asset) return;
+      setAnalysis(null);
+      setFrames([]);
+      setSelectedFrame(null);
+      setBusy(t('pose.analysing'));
+      if (source === 'video') {
+        setFrames(await extractFrames(asset.uri, asset.duration ?? 0));
+      } else {
+        const image = await normalizeImage(asset.uri, asset.width, asset.height);
+        await analyse(image, 'photo');
+      }
     } catch (failure) {
+      // Nothing may fail silently: a button that does nothing is the worst answer.
+      console.warn('[pose] pick failed:', failure);
       setError(withDetail(t('pose.error'), failure));
+    } finally {
       setBusy(null);
     }
   };
@@ -200,7 +198,7 @@ export default function NewPoseCheckScreen() {
       {busy ? (
         <View style={styles.busy}><ActivityIndicator color={palette.accentStrong} /><Body>{busy}</Body></View>
       ) : null}
-      {error ? <Text style={[styles.error, { color: palette.warning }]}>{error}</Text> : null}
+      {error ? <Text accessibilityLiveRegion="polite" style={[styles.error, { color: palette.warning }]}>{error}</Text> : null}
 
       {analysis && measurement && level !== null ? (
         <>
