@@ -38,6 +38,7 @@ describe('updateExercise', () => {
       movementTag: 'Shoulder flexion',
       movementTags: '["Shoulder flexion"]',
       movementGroup: 'horizontal-push',
+      mobilityMode: null,
     } }]);
   });
 

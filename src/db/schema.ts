@@ -23,6 +23,8 @@ export const exercises = sqliteTable(
     /** JSON list of movement tags; movementTag keeps the first tag for legacy readers. */
     movementTags: text('movement_tags').notNull().default('[]'),
     movementGroup: text('movement_group'),
+    /** Mobility work done by your own strength (active) or moved into position by gravity, load or a partner (passive); null when unspecified. */
+    mobilityMode: text('mobility_mode', { enum: ['active', 'passive'] }),
     primaryMuscles: text('primary_muscles').notNull().default('[]'),
     secondaryMuscles: text('secondary_muscles').notNull().default('[]'),
     equipment: text('equipment').notNull().default('[]'),

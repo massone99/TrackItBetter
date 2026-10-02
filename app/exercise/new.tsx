@@ -18,6 +18,7 @@ import {
   type ExerciseFormInput,
   type ExerciseFormValues,
 } from '../../src/features/exercises/exerciseForm';
+import { MOBILITY_MODES } from '../../src/features/exercises/mobilityMode';
 import { ActionButton, Body, Chip, Icon, Label, PageHeading, Screen, TextField } from '../../src/shared/components/ui';
 import { addExerciseToCompletedWorkout, addExerciseToWorkout, replaceEntryExercise } from '../../src/features/session/repository';
 import { getExerciseById } from '../../src/features/exercises/repository';
@@ -45,7 +46,8 @@ export default function NewExerciseRoute() {
     resolver: zodResolver(exerciseFormSchema),
     defaultValues: { ...EMPTY_EXERCISE_FORM, name: edit ? EMPTY_EXERCISE_FORM.name : suggestedName?.slice(0, 80) ?? EMPTY_EXERCISE_FORM.name },
   });
-  const [category, extraCategories, movementTags, movementGroup] = useWatch({ control, name: ['category', 'extraCategories', 'movementTags', 'movementGroup'] });
+  const [category, extraCategories, movementTags, movementGroup, mobilityMode] = useWatch({ control, name: ['category', 'extraCategories', 'movementTags', 'movementGroup', 'mobilityMode'] });
+  const isMobility = category === 'mobility' || extraCategories.includes('mobility');
   const detailErrors = Boolean(errors.equipment || errors.cues || errors.demoUrl);
 
   useEffect(() => {
@@ -157,6 +159,16 @@ export default function NewExerciseRoute() {
           })}
         </View>
       </View>
+
+      {isMobility ? (
+        <View style={styles.field}>
+          <Label>{t('customExercise.mobilityMode.title')}</Label>
+          <View style={styles.choices}>
+            {MOBILITY_MODES.map((mode) => <Chip key={mode} label={t(`customExercise.mobilityMode.${mode}`)} selected={mobilityMode === mode} onPress={() => setValue('mobilityMode', mobilityMode === mode ? null : mode)} />)}
+          </View>
+          <Body style={{ color: palette.textMuted }}>{mobilityMode ? t(`customExercise.mobilityMode.${mobilityMode}Hint`) : t('customExercise.mobilityMode.hint')}</Body>
+        </View>
+      ) : null}
 
       <ClassificationChoices
         movementTags={movementTags ?? []}

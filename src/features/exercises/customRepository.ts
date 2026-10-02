@@ -3,6 +3,7 @@ import { db, initializeDatabase } from '../../db/client';
 import { eq } from 'drizzle-orm';
 import { exercises } from '../../db/schema';
 import type { ExerciseCategory } from './categories';
+import { mobilityModeFor, type MobilityMode } from './mobilityMode';
 import { normalizeMovementTags, MOVEMENT_GROUP_IDS, MOVEMENT_TAGS, type MovementGroupId } from './movementCatalog';
 
 export type { ExerciseCategory } from './categories';
@@ -21,6 +22,8 @@ export interface CreateCustomExerciseInput {
   movementTag?: string | null;
   movementTags?: string[];
   movementGroup?: MovementGroupId | null;
+  /** Only kept while mobility is one of the categories. */
+  mobilityMode?: MobilityMode | null;
 }
 
 /** Extra categories without duplicates or the main category itself. */
@@ -32,7 +35,7 @@ function classificationFields(input: CreateCustomExerciseInput) {
   const tags = normalizeMovementTags(input.movementTags ?? (input.movementTag ? [input.movementTag] : []));
   if (tags.some((tag) => !(MOVEMENT_TAGS as readonly string[]).includes(tag))) throw new RangeError('Unknown movement tag');
   if (input.movementGroup != null && !(MOVEMENT_GROUP_IDS as readonly string[]).includes(input.movementGroup)) throw new RangeError('Unknown movement group');
-  return { movementTag: tags[0] ?? null, movementTags: JSON.stringify(tags), movementGroup: input.movementGroup ?? null };
+  return { movementTag: tags[0] ?? null, movementTags: JSON.stringify(tags), movementGroup: input.movementGroup ?? null, mobilityMode: mobilityModeFor(input, input.mobilityMode) };
 }
 
 /** Save a user-created movement in the local exercise catalog. */

@@ -74,6 +74,7 @@ describe('edit exercise', () => {
       movementTag: 'Shoulder flexion',
       movementTags: ['Shoulder flexion'],
       movementGroup: 'vertical-push',
+      mobilityMode: null,
     });
     expect(goBack).toHaveBeenCalled();
   });

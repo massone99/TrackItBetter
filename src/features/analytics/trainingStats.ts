@@ -2,6 +2,7 @@ import { exerciseMovementTags, MOVEMENT_GROUP_IDS } from '../exercises/movementC
 import { aggregatePairs, realMean } from '../../domain/setPairs';
 
 export type StatsDimension = 'group' | 'tag' | 'exercise';
+export type StatsScope = 'all' | 'strength' | 'mobility' | 'mobility-active' | 'mobility-passive';
 export type StatsPeriodKind = 'session' | 'day' | 'week' | 'month';
 type CalendarKind = Exclude<StatsPeriodKind, 'session'>;
 
@@ -22,6 +23,9 @@ export interface StatsSetRow {
   movementGroup: string | null;
   movementTag: string | null;
   movementTags?: string | null;
+  category?: string;
+  extraCategories?: string | null;
+  mobilityMode?: string | null;
   reps: number | null;
   durationSec: number | null;
   addedLoadKg: number;
@@ -41,11 +45,30 @@ export interface TrainingStats {
   olderId: string | null;
   newerId: string | null;
 }
-export interface StatsOptions { dimension: StatsDimension; period: StatsPeriodKind; anchor: string | null; threshold: number; rpeOnly?: boolean; now?: Date }
+export interface StatsOptions { dimension: StatsDimension; period: StatsPeriodKind; anchor: string | null; threshold: number; rpeOnly?: boolean; scope?: StatsScope; now?: Date }
 
 /** With `rpeOnly`, only sets at or above the threshold count; periods and sessions stay navigable. */
-function counts(row: StatsSetRow, { threshold, rpeOnly }: StatsOptions): boolean {
-  return !rpeOnly || (row.rpe != null && row.rpe >= threshold);
+function counts(row: StatsSetRow, { threshold, rpeOnly, scope = 'all' }: StatsOptions): boolean {
+  return inScope(row, scope) && (!rpeOnly || (row.rpe != null && row.rpe >= threshold));
+}
+
+/** Mobility is any exercise with the mobility category, main or extra; everything else is strength work. */
+export function isMobilityStatsRow(row: Pick<StatsSetRow, 'category' | 'extraCategories'>): boolean {
+  if (row.category === 'mobility') return true;
+  try {
+    const extras: unknown = JSON.parse(row.extraCategories ?? '[]');
+    return Array.isArray(extras) && extras.includes('mobility');
+  } catch {
+    return false;
+  }
+}
+
+function inScope(row: StatsSetRow, scope: StatsScope): boolean {
+  if (scope === 'all') return true;
+  const mobility = isMobilityStatsRow(row);
+  if (scope === 'strength') return !mobility;
+  if (!mobility) return false;
+  return scope === 'mobility' || row.mobilityMode === scope.slice('mobility-'.length);
 }
 
 function localDateKey(date: Date): string {

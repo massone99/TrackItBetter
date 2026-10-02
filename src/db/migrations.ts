@@ -181,6 +181,11 @@ UPDATE exercise SET movement_tags = json_array(trim(movement_tag))
 PRAGMA user_version = 9;
 `;
 
+const mobilityModeSchema = `
+ALTER TABLE exercise ADD COLUMN mobility_mode TEXT CHECK (mobility_mode IN ('active', 'passive'));
+PRAGMA user_version = 11;
+`;
+
 /** Applies numbered, local-first SQLite schema migrations once per database. */
 export async function migrateDatabase(database: SQLiteDatabase): Promise<void> {
   await database.execAsync('PRAGMA foreign_keys = ON;');
@@ -255,6 +260,12 @@ export async function migrateDatabase(database: SQLiteDatabase): Promise<void> {
         END;
         PRAGMA user_version = 10;
       `);
+    });
+  }
+
+  if (version < 11) {
+    await database.withTransactionAsync(async () => {
+      await database.execAsync(mobilityModeSchema);
     });
   }
 }

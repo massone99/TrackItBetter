@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { normalizeVideoUrl } from '../../shared/utils/url';
 import { EXERCISE_CATEGORIES, type ExerciseCategory } from './categories';
 import type { CreateCustomExerciseInput, ExerciseMetric } from './customRepository';
+import { MOBILITY_MODES, mobilityModeFor } from './mobilityMode';
 import { MOVEMENT_GROUP_IDS, MOVEMENT_TAGS, exerciseMovementTags, normalizeMovementTags, type MovementGroupId } from './movementCatalog';
 
 export { EXERCISE_CATEGORIES };
@@ -21,6 +22,7 @@ export const exerciseFormSchema = z.object({
   movementTag: z.string().nullable(),
   movementTags: z.array(z.string()).optional(),
   movementGroup: z.enum(MOVEMENT_GROUP_IDS as unknown as [MovementGroupId, ...MovementGroupId[]]).nullable(),
+  mobilityMode: z.enum(MOBILITY_MODES).nullable().optional(),
 });
 
 export type ExerciseFormValues = z.infer<typeof exerciseFormSchema>;
@@ -28,7 +30,7 @@ export type ExerciseFormValues = z.infer<typeof exerciseFormSchema>;
 export type ExerciseFormInput = z.input<typeof exerciseFormSchema>;
 
 export const EMPTY_EXERCISE_FORM: ExerciseFormValues = {
-  name: '', metric: 'reps', unilateral: false, category: 'push', extraCategories: [], equipment: '', cues: '', demoUrl: '', movementTag: null, movementGroup: null,
+  name: '', metric: 'reps', unilateral: false, category: 'push', extraCategories: [], equipment: '', cues: '', demoUrl: '', movementTag: null, movementGroup: null, mobilityMode: null,
 };
 
 export interface StoredExercise {
@@ -43,6 +45,7 @@ export interface StoredExercise {
   movementTag: string | null;
   movementTags?: string | null;
   movementGroup: string | null;
+  mobilityMode?: string | null;
 }
 
 function readList(value: string): string[] {
@@ -81,6 +84,7 @@ export function exerciseToFormValues(exercise: StoredExercise): ExerciseFormValu
     movementTag: tags[0] ?? null,
     movementTags: tags,
     movementGroup: (MOVEMENT_GROUP_IDS as readonly string[]).includes(exercise.movementGroup ?? '') ? exercise.movementGroup as MovementGroupId : null,
+    mobilityMode: mobilityModeFor({ category, extraCategories: extras.filter((item) => item !== category) }, exercise.mobilityMode),
   };
 }
 
@@ -99,6 +103,7 @@ export function formValuesToInput(values: ExerciseFormValues): CreateCustomExerc
     movementTag: tags[0] ?? null,
     movementTags: tags,
     movementGroup: values.movementGroup,
+    mobilityMode: mobilityModeFor(values, values.mobilityMode),
   };
 }
 

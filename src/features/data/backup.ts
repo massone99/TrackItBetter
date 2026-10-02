@@ -48,6 +48,8 @@ const exerciseSchema = z.object({
     }
   }),
   movementGroup: z.enum(MOVEMENT_GROUP_IDS).nullable().optional(),
+  // Added in schema v11; older backups leave it unspecified.
+  mobilityMode: z.enum(['active', 'passive']).nullable().optional(),
   primaryMuscles: z.string(),
   secondaryMuscles: z.string(),
   equipment: z.string(),
