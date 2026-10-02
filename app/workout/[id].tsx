@@ -45,6 +45,7 @@ import {
 } from '../../src/features/session/repository';
 import type { ActiveWorkout, PreviousPerformance, PreviousSetValues, RemovedRows, SessionExercise, SessionSet } from '../../src/features/session/repository';
 import { defaultHoldMode, rememberHoldMode, useHoldTimer, type ActiveHold } from '../../src/features/session/useHoldTimer';
+import { nextFolded } from '../../src/domain/folding';
 import { adjustedRest, REST_STEP_SEC } from '../../src/domain/restTimer';
 import { ExerciseBlockField } from '../../src/features/session/ExerciseBlockField';
 import { blockOf, usesBlocks, type Block } from '../../src/domain/blocks';
@@ -109,6 +110,7 @@ export default function WorkoutScreen() {
   useEffect(() => { workoutRef.current = workout; }, [workout]);
   const [collapsedEntries, setCollapsedEntries] = useState<ReadonlyMap<string, boolean>>(new Map());
   const completionState = useRef<ReadonlyMap<string, boolean>>(new Map());
+  const loadedOnce = useRef(false);
   const [previous, setPrevious] = useState<Map<string, PreviousPerformance>>(new Map());
   const [loading, setLoading] = useState(true);
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -173,11 +175,10 @@ export default function WorkoutScreen() {
     if (!next) return;
     const before = completionState.current;
     const completed = new Map(next.exercises.map((exercise) => [exercise.entryId, exercise.sets.length > 0 && exercise.sets.every((set) => Boolean(set.completedAt))] as const));
-    setCollapsedEntries((current) => new Map(next.exercises.map((exercise) => {
-      const allDone = completed.get(exercise.entryId)!;
-      // Keep manual folding, while completing an exercise folds it and adding/reopening a set unfolds it.
-      return [exercise.entryId, before.get(exercise.entryId) !== allDone ? allDone : current.get(exercise.entryId) ?? allDone] as const;
-    })));
+    const initial = !loadedOnce.current;
+    loadedOnce.current = true;
+    // Exercises start folded; see nextFolded for what keeps or changes that.
+    setCollapsedEntries((current) => nextFolded(completed, before, current, initial));
     completionState.current = completed;
     setPrevious(await getPreviousPerformance(next.exercises.map((exercise) => exercise.exerciseId), next.id));
     const found = await getSessionRecords(next.id).catch(() => null);
@@ -698,6 +699,8 @@ export default function WorkoutScreen() {
         onClose={() => setEmomSetupFor(null)}
         onStart={(config) => {
           setEmomSetupFor(null);
+          // The rounds fill this exercise's sets: show them.
+          setCollapsedEntries((current) => new Map(current).set(config.entryId, false));
           hold.stop();
           skipRest();
           setRpePromptFor(null);
