@@ -24,7 +24,7 @@ export default function TabLayout() {
   const expanded = useWindowDimensions().width >= 768;
   // Labels follow the system font size (up to the app-wide cap), so the bar grows with them.
   const labelScale = Math.min(PixelRatio.getFontScale(), MAX_FONT_SCALE);
-  const barHeight = Math.max(72, Math.round(76 * scale)) + Math.round(16 * scale * (labelScale - 1) * 2.5);
+  const barHeight = Math.max(76, Math.round(84 * scale)) + Math.round(16 * scale * (labelScale - 1) * 2.5);
   return (
     <Tabs
       screenOptions={({ route }) => ({
@@ -35,7 +35,7 @@ export default function TabLayout() {
         tabBarVariant: expanded ? "material" : "uikit",
         tabBarLabelPosition: "below-icon",
         tabBarItemStyle: { minHeight: MIN_TOUCH_TARGET, paddingVertical: 4 },
-        tabBarIconStyle: { height: 32, width: 56 },
+        tabBarIconStyle: { height: 30, width: 56 },
         tabBarStyle: expanded ? {
           backgroundColor: palette.tabBar,
           borderRightWidth: 1,

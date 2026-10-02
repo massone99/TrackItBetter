@@ -1037,7 +1037,7 @@ function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, previous
               {/* Same columns as the row above: the load sits under the value, the menu under the check. */}
               <View style={styles.loadColumn}>
                 {loaded ? <View>
-                  <Label numberOfLines={1} style={styles.loadLabel}>{t('logger.loadCol')}</Label>
+                  <View pointerEvents="none" style={styles.loadLabel}><Label numberOfLines={1}>{t('logger.loadCol')}</Label></View>
                   <LoadEditor sideLabel={sideLabel} key={`${set.id}:${set.addedLoadKg}`} setId={set.id} value={set.addedLoadKg} disabled={done} onSaved={onSaved} />
                 </View> : null}
               </View>
@@ -1252,7 +1252,8 @@ function TimerBar({ emom, hold, restSeconds, onFinishHold, onExtend, onSkip }: {
   if (keyboardVisible || (hold === null && restSeconds === null && emom === null)) return null;
   if (emom) {
     return (
-      <View style={[styles.timerBar, styles.emomBar, { backgroundColor: palette.hero, paddingBottom: insets.bottom + 14 }]}>
+      <View style={[styles.timerBar, { backgroundColor: palette.hero, paddingBottom: insets.bottom + 14 }]}>
+        <View style={[styles.timerInner, styles.emomInner]}>
         <View style={styles.emomRow}>
           <View style={styles.flex}>
             <Text style={[styles.timerLabel, { color: palette.heroText }]}>{emom.label}</Text>
@@ -1265,6 +1266,7 @@ function TimerBar({ emom, hold, restSeconds, onFinishHold, onExtend, onSkip }: {
           <TimerAction label="−" accessibilityLabel={`${emom.valueLabel} −`} onPress={() => emom.onChange(-1)} />
           <Text accessibilityLiveRegion="polite" style={[styles.emomValueText, { color: palette.heroText }]}>{emom.value}</Text>
           <TimerAction label="+" accessibilityLabel={`${emom.valueLabel} +`} onPress={() => emom.onChange(1)} />
+        </View>
         </View>
       </View>
     );
@@ -1280,6 +1282,7 @@ function TimerBar({ emom, hold, restSeconds, onFinishHold, onExtend, onSkip }: {
         : t('logger.holding');
   return (
     <View style={[styles.timerBar, { backgroundColor: palette.hero, paddingBottom: insets.bottom + 14 }]}>
+      <View style={styles.timerInner}>
       <View style={styles.flex}>
         <Text style={[styles.timerLabel, { color: palette.heroText }]}>{label}</Text>
         <Text accessibilityLiveRegion="polite" style={[styles.timerValue, { color: palette.heroText }]}>{hold ? holdDisplay(hold) : formatClock(restSeconds ?? 0)}</Text>
@@ -1292,6 +1295,7 @@ function TimerBar({ emom, hold, restSeconds, onFinishHold, onExtend, onSkip }: {
           <TimerAction label={t('logger.skip')} filled onPress={onSkip} />
         </View>
       )}
+      </View>
     </View>
   );
 }
@@ -1306,7 +1310,7 @@ function TimerAction({ label, filled = false, accessibilityLabel, onPress }: { l
       onPress={() => { tapFeedback(); onPress(); }}
       style={({ pressed }) => [styles.timerAction, { backgroundColor: filled ? palette.heroText : 'rgba(255,255,255,0.16)', opacity: pressed ? 0.8 : 1 }]}
     >
-      <Text style={[styles.timerActionText, { color: filled ? palette.hero : palette.heroText }]}>{label}</Text>
+      <Text style={[styles.timerActionText, label.length === 1 && styles.timerActionSymbol, { color: filled ? palette.hero : palette.heroText }]}>{label}</Text>
     </Pressable>
   );
 }
@@ -1412,7 +1416,7 @@ const baseStyles = StyleSheet.create({
   setRow: { flexDirection: 'row', alignItems: 'center', minHeight: 60, paddingHorizontal: 4 },
   setDetailRow: { flexDirection: 'row', alignItems: 'center', paddingLeft: 48, paddingRight: 4 },
   loadColumn: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  loadLabel: { position: 'absolute', right: '100%', top: 0, bottom: 0, marginRight: 8, textAlignVertical: 'center' },
+  loadLabel: { position: 'absolute', right: '100%', top: 0, bottom: 0, marginRight: 8, justifyContent: 'center' },
   loadMenu: { alignItems: 'center' },
   swipeHint: { flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: 14, paddingHorizontal: 14, paddingVertical: 10 },
   swipeHintText: { flex: 1, fontFamily: fonts.medium, fontSize: 14 },
@@ -1435,14 +1439,16 @@ const baseStyles = StyleSheet.create({
   addSet: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, minHeight: 48, borderRadius: 12, borderWidth: 1, marginTop: 8 },
   addSetText: { fontFamily: fonts.semibold, fontSize: 15 },
   footerActions: { gap: 10, marginTop: 4 },
-  timerBar: { position: 'absolute', left: 0, right: 0, bottom: 0, flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 22, paddingTop: 14, borderTopLeftRadius: 24, borderTopRightRadius: 24 },
+  timerBar: { position: 'absolute', left: 0, right: 0, bottom: 0, alignItems: 'center', paddingHorizontal: 22, paddingTop: 14, borderTopLeftRadius: 24, borderTopRightRadius: 24 },
+  timerInner: { width: '100%', maxWidth: 640, flexDirection: 'row', alignItems: 'center', gap: 12 },
   timerLabel: { fontFamily: fonts.medium, fontSize: 14, opacity: 0.85 },
   timerValue: { fontFamily: fonts.display, fontSize: 46, lineHeight: 50, fontVariant: ['tabular-nums'] },
   timerActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  emomBar: { flexDirection: 'column', alignItems: 'stretch', gap: 8 },
+  emomInner: { flexDirection: 'column', alignItems: 'stretch', gap: 8 },
   emomRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   emomValueText: { fontFamily: fonts.display, fontSize: 26, lineHeight: 30, minWidth: 72, textAlign: 'center', fontVariant: ['tabular-nums'] },
   timerAction: { minWidth: 64, minHeight: 48, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10, alignItems: 'center', justifyContent: 'center' },
   timerActionText: { fontFamily: fonts.semibold, fontSize: 15 },
+  timerActionSymbol: { fontSize: 26, lineHeight: 30 },
   // The surrounding box carries the border, so the browser focus outline is replaced by it.
 });
