@@ -1,4 +1,4 @@
-import { and, asc, count, desc, eq, gt, inArray, isNotNull, isNull, max, or } from 'drizzle-orm';
+import { and, asc, count, desc, eq, gt, gte, inArray, isNotNull, isNull, max, or } from 'drizzle-orm';
 import * as Crypto from 'expo-crypto';
 import { db, initializeDatabase } from '../../db/client';
 import { bodyMeasurements, exerciseEntries, exercises, formCheckVideos, trainingSets, workouts } from '../../db/schema';
@@ -408,6 +408,38 @@ export async function completeSet(setId: string): Promise<void> {
   await initializeDatabase();
   await requireActiveSet(setId);
   await db.update(trainingSets).set({ completedAt: new Date() }).where(eq(trainingSets.id, setId));
+}
+
+/** Rounds of an EMOM already recorded: completed working sets of the entry since round 1 began (a pair counts once). */
+export async function countEmomRounds(entryId: string, since: Date): Promise<number> {
+  await initializeDatabase();
+  const rows = await db.select({ id: trainingSets.id, pairId: trainingSets.pairId }).from(trainingSets)
+    .where(and(eq(trainingSets.entryId, entryId), eq(trainingSets.kind, 'working'), gte(trainingSets.completedAt, since)));
+  return new Set(rows.map((row) => row.pairId ?? row.id)).size;
+}
+
+/**
+ * Records one EMOM round as a completed working set at the round's end: the next planned set of the
+ * exercise not done yet is used first, otherwise a new set (a left/right pair when unilateral) is added.
+ */
+export async function recordEmomRound(entryId: string, field: 'reps' | 'durationSec', value: number, at: Date): Promise<void> {
+  await initializeDatabase();
+  if (!Number.isInteger(value) || value < 0) throw new Error('Invalid workout set value');
+  const [entry] = await db.select({ endedAt: workouts.endedAt }).from(exerciseEntries)
+    .innerJoin(workouts, eq(exerciseEntries.workoutId, workouts.id)).where(eq(exerciseEntries.id, entryId));
+  if (!entry || entry.endedAt) throw new Error('Use the completed workout editor');
+  const sets = await db.select().from(trainingSets).where(eq(trainingSets.entryId, entryId)).orderBy(asc(trainingSets.index));
+  const open = groupSets(sets).find((group) => group[0].kind === 'working' && group.every((set) => !set.completedAt));
+  const ids = open ? open.map((set) => set.id) : await (async () => {
+    const created = await addSet(entryId);
+    const [first] = await db.select({ pairId: trainingSets.pairId }).from(trainingSets).where(eq(trainingSets.id, created));
+    return first?.pairId
+      ? (await db.select({ id: trainingSets.id }).from(trainingSets).where(eq(trainingSets.pairId, first.pairId))).map((row) => row.id)
+      : [created];
+  })();
+  await db.update(trainingSets)
+    .set({ ...(field === 'reps' ? { reps: value } : { durationSec: value }), kind: 'working', completedAt: at })
+    .where(inArray(trainingSets.id, ids));
 }
 
 export async function finishWorkout(workoutId: string): Promise<void> {

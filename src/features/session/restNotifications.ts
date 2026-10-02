@@ -70,3 +70,37 @@ export async function cancelRestFinishedNotification(): Promise<void> {
   RestTimer?.hide();
   await cancelExistingRestAlerts();
 }
+
+async function cancelExistingEmomAlerts(): Promise<void> {
+  const requests = await Notifications.getAllScheduledNotificationsAsync();
+  await Promise.all(requests
+    .filter((request) => request.content.data?.emomTimer === true)
+    .map((request) => Notifications.cancelScheduledNotificationAsync(request.identifier)));
+}
+
+/** One alert per round change, so a phone in a pocket or in standby still marks every minute. */
+export async function scheduleEmomNotifications(alerts: readonly { at: number; title: string; body: string }[]): Promise<void> {
+  if (Platform.OS === 'web') return;
+  await cancelExistingEmomAlerts();
+  if (!(await notificationsAllowed())) return;
+  if (Platform.OS === 'android') {
+    await Notifications.setNotificationChannelAsync(REST_CHANNEL_ID, {
+      name: 'Workout rest timer',
+      importance: Notifications.AndroidImportance.HIGH,
+      vibrationPattern: [0, 400, 200, 400, 200, 400],
+      lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
+    });
+  }
+  const now = Date.now();
+  for (const alert of alerts.filter((item) => item.at > now).slice(0, 60)) {
+    await Notifications.scheduleNotificationAsync({
+      content: { title: alert.title, body: alert.body, sound: true, autoDismiss: true, priority: Notifications.AndroidNotificationPriority.MAX, data: { emomTimer: true } },
+      trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: alert.at, ...(Platform.OS === 'android' ? { channelId: REST_CHANNEL_ID } : {}) },
+    });
+  }
+}
+
+export async function cancelEmomNotifications(): Promise<void> {
+  if (Platform.OS === 'web') return;
+  await cancelExistingEmomAlerts();
+}

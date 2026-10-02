@@ -21,6 +21,7 @@ import type { RecordKind } from '../../src/features/analytics/records';
 import { ExerciseRestFields } from '../../src/features/session/ExerciseRestFields';
 import { HoldDurationField } from '../../src/shared/components/DateTimePickers';
 import {
+  updateEntryNote,
   addExerciseToWorkout,
   addSet,
   completeSet,
@@ -44,6 +45,9 @@ import {
 } from '../../src/features/session/repository';
 import type { ActiveWorkout, PreviousPerformance, PreviousSetValues, RemovedRows, SessionExercise, SessionSet } from '../../src/features/session/repository';
 import { defaultHoldMode, rememberHoldMode, useHoldTimer, type ActiveHold } from '../../src/features/session/useHoldTimer';
+import { clearEmomPlan, useEmom, type EmomAlertText } from '../../src/features/session/useEmom';
+import { EmomSetupSheet, emomFieldFor } from '../../src/features/session/EmomSetupSheet';
+import { emomLabel, type EmomPhase, type EmomPlan } from '../../src/domain/emom';
 import type { HoldMode } from '../../src/domain/holdTimer';
 import { playBeep } from '../../src/shared/audio/beeps';
 import {
@@ -97,6 +101,8 @@ export default function WorkoutScreen() {
   const itemExiting = duration(200) ? FadeOutLeft.duration(duration(200)) : undefined;
   const rowLayout = duration(240) ? LinearTransition.duration(duration(240)) : undefined;
   const [workout, setWorkout] = useState<ActiveWorkout | null>(null);
+  const workoutRef = useRef<ActiveWorkout | null>(null);
+  useEffect(() => { workoutRef.current = workout; }, [workout]);
   const [collapsedEntries, setCollapsedEntries] = useState<ReadonlyMap<string, boolean>>(new Map());
   const completionState = useRef<ReadonlyMap<string, boolean>>(new Map());
   const [previous, setPrevious] = useState<Map<string, PreviousPerformance>>(new Map());
@@ -128,6 +134,8 @@ export default function WorkoutScreen() {
   const [savedTo, setSavedTo] = useState<{ id: string; name: string } | null>(null);
   const [discardOpen, setDiscardOpen] = useState(false);
   const [optionsFor, setOptionsFor] = useState<SessionExercise | null>(null);
+  const [emomSetupFor, setEmomSetupFor] = useState<SessionExercise | null>(null);
+  const [emomNotice, setEmomNotice] = useState<string | null>(null);
   // PRs set so far in this workout: record kinds per set, and exercises with a volume mini PR.
   const recordCount = useRef<number | null>(null);
   const [records, setRecords] = useState<{ sets: Map<string, RecordKind[]>; volume: Set<string> }>(() => ({ sets: new Map(), volume: new Set() }));
@@ -194,6 +202,25 @@ export default function WorkoutScreen() {
     void load();
     return () => { mounted = false; };
   }, [id, refresh]);
+
+  const emomAlerts = useMemo<EmomAlertText>(() => ({
+    round: (round, rounds) => ({ title: t('emom.notifyTitle'), body: t('emom.notifyRound', { round, rounds }) }),
+    done: { title: t('emom.notifyTitle'), body: t('emom.notifyDone') },
+  }), [t]);
+  const emom = useEmom(id && id !== 'new' ? id : undefined, {
+    alerts: emomAlerts,
+    onRecorded: () => { if (id) void refresh(id); },
+    onFinished: (plan: EmomPlan) => {
+      // The sets carry the numbers; the note keeps the format they were done in.
+      const exercise = workoutRef.current?.exercises.find((item) => item.entryId === plan.entryId);
+      const label = emomLabel(plan);
+      if (exercise && !(exercise.notes ?? '').includes(label)) {
+        void updateEntryNote(plan.entryId, exercise.notes ? `${exercise.notes}\n${label}` : label).then(() => { if (id) void refresh(id); }).catch(() => undefined);
+      }
+      setEmomNotice(t('emom.finished', { count: plan.rounds }));
+    },
+  });
+  const emomEntryId = emom.plan?.entryId ?? null;
 
   // Returning from the form-check or new-exercise screens brings back clips and exercises added there.
   useFocusEffect(useCallback(() => {
@@ -340,6 +367,8 @@ export default function WorkoutScreen() {
    */
   const afterSetDone = (setId: string) => {
     const exercise = workout?.exercises.find((item) => item.sets.some((set) => set.id === setId));
+    // While an EMOM runs its clock is the rest: no rest timer on top of it.
+    if (emomEntryId) return;
     const marked = workout?.exercises.map((item) => ({ ...item, sets: item.sets.map((set) => set.id === setId ? { ...set, completedAt: new Date() } : set) })) ?? [];
     const finished = exercise?.sets.find((s) => s.id === setId);
     if (finished?.pairId && exercise?.sets.some((s) => s.pairId === finished.pairId && s.id !== setId && !s.completedAt)) {
@@ -359,7 +388,8 @@ export default function WorkoutScreen() {
     tapFeedback('success');
     await completeSet(set.id);
     afterSetDone(set.id);
-    if (readBooleanPreference(RPE_PROMPT_KEY, true)) setRpePromptFor(set.id);
+    const inEmom = workout?.exercises.some((item) => item.entryId === emomEntryId && item.sets.some((s) => s.id === set.id));
+    if (!inEmom && readBooleanPreference(RPE_PROMPT_KEY, true)) setRpePromptFor(set.id);
     if (workout) await refresh(workout.id);
   };
 
@@ -397,7 +427,7 @@ export default function WorkoutScreen() {
   };
 
   const startHoldFor = (set: SessionSet) => {
-    if (hold.active) return;
+    if (hold.active || emom.plan) return;
     skipRest();
     hold.start(set.id, holdModeFor(set.id), set.durationSec ?? 30);
   };
@@ -427,6 +457,7 @@ export default function WorkoutScreen() {
     setFinishOpen(false);
     void Speech.stop();
     void cancelRestFinishedNotification().catch(() => undefined);
+    if (emom.plan) await emom.stop();
     try { await finishWorkout(workout.id); }
     catch (error) { Alert.alert('Completa la coppia L / R', error instanceof Error ? error.message : String(error)); return; }
     router.replace({ pathname: '/workout/summary/[id]', params: { id: workout.id } });
@@ -438,6 +469,7 @@ export default function WorkoutScreen() {
     hold.stop();
     skipRest();
     void Speech.stop();
+    clearEmomPlan(workout.id);
     await deleteWorkout(workout.id);
     router.replace('/(tabs)/today');
   };
@@ -445,6 +477,7 @@ export default function WorkoutScreen() {
   const removeExercise = async (exercise: SessionExercise) => {
     setRemoveExerciseFor(null);
     if (!workout) return;
+    if (exercise.entryId === emomEntryId) await emom.stop();
     await removeExerciseEntry(exercise.entryId);
     await refresh(workout.id);
   };
@@ -454,6 +487,7 @@ export default function WorkoutScreen() {
     setOptionsFor(null);
     if (!workout) return;
     if (exercise.sets.some((set) => set.clipCount > 0)) { setRemoveExerciseFor(exercise); return; }
+    if (exercise.entryId === emomEntryId) await emom.stop();
     offerUndo(t('logger.removedExercise', { name: exercise.name }), await removeExerciseEntryWithUndo(exercise.entryId));
     await refresh(workout.id);
   };
@@ -481,7 +515,7 @@ export default function WorkoutScreen() {
 
   return (
     <View style={[styles.root, { backgroundColor: palette.background }]}>
-      <Screen scrollRef={scrollRef} contentContainerStyle={{ paddingBottom: 150 }}>
+      <Screen scrollRef={scrollRef} contentContainerStyle={{ paddingBottom: emom.plan ? 220 : 150 }}>
         <PageHeading
           title={workout.name}
           subtitle={t('workout.inProgress', { elapsed })}
@@ -584,6 +618,7 @@ export default function WorkoutScreen() {
             onToggleWarmup={(set) => void toggleWarmup(set)}
             setRecords={records.sets}
             volumeRecord={records.volume.has(exercise.exerciseId)}
+            emomLabel={exercise.entryId === emomEntryId && emom.phase ? emomBadge(emom.phase, emom.plan!, t) : null}
             supersetLabel={exercise.groupId ? t('superset.label', { letter: supersetLetters.get(exercise.groupId) ?? 'A' }) : null}
             onCopyPrevious={(set, values) => { tapFeedback(); void copyValuesToSet(set.id, values).then(() => refresh(workout.id)); }}
             onUncomplete={(set) => void uncompleteSet(set.id).then(() => refresh(workout.id))}
@@ -614,6 +649,14 @@ export default function WorkoutScreen() {
       </Screen>
 
       <TimerBar
+        emom={emom.plan && emom.phase ? {
+          label: emomBarLabel(emom.phase, emom.plan, t),
+          display: emom.phase.phase === 'done' ? '0:00' : emom.phase.phase === 'countdown' ? String(emom.phase.secondsLeft) : formatClock(emom.phase.secondsLeft),
+          value: emom.plan.field === 'durationSec' ? formatClock(emom.plan.value) : t('emom.reps', { count: emom.plan.value }),
+          valueLabel: t('emom.thisRound'),
+          onChange: (delta: number) => emom.setValue((emom.plan?.value ?? 0) + delta * (emom.plan?.field === 'durationSec' ? 5 : 1)),
+          onStop: () => void emom.stop(),
+        } : null}
         hold={hold.active}
         restSeconds={restSeconds}
         onFinishHold={() => void finishCurrentHold()}
@@ -629,9 +672,22 @@ export default function WorkoutScreen() {
           if (removed) void restoreRemoved(removed).then(() => refresh(workout.id));
         }}
         onHide={hideUndo}
-        bottomOffset={hold.active || restSeconds !== null ? 110 : 0}
+        bottomOffset={emom.plan ? 180 : hold.active || restSeconds !== null ? 110 : 0}
       />
+      <Toast message={emomNotice} onHide={() => setEmomNotice(null)} />
 
+      <EmomSetupSheet
+        exercise={emomSetupFor}
+        onClose={() => setEmomSetupFor(null)}
+        onStart={(config) => {
+          setEmomSetupFor(null);
+          hold.stop();
+          skipRest();
+          setRpePromptFor(null);
+          if (emom.plan) void emom.stop().then(() => emom.start(config));
+          else emom.start(config);
+        }}
+      />
       <SaveToProgramSheet
         visible={saveOpen}
         defaultName={workout.name}
@@ -684,6 +740,19 @@ export default function WorkoutScreen() {
         ) : null}
         {optionsFor ? (
           <ExerciseRestFields key={`rest-${optionsFor.entryId}`} entryId={optionsFor.entryId} exerciseId={optionsFor.exerciseId} onSaved={() => void refresh(workout.id)} />
+        ) : null}
+        {optionsFor && emomFieldFor(optionsFor.metric) ? (
+          <ActionButton
+            icon="timer-outline"
+            label={optionsFor.entryId === emomEntryId ? t('emom.stop') : t('emom.open')}
+            secondary
+            onPress={() => {
+              const exercise = optionsFor;
+              setOptionsFor(null);
+              if (exercise.entryId === emomEntryId) void emom.stop();
+              else setEmomSetupFor(exercise);
+            }}
+          />
         ) : null}
         <ActionButton
           icon="swap-horizontal"
@@ -762,7 +831,7 @@ export default function WorkoutScreen() {
 /** Rest end times by workout id, so leaving and reopening the workout keeps the same countdown. */
 const runningRests = new Map<string, number>();
 
-function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, previous, hold, onChange, onSetValue, onComplete, onStartHold, onFinishHold, onAddSet, onSetOptions, onUncomplete, onRemoveSet, onSwiped, rpePromptFor, onRpe, onDismissRpe, onOptions, onSaved, onToggleWarmup, onCopyPrevious, setRecords, volumeRecord, supersetLabel }: {
+function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, previous, hold, onChange, onSetValue, onComplete, onStartHold, onFinishHold, onAddSet, onSetOptions, onUncomplete, onRemoveSet, onSwiped, rpePromptFor, onRpe, onDismissRpe, onOptions, onSaved, onToggleWarmup, onCopyPrevious, setRecords, volumeRecord, supersetLabel, emomLabel: emomBadgeLabel }: {
   handle?: ReactNode;
   exercise: SessionExercise;
   collapsed: boolean;
@@ -789,6 +858,7 @@ function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, previous
   setRecords: ReadonlyMap<string, RecordKind[]>;
   volumeRecord: boolean;
   supersetLabel: string | null;
+  emomLabel?: string | null;
 }) {
   const styles = useScaledStyles(baseStyles);
   const { t } = useTranslation();
@@ -829,6 +899,7 @@ function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, previous
           style={styles.flex}
         >
           {supersetLabel ? <Label style={{ color: palette.accentStrong }}>{supersetLabel}</Label> : null}
+          {emomBadgeLabel ? <Label accessibilityLiveRegion="polite" style={{ color: palette.accentStrong }}>{emomBadgeLabel}</Label> : null}
           <View style={styles.nameRow}>
             <Heading style={[styles.exerciseName, styles.flex]}>{exercise.name}</Heading>
             <Icon name={collapsed ? 'chevron-down' : 'chevron-up'} size={18} color={palette.textMuted} />
@@ -1130,7 +1201,29 @@ function holdDisplay(hold: ActiveHold): string {
   return formatClock(hold.phase.elapsed);
 }
 
-function TimerBar({ hold, restSeconds, onFinishHold, onExtend, onSkip }: {
+interface EmomBar {
+  label: string;
+  display: string;
+  value: string;
+  valueLabel: string;
+  onChange: (delta: number) => void;
+  onStop: () => void;
+}
+
+/** "Round 3 / 10" on the card while an EMOM runs. */
+function emomBadge(phase: EmomPhase, plan: EmomPlan, t: (key: string, options?: Record<string, unknown>) => string): string {
+  if (phase.phase === 'running') return t('emom.badge', { round: phase.round, rounds: plan.rounds });
+  return t('emom.badgeReady', { rounds: plan.rounds });
+}
+
+function emomBarLabel(phase: EmomPhase, plan: EmomPlan, t: (key: string, options?: Record<string, unknown>) => string): string {
+  if (phase.phase === 'countdown') return t('emom.getReady');
+  if (phase.phase === 'running') return t('emom.round', { round: phase.round, rounds: plan.rounds });
+  return t('emom.notifyDone');
+}
+
+function TimerBar({ emom, hold, restSeconds, onFinishHold, onExtend, onSkip }: {
+  emom: EmomBar | null;
   hold: ActiveHold | null;
   restSeconds: number | null;
   onFinishHold: () => void;
@@ -1143,7 +1236,26 @@ function TimerBar({ hold, restSeconds, onFinishHold, onExtend, onSkip }: {
   const insets = useAppInsets();
   // The bar floats over the list; while typing it would sit on top of the focused input.
   const keyboardVisible = useKeyboardVisible();
-  if (keyboardVisible || (hold === null && restSeconds === null)) return null;
+  if (keyboardVisible || (hold === null && restSeconds === null && emom === null)) return null;
+  if (emom) {
+    return (
+      <View style={[styles.timerBar, styles.emomBar, { backgroundColor: palette.hero, paddingBottom: insets.bottom + 14 }]}>
+        <View style={styles.emomRow}>
+          <View style={styles.flex}>
+            <Text style={[styles.timerLabel, { color: palette.heroText }]}>{emom.label}</Text>
+            <Text accessibilityLiveRegion="polite" style={[styles.timerValue, { color: palette.heroText }]}>{emom.display}</Text>
+          </View>
+          <TimerAction label={t('emom.stopShort')} filled onPress={emom.onStop} />
+        </View>
+        <View style={styles.emomRow}>
+          <Text style={[styles.timerLabel, styles.flex, { color: palette.heroText }]}>{emom.valueLabel}</Text>
+          <TimerAction label="−" accessibilityLabel={`${emom.valueLabel} −`} onPress={() => emom.onChange(-1)} />
+          <Text accessibilityLiveRegion="polite" style={[styles.emomValueText, { color: palette.heroText }]}>{emom.value}</Text>
+          <TimerAction label="+" accessibilityLabel={`${emom.valueLabel} +`} onPress={() => emom.onChange(1)} />
+        </View>
+      </View>
+    );
+  }
   const holding = hold !== null;
   const countingDown = hold?.phase.phase === 'countdown';
   const label = !hold
@@ -1171,12 +1283,13 @@ function TimerBar({ hold, restSeconds, onFinishHold, onExtend, onSkip }: {
   );
 }
 
-function TimerAction({ label, filled = false, onPress }: { label: string; filled?: boolean; onPress: () => void }) {
+function TimerAction({ label, filled = false, accessibilityLabel, onPress }: { label: string; filled?: boolean; accessibilityLabel?: string; onPress: () => void }) {
   const styles = useScaledStyles(baseStyles);
   const { palette } = useTheme();
   return (
     <Pressable
       accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel}
       onPress={() => { tapFeedback(); onPress(); }}
       style={({ pressed }) => [styles.timerAction, { backgroundColor: filled ? palette.heroText : 'rgba(255,255,255,0.16)', opacity: pressed ? 0.8 : 1 }]}
     >
@@ -1310,7 +1423,10 @@ const baseStyles = StyleSheet.create({
   timerBar: { position: 'absolute', left: 0, right: 0, bottom: 0, flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 22, paddingTop: 14, borderTopLeftRadius: 24, borderTopRightRadius: 24 },
   timerLabel: { fontFamily: fonts.medium, fontSize: 14, opacity: 0.85 },
   timerValue: { fontFamily: fonts.display, fontSize: 46, lineHeight: 50, fontVariant: ['tabular-nums'] },
-  timerActions: { flexDirection: 'row', gap: 8 },
+  timerActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  emomBar: { flexDirection: 'column', alignItems: 'stretch', gap: 8 },
+  emomRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  emomValueText: { fontFamily: fonts.display, fontSize: 26, lineHeight: 30, minWidth: 72, textAlign: 'center', fontVariant: ['tabular-nums'] },
   timerAction: { minWidth: 64, minHeight: 48, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10, alignItems: 'center', justifyContent: 'center' },
   timerActionText: { fontFamily: fonts.semibold, fontSize: 15 },
   // The surrounding box carries the border, so the browser focus outline is replaced by it.
