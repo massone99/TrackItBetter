@@ -2,6 +2,21 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.8.0 - 2026-10-02
+
+### EMOM inside a workout
+
+- Start an EMOM from an exercise's options: rounds, interval (15 s to 5 min, 1 minute by
+  default) and reps or hold per round, prefilled from the planned sets still to do.
+- A 5-second countdown, beeps for the last 3 seconds and at each new round, and a bar with the
+  round, the time to the next one, − / + for this round's reps and Stop. The screen stays on.
+- Each round is saved as a completed set when it ends, at its real time, filling the planned
+  sets first (left/right pairs for unilateral exercises). Recorded rounds keep − / + for quick
+  corrections while the EMOM runs. No rest timer or RPE prompt interrupts it.
+- Leaving the screen, locking the phone or closing the app loses or doubles no round: missed
+  rounds are recorded on return. Alerts mark every round with the phone in standby.
+- At the end the exercise note gets "EMOM 10 × 1′". Stop keeps the finished rounds.
+
 ## 0.7.0 - 2026-10-02
 
 ### Active and passive mobility, totals by type
