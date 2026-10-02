@@ -17,7 +17,9 @@ function getModel(): Promise<TfliteModel> {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const [asset] = await Asset.loadAsync(require('../../../assets/models/movenet_thunder.tflite'));
     if (!asset.localUri) throw new Error('Could not load the pose model');
-    return loadTensorflowModel({ url: asset.localUri }, []);
+    // The native loader reads a URL: a bare path from the asset cache needs its file scheme.
+    const url = /^[a-z][a-z0-9+.-]*:/i.test(asset.localUri) ? asset.localUri : `file://${asset.localUri}`;
+    return loadTensorflowModel({ url }, []);
   })().catch((error: unknown) => {
     modelPromise = null;
     throw error;
@@ -27,14 +29,26 @@ function getModel(): Promise<TfliteModel> {
 
 export const poseDetectionAvailable = true;
 
+/** Runs one step of the analysis; a failure names the step, so the message on screen says where it broke. */
+async function step<T>(name: string, run: () => Promise<T> | T): Promise<T> {
+  try {
+    return await run();
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.warn(`[pose] ${name} failed:`, error);
+    throw new Error(`${name}: ${message}`);
+  }
+}
+
 /**
  * Detects the 17 body keypoints in an image file on-device. The image is letterboxed into the
  * model's 256×256 input so proportions are kept, and keypoints are mapped back to image pixels.
  */
 export async function detectPose(uri: string): Promise<{ pose: Pose; width: number; height: number }> {
-  const [model, data] = await Promise.all([getModel(), Skia.Data.fromURI(uri)]);
+  const model = await step('model', getModel);
+  const data = await step('read image', () => Skia.Data.fromURI(uri));
   const image = Skia.Image.MakeImageFromEncoded(data);
-  if (!image) throw new Error('Could not decode the image');
+  if (!image) throw new Error('decode image: the file could not be decoded');
   const width = image.width();
   const height = image.height();
 
@@ -45,7 +59,7 @@ export async function detectPose(uri: string): Promise<{ pose: Pose; width: numb
   const offsetY = (INPUT_SIZE - drawnHeight) / 2;
 
   const surface = Skia.Surface.Make(INPUT_SIZE, INPUT_SIZE);
-  if (!surface) throw new Error('Could not prepare the image for analysis');
+  if (!surface) throw new Error('prepare image: no drawing surface');
   const canvas = surface.getCanvas();
   canvas.clear(Skia.Color('black'));
   canvas.drawImageRect(image, Skia.XYWHRect(0, 0, width, height), Skia.XYWHRect(offsetX, offsetY, drawnWidth, drawnHeight), Skia.Paint());
@@ -56,10 +70,10 @@ export async function detectPose(uri: string): Promise<{ pose: Pose; width: numb
     colorType: ColorType.RGBA_8888,
     alphaType: AlphaType.Unpremul,
   });
-  if (!pixels) throw new Error('Could not read the image pixels');
+  if (!pixels) throw new Error('prepare image: pixels could not be read');
 
   const input = toModelInput(pixels, model.inputs[0]?.dataType ?? 'uint8');
-  const [output] = await model.run([input]);
+  const [output] = await step('run model', () => model.run([input]));
   const values = new Float32Array(output);
 
   // Output layout [1, 1, 17, 3]: y, x, score, normalized to the 256×256 input.

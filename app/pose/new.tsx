@@ -17,6 +17,12 @@ import { useTheme } from '../../src/shared/theme/ThemeProvider';
 import { fonts } from '../../src/shared/theme/typography';
 import { useScaledStyles } from '../../src/shared/theme/useScaledStyles';
 
+/** The message with the technical cause in brackets, so a failure on a phone can be reported. */
+function withDetail(message: string, failure: unknown): string {
+  const detail = failure instanceof Error ? failure.message : String(failure);
+  return detail ? `${message} (${detail})` : message;
+}
+
 /** `detected` is the model's own result, kept so manual corrections can be reset. */
 type Analysis = { image: PoseImage; pose: Pose; detected: Pose; kind: 'photo' | 'frame' };
 
@@ -53,9 +59,9 @@ export default function NewPoseCheckScreen() {
   useEffect(() => {
     if (!videoUri || !poseDetectionAvailable) return;
     let mounted = true;
-    void extractFrames(videoUri, Number(durationMs ?? 0)).then((extracted) => { if (mounted) setFrames(extracted); }).catch(() => undefined);
+    void extractFrames(videoUri, Number(durationMs ?? 0)).then((extracted) => { if (mounted) setFrames(extracted); }).catch((failure: unknown) => { if (mounted) setError(withDetail(t('pose.error'), failure)); });
     return () => { mounted = false; };
-  }, [videoUri, durationMs]);
+  }, [videoUri, durationMs, t]);
 
   const analyse = async (image: PoseImage, kind: 'photo' | 'frame') => {
     setBusy(t('pose.analysing'));
@@ -64,8 +70,8 @@ export default function NewPoseCheckScreen() {
       const { pose } = await detectPose(image.uri);
       setAnalysis({ image, pose, detected: pose, kind });
       setUndo([]);
-    } catch {
-      setError(t('pose.error'));
+    } catch (failure) {
+      setError(withDetail(t('pose.error'), failure));
     } finally {
       setBusy(null);
     }
@@ -88,8 +94,8 @@ export default function NewPoseCheckScreen() {
       setBusy(t('pose.analysing'));
       try {
         setFrames(await extractFrames(asset.uri, asset.duration ?? 0));
-      } catch {
-        setError(t('pose.error'));
+      } catch (failure) {
+        setError(withDetail(t('pose.error'), failure));
       } finally {
         setBusy(null);
       }
@@ -99,8 +105,8 @@ export default function NewPoseCheckScreen() {
     try {
       const image = await normalizeImage(asset.uri, asset.width, asset.height);
       await analyse(image, 'photo');
-    } catch {
-      setError(t('pose.error'));
+    } catch (failure) {
+      setError(withDetail(t('pose.error'), failure));
       setBusy(null);
     }
   };
