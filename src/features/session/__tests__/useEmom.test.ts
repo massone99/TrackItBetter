@@ -26,7 +26,7 @@ describe('useEmom', () => {
   it('after the app was closed, records the missed rounds once, each at its own end time', async () => {
     const now = 200_000;
     jest.setSystemTime(now);
-    // Round 1 typed 3 reps before the app was closed; rounds 2 and 3 ended while it was closed.
+    // 3 reps were set before the app was closed; rounds 1 to 3 ended while it was closed and all take that value.
     mockStore.set('workout.emom.w', JSON.stringify(plan({ value: 3 })));
     const onRecorded = jest.fn();
     const { result } = renderHook(() => useEmom('w', { onRecorded, onFinished: jest.fn(), alerts }));
@@ -34,8 +34,8 @@ describe('useEmom', () => {
     await act(async () => { await result.current.sync(); });
     await act(async () => { await result.current.sync(); });
 
-    expect(mockRecorded).toEqual([{ value: 3, at: 65_000 }, { value: 5, at: 125_000 }, { value: 5, at: 185_000 }]);
-    expect(result.current.plan?.value).toBe(5);
+    expect(mockRecorded).toEqual([{ value: 3, at: 65_000 }, { value: 3, at: 125_000 }, { value: 3, at: 185_000 }]);
+    expect(result.current.plan?.value).toBe(3);
     expect(onRecorded).toHaveBeenCalled();
   });
 
@@ -64,5 +64,23 @@ describe('useEmom', () => {
 
     expect(mockRecorded).toEqual([{ value: 4, at: 65_000 }]);
     expect(result.current.plan).toBeNull();
+  });
+
+  it('prefills each round with what the last one recorded, until it is changed by hand', async () => {
+    jest.setSystemTime(0);
+    const { result } = renderHook(() => useEmom('w', { onRecorded: jest.fn(), onFinished: jest.fn(), alerts }));
+    act(() => { result.current.start({ entryId: 'e', field: 'reps', rounds: 10, intervalSec: 60, target: 6 }); });
+    act(() => { result.current.setValue(4); });
+    jest.setSystemTime(65_000);
+    await act(async () => { await result.current.sync(); });
+    expect(result.current.plan?.value).toBe(4);
+    jest.setSystemTime(125_000);
+    await act(async () => { await result.current.sync(); });
+    act(() => { result.current.setValue(3); });
+    jest.setSystemTime(185_000);
+    await act(async () => { await result.current.sync(); });
+
+    expect(mockRecorded.map((round) => round.value)).toEqual([4, 4, 3]);
+    expect(result.current.plan?.value).toBe(3);
   });
 });

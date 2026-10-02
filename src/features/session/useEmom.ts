@@ -60,13 +60,13 @@ export function useEmom(workoutId: string | undefined, { onRecorded, onFinished,
       let changed = false;
       while (recorded < due) {
         const round = recorded + 1;
-        // The value typed during a round belongs to the first round still missing; any others use the target.
-        const value = changed ? current.target : current.value;
+        // Every round takes the value in the bar (read afresh, so a tap just before the minute counts), and that
+        // value stays as the prefill of the next round: what the last round recorded, until it is changed by hand.
+        const value = planRef.current?.value ?? current.value;
         await recordEmomRound(current.entryId, current.field, value, new Date(roundEndsAt(current, round)));
         recorded = round;
         changed = true;
       }
-      if (changed && planRef.current === current) save({ ...current, value: current.target });
       if (changed) callbacks.current.onRecorded();
       if (due >= current.rounds && planRef.current?.startedAt === current.startedAt) {
         save(null);
