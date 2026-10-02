@@ -2,6 +2,15 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.9.1 - 2026-10-02
+
+### Warm-up sets
+
+- Every exercise has an "Add warm-up" button next to "Add set". The warm-up goes after the warm-ups
+  already there and before the first working set (a left/right pair for unilateral exercises), and
+  stays out of statistics and records, as before. Tapping a set number still switches it between
+  warm-up and working.
+
 ## 0.9.0 - 2026-10-02
 
 ### Workout blocks and a calmer workout screen
