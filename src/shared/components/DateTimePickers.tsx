@@ -4,7 +4,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { useTheme } from '../theme/ThemeProvider';
 import { fonts } from '../theme/typography';
 import { useScaledStyles } from '../theme/useScaledStyles';
-import { ActionButton, Chip, Icon, IconButton, Sheet, Text, tapFeedback } from './ui';
+import { ActionButton, Chip, Icon, IconButton, NumberEdit, Sheet, Text, tapFeedback } from './ui';
 import { Wheel } from './Wheel';
 import { formatClock } from '../utils/format';
 
@@ -223,7 +223,8 @@ export function DurationField({ label, value, min = 0, max = 600, step = 5, pres
       {open ? <Sheet visible onClose={() => setOpen(false)} title={label}>
         <View style={styles.durationAdjust}>
           <IconButton icon="remove" label={t('durationPicker.decrease')} disabled={draft <= min} onPress={() => setDraft(draft - step)} />
-          <Text accessibilityLiveRegion="polite" style={[styles.durationValue, { color: palette.text }]}>{formatClock(draft)}</Text>
+          {/* Tap the time to type it: seconds ("75") or minutes and seconds ("1:15"). */}
+          <NumberEdit value={draft} display={formatClock(draft)} label={`${label} · ${t('durationPicker.typeHint')}`} clock onCommit={setDraft} style={[styles.durationValue, { color: palette.text }]} />
           <IconButton icon="add" label={t('durationPicker.increase')} disabled={draft >= upperBound} onPress={() => setDraft(draft + step)} />
         </View>
         {presets?.length ? <View style={styles.presets}>{presets.filter((preset) => preset >= min && preset <= upperBound).map((preset) => <Chip key={preset} label={formatClock(preset)} selected={value === preset} onPress={() => choose(preset)} />)}</View> : null}
