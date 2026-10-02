@@ -1033,11 +1033,16 @@ function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, previous
             </View>
             </SwipeableSetRow>
             <View style={styles.setDetailRow}>
-              {loaded ? <View style={styles.loadField}>
-                <Label>{t('logger.loadCol')}</Label>
-                <LoadEditor sideLabel={sideLabel} key={`${set.id}:${set.addedLoadKg}`} setId={set.id} value={set.addedLoadKg} disabled={done} onSaved={onSaved} />
-              </View> : <View style={styles.flex} />}
-              <IconButton icon="ellipsis-horizontal" label={t('logger.setOptions', { number: set.index })} tone="plain" size={36} onPress={() => onSetOptions(set)} />
+              {/* Same columns as the row above: the load sits under the value, the menu under the check. */}
+              <View style={styles.loadColumn}>
+                {loaded ? <View>
+                  <Label numberOfLines={1} style={styles.loadLabel}>{t('logger.loadCol')}</Label>
+                  <LoadEditor sideLabel={sideLabel} key={`${set.id}:${set.addedLoadKg}`} setId={set.id} value={set.addedLoadKg} disabled={done} onSaved={onSaved} />
+                </View> : null}
+              </View>
+              <View style={[styles.colAction, styles.loadMenu]}>
+                <IconButton icon="ellipsis-horizontal" label={t('logger.setOptions', { number: set.index })} tone="plain" size={36} onPress={() => onSetOptions(set)} />
+              </View>
             </View>
             {!done && lastTime ? (
               <Pressable
@@ -1404,8 +1409,10 @@ const baseStyles = StyleSheet.create({
   colAction: { width: 48 },
   setBlock: { borderRadius: 12, overflow: 'hidden', paddingTop: 4 },
   setRow: { flexDirection: 'row', alignItems: 'center', minHeight: 60, paddingHorizontal: 4 },
-  setDetailRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingLeft: 48, paddingRight: 4 },
-  loadField: { flex: 1, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8 },
+  setDetailRow: { flexDirection: 'row', alignItems: 'center', paddingLeft: 48, paddingRight: 4 },
+  loadColumn: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  loadLabel: { position: 'absolute', right: '100%', top: 0, bottom: 0, marginRight: 8, textAlignVertical: 'center' },
+  loadMenu: { alignItems: 'center' },
   swipeHint: { flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: 14, paddingHorizontal: 14, paddingVertical: 10 },
   swipeHintText: { flex: 1, fontFamily: fonts.medium, fontSize: 14 },
   recordChip: { flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-start', borderRadius: 10, paddingHorizontal: 8, paddingVertical: 3, marginTop: 4 },
