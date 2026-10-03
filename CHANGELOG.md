@@ -2,6 +2,15 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.10.3 - 2026-10-03
+
+### Pickers recover after Android recreates the screen
+
+- Photo, video and camera pickers no longer stay broken after Android destroys and recreates the
+  app screen while the app keeps running (for example after it was in the background): the picker
+  now registers itself again when opened, instead of failing with "unregistered
+  ActivityResultLauncher". The previous restart message stays as a fallback.
+
 ## 0.10.2 - 2026-10-03
 
 ### Pickers that keep working

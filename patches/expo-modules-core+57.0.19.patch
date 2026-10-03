@@ -1,0 +1,20 @@
+diff --git a/node_modules/expo-modules-core/android/src/main/java/expo/modules/kotlin/activityresult/AppContextActivityResultRegistry.kt b/node_modules/expo-modules-core/android/src/main/java/expo/modules/kotlin/activityresult/AppContextActivityResultRegistry.kt
+index a5b971e..b412fa9 100644
+--- a/node_modules/expo-modules-core/android/src/main/java/expo/modules/kotlin/activityresult/AppContextActivityResultRegistry.kt
++++ b/node_modules/expo-modules-core/android/src/main/java/expo/modules/kotlin/activityresult/AppContextActivityResultRegistry.kt
+@@ -221,8 +221,13 @@ class AppContextActivityResultRegistry(
+ 
+     return object : AppContextActivityResultLauncher<I, O>() {
+       override fun launch(input: I, callback: ActivityResultCallback<O>) {
+-        val requestCode = keyToRequestCode[key]
+-          ?: throw IllegalStateException("Attempting to launch an unregistered ActivityResultLauncher with contract $contract and input $input. You must ensure the ActivityResultLauncher is registered before calling launch()")
++        // The Activity can be destroyed and recreated while the app process stays alive; unregister() then
++        // dropped this launcher's request code. Create it again instead of failing: the result still
++        // reaches the main callback registered below.
++        val requestCode = keyToRequestCode[key] ?: generateRandomNumber().also {
++          requestCodeToKey[it] = key
++          keyToRequestCode[key] = it
++        }
+ 
+         keyToCallbacksAndContract[key] = CallbacksAndContract(fallbackCallback, callback, contract)
+         keyToInputParam[key] = input
