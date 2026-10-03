@@ -2,6 +2,16 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.10.2 - 2026-10-03
+
+### Pickers that keep working
+
+- The app now handles every system configuration change itself (font size, display size, language,
+  fold), so Android no longer recreates the screen behind the photo and video pickers.
+- If a picker still cannot open ("unregistered ActivityResultLauncher"), pose analysis, progress
+  photos and form checks say so and ask to close and reopen the app, instead of showing the raw
+  native error.
+
 ## 0.10.1 - 2026-10-03
 
 ### Only what is relevant
