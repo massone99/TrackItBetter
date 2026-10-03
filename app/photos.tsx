@@ -1,4 +1,5 @@
 import * as ImagePicker from 'expo-image-picker';
+import { isPickerUnavailableError } from '../src/shared/media/pickerErrors';
 import { useFocusEffect } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -68,8 +69,9 @@ export default function ProgressPhotosScreen() {
       });
       setNote('');
       await refresh();
-    } catch {
-      Alert.alert(t('photos.saveErrorTitle'), t('photos.saveErrorBody'));
+    } catch (error) {
+      if (isPickerUnavailableError(error)) Alert.alert(t('common.pickerRestartTitle'), t('common.pickerRestart'));
+      else Alert.alert(t('photos.saveErrorTitle'), t('photos.saveErrorBody'));
     } finally {
       setBusy(false);
     }

@@ -1,4 +1,5 @@
 import * as ImagePicker from 'expo-image-picker';
+import { isPickerUnavailableError } from '../../src/shared/media/pickerErrors';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -78,7 +79,13 @@ export default function NewPoseCheckScreen() {
       : await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!permission.granted) { setError(t('pose.permission')); return; }
     const options: ImagePicker.ImagePickerOptions = { mediaTypes: source === 'video' ? ['videos'] : ['images'], quality: 1, videoMaxDuration: 60 };
-    const result = source === 'camera' ? await ImagePicker.launchCameraAsync(options) : await ImagePicker.launchImageLibraryAsync(options);
+    let result: ImagePicker.ImagePickerResult;
+    try {
+      result = source === 'camera' ? await ImagePicker.launchCameraAsync(options) : await ImagePicker.launchImageLibraryAsync(options);
+    } catch (reason) {
+      setError(isPickerUnavailableError(reason) ? t('common.pickerRestart') : t('pose.error'));
+      return;
+    }
     const asset = result.canceled ? null : result.assets[0];
     if (!asset) return;
     setAnalysis(null);

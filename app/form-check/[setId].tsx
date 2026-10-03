@@ -1,4 +1,5 @@
 import * as ImagePicker from 'expo-image-picker';
+import { isPickerUnavailableError } from '../../src/shared/media/pickerErrors';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { VideoView, useVideoPlayer } from 'expo-video';
 import { useCallback, useState } from 'react';
@@ -58,6 +59,7 @@ export default function FormCheckScreen() {
       setCompareId(null);
       await refresh();
     } catch (error) {
+      if (isPickerUnavailableError(error)) { Alert.alert(t('common.pickerRestartTitle'), t('common.pickerRestart')); return; }
       const message = error instanceof RangeError ? t('formCheck.clipLimit') : t('formCheck.saveError');
       Alert.alert(t('formCheck.videoErrorTitle'), message);
     } finally {
