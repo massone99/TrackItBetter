@@ -1,7 +1,7 @@
 import * as ImagePicker from 'expo-image-picker';
 import { isPickerUnavailableError } from '../../src/shared/media/pickerErrors';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { displayedAngle, findPosition, LOW_CONFIDENCE, levelFor, nextLevelTarget, type JointAngleId, type Pose, type PoseSide, type PositionId } from '../../src/domain/pose';
@@ -9,7 +9,7 @@ import { detectPose, poseDetectionAvailable } from '../../src/features/pose/dete
 import { extractFrames, normalizeImage, type PoseImage, type VideoFrame } from '../../src/features/pose/media';
 import { PoseCanvas } from '../../src/features/pose/PoseCanvas';
 import { savePoseCapture } from '../../src/features/pose/repository';
-import { ActionButton, Body, Card, Icon, Label, Numeral, PageHeading, Screen, SegmentedControl, Text, TextField } from '../../src/shared/components/ui';
+import { ActionButton, Body, Card, Chip, Icon, IconButton, Label, Numeral, PageHeading, Screen, SegmentedControl, Text, TextField } from '../../src/shared/components/ui';
 import { OverlayLegend, useOverlaySettings } from '../../src/features/pose/OverlayLegend';
 import { PositionPicker } from '../../src/features/pose/PositionPicker';
 import { LevelBadge } from '../../src/features/pose/LevelBadge';
@@ -19,6 +19,9 @@ import { fonts } from '../../src/shared/theme/typography';
 import { useScaledStyles } from '../../src/shared/theme/useScaledStyles';
 
 /** The message with the technical cause in brackets, so a failure on a phone can be reported. */
+const FRAME_WIDTH = 76;
+const FRAME_GAP = 8;
+
 function withDetail(message: string, failure: unknown): string {
   const detail = failure instanceof Error ? failure.message : String(failure);
   return detail ? `${message} (${detail})` : message;
@@ -48,6 +51,11 @@ export default function NewPoseCheckScreen() {
   const [focused, setFocused] = useState<JointAngleId | null>(null);
   // Poses before each drag, most recent last, for "undo last change".
   const [undo, setUndo] = useState<Pose[]>([]);
+  const strip = useRef<ScrollView>(null);
+  // Keep the chosen frame in view when it is picked for the user ("find my best position").
+  useEffect(() => {
+    if (selectedFrame !== null) strip.current?.scrollTo({ x: Math.max(0, selectedFrame * (FRAME_WIDTH + FRAME_GAP) - 80), animated: true });
+  }, [selectedFrame]);
 
   const measurement = useMemo(() => (analysis ? position.measure(analysis.pose, position.sideAware ? side : null) : null), [analysis, position, side]);
   const joints = measurement?.joints?.filter((joint) => jointIds.includes(joint.id)) ?? [];
@@ -168,6 +176,8 @@ export default function NewPoseCheckScreen() {
   }
 
   const canvasWidth = Math.min(windowWidth - 40, 600);
+  const hasMedia = analysis !== null || frames.length > 0;
+  const angleValues = Object.fromEntries(legendAngles.map((angle) => [angle.id, angle.value]));
   return (
     <Screen>
       <PageHeading title={t('pose.newCheck')} subtitle={t(`pose.positions.${positionId}.how`)} />
@@ -176,26 +186,41 @@ export default function NewPoseCheckScreen() {
       {position.sideAware ? (
         <SegmentedControl<PoseSide> value={side} onChange={setSide} options={[{ value: 'left', label: t('pose.sideLeft') }, { value: 'right', label: t('pose.sideRight') }]} />
       ) : null}
-      <JointPicker position={position} selected={jointIds} onChange={setJointIds} />
 
-      <View style={styles.sources}>
-        <SourceButton icon="camera-outline" label={t('pose.takePhoto')} onPress={() => void pick('camera')} />
-        <SourceButton icon="image-outline" label={t('pose.choosePhoto')} onPress={() => void pick('photo')} />
-        <SourceButton icon="film-outline" label={t('pose.chooseVideo')} onPress={() => void pick('video')} />
-      </View>
+      {hasMedia ? (
+        // Once there is something to measure, the sources shrink to one slim row and the work takes the screen.
+        <View style={styles.sourceBar}>
+          <Label style={styles.flex}>{t('pose.newMedia')}</Label>
+          <IconButton icon="camera-outline" tone="accent" label={t('pose.takePhoto')} onPress={() => void pick('camera')} />
+          <IconButton icon="image-outline" tone="accent" label={t('pose.choosePhoto')} onPress={() => void pick('photo')} />
+          <IconButton icon="film-outline" tone="accent" label={t('pose.chooseVideo')} onPress={() => void pick('video')} />
+        </View>
+      ) : (
+        <>
+          <JointPicker position={position} selected={jointIds} onChange={setJointIds} />
+          <View style={styles.sources}>
+            <SourceButton icon="camera-outline" label={t('pose.takePhoto')} onPress={() => void pick('camera')} />
+            <SourceButton icon="image-outline" label={t('pose.choosePhoto')} onPress={() => void pick('photo')} />
+            <SourceButton icon="film-outline" label={t('pose.chooseVideo')} onPress={() => void pick('video')} />
+          </View>
+        </>
+      )}
 
       {frames.length > 0 ? (
         <View style={styles.frames}>
-          <Label>{t('pose.frames')}</Label>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.frameStrip}>
+          <View style={styles.framesHead}>
+            <Label style={styles.flex}>{selectedFrame !== null ? t('pose.frameSelected', { seconds: (frames[selectedFrame].timeMs / 1000).toFixed(1) }) : t('pose.frames')}</Label>
+            <Chip icon="sparkles-outline" label={t('pose.findBest')} onPress={() => void findBest()} />
+          </View>
+          <ScrollView ref={strip} horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.frameStrip}>
             {frames.map((frame, index) => (
-              <Pressable key={frame.timeMs} accessibilityRole="button" accessibilityLabel={t('pose.frameAt', { seconds: (frame.timeMs / 1000).toFixed(1) })} onPress={() => void chooseFrame(index)}>
+              <Pressable key={frame.timeMs} accessibilityRole="button" accessibilityState={{ selected: selectedFrame === index }} accessibilityLabel={t('pose.frameAt', { seconds: (frame.timeMs / 1000).toFixed(1) })} onPress={() => void chooseFrame(index)}>
                 <Image source={{ uri: frame.uri }} style={[styles.frame, { borderColor: selectedFrame === index ? palette.accent : 'transparent' }]} />
-                <Text style={[styles.frameTime, { color: palette.textMuted }]}>{(frame.timeMs / 1000).toFixed(1)}s</Text>
+                <Text style={[styles.frameTime, { color: selectedFrame === index ? palette.accentStrong : palette.textMuted }]}>{(frame.timeMs / 1000).toFixed(1)}s</Text>
               </Pressable>
             ))}
           </ScrollView>
-          <ActionButton icon="sparkles-outline" label={t('pose.findBest')} secondary onPress={() => void findBest()} />
+          {!analysis && !busy ? <Body>{t('pose.pickFrame')}</Body> : null}
         </View>
       ) : null}
 
@@ -217,10 +242,11 @@ export default function NewPoseCheckScreen() {
             settings={overlay}
             focused={focused}
             maxWidth={canvasWidth}
+            maxHeight={frames.length > 0 ? 440 : 520}
             onDragStart={() => setUndo((stack) => [...stack.slice(-19), analysis.pose])}
             onChange={(pose) => setAnalysis({ ...analysis, pose })}
           />
-          <OverlayLegend angles={legendAngles} settings={overlay} focused={focused} onSettings={setOverlay} onFocus={setFocused} />
+          <Body style={styles.center}>{noPerson ? t('pose.noPerson') : uncertain ? t('pose.uncertain') : t('pose.adjustHint')}</Body>
           {undo.length > 0 ? (
             <View style={styles.editRow}>
               <ActionButton icon="arrow-undo-outline" label={t('pose.undoMove')} secondary onPress={() => {
@@ -234,7 +260,21 @@ export default function NewPoseCheckScreen() {
               }} />
             </View>
           ) : null}
-          <Body style={styles.center}>{noPerson ? t('pose.noPerson') : uncertain ? t('pose.uncertain') : t('pose.adjustHint')}</Body>
+
+          {/* The angle choice sits right under the frame it measures. */}
+          <Card style={styles.angles}>
+            <JointPicker
+              position={position}
+              selected={jointIds}
+              onChange={setJointIds}
+              values={angleValues}
+              focused={focused}
+              onFocus={setFocused}
+              title={t('pose.anglesTitle')}
+            />
+            <OverlayLegend angles={legendAngles} settings={overlay} focused={focused} onSettings={setOverlay} onFocus={setFocused} hideAngles />
+          </Card>
+
           <Card style={styles.result}>
             {position.generic ? (
               joints.length === 0 ? <Body>{t('pose.freePick')}</Body> : null
@@ -287,9 +327,13 @@ const baseStyles = StyleSheet.create({
   source: { flex: 1, alignItems: 'center', gap: 10, paddingVertical: 16, paddingHorizontal: 6, borderRadius: 16, borderWidth: 1 },
   sourceLabel: { fontFamily: fonts.semibold, fontSize: 14, lineHeight: 20, textAlign: 'center' },
   iconCircle: { width: 44, height: 44, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
+  flex: { flex: 1 },
+  sourceBar: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   frames: { gap: 10 },
-  frameStrip: { gap: 8 },
-  frame: { width: 72, height: 96, borderRadius: 10, borderWidth: 3 },
+  framesHead: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  frameStrip: { gap: FRAME_GAP },
+  angles: { gap: 12 },
+  frame: { width: FRAME_WIDTH, height: 100, borderRadius: 10, borderWidth: 3 },
   frameTime: { fontFamily: fonts.medium, fontSize: 12, textAlign: 'center', marginTop: 2 },
   busy: { flexDirection: 'row', alignItems: 'center', gap: 10, justifyContent: 'center' },
   error: { fontFamily: fonts.medium, fontSize: 14, textAlign: 'center' },

@@ -46,8 +46,10 @@ export interface LegendAngle {
  * Colour key and switches for the photo overlay. Tapping an angle focuses it on the photo; the
  * switches turn the skeleton, the measured angle and "all angles at once" on or off.
  */
-export function OverlayLegend({ angles, settings, focused, onSettings, onFocus }: {
+export function OverlayLegend({ angles, settings, focused, onSettings, onFocus, hideAngles = false }: {
   angles: LegendAngle[];
+  /** The angles are listed elsewhere (next to the photo): show only the layer switches. */
+  hideAngles?: boolean;
   settings: OverlaySettings;
   focused: JointAngleId | null;
   onSettings: (next: OverlaySettings) => void;
@@ -71,7 +73,7 @@ export function OverlayLegend({ angles, settings, focused, onSettings, onFocus }
 
   return (
     <View style={styles.root}>
-      {angles.length > 0 ? (
+      {angles.length > 0 && !hideAngles ? (
         <>
           <Label>{showAll ? t('pose.legendAll') : t('pose.legendFocus')}</Label>
           <View style={styles.angles}>
