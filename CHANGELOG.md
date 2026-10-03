@@ -2,6 +2,22 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.10.5 - 2026-10-03
+
+### Pose analysis: more of the frame, less around it
+
+- With a photo or video loaded, the position and side fold into one line ("Front split · Left");
+  "Change" opens them again. The how-to text is gone once there is a frame to look at, so the frame
+  starts higher on the screen.
+- Video frames: step to the previous or next frame with the arrows, see "Frame at 7.9 s, 4 of 9",
+  and use the "Best frame" chip to let the app pick the frame with the best reading.
+- "Save check" stays pinned at the bottom of the screen, however long the page gets.
+- Warnings about uncertain joints or no body found are now a clear warning line with an icon; the
+  undo and reset actions are small chips instead of full-width buttons.
+- Display options (skeleton, whole body, main measure, all angles) fold behind "Display" so the
+  angle chips are the only controls next to the frame.
+- The result card no longer repeats the angles already shown on the chips.
+
 ## 0.10.4 - 2026-10-03
 
 ### A calmer pose analysis screen

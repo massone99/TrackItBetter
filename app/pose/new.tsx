@@ -9,7 +9,8 @@ import { detectPose, poseDetectionAvailable } from '../../src/features/pose/dete
 import { extractFrames, normalizeImage, type PoseImage, type VideoFrame } from '../../src/features/pose/media';
 import { PoseCanvas } from '../../src/features/pose/PoseCanvas';
 import { savePoseCapture } from '../../src/features/pose/repository';
-import { ActionButton, Body, Card, Chip, Icon, IconButton, Label, Numeral, PageHeading, Screen, SegmentedControl, Text, TextField } from '../../src/shared/components/ui';
+import { ActionButton, Body, Card, Chip, Icon, IconButton, Label, Numeral, PageHeading, Screen, SegmentedControl, tapFeedback, Text, TextField } from '../../src/shared/components/ui';
+import { useAppInsets } from '../../src/shared/layout/useAppInsets';
 import { OverlayLegend, useOverlaySettings } from '../../src/features/pose/OverlayLegend';
 import { PositionPicker } from '../../src/features/pose/PositionPicker';
 import { LevelBadge } from '../../src/features/pose/LevelBadge';
@@ -51,6 +52,9 @@ export default function NewPoseCheckScreen() {
   const [focused, setFocused] = useState<JointAngleId | null>(null);
   // Poses before each drag, most recent last, for "undo last change".
   const [undo, setUndo] = useState<Pose[]>([]);
+  const insets = useAppInsets();
+  const [layersOpen, setLayersOpen] = useState(false);
+  const [setupOpen, setSetupOpen] = useState(false);
   const strip = useRef<ScrollView>(null);
   // Keep the chosen frame in view when it is picked for the user ("find my best position").
   useEffect(() => {
@@ -179,12 +183,35 @@ export default function NewPoseCheckScreen() {
   const hasMedia = analysis !== null || frames.length > 0;
   const angleValues = Object.fromEntries(legendAngles.map((angle) => [angle.id, angle.value]));
   return (
-    <Screen>
-      <PageHeading title={t('pose.newCheck')} subtitle={t(`pose.positions.${positionId}.how`)} />
+    <Screen
+      contentContainerStyle={analysis ? { paddingBottom: insets.bottom + 110 } : undefined}
+      overlay={analysis && measurement && level !== null ? (
+        // Saving stays in reach however long the frame, angles and note make the page.
+        <View style={[styles.saveBar, { backgroundColor: palette.background, borderTopColor: palette.border, paddingBottom: Math.max(insets.bottom, 12) }]}>
+          <ActionButton icon="checkmark" label={t('pose.save')} disabled={Boolean(busy)} onPress={() => void save()} />
+        </View>
+      ) : undefined}
+    >
+      <PageHeading title={t('pose.newCheck')} subtitle={hasMedia ? undefined : t(`pose.positions.${positionId}.how`)} />
 
-      <PositionPicker value={position} onChange={(id) => { setPositionId(id); setFocused(null); }} />
-      {position.sideAware ? (
-        <SegmentedControl<PoseSide> value={side} onChange={setSide} options={[{ value: 'left', label: t('pose.sideLeft') }, { value: 'right', label: t('pose.sideRight') }]} />
+      {hasMedia ? (
+        // With a frame on screen the setup folds to one line; "Change" opens it again.
+        <Pressable accessibilityRole="button" accessibilityState={{ expanded: setupOpen }} onPress={() => { tapFeedback(); setSetupOpen((open) => !open); }} style={[styles.setupSummary, { backgroundColor: palette.surface, borderColor: palette.border }]}>
+          <View style={styles.flex}>
+            <Label>{t('pose.position')}</Label>
+            <Text style={styles.setupName} numberOfLines={1}>{t(`pose.positions.${positionId}.name`)}{position.sideAware ? ` · ${side === 'left' ? t('pose.sideLeft') : t('pose.sideRight')}` : ''}</Text>
+          </View>
+          <Text style={[styles.setupChange, { color: palette.accentStrong }]}>{t('pose.changeAction')}</Text>
+          <Icon name={setupOpen ? 'chevron-up' : 'chevron-down'} size={18} color={palette.textMuted} />
+        </Pressable>
+      ) : null}
+      {!hasMedia || setupOpen ? (
+        <>
+          <PositionPicker value={position} onChange={(id) => { setPositionId(id); setFocused(null); }} />
+          {position.sideAware ? (
+            <SegmentedControl<PoseSide> value={side} onChange={setSide} options={[{ value: 'left', label: t('pose.sideLeft') }, { value: 'right', label: t('pose.sideRight') }]} />
+          ) : null}
+        </>
       ) : null}
 
       {hasMedia ? (
@@ -209,8 +236,13 @@ export default function NewPoseCheckScreen() {
       {frames.length > 0 ? (
         <View style={styles.frames}>
           <View style={styles.framesHead}>
-            <Label style={styles.flex}>{selectedFrame !== null ? t('pose.frameSelected', { seconds: (frames[selectedFrame].timeMs / 1000).toFixed(1) }) : t('pose.frames')}</Label>
-            <Chip icon="sparkles-outline" label={t('pose.findBest')} onPress={() => void findBest()} />
+            <View style={styles.flex}>
+              <Label>{selectedFrame !== null ? t('pose.frameSelected', { seconds: (frames[selectedFrame].timeMs / 1000).toFixed(1) }) : t('pose.frames')}</Label>
+              {selectedFrame !== null ? <Text style={[styles.frameCount, { color: palette.textMuted }]}>{t('pose.frameCount', { current: selectedFrame + 1, total: frames.length })}</Text> : null}
+            </View>
+            <Chip icon="sparkles-outline" label={t('pose.findBestShort')} accessibilityLabel={t('pose.findBest')} onPress={() => void findBest()} />
+            <IconButton icon="chevron-back" label={t('pose.prevFrame')} disabled={selectedFrame === null || selectedFrame === 0 || Boolean(busy)} onPress={() => void chooseFrame((selectedFrame ?? 1) - 1)} />
+            <IconButton icon="chevron-forward" label={t('pose.nextFrame')} disabled={selectedFrame === null || selectedFrame >= frames.length - 1 || Boolean(busy)} onPress={() => void chooseFrame((selectedFrame ?? -1) + 1)} />
           </View>
           <ScrollView ref={strip} horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.frameStrip}>
             {frames.map((frame, index) => (
@@ -246,15 +278,18 @@ export default function NewPoseCheckScreen() {
             onDragStart={() => setUndo((stack) => [...stack.slice(-19), analysis.pose])}
             onChange={(pose) => setAnalysis({ ...analysis, pose })}
           />
-          <Body style={styles.center}>{noPerson ? t('pose.noPerson') : uncertain ? t('pose.uncertain') : t('pose.adjustHint')}</Body>
+          <View style={styles.hintRow}>
+            <Icon name={noPerson || uncertain ? 'alert-circle-outline' : 'move-outline'} size={18} color={noPerson || uncertain ? palette.warning : palette.textMuted} />
+            <Text style={[styles.hint, { color: noPerson || uncertain ? palette.warning : palette.textMuted }]}>{noPerson ? t('pose.noPerson') : uncertain ? t('pose.uncertain') : t('pose.adjustHint')}</Text>
+          </View>
           {undo.length > 0 ? (
             <View style={styles.editRow}>
-              <ActionButton icon="arrow-undo-outline" label={t('pose.undoMove')} secondary onPress={() => {
+              <Chip icon="arrow-undo-outline" label={t('pose.undoMove')} onPress={() => {
                 const previous = undo[undo.length - 1];
                 setUndo(undo.slice(0, -1));
                 setAnalysis({ ...analysis, pose: previous });
               }} />
-              <ActionButton icon="refresh" label={t('pose.resetDetection')} variant="ghost" onPress={() => {
+              <Chip icon="refresh" label={t('pose.resetDetection')} onPress={() => {
                 setUndo([]);
                 setAnalysis({ ...analysis, pose: analysis.detected });
               }} />
@@ -272,13 +307,22 @@ export default function NewPoseCheckScreen() {
               onFocus={setFocused}
               title={t('pose.anglesTitle')}
             />
-            <OverlayLegend angles={legendAngles} settings={overlay} focused={focused} onSettings={setOverlay} onFocus={setFocused} hideAngles />
+            <Pressable
+              accessibilityRole="button"
+              accessibilityState={{ expanded: layersOpen }}
+              onPress={() => { tapFeedback(); setLayersOpen((open) => !open); }}
+              style={styles.layersToggle}
+            >
+              <Label style={styles.flex}>{t('pose.display')}</Label>
+              <Icon name={layersOpen ? 'chevron-up' : 'chevron-down'} size={18} color={palette.textMuted} />
+            </Pressable>
+            {layersOpen ? <OverlayLegend angles={legendAngles} settings={overlay} focused={focused} onSettings={setOverlay} onFocus={setFocused} hideAngles /> : null}
           </Card>
 
-          <Card style={styles.result}>
-            {position.generic ? (
-              joints.length === 0 ? <Body>{t('pose.freePick')}</Body> : null
-            ) : <>
+          {position.generic ? (
+            joints.length === 0 ? <Body>{t('pose.freePick')}</Body> : null
+          ) : (
+            <Card style={styles.result}>
               <View style={styles.resultRow}>
                 <View>
                   <Label>{t(`pose.positions.${positionId}.metric`)}</Label>
@@ -288,22 +332,10 @@ export default function NewPoseCheckScreen() {
                 <LevelBadge level={level} />
               </View>
               <Body>{target === null ? t('pose.topLevel') : t('pose.nextTarget', { value: target })}</Body>
-            </>}
-            {!position.generic && measurement.warning ? <Text style={[styles.warning, { color: palette.warning }]}>{t(`pose.warnings.${measurement.warning}`)}</Text> : null}
-            {joints.length > 0 ? (
-              <View style={styles.joints}>
-                <Label>{t('pose.jointAngles')}</Label>
-                {joints.map((joint, index) => (
-                  <View key={joint.id} style={styles.jointRow}>
-                    <Body style={index === 0 ? styles.jointStrong : undefined}>{t(`pose.joints.${joint.id}`)}</Body>
-                    <Body style={index === 0 ? styles.jointStrong : undefined}>{t('pose.degrees', { value: Math.round(joint.value) })}</Body>
-                  </View>
-                ))}
-              </View>
-            ) : null}
-          </Card>
+              {measurement.warning ? <Text style={[styles.warning, { color: palette.warning }]}>{t(`pose.warnings.${measurement.warning}`)}</Text> : null}
+            </Card>
+          )}
           <TextField value={note} onChangeText={setNote} placeholder={t('pose.notePlaceholder')} maxLength={200} />
-          <ActionButton icon="checkmark" label={t('pose.save')} disabled={Boolean(busy)} onPress={() => void save()} />
         </>
       ) : null}
     </Screen>
@@ -322,7 +354,15 @@ function SourceButton({ icon, label, onPress }: { icon: 'camera-outline' | 'imag
 }
 
 const baseStyles = StyleSheet.create({
-  editRow: { gap: 8 },
+  editRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  setupSummary: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 56, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 16, borderWidth: 1 },
+  setupName: { fontFamily: fonts.display, fontSize: 18, lineHeight: 22 },
+  setupChange: { fontFamily: fonts.semibold, fontSize: 14 },
+  hintRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  hint: { flex: 1, fontFamily: fonts.body, fontSize: 14, lineHeight: 20 },
+  layersToggle: { flexDirection: 'row', alignItems: 'center', minHeight: 40 },
+  frameCount: { fontFamily: fonts.medium, fontSize: 13 },
+  saveBar: { position: 'absolute', left: 0, right: 0, bottom: 0, paddingTop: 12, paddingHorizontal: 20, borderTopWidth: StyleSheet.hairlineWidth },
   sources: { flexDirection: 'row', gap: 10 },
   source: { flex: 1, alignItems: 'center', gap: 10, paddingVertical: 16, paddingHorizontal: 6, borderRadius: 16, borderWidth: 1 },
   sourceLabel: { fontFamily: fonts.semibold, fontSize: 14, lineHeight: 20, textAlign: 'center' },
