@@ -144,8 +144,6 @@ export default function ExerciseRoute() {
   const lateral = exercise.unilateral === true || history.some((session) => session.sets.some((set) => Boolean(set.pairId) || set.side === 'left' || set.side === 'right'));
   const hasSidelessSets = history.some((session) => session.sets.some((set) => !set.pairId && (!set.side || set.side === 'both')));
   const scopeOptions = (['average', 'left', 'right', ...(hasSidelessSets ? ['legacy' as const] : [])] as PairScope[]);
-  // The "reps at the same load" card needs a load to compare: added or assisted weight in the history.
-  const usesLoad = exercise.metric === 'reps_load' || loadProgress.some((group) => group.loadKg !== 0);
   const compareTitle = t('exerciseAnalytics.compareSides', { defaultValue: i18n.language.startsWith('it') ? 'Confronto L/R' : 'Compare L/R' });
   const compareBody = t('exerciseAnalytics.compareSidesBody', { defaultValue: i18n.language.startsWith('it') ? 'Confronta le due serie sulla stessa scala.' : 'Compare both sides on the same scale.' });
   return (
@@ -276,7 +274,7 @@ export default function ExerciseRoute() {
         </View>
       ) : null}
 
-      {(exercise.metric === 'reps' || exercise.metric === 'reps_load') && usesLoad ? <RepsAtLoadCard key={exercise.id} groups={loadProgress} /> : null}
+      {exercise.metric === 'reps' || exercise.metric === 'reps_load' ? <RepsAtLoadCard key={exercise.id} groups={loadProgress} /> : null}
 
       {estimate ? (
         <View style={styles.section}>
