@@ -2,6 +2,16 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.10.1 - 2026-10-03
+
+### Only what is relevant
+
+- The L/R, L, R and "without side" view and the L/R comparison link on an exercise page appear only
+  for exercises done one side at a time (or logged that way before); other exercises no longer show
+  them.
+- Record names carry their side only for those exercises, with a proper separator instead of a
+  stray question mark ("Squat Jump" stays "Squat Jump"; "Split squat · L").
+
 ## 0.10.0 - 2026-10-02
 
 ### Free pose analysis
