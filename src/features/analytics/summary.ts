@@ -132,11 +132,15 @@ export function buildProgressSnapshot(
   const volumeSets: { reps?: number; durationSec?: number; effectiveLoadKg?: number }[] = [];
   let distanceMeters = 0;
 
+  // Only exercises done one side at a time carry a side in their record name.
+  const lateralExercises = new Set(rows.filter((row) => row.pairId || row.side === 'left' || row.side === 'right').map((row) => row.exerciseId));
   for (const row of rows) {
     if (!row.completedAt) continue;
     const candidateId = `${row.exerciseId}\u0000${recordScope(row)}`;
     allWorkouts.add(row.workoutId);
-    exerciseNames.set(candidateId, `${row.exerciseName} ? ${recordScope(row) === 'legacy' ? 'senza lato' : recordScope(row) === 'average' ? 'Media L/R' : row.side === 'left' ? 'L' : 'R'}`);
+    exerciseNames.set(candidateId, lateralExercises.has(row.exerciseId)
+      ? `${row.exerciseName} · ${recordScope(row) === 'legacy' ? 'senza lato' : recordScope(row) === 'average' ? 'Media L/R' : row.side === 'left' ? 'L' : 'R'}`
+      : row.exerciseName);
     const metric = row.metric as ProgressMetric;
     const inWeek = row.workoutStartedAt.getTime() >= weekStart && row.workoutStartedAt.getTime() <= now.getTime();
     if (inWeek) {

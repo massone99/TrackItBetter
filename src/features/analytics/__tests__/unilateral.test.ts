@@ -46,3 +46,11 @@ it('excludes mixed-load average comparisons and preserves assistance in side com
   expect(repsAtLoadFromExplore({ ...data, rows: aggregatePairs(assisted, 'left') }, scope)[0].loadKg).toBe(-5);
   expect(repsAtLoadFromExplore({ ...data, rows: aggregatePairs(assisted, 'right') }, scope)[0].loadKg).toBe(0);
 });
+
+it('names a record with its side only for exercises done one side at a time', () => {
+  const plain: CompletedSetRow = { ...base, exerciseId: 'sj', exerciseName: 'Squat Jump', metric: 'reps', pairId: null, side: 'both', setId: 'sj1', reps: 100, addedLoadKg: 0 };
+  const names = buildProgressSnapshot([plain, ...sides], date).personalBests.map((record) => record.exerciseName);
+  expect(names).toContain('Squat Jump');
+  expect(names.some((name) => name.startsWith('Split squat · '))).toBe(true);
+  expect(names.some((name) => name.startsWith('Squat Jump ·'))).toBe(false);
+});

@@ -140,6 +140,12 @@ export default function ExerciseRoute() {
     right: t('exerciseAnalytics.right', { defaultValue: 'R' }),
     legacy: t('exerciseAnalytics.legacy', { defaultValue: i18n.language.startsWith('it') ? 'Senza lato' : 'Without side' }),
   };
+  // Side views only mean something for an exercise done one side at a time (or logged that way before).
+  const lateral = exercise.unilateral === true || history.some((session) => session.sets.some((set) => Boolean(set.pairId) || set.side === 'left' || set.side === 'right'));
+  const hasSidelessSets = history.some((session) => session.sets.some((set) => !set.pairId && (!set.side || set.side === 'both')));
+  const scopeOptions = (['average', 'left', 'right', ...(hasSidelessSets ? ['legacy' as const] : [])] as PairScope[]);
+  // The "reps at the same load" card needs a load to compare: added or assisted weight in the history.
+  const usesLoad = exercise.metric === 'reps_load' || loadProgress.some((group) => group.loadKg !== 0);
   const compareTitle = t('exerciseAnalytics.compareSides', { defaultValue: i18n.language.startsWith('it') ? 'Confronto L/R' : 'Compare L/R' });
   const compareBody = t('exerciseAnalytics.compareSidesBody', { defaultValue: i18n.language.startsWith('it') ? 'Confronta le due serie sulla stessa scala.' : 'Compare both sides on the same scale.' });
   return (
@@ -179,14 +185,14 @@ export default function ExerciseRoute() {
         ) : null}
       </ListGroup>
 
-      <View style={styles.section}>
+      {lateral ? <View style={styles.section}>
         <SectionTitle title={scopeTitle} />
         <SegmentedControl<PairScope>
-          value={pairScope}
-          options={(Object.keys(scopeLabels) as PairScope[]).map((value) => ({ value, label: scopeLabels[value] }))}
+          value={scopeOptions.includes(pairScope) ? pairScope : 'average'}
+          options={scopeOptions.map((value) => ({ value, label: scopeLabels[value] }))}
           onChange={setPairScope}
         />
-      </View>
+      </View> : null}
 
       {cues.length > 0 ? (
         <View style={styles.section}>
@@ -270,7 +276,7 @@ export default function ExerciseRoute() {
         </View>
       ) : null}
 
-      {exercise.metric === 'reps' || exercise.metric === 'reps_load' ? <RepsAtLoadCard key={exercise.id} groups={loadProgress} /> : null}
+      {(exercise.metric === 'reps' || exercise.metric === 'reps_load') && usesLoad ? <RepsAtLoadCard key={exercise.id} groups={loadProgress} /> : null}
 
       {estimate ? (
         <View style={styles.section}>
@@ -319,7 +325,7 @@ export default function ExerciseRoute() {
         {history.length > 0 ? (
           <ListGroup>
             <ListRow icon="analytics-outline" title={t('exerciseManage.fullAnalysis')} subtitle={t('exerciseManage.fullAnalysisBody')} onPress={() => router.push({ pathname: '/stats', params: { exerciseId: exercise.id, pairScope } })} />
-            <ListRow icon="git-branch-outline" title={compareTitle} subtitle={compareBody} onPress={() => router.push({ pathname: '/stats', params: { exerciseId: exercise.id, pairScope: 'comparison' } })} />
+            {lateral ? <ListRow icon="git-branch-outline" title={compareTitle} subtitle={compareBody} onPress={() => router.push({ pathname: '/stats', params: { exerciseId: exercise.id, pairScope: 'comparison' } })} /> : null}
           </ListGroup>
         ) : null}
       </View>
