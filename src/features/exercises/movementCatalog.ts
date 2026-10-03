@@ -23,6 +23,26 @@ export function canonicalizeMovementTag(tag: string | null | undefined): string 
 
 export const normalizeMovementTag = canonicalizeMovementTag;
 
+/** Canonical tags, without empty values or repeated labels. Order keeps the first legacy tag stable. */
+export function normalizeMovementTags(tags: readonly string[]): string[] {
+  return [...new Set(tags.map(canonicalizeMovementTag).filter((tag): tag is string => tag !== null))];
+}
+
+/** An explicit empty list clears all tags; older rows and backups fall back to their single tag. */
+export function exerciseMovementTags(exercise: { movementTags?: string | null; movementTag?: string | null }): string[] {
+  if (exercise.movementTags != null) {
+    try {
+      const parsed: unknown = JSON.parse(exercise.movementTags);
+      if (Array.isArray(parsed) && parsed.every((tag) => typeof tag === 'string')) {
+        return normalizeMovementTags(parsed);
+      }
+    } catch {
+      // Keep the legacy tag readable if a stored list is malformed.
+    }
+  }
+  return normalizeMovementTags(exercise.movementTag ? [exercise.movementTag] : []);
+}
+
 export const MOVEMENT_TAGS = [
   'Shoulder flexion',
   'Shoulder extension',
@@ -123,11 +143,14 @@ export function normalizeExerciseClassification<T extends {
   id: string;
   movementPattern: string | null;
   movementTag?: string | null;
+  movementTags?: string | null;
   movementGroup?: string | null;
-}>(exercise: T): T & { movementTag: string | null; movementGroup: string | null } {
+}>(exercise: T): T & { movementTag: string | null; movementTags: string; movementGroup: string | null } {
+  const tags = exerciseMovementTags(exercise);
   return {
     ...exercise,
-    movementTag: canonicalizeMovementTag(exercise.movementTag),
+    movementTag: tags[0] ?? null,
+    movementTags: JSON.stringify(tags),
     // Missing means this is a legacy backup. Explicit null means the user cleared it.
     movementGroup: exercise.movementGroup === undefined
       ? seededMovementGroup(exercise as Pick<(typeof exerciseSeed)[number], 'id' | 'movementPattern'>)

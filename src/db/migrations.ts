@@ -174,6 +174,23 @@ END;
 PRAGMA user_version = 6;
 `;
 
+const multipleMovementTagsSchema = `
+ALTER TABLE exercise ADD COLUMN movement_tags TEXT NOT NULL DEFAULT '[]';
+UPDATE exercise SET movement_tags = json_array(trim(movement_tag))
+  WHERE movement_tag IS NOT NULL AND trim(movement_tag) <> '';
+PRAGMA user_version = 9;
+`;
+
+const mobilityModeSchema = `
+ALTER TABLE exercise ADD COLUMN mobility_mode TEXT CHECK (mobility_mode IN ('active', 'passive'));
+PRAGMA user_version = 11;
+`;
+
+const workoutBlocksSchema = `
+ALTER TABLE exercise_entry ADD COLUMN block TEXT CHECK (block IN ('warmup', 'main', 'mobility'));
+PRAGMA user_version = 12;
+`;
+
 /** Applies numbered, local-first SQLite schema migrations once per database. */
 export async function migrateDatabase(database: SQLiteDatabase): Promise<void> {
   await database.execAsync('PRAGMA foreign_keys = ON;');
@@ -226,6 +243,40 @@ export async function migrateDatabase(database: SQLiteDatabase): Promise<void> {
   if (version < 8) {
     await database.withTransactionAsync(async () => {
       await database.execAsync(holdGroupsSchema);
+    });
+  }
+
+  if (version < 9) {
+    await database.withTransactionAsync(async () => {
+      await database.execAsync(multipleMovementTagsSchema);
+    });
+  }
+  if (version < 10) {
+    await database.withTransactionAsync(async () => {
+      await database.execAsync(`
+        ALTER TABLE exercise ADD COLUMN unilateral_rest_mode TEXT NOT NULL DEFAULT 'pair' CHECK (unilateral_rest_mode IN ('side', 'pair'));
+        ALTER TABLE exercise_entry ADD COLUMN unilateral_rest_mode TEXT CHECK (unilateral_rest_mode IN ('side', 'pair'));
+        ALTER TABLE training_set ADD COLUMN pair_id TEXT;
+        CREATE UNIQUE INDEX set_pair_side_idx ON training_set(pair_id, side) WHERE pair_id IS NOT NULL;
+        CREATE TRIGGER set_pair_insert BEFORE INSERT ON training_set WHEN NEW.pair_id IS NOT NULL BEGIN
+          SELECT RAISE(ABORT, 'Invalid unilateral pair') WHERE NEW.side NOT IN ('left', 'right') OR EXISTS (
+            SELECT 1 FROM training_set WHERE pair_id = NEW.pair_id AND (entry_id <> NEW.entry_id OR kind <> NEW.kind)
+          );
+        END;
+        PRAGMA user_version = 10;
+      `);
+    });
+  }
+
+  if (version < 11) {
+    await database.withTransactionAsync(async () => {
+      await database.execAsync(mobilityModeSchema);
+    });
+  }
+
+  if (version < 12) {
+    await database.withTransactionAsync(async () => {
+      await database.execAsync(workoutBlocksSchema);
     });
   }
 }

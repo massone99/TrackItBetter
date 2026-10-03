@@ -58,25 +58,19 @@ export async function logMicroSession(exerciseId: string, value: number): Promis
   if (!exercise) throw new Error('Exercise not found.');
 
   const workoutId = await startWorkout(await nextMicroSessionName());
-  try {
+  {
     const entryId = await addExerciseToWorkout(workoutId, exerciseId);
-    const setId = await (async () => {
-      const active = await getActiveWorkout(workoutId);
-      const set = active?.exercises.find((item) => item.entryId === entryId)?.sets[0];
-      if (!set) throw new Error('Could not create the micro-session set.');
-      return set.id;
-    })();
     const field = exercise.metric === 'time' || exercise.metric === 'time_load'
       ? 'durationSec'
       : exercise.metric === 'distance' ? 'distanceM' : 'reps';
-    await updateSet(setId, field, value);
-    await completeSet(setId);
+    const sets = (await getActiveWorkout(workoutId))?.exercises.find((item) => item.entryId === entryId)?.sets ?? [];
+    for (const set of sets) {
+      await updateSet(set.id, field, value);
+      await completeSet(set.id);
+    }
     await finishWorkout(workoutId);
     await initializeDatabase();
     await db.insert(settings).values({ key: LAST_EXERCISE_KEY, value: exerciseId })
       .onConflictDoUpdate({ target: settings.key, set: { value: exerciseId } });
-  } catch (error) {
-    await finishWorkout(workoutId);
-    throw error;
   }
 }

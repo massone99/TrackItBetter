@@ -3,7 +3,8 @@ import * as Speech from 'expo-speech';
 import { useTranslation } from 'react-i18next';
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { eq } from 'drizzle-orm';
-import { ActivityIndicator, Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { groupSets, completedSetCount } from '../../src/domain/setPairs';
 import { useAppInsets } from '../../src/shared/layout/useAppInsets';
 import { ExercisePicker, type ExerciseChoice } from '../../src/features/exercises/ExercisePicker';
 import { openExercisePage } from '../../src/features/exercises/openExercise';
@@ -18,7 +19,9 @@ import type { ScrollHandle } from '../../src/shared/components/keyboard';
 import { getSessionRecords } from '../../src/features/analytics/repository';
 import type { RecordKind } from '../../src/features/analytics/records';
 import { ExerciseRestFields } from '../../src/features/session/ExerciseRestFields';
+import { HoldDurationField } from '../../src/shared/components/DateTimePickers';
 import {
+  updateEntryNote,
   addExerciseToWorkout,
   addSet,
   completeSet,
@@ -31,18 +34,25 @@ import {
   getPreviousPerformance,
   removeExerciseEntry,
   removeExerciseEntryWithUndo,
-  removeSet,
   removeSetWithUndo,
   restoreRemoved,
   uncompleteSet,
   updateSetNote,
   setSetKind,
+  addWarmupSet,
   updateSetRpe,
   updateWorkoutReadiness,
   updateSet,
 } from '../../src/features/session/repository';
 import type { ActiveWorkout, PreviousPerformance, PreviousSetValues, RemovedRows, SessionExercise, SessionSet } from '../../src/features/session/repository';
 import { defaultHoldMode, rememberHoldMode, useHoldTimer, type ActiveHold } from '../../src/features/session/useHoldTimer';
+import { nextFolded } from '../../src/domain/folding';
+import { adjustedRest, REST_STEP_SEC } from '../../src/domain/restTimer';
+import { ExerciseBlockField } from '../../src/features/session/ExerciseBlockField';
+import { blockOf, usesBlocks, type Block } from '../../src/domain/blocks';
+import { clearEmomPlan, useEmom, type EmomAlertText } from '../../src/features/session/useEmom';
+import { EmomSetupSheet, emomFieldFor } from '../../src/features/session/EmomSetupSheet';
+import { emomLabel, type EmomPhase, type EmomPlan } from '../../src/domain/emom';
 import type { HoldMode } from '../../src/domain/holdTimer';
 import { playBeep } from '../../src/shared/audio/beeps';
 import {
@@ -56,6 +66,7 @@ import {
   Label,
   NumberEdit,
   PageHeading,
+  ProgressMeter,
   Screen,
   SegmentedControl,
   Sheet,
@@ -80,6 +91,7 @@ import { fonts } from '../../src/shared/theme/typography';
 import { formatClock, formatNumber } from '../../src/shared/utils/format';
 import { useScaledStyles } from '../../src/shared/theme/useScaledStyles';
 import { useAnimationSettings } from '../../src/shared/settings/AnimationProvider';
+import { MAX_FONT_SCALE } from '../../src/shared/theme/scale';
 
 const VOICE_CUES_KEY = 'workout.voice_cues.enabled';
 /** Set once the first set has been swiped, which hides the gesture hint. */
@@ -95,6 +107,11 @@ export default function WorkoutScreen() {
   const itemExiting = duration(200) ? FadeOutLeft.duration(duration(200)) : undefined;
   const rowLayout = duration(240) ? LinearTransition.duration(duration(240)) : undefined;
   const [workout, setWorkout] = useState<ActiveWorkout | null>(null);
+  const workoutRef = useRef<ActiveWorkout | null>(null);
+  useEffect(() => { workoutRef.current = workout; }, [workout]);
+  const [collapsedEntries, setCollapsedEntries] = useState<ReadonlyMap<string, boolean>>(new Map());
+  const completionState = useRef<ReadonlyMap<string, boolean>>(new Map());
+  const loadedOnce = useRef(false);
   const [previous, setPrevious] = useState<Map<string, PreviousPerformance>>(new Map());
   const [loading, setLoading] = useState(true);
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -124,6 +141,8 @@ export default function WorkoutScreen() {
   const [savedTo, setSavedTo] = useState<{ id: string; name: string } | null>(null);
   const [discardOpen, setDiscardOpen] = useState(false);
   const [optionsFor, setOptionsFor] = useState<SessionExercise | null>(null);
+  const [emomSetupFor, setEmomSetupFor] = useState<SessionExercise | null>(null);
+  const [emomNotice, setEmomNotice] = useState<string | null>(null);
   // PRs set so far in this workout: record kinds per set, and exercises with a volume mini PR.
   const recordCount = useRef<number | null>(null);
   const [records, setRecords] = useState<{ sets: Map<string, RecordKind[]>; volume: Set<string> }>(() => ({ sets: new Map(), volume: new Set() }));
@@ -155,6 +174,13 @@ export default function WorkoutScreen() {
     const next = await getActiveWorkout(workoutId);
     setWorkout(next);
     if (!next) return;
+    const before = completionState.current;
+    const completed = new Map(next.exercises.map((exercise) => [exercise.entryId, exercise.sets.length > 0 && exercise.sets.every((set) => Boolean(set.completedAt))] as const));
+    const initial = !loadedOnce.current;
+    loadedOnce.current = true;
+    // Exercises start folded; see nextFolded for what keeps or changes that.
+    setCollapsedEntries((current) => nextFolded(completed, before, current, initial));
+    completionState.current = completed;
     setPrevious(await getPreviousPerformance(next.exercises.map((exercise) => exercise.exerciseId), next.id));
     const found = await getSessionRecords(next.id).catch(() => null);
     if (!found) return;
@@ -182,6 +208,25 @@ export default function WorkoutScreen() {
     void load();
     return () => { mounted = false; };
   }, [id, refresh]);
+
+  const emomAlerts = useMemo<EmomAlertText>(() => ({
+    round: (round, rounds) => ({ title: t('emom.notifyTitle'), body: t('emom.notifyRound', { round, rounds }) }),
+    done: { title: t('emom.notifyTitle'), body: t('emom.notifyDone') },
+  }), [t]);
+  const emom = useEmom(id && id !== 'new' ? id : undefined, {
+    alerts: emomAlerts,
+    onRecorded: () => { if (id) void refresh(id); },
+    onFinished: (plan: EmomPlan) => {
+      // The sets carry the numbers; the note keeps the format they were done in.
+      const exercise = workoutRef.current?.exercises.find((item) => item.entryId === plan.entryId);
+      const label = emomLabel(plan);
+      if (exercise && !(exercise.notes ?? '').includes(label)) {
+        void updateEntryNote(plan.entryId, exercise.notes ? `${exercise.notes}\n${label}` : label).then(() => { if (id) void refresh(id); }).catch(() => undefined);
+      }
+      setEmomNotice(t('emom.finished', { count: plan.rounds }));
+    },
+  });
+  const emomEntryId = emom.plan?.entryId ?? null;
 
   // Returning from the form-check or new-exercise screens brings back clips and exercises added there.
   useFocusEffect(useCallback(() => {
@@ -242,7 +287,7 @@ export default function WorkoutScreen() {
     if (exercise.groupId && !supersetLetters.has(exercise.groupId)) supersetLetters.set(exercise.groupId, String.fromCharCode(65 + supersetLetters.size));
   }
 
-  const completedCount = workout?.exercises.reduce((total, exercise) => total + exercise.sets.filter((set) => set.completedAt).length, 0) ?? 0;
+  const completedCount = workout?.exercises.reduce((total, exercise) => total + completedSetCount(exercise.sets), 0) ?? 0;
 
   const saveReadiness = async (field: 'sleep' | 'energy' | 'soreness', value: number) => {
     if (!workout) return;
@@ -261,9 +306,11 @@ export default function WorkoutScreen() {
     }).catch(() => undefined);
   };
 
-  const extendRest = () => {
+  /** Moves the end of the running rest by a step; taking off more than is left ends it. */
+  const adjustRest = (deltaSec: number) => {
     if (restEndsAt === null) return;
-    const remaining = Math.ceil((restEndsAt + 15_000 - Date.now()) / 1000);
+    const remaining = adjustedRest(restEndsAt, nowMs(), deltaSec);
+    if (remaining === null) { skipRest(); return; }
     void cancelRestFinishedNotification().catch(() => undefined);
     startRestTimer(remaining);
   };
@@ -328,7 +375,15 @@ export default function WorkoutScreen() {
    */
   const afterSetDone = (setId: string) => {
     const exercise = workout?.exercises.find((item) => item.sets.some((set) => set.id === setId));
+    // While an EMOM runs its clock is the rest: no rest timer on top of it.
+    if (emomEntryId) return;
     const marked = workout?.exercises.map((item) => ({ ...item, sets: item.sets.map((set) => set.id === setId ? { ...set, completedAt: new Date() } : set) })) ?? [];
+    const finished = exercise?.sets.find((s) => s.id === setId);
+    if (finished?.pairId && exercise?.sets.some((s) => s.pairId === finished.pairId && s.id !== setId && !s.completedAt)) {
+      if (exercise.unilateralRestMode === 'side') startRestTimer(restAfter(setId));
+      else skipRest();
+      return;
+    }
     const step = exercise ? supersetStep(marked, exercise.entryId) : null;
     if (!step || step.endOfRound) startRestTimer(restAfter(setId));
     else if (step.mode === 'between' && step.betweenSec > 0) startRestTimer(step.betweenSec);
@@ -341,7 +396,8 @@ export default function WorkoutScreen() {
     tapFeedback('success');
     await completeSet(set.id);
     afterSetDone(set.id);
-    if (readBooleanPreference(RPE_PROMPT_KEY, true)) setRpePromptFor(set.id);
+    const inEmom = workout?.exercises.some((item) => item.entryId === emomEntryId && item.sets.some((s) => s.id === set.id));
+    if (!inEmom && readBooleanPreference(RPE_PROMPT_KEY, true)) setRpePromptFor(set.id);
     if (workout) await refresh(workout.id);
   };
 
@@ -379,7 +435,7 @@ export default function WorkoutScreen() {
   };
 
   const startHoldFor = (set: SessionSet) => {
-    if (hold.active) return;
+    if (hold.active || emom.plan) return;
     skipRest();
     hold.start(set.id, holdModeFor(set.id), set.durationSec ?? 30);
   };
@@ -398,6 +454,8 @@ export default function WorkoutScreen() {
   /** Swiped away: removed at once with "Restore", except a set with clips, which asks in its sheet. */
   const removeSetFromRow = async (exercise: SessionExercise, set: SessionSet) => {
     if (!workout) return;
+    // A recorded round of a running EMOM stays: removing it would let the clock record that round again.
+    if (set.completedAt && exercise.entryId === emomEntryId) return;
     if (set.clipCount > 0) { setSetSheet({ exercise, setId: set.id }); return; }
     if (hold.active?.setId === set.id) hold.stop();
     offerUndo(t('logger.removedSet', { number: set.index }), await removeSetWithUndo(set.id));
@@ -409,7 +467,9 @@ export default function WorkoutScreen() {
     setFinishOpen(false);
     void Speech.stop();
     void cancelRestFinishedNotification().catch(() => undefined);
-    await finishWorkout(workout.id);
+    if (emom.plan) await emom.stop();
+    try { await finishWorkout(workout.id); }
+    catch (error) { Alert.alert('Completa la coppia L / R', error instanceof Error ? error.message : String(error)); return; }
     router.replace({ pathname: '/workout/summary/[id]', params: { id: workout.id } });
   };
 
@@ -419,6 +479,7 @@ export default function WorkoutScreen() {
     hold.stop();
     skipRest();
     void Speech.stop();
+    clearEmomPlan(workout.id);
     await deleteWorkout(workout.id);
     router.replace('/(tabs)/today');
   };
@@ -426,6 +487,7 @@ export default function WorkoutScreen() {
   const removeExercise = async (exercise: SessionExercise) => {
     setRemoveExerciseFor(null);
     if (!workout) return;
+    if (exercise.entryId === emomEntryId) await emom.stop();
     await removeExerciseEntry(exercise.entryId);
     await refresh(workout.id);
   };
@@ -435,6 +497,7 @@ export default function WorkoutScreen() {
     setOptionsFor(null);
     if (!workout) return;
     if (exercise.sets.some((set) => set.clipCount > 0)) { setRemoveExerciseFor(exercise); return; }
+    if (exercise.entryId === emomEntryId) await emom.stop();
     offerUndo(t('logger.removedExercise', { name: exercise.name }), await removeExerciseEntryWithUndo(exercise.entryId));
     await refresh(workout.id);
   };
@@ -453,7 +516,9 @@ export default function WorkoutScreen() {
   if (!workout) return <Screen><PageHeading title={t('workout.unavailable')} subtitle={t('workout.finished')} /><ActionButton label={t('workout.backToToday')} onPress={() => router.replace('/(tabs)/today')} /></Screen>;
 
   const allSets = workout.exercises.flatMap((exercise) => exercise.sets);
-  const totalSets = allSets.length;
+  const allCollapsed = workout.exercises.every((exercise) => collapsedEntries.get(exercise.entryId) ?? (exercise.sets.length > 0 && exercise.sets.every((set) => Boolean(set.completedAt))));
+  const totalSets = groupSets(allSets).length;
+  const showBlocks = usesBlocks(workout.exercises);
   const finishedExercises = workout.exercises.filter((exercise) => exercise.sets.length > 0 && exercise.sets.every((set) => set.completedAt)).length;
   const volumeKg = allSets.reduce((sum, set) => (set.completedAt && set.kind === 'working' && set.reps && set.addedLoadKg > 0 ? sum + set.reps * set.addedLoadKg : sum), 0);
   const readinessCount = [workout.sleep, workout.energy, workout.soreness].filter((value) => value !== null).length;
@@ -461,7 +526,7 @@ export default function WorkoutScreen() {
 
   return (
     <View style={[styles.root, { backgroundColor: palette.background }]}>
-      <Screen scrollRef={scrollRef} contentContainerStyle={{ paddingBottom: 150 }}>
+      <Screen scrollRef={scrollRef} contentContainerStyle={{ paddingBottom: emom.plan ? 220 : 190 }}>
         <PageHeading
           title={workout.name}
           subtitle={t('workout.inProgress', { elapsed })}
@@ -476,31 +541,39 @@ export default function WorkoutScreen() {
         />
 
         {totalSets > 0 ? (
-          <View style={[styles.summary, { backgroundColor: palette.surface, borderColor: palette.border }]}>
+          <View style={styles.summary}>
             <View style={styles.summaryTop}>
               <Text style={styles.summaryText}>{t('logger.setsProgress', { done: completedCount, total: totalSets })}</Text>
               <Text style={[styles.summaryMuted, { color: palette.textMuted }]}>{t('logger.exercisesProgress', { done: finishedExercises, total: workout.exercises.length })}</Text>
               {volumeKg > 0 ? <Text style={[styles.summaryMuted, { color: palette.textMuted }]}>{formatNumber(Math.round(volumeKg))} kg</Text> : null}
             </View>
-            <View style={[styles.summaryTrack, { backgroundColor: palette.border }]}>
-              <View style={[styles.summaryFill, { backgroundColor: palette.accentStrong, width: `${Math.round((completedCount / totalSets) * 100)}%` }]} />
-            </View>
+            <ProgressMeter value={completedCount} total={totalSets} label={t('logger.setsProgress', { done: completedCount, total: totalSets })} tone={completedCount === totalSets ? 'success' : 'accent'} />
           </View>
         ) : null}
 
-        <Pressable
-          accessibilityRole="button"
-          accessibilityState={{ expanded: readinessOpen }}
-          onPress={() => setReadinessOpen((open) => !open)}
-          style={[styles.readinessToggle, { backgroundColor: palette.surface, borderColor: palette.border }]}
-        >
-          <Icon name={readinessCount === 3 ? 'checkmark-circle' : 'pulse-outline'} size={20} color={readinessCount === 3 ? palette.success : palette.accentStrong} />
-          <View style={styles.flex}>
-            <Text style={styles.readinessTitle}>{t('workout.readinessTitle')}</Text>
-            {lowReadiness ? <Text style={[styles.readinessHint, { color: palette.warning }]}>{t('workout.readinessSuggestion')}</Text> : null}
-          </View>
-          <Icon name={readinessOpen ? 'chevron-up' : 'chevron-down'} size={18} color={palette.textMuted} />
-        </Pressable>
+        <View style={styles.toolbar}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityState={{ expanded: readinessOpen }}
+            onPress={() => setReadinessOpen((open) => !open)}
+            style={styles.readinessToggle}
+          >
+            <Icon name={readinessCount === 3 ? 'checkmark-circle' : 'pulse-outline'} size={20} color={readinessCount === 3 ? palette.success : palette.accentStrong} />
+            <View style={styles.shrink}>
+              <Text style={[styles.readinessTitle, { color: palette.textMuted }]}>{t('workout.readinessTitle')}</Text>
+              {lowReadiness ? <Text style={[styles.readinessHint, { color: palette.warning }]}>{t('workout.readinessSuggestion')}</Text> : null}
+            </View>
+            <Icon name={readinessOpen ? 'chevron-up' : 'chevron-down'} size={18} color={palette.textMuted} />
+          </Pressable>
+          {workout.exercises.length > 0 ? <Pressable
+            accessibilityRole="button" accessibilityState={{ expanded: !allCollapsed }}
+            onPress={() => { tapFeedback(); setCollapsedEntries(new Map(workout.exercises.map((exercise) => [exercise.entryId, !allCollapsed]))); }}
+            style={({ pressed }) => [styles.foldAll, { opacity: pressed ? 0.75 : 1 }]}
+          >
+            <Icon name={allCollapsed ? 'chevron-down' : 'chevron-up'} size={18} color={palette.accentStrong} />
+            <Text style={[styles.foldAllText, { color: palette.accentStrong }]}>{t(allCollapsed ? 'common.expandAll' : 'common.collapseAll')}</Text>
+          </Pressable> : null}
+        </View>
         {readinessOpen ? (
           <Card style={styles.readinessCard}>
             <Body>{t('workout.readinessHelp')}</Body>
@@ -539,10 +612,15 @@ export default function WorkoutScreen() {
           gap={20}
           onMove={(from, to) => void moveExerciseEntry(workout.id, workout.exercises[from].entryId, to).then(() => refresh(workout.id))}
           onRowLayout={(key, top) => { cardTops.current.set(key, listTop.current + top); }}
-          renderRow={(exercise, _index, row) => (
+          renderRow={(exercise, index, row) => (
             <Animated.View entering={exerciseEntering} exiting={itemExiting} layout={rowLayout}>
+          {showBlocks && (index === 0 || blockOf(workout.exercises[index - 1].block) !== exercise.block) ? (
+            <BlockHeader block={exercise.block} exercises={workout.exercises.filter((item) => item.block === exercise.block)} />
+          ) : null}
           <ExerciseCard
             exercise={exercise}
+            collapsed={collapsedEntries.get(exercise.entryId) ?? false}
+            onToggleCollapsed={() => setCollapsedEntries((current) => new Map(current).set(exercise.entryId, !(current.get(exercise.entryId) ?? false)))}
             handle={row.handle}
             previous={previous.get(exercise.exerciseId)}
             hold={hold.active}
@@ -552,10 +630,12 @@ export default function WorkoutScreen() {
             onStartHold={startHoldFor}
             onFinishHold={() => void finishCurrentHold()}
             onAddSet={() => void addSet(exercise.entryId).then(() => refresh(workout.id))}
+            onAddWarmup={() => void addWarmupSet(exercise.entryId).then(() => refresh(workout.id))}
             onSetOptions={(set) => setSetSheet({ exercise, setId: set.id })}
             onToggleWarmup={(set) => void toggleWarmup(set)}
             setRecords={records.sets}
             volumeRecord={records.volume.has(exercise.exerciseId)}
+            emomLabel={exercise.entryId === emomEntryId && emom.phase ? emomBadge(emom.phase, emom.plan!, t) : null}
             supersetLabel={exercise.groupId ? t('superset.label', { letter: supersetLetters.get(exercise.groupId) ?? 'A' }) : null}
             onCopyPrevious={(set, values) => { tapFeedback(); void copyValuesToSet(set.id, values).then(() => refresh(workout.id)); }}
             onUncomplete={(set) => void uncompleteSet(set.id).then(() => refresh(workout.id))}
@@ -576,20 +656,31 @@ export default function WorkoutScreen() {
         {workout.exercises.length > 0 ? (
           <Animated.View layout={rowLayout} style={styles.footerActions}>
             <View style={styles.footerRow}>
-              <View style={styles.flex}><ActionButton icon="add" label={t('workout.addExercise')} secondary onPress={() => setPickerOpen(true)} /></View>
-              <View style={styles.flex}><ActionButton icon="flag-outline" label={t('workout.finish')} onPress={() => setFinishOpen(true)} /></View>
+              <View style={styles.footerCell}><ActionButton icon="add" label={t('workout.addExercise')} secondary onPress={() => setPickerOpen(true)} /></View>
+              <View style={styles.footerCell}><ActionButton icon="flag-outline" label={t('workout.finish')} onPress={() => setFinishOpen(true)} /></View>
             </View>
-            <ActionButton icon="bookmark-outline" label={t('saveToProgram.action')} variant="ghost" onPress={() => setSaveOpen(true)} />
-            <ActionButton icon="close-circle-outline" label={t('workout.discard')} variant="ghost" onPress={() => setDiscardOpen(true)} />
+            <View style={styles.footerRow}>
+              <View style={styles.footerCellWide}><ActionButton icon="bookmark-outline" label={t('saveToProgram.action')} variant="ghost" onPress={() => setSaveOpen(true)} /></View>
+              <View style={styles.footerCellWide}><ActionButton icon="close-circle-outline" label={t('workout.discard')} variant="ghost" onPress={() => setDiscardOpen(true)} /></View>
+            </View>
           </Animated.View>
         ) : null}
       </Screen>
 
       <TimerBar
+        emom={emom.plan && emom.phase ? {
+          label: emomBarLabel(emom.phase, emom.plan, t),
+          display: emom.phase.phase === 'done' ? '0:00' : emom.phase.phase === 'countdown' ? String(emom.phase.secondsLeft) : formatClock(emom.phase.secondsLeft),
+          value: emom.plan.field === 'durationSec' ? formatClock(emom.plan.value) : t('emom.reps', { count: emom.plan.value }),
+          valueLabel: t('emom.thisRound'),
+          onChange: (delta: number) => emom.setValue((emom.plan?.value ?? 0) + delta * (emom.plan?.field === 'durationSec' ? 5 : 1)),
+          onStop: () => void emom.stop(),
+        } : null}
         hold={hold.active}
         restSeconds={restSeconds}
         onFinishHold={() => void finishCurrentHold()}
-        onExtend={extendRest}
+        onExtend={() => adjustRest(REST_STEP_SEC)}
+        onReduce={() => adjustRest(-REST_STEP_SEC)}
         onSkip={skipRest}
       />
 
@@ -601,9 +692,24 @@ export default function WorkoutScreen() {
           if (removed) void restoreRemoved(removed).then(() => refresh(workout.id));
         }}
         onHide={hideUndo}
-        bottomOffset={hold.active || restSeconds !== null ? 110 : 0}
+        bottomOffset={emom.plan ? 180 : hold.active || restSeconds !== null ? 110 : 0}
       />
+      <Toast message={emomNotice} onHide={() => setEmomNotice(null)} />
 
+      <EmomSetupSheet
+        exercise={emomSetupFor}
+        onClose={() => setEmomSetupFor(null)}
+        onStart={(config) => {
+          setEmomSetupFor(null);
+          // The rounds fill this exercise's sets: show them.
+          setCollapsedEntries((current) => new Map(current).set(config.entryId, false));
+          hold.stop();
+          skipRest();
+          setRpePromptFor(null);
+          if (emom.plan) void emom.stop().then(() => emom.start(config));
+          else emom.start(config);
+        }}
+      />
       <SaveToProgramSheet
         visible={saveOpen}
         defaultName={workout.name}
@@ -625,7 +731,7 @@ export default function WorkoutScreen() {
         title={t('logger.finishTitle')}
         body={completedCount > 0 ? t('logger.finishBody', { count: completedCount }) : t('logger.noCompleted')}
       >
-        {completedCount > 0 ? <ActionButton icon="flag" label={t('workout.finish')} onPress={() => void confirmFinish()} /> : null}
+        {workout.exercises.some((e) => e.sets.some((s) => s.completedAt)) ? <ActionButton icon="flag" label={t('workout.finish')} onPress={() => void confirmFinish()} /> : null}
         <ActionButton label={t('logger.keepGoing')} secondary onPress={() => setFinishOpen(false)} />
         {completedCount === 0 ? (
           <ActionButton icon="close-circle-outline" label={t('workout.discard')} variant="danger" onPress={() => { setFinishOpen(false); setDiscardOpen(true); }} />
@@ -647,6 +753,9 @@ export default function WorkoutScreen() {
           <ExerciseNoteField key={optionsFor.entryId} entryId={optionsFor.entryId} initial={optionsFor.notes} onSaved={() => void refresh(workout.id)} />
         ) : null}
         {optionsFor ? (
+          <ExerciseBlockField key={`block-${optionsFor.entryId}-${optionsFor.block}`} entryId={optionsFor.entryId} value={optionsFor.block} onChanged={() => { setOptionsFor(null); void refresh(workout.id); }} />
+        ) : null}
+        {optionsFor ? (
           <SupersetFields
             key={`superset-${optionsFor.entryId}-${optionsFor.groupId ?? ''}`}
             exercise={optionsFor}
@@ -656,6 +765,19 @@ export default function WorkoutScreen() {
         ) : null}
         {optionsFor ? (
           <ExerciseRestFields key={`rest-${optionsFor.entryId}`} entryId={optionsFor.entryId} exerciseId={optionsFor.exerciseId} onSaved={() => void refresh(workout.id)} />
+        ) : null}
+        {optionsFor && emomFieldFor(optionsFor.metric) ? (
+          <ActionButton
+            icon="timer-outline"
+            label={optionsFor.entryId === emomEntryId ? t('emom.stop') : t('emom.open')}
+            secondary
+            onPress={() => {
+              const exercise = optionsFor;
+              setOptionsFor(null);
+              if (exercise.entryId === emomEntryId) void emom.stop();
+              else setEmomSetupFor(exercise);
+            }}
+          />
         ) : null}
         <ActionButton
           icon="swap-horizontal"
@@ -731,12 +853,32 @@ export default function WorkoutScreen() {
   );
 }
 
+/** Names a block of the workout and shows how much of it is done; drawn above its first exercise. */
+function BlockHeader({ block, exercises }: { block: Block; exercises: SessionExercise[] }) {
+  const styles = useScaledStyles(baseStyles);
+  const { t } = useTranslation();
+  const { palette } = useTheme();
+  const done = exercises.reduce((sum, exercise) => sum + completedSetCount(exercise.sets), 0);
+  const total = exercises.reduce((sum, exercise) => sum + groupSets(exercise.sets).length, 0);
+  return (
+    <View accessibilityRole="header" style={[styles.blockHeader, { borderBottomColor: palette.border }]}>
+      <Text style={[styles.blockTitle, { color: palette.text }]}>{t(`workout.blocks.${block}`)}</Text>
+      <Text style={[styles.blockCount, { color: palette.textMuted }]}>{t('logger.setsProgress', { done, total })}</Text>
+    </View>
+  );
+}
+
+/** The current time, read inside event handlers only. */
+const nowMs = () => Date.now();
+
 /** Rest end times by workout id, so leaving and reopening the workout keeps the same countdown. */
 const runningRests = new Map<string, number>();
 
-function ExerciseCard({ handle, exercise, previous, hold, onChange, onSetValue, onComplete, onStartHold, onFinishHold, onAddSet, onSetOptions, onUncomplete, onRemoveSet, onSwiped, rpePromptFor, onRpe, onDismissRpe, onOptions, onSaved, onToggleWarmup, onCopyPrevious, setRecords, volumeRecord, supersetLabel }: {
+function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, previous, hold, onChange, onSetValue, onComplete, onStartHold, onFinishHold, onAddSet, onAddWarmup, onSetOptions, onUncomplete, onRemoveSet, onSwiped, rpePromptFor, onRpe, onDismissRpe, onOptions, onSaved, onToggleWarmup, onCopyPrevious, setRecords, volumeRecord, supersetLabel, emomLabel: emomBadgeLabel }: {
   handle?: ReactNode;
   exercise: SessionExercise;
+  collapsed: boolean;
+  onToggleCollapsed: () => void;
   previous: PreviousPerformance | undefined;
   hold: ActiveHold | null;
   onChange: (set: SessionSet, field: 'reps' | 'durationSec' | 'distanceM' | 'addedLoadKg', delta: number) => Promise<void>;
@@ -745,6 +887,7 @@ function ExerciseCard({ handle, exercise, previous, hold, onChange, onSetValue, 
   onStartHold: (set: SessionSet) => void;
   onFinishHold: () => void;
   onAddSet: () => void;
+  onAddWarmup: () => void;
   onSetOptions: (set: SessionSet) => void;
   onUncomplete: (set: SessionSet) => void;
   onRemoveSet: (set: SessionSet) => void;
@@ -759,6 +902,7 @@ function ExerciseCard({ handle, exercise, previous, hold, onChange, onSetValue, 
   setRecords: ReadonlyMap<string, RecordKind[]>;
   volumeRecord: boolean;
   supersetLabel: string | null;
+  emomLabel?: string | null;
 }) {
   const styles = useScaledStyles(baseStyles);
   const { t } = useTranslation();
@@ -772,12 +916,9 @@ function ExerciseCard({ handle, exercise, previous, hold, onChange, onSetValue, 
   const distance = exercise.metric === 'distance';
   const loaded = exercise.metric === 'reps_load' || exercise.metric === 'time_load';
   const field = timed ? 'durationSec' : distance ? 'distanceM' : 'reps';
-  const doneSets = exercise.sets.filter((set) => set.completedAt).length;
-  const allDone = exercise.sets.length > 0 && doneSets === exercise.sets.length;
-  // A finished exercise folds to its results; reopening it (or adding a set) unfolds it again.
-  const [collapsed, setCollapsed] = useState(allDone);
-  const [wasAllDone, setWasAllDone] = useState(allDone);
-  if (wasAllDone !== allDone) { setWasAllDone(allDone); setCollapsed(allDone); }
+  const doneSets = completedSetCount(exercise.sets);
+  const totalSets = groupSets(exercise.sets).length;
+  const allDone = totalSets > 0 && doneSets === totalSets;
   const results = exercise.sets.filter((set) => set.completedAt).map((set) => {
     const base = timed ? formatClock(set.durationSec ?? 0) : distance ? `${formatNumber(set.distanceM ?? 0)}m` : String(set.reps ?? 0);
     const label = set.kind === 'warmup' ? `W ${base}` : base;
@@ -788,27 +929,28 @@ function ExerciseCard({ handle, exercise, previous, hold, onChange, onSetValue, 
     : null;
 
   return (
-    <Card style={[styles.exerciseCard, supersetLabel ? { borderLeftWidth: 4, borderLeftColor: palette.accent } : null]}>
+    <Card style={[styles.exerciseCard, allDone ? { borderColor: palette.success } : supersetLabel ? { borderColor: palette.accentStrong } : null]}>
       <View style={styles.exerciseHeader}>
         {handle}
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={t(collapsed ? 'logger.expand' : 'logger.collapse', { name: exercise.name })}
           accessibilityState={{ expanded: !collapsed }}
-          onPress={() => setCollapsed((value) => !value)}
+          onPress={onToggleCollapsed}
           onLongPress={() => openExercisePage(exercise.exerciseId)}
           accessibilityActions={[{ name: 'longpress', label: t('logger.openExercise') }]}
           onAccessibilityAction={(event) => { if (event.nativeEvent.actionName === 'longpress') openExercisePage(exercise.exerciseId); }}
           style={styles.flex}
         >
-          {supersetLabel ? <Label style={{ color: palette.accentStrong }}>{supersetLabel}</Label> : null}
           <View style={styles.nameRow}>
             <Heading style={[styles.exerciseName, styles.flex]}>{exercise.name}</Heading>
             <Icon name={collapsed ? 'chevron-down' : 'chevron-up'} size={18} color={palette.textMuted} />
           </View>
           <View style={styles.progressRow}>
             <Icon name={allDone ? 'checkmark-circle' : 'ellipse-outline'} size={14} color={allDone ? palette.success : palette.textMuted} />
-            <Label>{t('logger.setsProgress', { done: doneSets, total: exercise.sets.length })}</Label>
+            <Label>{t('logger.setsProgress', { done: doneSets, total: totalSets })}</Label>
+            {supersetLabel ? <Label style={{ color: palette.accentStrong }}>{`· ${supersetLabel}`}</Label> : null}
+            {emomBadgeLabel ? <Label accessibilityLiveRegion="polite" style={{ color: palette.accentStrong }}>{`· ${emomBadgeLabel}`}</Label> : null}
           </View>
           {collapsed && results ? <Text numberOfLines={2} style={[styles.results, { color: palette.text }]}>{results}</Text> : null}
           {collapsed ? null : <Label>{previousText ? t('logger.lastTime', { value: previousText }) : t('logger.firstTime')}</Label>}
@@ -829,15 +971,19 @@ function ExerciseCard({ handle, exercise, previous, hold, onChange, onSetValue, 
       {collapsed ? null : <View style={[styles.columns, { borderBottomColor: palette.border }]}>
         <Label style={styles.colSet}>{t('logger.setCol')}</Label>
         <Label style={styles.colValue}>{timed ? t('logger.holdCol') : distance ? t('logger.distanceCol') : t('logger.repsCol')}</Label>
-        {loaded ? <Label style={styles.colLoad}>{t('logger.loadCol')}</Label> : null}
         <View style={styles.colAction} />
       </View>}
 
       {(collapsed ? [] : exercise.sets).map((set) => {
         const done = Boolean(set.completedAt);
-        const workingNumber = exercise.sets.filter((item) => item.kind === 'working' && item.index <= set.index).length;
+        // In a running EMOM a recorded round stays editable in place and keeps its check, so the round count holds.
+        const emomLocked = done && Boolean(emomBadgeLabel);
+        const showSteps = !done || emomLocked;
+        const workingNumber = groupSets(exercise.sets.filter((item) => item.kind === 'working' && item.index <= set.index)).length;
+        const sideLabel = set.side === 'left' ? 'Sinistro (L)' : set.side === 'right' ? 'Destro (R)' : '';
         // Last time's working set at the same position; tapping it copies its values and note.
-        const lastTime = set.kind === 'working' ? previous?.sets[workingNumber - 1] ?? null : null;
+        const previousGroups = groupSets(previous?.sets ?? []);
+        const lastTime = set.kind === 'working' ? previousGroups[workingNumber - 1]?.find((s) => !set.pairId || s.side === set.side || !s.side || s.side === 'both') ?? null : null;
         const holding = hold?.setId === set.id;
         const stored = timed ? set.durationSec ?? 0 : distance ? set.distanceM ?? 0 : set.reps ?? 0;
         const value = holding && hold ? holdDisplay(hold) : timed ? formatClock(stored) : distance ? formatNumber(stored) : String(stored);
@@ -864,44 +1010,47 @@ function ExerciseCard({ handle, exercise, previous, hold, onChange, onSetValue, 
                     style={[styles.setBadge, { backgroundColor: done ? palette.accent : palette.surfaceMuted }, set.kind === 'warmup' && { borderWidth: 1, borderStyle: 'dashed', borderColor: done ? palette.accentText : palette.textMuted }]}
                   >
                     <Text style={[styles.setBadgeText, { color: done ? palette.accentText : set.kind === 'warmup' ? palette.textMuted : palette.text }]}>{set.kind === 'warmup' ? 'W' : workingNumber}</Text>
+                    {set.side === 'left' || set.side === 'right' ? <Text style={[styles.setBadgeSide, { color: done ? palette.accentText : palette.textMuted }]}>{set.side === 'left' ? 'L' : 'R'}</Text> : null}
                   </Pressable>
                 </PopOnActivate>
               </View>
               <View style={[styles.colValue, styles.stepper]}>
-                {done ? null : <StepButton icon="remove" label="−" onPress={(multiplier) => void onChange(set, field, (distance ? -0.5 : timed ? -5 : -1) * multiplier)} />}
+                {showSteps ? <StepButton icon="remove" label="−" onPress={(multiplier) => void onChange(set, field, (distance ? -0.5 : timed ? -5 : -1) * multiplier)} /> : null}
                 {done || holding ? (
                   <Text style={[styles.setValue, { color: holding ? palette.accentStrong : palette.text }]}>{value}</Text>
+                ) : timed ? (
+                  <HoldDurationField compact value={stored} label={`${t('logger.holdCol')} · ${t('logger.editValue', { number: set.index })}`} onChange={(next) => onSetValue(set, 'durationSec', next)} />
                 ) : (
                   <NumberEdit
                     value={stored}
                     display={value}
                     clock={timed}
-                    label={t('logger.editValue', { number: set.index })}
+                    label={`${t('logger.editValue', { number: set.index })} ${sideLabel}`}
                     onCommit={(next) => onSetValue(set, field, timed || field === 'reps' ? Math.round(next) : next)}
                     style={[styles.setValue, { color: palette.text }]}
                   />
                 )}
-                {done ? null : <StepButton icon="add" label="+" onPress={(multiplier) => void onChange(set, field, (distance ? 0.5 : timed ? 5 : 1) * multiplier)} />}
+                {showSteps ? <StepButton icon="add" label={`+ ${sideLabel}`} onPress={(multiplier) => void onChange(set, field, (distance ? 0.5 : timed ? 5 : 1) * multiplier)} /> : null}
               </View>
-              {loaded ? <View style={styles.colLoad}><LoadEditor key={`${set.id}:${set.addedLoadKg}`} setId={set.id} value={set.addedLoadKg} disabled={done} onSaved={onSaved} /></View> : null}
               <View style={[styles.colAction, styles.rowActions]}>
-                <IconButton icon="ellipsis-vertical" label={t('logger.setOptions', { number: set.index })} tone="plain" size={34} onPress={() => onSetOptions(set)} />
                 {done ? (
                   <Animated.View entering={checkEntering}>
                     <Pressable
                       accessibilityRole="button"
-                      accessibilityLabel={t('workout.setCompleted')}
-                      accessibilityState={{ checked: true }}
+                      accessibilityLabel={`${t('workout.setCompleted')} ${sideLabel}`}
+                      accessibilityState={{ checked: true, disabled: emomLocked }}
+                      accessibilityHint={emomLocked ? t('emom.editHint') : undefined}
+                      disabled={emomLocked}
                       onPress={() => { tapFeedback(); onUncomplete(set); }}
                       style={[styles.checkButton, { backgroundColor: palette.success }]}
                     >
-                      <Icon name="checkmark" size={20} color="#FFFFFF" />
+                      <Icon name="checkmark" size={20} color={palette.successText} />
                     </Pressable>
                   </Animated.View>
                 ) : timed ? (
                   <Pressable
                     accessibilityRole="button"
-                    accessibilityLabel={holding ? t('logger.doneHold') : t('logger.startHold')}
+                    accessibilityLabel={`${holding ? t('logger.doneHold') : t('logger.startHold')} ${sideLabel}`}
                     accessibilityHint={holding ? undefined : t('logger.holdLongPressHint')}
                     accessibilityActions={holding ? undefined : [{ name: 'longpress', label: t('logger.markDoneNoTimer') }]}
                     onAccessibilityAction={(event) => { if (event.nativeEvent.actionName === 'longpress') onComplete(set); }}
@@ -915,7 +1064,7 @@ function ExerciseCard({ handle, exercise, previous, hold, onChange, onSetValue, 
                 ) : (
                   <Pressable
                     accessibilityRole="button"
-                    accessibilityLabel={t('workout.completeSet')}
+                    accessibilityLabel={`${t('workout.completeSet')} ${sideLabel}`}
                     onPress={() => onComplete(set)}
                     style={[styles.checkButton, { backgroundColor: palette.surfaceMuted, borderColor: palette.border, borderWidth: 1 }]}
                   >
@@ -925,21 +1074,25 @@ function ExerciseCard({ handle, exercise, previous, hold, onChange, onSetValue, 
               </View>
             </View>
             </SwipeableSetRow>
-            {!done && lastTime ? (
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={t('logger.copyPrevious', { value: describeSet(lastTime, exercise.metric) })}
-                onPress={() => onCopyPrevious(set, lastTime)}
-                style={styles.previousRow}
-              >
-                <Icon name="arrow-undo-outline" size={13} color={palette.accentStrong} />
-                <Text numberOfLines={1} style={[styles.previousText, { color: palette.textMuted }]}>
-                  {t('logger.previousShort', { value: describeSet(lastTime, exercise.metric) })}{lastTime.note ? ` · ${lastTime.note}` : ''}
-                </Text>
-              </Pressable>
-            ) : null}
+            <View style={[styles.setDetailRow, !loaded && styles.setDetailRowCompact]}>
+              {/* Same three columns as the row above: copy last time under the number, load under the value, menu under the check. */}
+              <View style={[styles.colSet, styles.detailCell]}>
+                {!done && lastTime ? (
+                  <IconButton icon="arrow-undo-outline" label={t('logger.copyPrevious', { value: describeSet(lastTime, exercise.metric) })} tone="plain" size={36} color={palette.accentStrong} onPress={() => onCopyPrevious(set, lastTime)} />
+                ) : null}
+              </View>
+              <View style={styles.loadColumn}>
+                {loaded ? <View>
+                  <LoadEditor sideLabel={sideLabel} key={`${set.id}:${set.addedLoadKg}`} setId={set.id} value={set.addedLoadKg} disabled={done} onSaved={onSaved} />
+                  <View pointerEvents="none" style={styles.loadUnit}><Label>kg</Label></View>
+                </View> : null}
+              </View>
+              <View style={[styles.colAction, styles.detailCell]}>
+                <IconButton icon="ellipsis-horizontal" label={t('logger.setOptions', { number: set.index })} tone="plain" size={36} onPress={() => onSetOptions(set)} />
+              </View>
+            </View>
             {rpePromptFor === set.id && set.completedAt ? (
-              <RpePicker inline value={set.rpe} onChange={(rpe) => onRpe(set, rpe)} onDismiss={onDismissRpe} />
+              <RpePicker sideLabel={sideLabel} inline value={set.rpe} onChange={(rpe) => onRpe(set, rpe)} onDismiss={onDismissRpe} />
             ) : set.note || set.clipCount > 0 || set.rpe !== null || setRecords.has(set.id) ? (
               <Pressable accessibilityRole="button" onPress={() => onSetOptions(set)} style={styles.setMeta}>
                 {setRecords.has(set.id) ? (
@@ -971,10 +1124,16 @@ function ExerciseCard({ handle, exercise, previous, hold, onChange, onSetValue, 
         );
       })}
 
-      {collapsed ? null : <Pressable accessibilityRole="button" onPress={() => { tapFeedback(); onAddSet(); }} style={({ pressed }) => [styles.addSet, { borderColor: palette.border, opacity: pressed ? 0.6 : 1 }]}>
-        <Icon name="add" size={18} color={palette.accentStrong} />
-        <Text style={[styles.addSetText, { color: palette.accentStrong }]}>{t('logger.addSet')}</Text>
-      </Pressable>}
+      {collapsed ? null : <View style={styles.addRow}>
+        <Pressable accessibilityRole="button" onPress={() => { tapFeedback(); onAddSet(); }} style={({ pressed }) => [styles.addSet, styles.addCell, { borderColor: palette.border, opacity: pressed ? 0.6 : 1 }]}>
+          <Icon name="add" size={18} color={palette.accentStrong} />
+          <Text style={[styles.addSetText, { color: palette.accentStrong }]}>{t('logger.addSet')}</Text>
+        </Pressable>
+        <Pressable accessibilityRole="button" accessibilityHint={t('logger.warmupHint')} onPress={() => { tapFeedback(); onAddWarmup(); }} style={({ pressed }) => [styles.addSet, styles.addCell, { borderColor: palette.border, borderStyle: 'dashed', opacity: pressed ? 0.6 : 1 }]}>
+          <Icon name="flame-outline" size={18} color={palette.textMuted} />
+          <Text style={[styles.addSetText, { color: palette.textMuted }]}>{t('logger.addWarmup')}</Text>
+        </Pressable>
+      </View>}
     </Card>
   );
 }
@@ -1016,8 +1175,7 @@ function SetSheet({ exercise, set, holdMode, onHoldMode, onClose, onChanged, onR
   const remove = async () => {
     if (needsConfirm && !confirming) { setConfirming(true); return; }
     onClose();
-    if (needsConfirm) await removeSet(set.id);
-    else onRemoved(await removeSetWithUndo(set.id));
+    onRemoved(await removeSetWithUndo(set.id));
     await onChanged();
   };
 
@@ -1095,11 +1253,34 @@ function holdDisplay(hold: ActiveHold): string {
   return formatClock(hold.phase.elapsed);
 }
 
-function TimerBar({ hold, restSeconds, onFinishHold, onExtend, onSkip }: {
+interface EmomBar {
+  label: string;
+  display: string;
+  value: string;
+  valueLabel: string;
+  onChange: (delta: number) => void;
+  onStop: () => void;
+}
+
+/** "Round 3 / 10" on the card while an EMOM runs. */
+function emomBadge(phase: EmomPhase, plan: EmomPlan, t: (key: string, options?: Record<string, unknown>) => string): string {
+  if (phase.phase === 'running') return t('emom.badge', { round: phase.round, rounds: plan.rounds });
+  return t('emom.badgeReady', { rounds: plan.rounds });
+}
+
+function emomBarLabel(phase: EmomPhase, plan: EmomPlan, t: (key: string, options?: Record<string, unknown>) => string): string {
+  if (phase.phase === 'countdown') return t('emom.getReady');
+  if (phase.phase === 'running') return t('emom.round', { round: phase.round, rounds: plan.rounds });
+  return t('emom.notifyDone');
+}
+
+function TimerBar({ emom, hold, restSeconds, onFinishHold, onExtend, onReduce, onSkip }: {
+  emom: EmomBar | null;
   hold: ActiveHold | null;
   restSeconds: number | null;
   onFinishHold: () => void;
   onExtend: () => void;
+  onReduce: () => void;
   onSkip: () => void;
 }) {
   const styles = useScaledStyles(baseStyles);
@@ -1108,7 +1289,28 @@ function TimerBar({ hold, restSeconds, onFinishHold, onExtend, onSkip }: {
   const insets = useAppInsets();
   // The bar floats over the list; while typing it would sit on top of the focused input.
   const keyboardVisible = useKeyboardVisible();
-  if (keyboardVisible || (hold === null && restSeconds === null)) return null;
+  if (keyboardVisible || (hold === null && restSeconds === null && emom === null)) return null;
+  if (emom) {
+    return (
+      <View style={[styles.timerBar, { backgroundColor: palette.hero, paddingBottom: insets.bottom + 14 }]}>
+        <View style={[styles.timerInner, styles.emomInner]}>
+        <View style={styles.emomRow}>
+          <View style={styles.flex}>
+            <Text style={[styles.timerLabel, { color: palette.heroText }]}>{emom.label}</Text>
+            <Text accessibilityLiveRegion="polite" style={[styles.timerValue, { color: palette.heroText }]}>{emom.display}</Text>
+          </View>
+          <TimerAction label={t('emom.stopShort')} filled onPress={emom.onStop} />
+        </View>
+        <View style={styles.emomRow}>
+          <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8} style={[styles.timerLabel, styles.flex, { color: palette.heroText }]}>{emom.valueLabel}</Text>
+          <TimerAction label="−" accessibilityLabel={`${emom.valueLabel} −`} onPress={() => emom.onChange(-1)} />
+          <Text accessibilityLiveRegion="polite" style={[styles.emomValueText, { color: palette.heroText }]}>{emom.value}</Text>
+          <TimerAction label="+" accessibilityLabel={`${emom.valueLabel} +`} onPress={() => emom.onChange(1)} />
+        </View>
+        </View>
+      </View>
+    );
+  }
   const holding = hold !== null;
   const countingDown = hold?.phase.phase === 'countdown';
   const label = !hold
@@ -1120,7 +1322,8 @@ function TimerBar({ hold, restSeconds, onFinishHold, onExtend, onSkip }: {
         : t('logger.holding');
   return (
     <View style={[styles.timerBar, { backgroundColor: palette.hero, paddingBottom: insets.bottom + 14 }]}>
-      <View style={styles.flex}>
+      <View style={styles.timerInner}>
+      <View style={styles.timerReadout}>
         <Text style={[styles.timerLabel, { color: palette.heroText }]}>{label}</Text>
         <Text accessibilityLiveRegion="polite" style={[styles.timerValue, { color: palette.heroText }]}>{hold ? holdDisplay(hold) : formatClock(restSeconds ?? 0)}</Text>
       </View>
@@ -1128,24 +1331,27 @@ function TimerBar({ hold, restSeconds, onFinishHold, onExtend, onSkip }: {
         <TimerAction label={countingDown ? t('common.cancel') : t('logger.doneHold')} filled onPress={onFinishHold} />
       ) : (
         <View style={styles.timerActions}>
+          <TimerAction label={t('logger.subtractTime')} onPress={onReduce} />
           <TimerAction label={t('logger.addTime')} onPress={onExtend} />
           <TimerAction label={t('logger.skip')} filled onPress={onSkip} />
         </View>
       )}
+      </View>
     </View>
   );
 }
 
-function TimerAction({ label, filled = false, onPress }: { label: string; filled?: boolean; onPress: () => void }) {
+function TimerAction({ label, filled = false, accessibilityLabel, onPress }: { label: string; filled?: boolean; accessibilityLabel?: string; onPress: () => void }) {
   const styles = useScaledStyles(baseStyles);
   const { palette } = useTheme();
   return (
     <Pressable
       accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel}
       onPress={() => { tapFeedback(); onPress(); }}
       style={({ pressed }) => [styles.timerAction, { backgroundColor: filled ? palette.heroText : 'rgba(255,255,255,0.16)', opacity: pressed ? 0.8 : 1 }]}
     >
-      <Text style={[styles.timerActionText, { color: filled ? palette.hero : palette.heroText }]}>{label}</Text>
+      <Text style={[styles.timerActionText, label.length === 1 && styles.timerActionSymbol, { color: filled ? palette.hero : palette.heroText }]}>{label}</Text>
     </Pressable>
   );
 }
@@ -1190,7 +1396,7 @@ function ReadinessRow({ label, value, onChange }: { label: string; value: number
   </View>;
 }
 
-function LoadEditor({ setId, value, disabled, onSaved }: { setId: string; value: number; disabled: boolean; onSaved: () => Promise<void> }) {
+function LoadEditor({ setId, value, disabled, onSaved, sideLabel = '' }: { sideLabel?: string; setId: string; value: number; disabled: boolean; onSaved: () => Promise<void> }) {
   const styles = useScaledStyles(baseStyles);
   const { t } = useTranslation();
   const { palette } = useTheme();
@@ -1204,8 +1410,8 @@ function LoadEditor({ setId, value, disabled, onSaved }: { setId: string; value:
   };
 
   return (
-    <TextInput
-      accessibilityLabel={t('history.addedLoad')}
+    <TextInput maxFontSizeMultiplier={MAX_FONT_SCALE}
+      accessibilityLabel={`${t('history.addedLoad')} ${sideLabel}`}
       value={draft}
       editable={!disabled}
       onChangeText={setDraft}
@@ -1220,7 +1426,8 @@ function LoadEditor({ setId, value, disabled, onSaved }: { setId: string; value:
 const baseStyles = StyleSheet.create({
   root: { flex: 1 },
   flex: { flex: 1 },
-  readinessToggle: { flexDirection: 'row', alignItems: 'center', gap: 12, borderWidth: StyleSheet.hairlineWidth, borderRadius: 16, paddingHorizontal: 16, paddingVertical: 13 },
+  readinessToggle: { flexShrink: 1, flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 44 },
+  shrink: { flexShrink: 1 },
   readinessTitle: { fontFamily: fonts.medium, fontSize: 15 },
   readinessHint: { fontFamily: fonts.body, fontSize: 13, marginTop: 2 },
   readinessCard: { gap: 10, marginTop: -10 },
@@ -1231,30 +1438,40 @@ const baseStyles = StyleSheet.create({
   readinessValue: { fontFamily: fonts.display, fontSize: 18 },
   emptyAction: { alignSelf: 'stretch', marginTop: 6, gap: 8 },
   exerciseCard: { paddingHorizontal: 14, paddingBottom: 12, gap: 6 },
+  blockHeader: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: 12, paddingBottom: 6, marginBottom: 10, borderBottomWidth: StyleSheet.hairlineWidth },
+  blockTitle: { fontFamily: fonts.semibold, fontSize: 16 },
+  blockCount: { fontFamily: fonts.medium, fontSize: 13 },
+  toolbar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
+  foldAll: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 44, paddingHorizontal: 8 },
+  foldAllText: { fontFamily: fonts.semibold, fontSize: 14 },
   exerciseHeader: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, paddingHorizontal: 4, marginBottom: 4 },
-  summary: { borderWidth: StyleSheet.hairlineWidth, borderRadius: 16, paddingHorizontal: 16, paddingVertical: 12, gap: 8 },
-  summaryTop: { flexDirection: 'row', alignItems: 'baseline', gap: 12 },
+  summary: { gap: 8 },
+  summaryTop: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'baseline', gap: 12 },
   summaryText: { flex: 1, fontFamily: fonts.semibold, fontSize: 15 },
   summaryMuted: { fontFamily: fonts.medium, fontSize: 13 },
-  summaryTrack: { height: 4, borderRadius: 2, overflow: 'hidden' },
-  summaryFill: { height: 4, borderRadius: 2 },
   results: { fontFamily: fonts.semibold, fontSize: 15, marginTop: 2 },
-  footerRow: { flexDirection: 'row', gap: 10 },
+  footerRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  footerCell: { flex: 1, minWidth: 140 },
+  // Long labels: side by side only when each gets room for one line.
+  footerCellWide: { flex: 1, minWidth: 220 },
   nameRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  progressRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  progressRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', columnGap: 5 },
   exerciseName: { fontFamily: fonts.display, fontSize: 24, lineHeight: 28 },
   columns: { flexDirection: 'row', alignItems: 'center', paddingBottom: 6, paddingHorizontal: 4, borderBottomWidth: StyleSheet.hairlineWidth },
   colSet: { width: 44 },
   colValue: { flex: 1, textAlign: 'center' },
-  colLoad: { width: 78, alignItems: 'center', textAlign: 'center' },
-  colAction: { width: 80 },
-  setBlock: { borderRadius: 12, overflow: 'hidden' },
-  setRow: { flexDirection: 'row', alignItems: 'center', minHeight: 56, paddingHorizontal: 4 },
+  colAction: { width: 48 },
+  setBlock: { borderRadius: 12, overflow: 'hidden', paddingTop: 4 },
+  setRow: { flexDirection: 'row', alignItems: 'center', minHeight: 60, paddingHorizontal: 4 },
+  setDetailRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 4 },
+  // Without a load field the row only holds two icon buttons: tuck it under the set instead of giving it a line of its own.
+  setDetailRowCompact: { marginTop: -12, marginBottom: -6 },
+  detailCell: { alignItems: 'center', justifyContent: 'center' },
+  loadColumn: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  loadUnit: { position: 'absolute', left: '100%', top: 0, bottom: 0, marginLeft: 8, justifyContent: 'center' },
   swipeHint: { flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: 14, paddingHorizontal: 14, paddingVertical: 10 },
   swipeHintText: { flex: 1, fontFamily: fonts.medium, fontSize: 14 },
   recordChip: { flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-start', borderRadius: 10, paddingHorizontal: 8, paddingVertical: 3, marginTop: 4 },
-  previousRow: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingLeft: 48, paddingRight: 12, paddingBottom: 8, marginTop: -4 },
-  previousText: { flex: 1, fontFamily: fonts.body, fontSize: 12 },
   setMeta: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingLeft: 48, paddingRight: 12, paddingBottom: 10, marginTop: -4 },
   clipChip: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, minHeight: 24, borderRadius: 999 },
   clipChipText: { fontFamily: fonts.semibold, fontSize: 12 },
@@ -1262,20 +1479,29 @@ const baseStyles = StyleSheet.create({
   exerciseNote: { fontFamily: fonts.body, fontSize: 13, lineHeight: 18, marginTop: 4 },
   setBadge: { width: 36, height: 36, borderRadius: 9, alignItems: 'center', justifyContent: 'center' },
   setBadgeText: { fontFamily: fonts.display, fontSize: 16 },
-  stepper: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
-  setValue: { fontFamily: fonts.display, fontSize: 30, lineHeight: 34, minWidth: 52, textAlign: 'center', fontVariant: ['tabular-nums'] },
+  setBadgeSide: { fontFamily: fonts.semibold, fontSize: 10, lineHeight: 11, marginTop: -2 },
+  stepper: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
+  setValue: { fontFamily: fonts.display, fontSize: 28, lineHeight: 34, minWidth: 40, textAlign: 'center', fontVariant: ['tabular-nums'] },
   stepButton: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
-  loadInput: { width: 64, minHeight: 38, borderRadius: 10, textAlign: 'center', textAlignVertical: 'center', fontFamily: fonts.display, fontSize: 19, lineHeight: 23, paddingVertical: 0, paddingHorizontal: 6, includeFontPadding: false },
+  loadInput: { width: 76, minHeight: 48, borderRadius: 10, textAlign: 'center', textAlignVertical: 'center', fontFamily: fonts.display, fontSize: 20, lineHeight: 26, paddingVertical: 0, paddingHorizontal: 6, includeFontPadding: false },
   rowActions: { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 2 },
-  checkButton: { width: 42, height: 42, borderRadius: 13, alignItems: 'center', justifyContent: 'center' },
-  addSet: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, minHeight: 44, borderRadius: 12, borderWidth: 1, borderStyle: 'dashed', marginTop: 6 },
+  checkButton: { width: 48, height: 48, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  addSet: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, minHeight: 48, borderRadius: 12, borderWidth: 1, marginTop: 8 },
+  addRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 },
+  addCell: { flex: 1, minWidth: 130, marginTop: 0 },
   addSetText: { fontFamily: fonts.semibold, fontSize: 15 },
   footerActions: { gap: 10, marginTop: 4 },
-  timerBar: { position: 'absolute', left: 0, right: 0, bottom: 0, flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 22, paddingTop: 14, borderTopLeftRadius: 24, borderTopRightRadius: 24 },
+  timerBar: { position: 'absolute', left: 0, right: 0, bottom: 0, alignItems: 'center', paddingHorizontal: 22, paddingTop: 14, borderTopLeftRadius: 24, borderTopRightRadius: 24 },
+  timerInner: { width: '100%', maxWidth: 640, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
   timerLabel: { fontFamily: fonts.medium, fontSize: 14, opacity: 0.85 },
   timerValue: { fontFamily: fonts.display, fontSize: 46, lineHeight: 50, fontVariant: ['tabular-nums'] },
-  timerActions: { flexDirection: 'row', gap: 8 },
-  timerAction: { minWidth: 64, height: 46, borderRadius: 14, paddingHorizontal: 14, alignItems: 'center', justifyContent: 'center' },
+  timerReadout: { flexGrow: 1, minWidth: 110 },
+  timerActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  emomInner: { flexDirection: 'column', alignItems: 'stretch', gap: 8 },
+  emomRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  emomValueText: { fontFamily: fonts.display, fontSize: 26, lineHeight: 30, minWidth: 72, textAlign: 'center', fontVariant: ['tabular-nums'] },
+  timerAction: { minWidth: 56, minHeight: 48, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10, alignItems: 'center', justifyContent: 'center' },
   timerActionText: { fontFamily: fonts.semibold, fontSize: 15 },
+  timerActionSymbol: { fontSize: 26, lineHeight: 30 },
   // The surrounding box carries the border, so the browser focus outline is replaced by it.
 });

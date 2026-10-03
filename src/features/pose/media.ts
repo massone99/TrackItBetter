@@ -31,14 +31,20 @@ export interface VideoFrame extends PoseImage {
 export async function extractFrames(videoUri: string, durationMs: number, count = 12): Promise<VideoFrame[]> {
   const duration = Math.max(1000, durationMs);
   const frames: VideoFrame[] = [];
+  let lastFailure: unknown = null;
   for (let index = 0; index < count; index += 1) {
     const timeMs = Math.round(duration * ((index + 0.5) / count));
     try {
       const thumbnail = await VideoThumbnails.getThumbnailAsync(videoUri, { time: timeMs, quality: 0.85 });
       frames.push({ uri: thumbnail.uri, width: thumbnail.width, height: thumbnail.height, timeMs });
-    } catch {
+    } catch (failure) {
       // A frame that cannot be decoded is skipped; the rest of the strip is still usable.
+      lastFailure = failure;
     }
+  }
+  if (frames.length === 0) {
+    const detail = lastFailure instanceof Error ? lastFailure.message : String(lastFailure);
+    throw new Error(`video frames: ${detail}`);
   }
   return frames;
 }

@@ -4,9 +4,10 @@ import { useTranslation } from 'react-i18next';
 import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
 import { Text } from '../src/shared/components/Text';
 import { getGoalSnapshot, saveWeeklyTarget, type GoalSnapshot } from '../src/features/goals/repository';
-import { Body, Card, Heading, PageHeading, Screen, SectionTitle, Icon } from '../src/shared/components/ui';
+import { Body, Card, Heading, PageHeading, ProgressMeter, Screen, SectionTitle, Icon } from '../src/shared/components/ui';
 import { useTheme } from '../src/shared/theme/ThemeProvider';
 import { useScaledStyles } from '../src/shared/theme/useScaledStyles';
+import { fonts } from '../src/shared/theme/typography';
 
 const copy = {
   en: {
@@ -85,10 +86,8 @@ export default function GoalsScreen() {
             </View>
             <Pressable accessibilityRole="button" accessibilityLabel={t('goals.increaseTarget')} accessibilityState={{ disabled: snapshot.weeklyTarget >= 7 || saving }} disabled={snapshot.weeklyTarget >= 7 || saving} onPress={() => void changeTarget(1)} style={[styles.adjustButton, { backgroundColor: palette.surfaceMuted, opacity: snapshot.weeklyTarget >= 7 ? 0.45 : 1 }]}><Text style={[styles.adjustText, { color: palette.text }]}>+</Text></Pressable>
           </View>
-          <View accessibilityRole="progressbar" accessibilityLabel={strings.weeklyGoal} accessibilityValue={{ min: 0, max: snapshot.weeklyTarget, now: Math.min(snapshot.thisWeekSessions, snapshot.weeklyTarget) }} style={[styles.progressTrack, { backgroundColor: palette.surfaceMuted }]}>
-            <View style={[styles.progressFill, { width: `${Math.min(100, snapshot.thisWeekSessions / snapshot.weeklyTarget * 100)}%`, backgroundColor: palette.accentStrong }]} />
-          </View>
-          {snapshot.thisWeekSessions >= snapshot.weeklyTarget ? <Body>{strings.reached}</Body> : null}
+          <ProgressMeter value={snapshot.thisWeekSessions} total={snapshot.weeklyTarget} label={strings.weeklyGoal} tone={snapshot.thisWeekSessions >= snapshot.weeklyTarget ? 'success' : 'accent'} />
+          {snapshot.thisWeekSessions >= snapshot.weeklyTarget ? <Body style={{ color: palette.success }}>{strings.reached}</Body> : null}
         </Card>
 
         <Card>
@@ -164,12 +163,10 @@ const baseStyles = StyleSheet.create({
   targetText: { flex: 1, gap: 3 },
   adjustButton: { width: 48, height: 48, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
   adjustText: { fontSize: 24, fontWeight: '800' },
-  progressTrack: { height: 9, borderRadius: 6, overflow: 'hidden' },
-  progressFill: { height: '100%', borderRadius: 6 },
   streakRow: { flexDirection: 'row', gap: 12 },
   recapRow: { flexDirection: 'row', gap: 12 },
   streakMetric: { flex: 1, minHeight: 110, backgroundColor: 'transparent', alignItems: 'center', justifyContent: 'center', gap: 3 },
-  streakValue: { fontSize: 38, lineHeight: 44, fontWeight: '900', letterSpacing: -1 },
+  streakValue: { fontFamily: fonts.display, fontSize: 40, lineHeight: 44, fontVariant: ['tabular-nums'] },
   streakDays: { marginTop: -5, fontSize: 13, fontWeight: '700' },
   heatmapRows: { flexDirection: 'row', gap: 6, alignItems: 'stretch' },
   heatmap: { flex: 1, gap: 4 },
@@ -183,7 +180,7 @@ const baseStyles = StyleSheet.create({
   badge: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
   badgeText: { fontSize: 20, fontWeight: '900' },
   achievementText: { flex: 1, gap: 2 },
-  achievementTitle: { fontSize: 14, fontWeight: '800' },
-  achievementProgress: { fontSize: 12, fontWeight: '800', textAlign: 'right' },
+  achievementTitle: { fontSize: 16, lineHeight: 22, fontWeight: '600' },
+  achievementProgress: { flexShrink: 1, maxWidth: '30%', fontSize: 13, lineHeight: 19, fontWeight: '600', textAlign: 'right' },
   retry: { fontSize: 15, fontWeight: '800' },
 });

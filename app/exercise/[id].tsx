@@ -1,10 +1,11 @@
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
 import type { Exercise } from '../../src/db/schema';
 import { openReferenceVideo, ReferenceLinkSheet } from '../../src/features/exercises/ReferenceLinkSheet';
 import { movementTagLabel } from '../../src/features/exercises/ClassificationChoices';
+import { exerciseMovementTags } from '../../src/features/exercises/movementCatalog';
 import { getExerciseById, setExerciseFavourite } from '../../src/features/exercises/repository';
 import { canTransfer, deleteExerciseWithHistory, getExerciseUsage, hideExercise, metricAfterTransfer, transferExerciseHistory, type ExerciseUsage } from '../../src/features/exercises/lifecycle';
 import { ExercisePicker, type ExerciseChoice } from '../../src/features/exercises/ExercisePicker';
@@ -12,12 +13,15 @@ import { HistoryRow } from '../../src/features/exercises/HistoryRow';
 import { addExerciseToWorkout, getActiveWorkout, startWorkout } from '../../src/features/session/repository';
 import { getExerciseCycle, getExerciseEstimate, getExerciseHistory, getExerciseRecordSummary, getExerciseWeekStats, type ExerciseHistorySession } from '../../src/features/analytics/repository';
 import type { ExerciseRecordSummary } from '../../src/features/analytics/records';
+import { repsAtLoadFromHistory } from '../../src/features/analytics/repsAtLoad';
+import { RepsAtLoadCard } from '../../src/features/analytics/components/RepsAtLoadCard';
 import { formatRecordValue } from '../../src/features/analytics/recordLabels';
 import type { ExerciseEstimate } from '../../src/features/analytics/estimates';
 import type { ExerciseCycle, ExerciseWeek } from '../../src/features/analytics/mobility';
 import { formatMinutes, formatNumber } from '../../src/shared/utils/format';
 import { formatRpe } from '../../src/domain';
-import { ActionButton, Body, Icon, IconButton, ListGroup, ListRow, PageHeading, Screen, SectionTitle, Sheet, SwitchRow, Text, Toast } from '../../src/shared/components/ui';
+import { ActionButton, Body, Icon, IconButton, ListGroup, ListRow, PageHeading, Screen, SectionTitle, SegmentedControl, Sheet, SwitchRow, Text, Toast } from '../../src/shared/components/ui';
+import { aggregatePairs, type PairScope } from '../../src/domain/setPairs';
 import { useTheme } from '../../src/shared/theme/ThemeProvider';
 import { fonts } from '../../src/shared/theme/typography';
 import { linkHost } from '../../src/shared/utils/url';
@@ -33,6 +37,13 @@ function readList(value: string): string[] {
   }
 }
 
+function historyForScope(history: readonly ExerciseHistorySession[], scope: PairScope): ExerciseHistorySession[] {
+  const hasPairs = history.some((session) => session.sets.some((s) => s.pairId));
+  return history.map((session) => {
+    return { ...session, sets: aggregatePairs(scope === 'average' && hasPairs ? session.sets.filter((s) => s.pairId) : session.sets, scope) };
+  });
+}
+
 export default function ExerciseRoute() {
   const styles = useScaledStyles(baseStyles);
   const { id, notice } = useLocalSearchParams<{ id: string; notice?: string }>();
@@ -46,6 +57,9 @@ export default function ExerciseRoute() {
   const [records, setRecords] = useState<ExerciseRecordSummary | null>(null);
   const [editingReference, setEditingReference] = useState(false);
   const [history, setHistory] = useState<ExerciseHistorySession[]>([]);
+  const [pairScope, setPairScope] = useState<PairScope>('average');
+  const scopedHistory = useMemo(() => historyForScope(history, pairScope), [history, pairScope]);
+  const loadProgress = useMemo(() => repsAtLoadFromHistory(scopedHistory), [scopedHistory]);
   const [usage, setUsage] = useState<ExerciseUsage | null>(null);
   // Removal: 'choose' offers hide or delete, 'delete' asks once more before deleting history.
   const [removal, setRemoval] = useState<'choose' | 'delete' | null>(null);
@@ -60,13 +74,13 @@ export default function ExerciseRoute() {
     setExercise(found);
     setLoading(false);
     // Mobility and stretching count their own week from the first day trained; the rest the last 7 days.
-    if (found && [found.category, ...readList(found.extraCategories)].includes('mobility')) setCycle(await getExerciseCycle(found.id).catch(() => null));
-    else if (found) setWeek(await getExerciseWeekStats(found.id, found.metric).catch(() => null));
-    if (found) setEstimate(await getExerciseEstimate(found.id).catch(() => null));
-    if (found) setRecords(await getExerciseRecordSummary(found.id).catch(() => null));
+    if (found && [found.category, ...readList(found.extraCategories)].includes('mobility')) setCycle(await getExerciseCycle(found.id, undefined, pairScope).catch(() => null));
+    else if (found) setWeek(await getExerciseWeekStats(found.id, found.metric, undefined, pairScope).catch(() => null));
+    if (found) setEstimate(await getExerciseEstimate(found.id, undefined, pairScope).catch(() => null));
+    if (found) setRecords(await getExerciseRecordSummary(found.id, pairScope).catch(() => null));
     if (found) setHistory(await getExerciseHistory(found.id).catch(() => []));
     if (found) setUsage(await getExerciseUsage(found.id).catch(() => null));
-  }, [id]);
+  }, [id, pairScope]);
 
   useFocusEffect(useCallback(() => { void reload(); }, [reload]));
 
@@ -117,7 +131,21 @@ export default function ExerciseRoute() {
   const equipment = readList(exercise.equipment);
   const muscles = readList(exercise.primaryMuscles);
   const extraCategories = readList(exercise.extraCategories).filter((item) => item !== exercise.category);
+  const movementTags = exerciseMovementTags(exercise);
   const kind = exercise.level ? t('progression.level', { number: exercise.level }) : exercise.isCustom ? t('exercise.custom') : t('exercise.foundation');
+  const scopeTitle = t('exerciseAnalytics.scope', { defaultValue: i18n.language.startsWith('it') ? 'Vista' : 'View' });
+  const scopeLabels: Record<PairScope, string> = {
+    average: t('exerciseAnalytics.average', { defaultValue: i18n.language.startsWith('it') ? 'Media L/R' : 'L/R average' }),
+    left: t('exerciseAnalytics.left', { defaultValue: 'L' }),
+    right: t('exerciseAnalytics.right', { defaultValue: 'R' }),
+    legacy: t('exerciseAnalytics.legacy', { defaultValue: i18n.language.startsWith('it') ? 'Senza lato' : 'Without side' }),
+  };
+  // Side views only mean something for an exercise done one side at a time (or logged that way before).
+  const lateral = exercise.unilateral === true || history.some((session) => session.sets.some((set) => Boolean(set.pairId) || set.side === 'left' || set.side === 'right'));
+  const hasSidelessSets = history.some((session) => session.sets.some((set) => !set.pairId && (!set.side || set.side === 'both')));
+  const scopeOptions = (['average', 'left', 'right', ...(hasSidelessSets ? ['legacy' as const] : [])] as PairScope[]);
+  const compareTitle = t('exerciseAnalytics.compareSides', { defaultValue: i18n.language.startsWith('it') ? 'Confronto L/R' : 'Compare L/R' });
+  const compareBody = t('exerciseAnalytics.compareSidesBody', { defaultValue: i18n.language.startsWith('it') ? 'Confronta le due serie sulla stessa scala.' : 'Compare both sides on the same scale.' });
   return (
     <Screen>
       <PageHeading
@@ -136,7 +164,7 @@ export default function ExerciseRoute() {
         <ListRow
           icon="layers-outline"
           title={t('movement.classification')}
-          subtitle={`${t('movement.groupTitle')}: ${exercise.movementGroup ? t(`movement.groups.${exercise.movementGroup}`) : t('movement.none')} · ${t('movement.tagTitle')}: ${exercise.movementTag ? movementTagLabel(exercise.movementTag, t) : t('movement.none')}`}
+          subtitle={`${t('movement.groupTitle')}: ${exercise.movementGroup ? t(`movement.groups.${exercise.movementGroup}`) : t('movement.none')} · ${t('exerciseGrouping.tagsTitle')}: ${movementTags.length ? movementTags.map((tag) => movementTagLabel(tag, t)).join(', ') : t('movement.none')}`}
           onPress={() => router.push({ pathname: '/exercise/new', params: { edit: exercise.id } })}
         />
         {exercise.demoUrl ? (
@@ -154,6 +182,15 @@ export default function ExerciseRoute() {
           <ListRow icon="git-branch-outline" title={t('exercise.viewProgression')} onPress={() => router.push({ pathname: '/skill/[chainId]', params: { chainId: exercise.chainId! } })} />
         ) : null}
       </ListGroup>
+
+      {lateral ? <View style={styles.section}>
+        <SectionTitle title={scopeTitle} />
+        <SegmentedControl<PairScope>
+          value={scopeOptions.includes(pairScope) ? pairScope : 'average'}
+          options={scopeOptions.map((value) => ({ value, label: scopeLabels[value] }))}
+          onChange={setPairScope}
+        />
+      </View> : null}
 
       {cues.length > 0 ? (
         <View style={styles.section}>
@@ -237,6 +274,8 @@ export default function ExerciseRoute() {
         </View>
       ) : null}
 
+      {exercise.metric === 'reps' || exercise.metric === 'reps_load' ? <RepsAtLoadCard key={exercise.id} groups={loadProgress} /> : null}
+
       {estimate ? (
         <View style={styles.section}>
           <SectionTitle title={t('estimate.title')} />
@@ -254,7 +293,7 @@ export default function ExerciseRoute() {
                 <ListRow
                   icon="stats-chart-outline"
                   title={t('estimate.seeTrend')}
-                  onPress={() => router.push({ pathname: '/stats', params: { exerciseId: exercise.id, metric: estimate.kind === 'reps' ? 'estMaxReps' : 'estMaxHold' } })}
+                  onPress={() => router.push({ pathname: '/stats', params: { exerciseId: exercise.id, metric: estimate.kind === 'reps' ? 'estMaxReps' : 'estMaxHold', pairScope } })}
                 />
               </ListGroup>
             </>
@@ -283,7 +322,8 @@ export default function ExerciseRoute() {
         ) : <Body>{t('exerciseManage.historyEmpty')}</Body>}
         {history.length > 0 ? (
           <ListGroup>
-            <ListRow icon="analytics-outline" title={t('exerciseManage.fullAnalysis')} subtitle={t('exerciseManage.fullAnalysisBody')} onPress={() => router.push({ pathname: '/stats', params: { exerciseId: exercise.id } })} />
+            <ListRow icon="analytics-outline" title={t('exerciseManage.fullAnalysis')} subtitle={t('exerciseManage.fullAnalysisBody')} onPress={() => router.push({ pathname: '/stats', params: { exerciseId: exercise.id, pairScope } })} />
+            {lateral ? <ListRow icon="git-branch-outline" title={compareTitle} subtitle={compareBody} onPress={() => router.push({ pathname: '/stats', params: { exerciseId: exercise.id, pairScope: 'comparison' } })} /> : null}
           </ListGroup>
         ) : null}
       </View>
@@ -402,18 +442,18 @@ function Tag({ label, icon }: { label: string; icon: 'body-outline' | 'construct
 const baseStyles = StyleSheet.create({
   section: { gap: 10 },
   flex: { flex: 1 },
-  history: { borderRadius: 20, borderWidth: StyleSheet.hairlineWidth, overflow: 'hidden' },
+  history: { borderRadius: 16, borderWidth: 1, overflow: 'hidden' },
   historyMore: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, minHeight: 48, borderTopWidth: StyleSheet.hairlineWidth },
   historyMoreText: { fontFamily: fonts.semibold, fontSize: 14 },
   choiceHint: { marginTop: -4, marginBottom: 4 },
   transferPair: { flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 16, paddingHorizontal: 16, paddingVertical: 14 },
   transferName: { flex: 1, fontFamily: fonts.semibold, fontSize: 16 },
   transferNote: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
-  week: { flexDirection: 'row', borderRadius: 20, borderWidth: StyleSheet.hairlineWidth, paddingVertical: 14 },
+  week: { flexDirection: 'row', borderRadius: 16, borderWidth: 1, paddingVertical: 18 },
   weekItem: { flex: 1, alignItems: 'center', gap: 2, paddingHorizontal: 6 },
-  weekValue: { fontFamily: fonts.display, fontSize: 26, lineHeight: 30 },
-  weekLabel: { fontFamily: fonts.body, fontSize: 13, textAlign: 'center' },
-  cues: { borderRadius: 20, borderWidth: StyleSheet.hairlineWidth, paddingHorizontal: 16, paddingVertical: 6 },
+  weekValue: { fontFamily: fonts.display, fontSize: 30, lineHeight: 34, fontVariant: ['tabular-nums'] },
+  weekLabel: { fontFamily: fonts.medium, fontSize: 14, lineHeight: 20, textAlign: 'center' },
+  cues: { borderRadius: 16, borderWidth: 1, paddingHorizontal: 16, paddingVertical: 8 },
   cue: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, paddingVertical: 9 },
   cueText: { flex: 1 },
   tags: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },

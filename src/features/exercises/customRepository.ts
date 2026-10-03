@@ -3,12 +3,14 @@ import { db, initializeDatabase } from '../../db/client';
 import { eq } from 'drizzle-orm';
 import { exercises } from '../../db/schema';
 import type { ExerciseCategory } from './categories';
-import { canonicalizeMovementTag, MOVEMENT_GROUP_IDS, MOVEMENT_TAGS, type MovementGroupId } from './movementCatalog';
+import { mobilityModeFor, type MobilityMode } from './mobilityMode';
+import { normalizeMovementTags, MOVEMENT_GROUP_IDS, MOVEMENT_TAGS, type MovementGroupId } from './movementCatalog';
 
 export type { ExerciseCategory } from './categories';
 export type ExerciseMetric = 'reps' | 'time' | 'reps_load' | 'time_load' | 'distance';
 
 export interface CreateCustomExerciseInput {
+  unilateral?: boolean;
   name: string;
   metric: ExerciseMetric;
   category: ExerciseCategory;
@@ -18,7 +20,10 @@ export interface CreateCustomExerciseInput {
   cues: string[];
   demoUrl?: string | null;
   movementTag?: string | null;
+  movementTags?: string[];
   movementGroup?: MovementGroupId | null;
+  /** Only kept while mobility is one of the categories. */
+  mobilityMode?: MobilityMode | null;
 }
 
 /** Extra categories without duplicates or the main category itself. */
@@ -26,11 +31,16 @@ function cleanExtraCategories(input: Pick<CreateCustomExerciseInput, 'category' 
   return [...new Set(input.extraCategories ?? [])].filter((item) => item !== input.category);
 }
 
+function classificationFields(input: CreateCustomExerciseInput) {
+  const tags = normalizeMovementTags(input.movementTags ?? (input.movementTag ? [input.movementTag] : []));
+  if (tags.some((tag) => !(MOVEMENT_TAGS as readonly string[]).includes(tag))) throw new RangeError('Unknown movement tag');
+  if (input.movementGroup != null && !(MOVEMENT_GROUP_IDS as readonly string[]).includes(input.movementGroup)) throw new RangeError('Unknown movement group');
+  return { movementTag: tags[0] ?? null, movementTags: JSON.stringify(tags), movementGroup: input.movementGroup ?? null, mobilityMode: mobilityModeFor(input, input.mobilityMode) };
+}
+
 /** Save a user-created movement in the local exercise catalog. */
 export async function createCustomExercise(input: CreateCustomExerciseInput): Promise<string> {
-  const movementTag = canonicalizeMovementTag(input.movementTag);
-  if (movementTag !== null && !(MOVEMENT_TAGS as readonly string[]).includes(movementTag)) throw new RangeError('Unknown movement tag');
-  if (input.movementGroup != null && !(MOVEMENT_GROUP_IDS as readonly string[]).includes(input.movementGroup)) throw new RangeError('Unknown movement group');
+  const classification = classificationFields(input);
   await initializeDatabase();
   const id = Crypto.randomUUID();
 
@@ -46,9 +56,9 @@ export async function createCustomExercise(input: CreateCustomExerciseInput): Pr
     equipment: JSON.stringify(input.equipment),
     cues: JSON.stringify(input.cues),
     demoUrl: input.demoUrl ?? null,
-    movementTag,
-    movementGroup: input.movementGroup ?? null,
+    ...classification,
     isCustom: true,
+    unilateral: input.unilateral ?? false,
     createdAt: new Date(),
   });
 
@@ -61,11 +71,10 @@ export async function createCustomExercise(input: CreateCustomExerciseInput): Pr
  * definition without rewriting old rows.
  */
 export async function updateExercise(id: string, input: CreateCustomExerciseInput): Promise<void> {
-  const movementTag = canonicalizeMovementTag(input.movementTag);
-  if (movementTag !== null && !(MOVEMENT_TAGS as readonly string[]).includes(movementTag)) throw new RangeError('Unknown movement tag');
-  if (input.movementGroup != null && !(MOVEMENT_GROUP_IDS as readonly string[]).includes(input.movementGroup)) throw new RangeError('Unknown movement group');
+  const classification = classificationFields(input);
   await initializeDatabase();
   await db.update(exercises).set({
+    ...(input.unilateral === undefined ? {} : { unilateral: input.unilateral }),
     name: input.name.trim(),
     metric: input.metric,
     category: input.category,
@@ -73,7 +82,6 @@ export async function updateExercise(id: string, input: CreateCustomExerciseInpu
     equipment: JSON.stringify(input.equipment),
     cues: JSON.stringify(input.cues),
     demoUrl: input.demoUrl ?? null,
-    movementTag,
-    movementGroup: input.movementGroup ?? null,
+    ...classification,
   }).where(eq(exercises.id, id));
 }

@@ -10,7 +10,8 @@ import { useScaledStyles } from '../../shared/theme/useScaledStyles';
  * RPE chips from 6 to 10. `inline` is the one-line strip shown under a just-completed set;
  * otherwise it wraps, for sheets.
  */
-export function RpePicker({ value, onChange, inline = false, onDismiss }: {
+export function RpePicker({ value, onChange, inline = false, onDismiss, sideLabel = '' }: {
+  sideLabel?: string;
   value: number | null;
   onChange: (value: number | null) => void;
   inline?: boolean;
@@ -25,7 +26,7 @@ export function RpePicker({ value, onChange, inline = false, onDismiss }: {
       <Pressable
         key={rpe}
         accessibilityRole="button"
-        accessibilityLabel={t('logger.rpeTag', { value: formatRpe(rpe) })}
+        accessibilityLabel={`${sideLabel} ${t('logger.rpeTag', { value: formatRpe(rpe) })}`.trim()}
         accessibilityState={{ selected }}
         hitSlop={6}
         onPress={() => { tapFeedback(); onChange(selected ? null : rpe); }}
@@ -69,8 +70,8 @@ const baseStyles = StyleSheet.create({
   stripLabel: { fontFamily: fonts.semibold, fontSize: 12 },
   scroll: { flex: 1 },
   row: { gap: 4, paddingRight: 4 },
-  stripChip: { minWidth: 30, height: 32, paddingHorizontal: 5, borderRadius: 10, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
-  chip: { minWidth: 36, height: 32, paddingHorizontal: 8, borderRadius: 10, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
-  chipText: { fontFamily: fonts.display, fontSize: 16 },
-  dismiss: { width: 28, height: 28, alignItems: 'center', justifyContent: 'center' },
+  stripChip: { minWidth: 44, minHeight: 48, paddingHorizontal: 8, paddingVertical: 8, borderRadius: 12, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  chip: { minWidth: 48, minHeight: 48, paddingHorizontal: 10, paddingVertical: 8, borderRadius: 12, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  chipText: { fontFamily: fonts.display, fontSize: 20 },
+  dismiss: { width: 40, height: 48, alignItems: 'center', justifyContent: 'center' },
 });

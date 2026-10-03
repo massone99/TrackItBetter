@@ -48,7 +48,8 @@ export function midpoint(a: Keypoint, b: Keypoint): Keypoint {
 export type PoseSide = 'left' | 'right';
 export type PositionId =
   | 'front_split' | 'middle_split' | 'pike' | 'pancake' | 'bridge' | 'shoulder_flexion' | 'deep_squat' | 'handstand_line'
-  | 'tuck_planche' | 'full_planche' | 'pseudo_planche_pushup' | 'tuck_front_lever' | 'front_lever' | 'back_lever' | 'l_sit';
+  | 'tuck_planche' | 'full_planche' | 'pseudo_planche_pushup' | 'tuck_front_lever' | 'front_lever' | 'back_lever' | 'l_sit'
+  | 'free';
 
 export interface PoseMeasurement {
   /** Primary value in degrees. */
@@ -75,7 +76,7 @@ export interface JointAngle {
 }
 
 /** Families positions are grouped in when picking one, in display order. */
-export const POSITION_GROUPS = ['splits', 'folds', 'shoulders', 'balance', 'planche', 'levers'] as const;
+export const POSITION_GROUPS = ['free', 'splits', 'folds', 'shoulders', 'balance', 'planche', 'levers'] as const;
 export type PositionGroup = (typeof POSITION_GROUPS)[number];
 
 export interface PositionDefinition {
@@ -90,6 +91,8 @@ export interface PositionDefinition {
   joints: JointAngleId[];
   /** Joint angles shown until the user picks their own. */
   defaultJoints: JointAngleId[];
+  /** Free analysis: no position formula and no levels, only the joint angles the user picks. */
+  generic?: boolean;
   measure: (pose: Pose, side: PoseSide | null) => PoseMeasurement;
 }
 
@@ -220,7 +223,18 @@ function bodyLine(pose: Pose, side: PoseSide) {
 const LIMBS: JointAngleId[] = ['hip', 'shoulder', 'elbow', 'knee'];
 const SUPPORT: JointAngleId[] = ['hip', 'shoulder', 'elbow', 'knee', 'lean'];
 
+// Free analysis for any exercise: each picked joint angle on the clearer (or chosen) side, nothing more.
+const FREE_JOINTS: JointAngleId[] = ['shoulder', 'hip', 'elbow', 'knee', 'lean'];
+
 export const POSITIONS: PositionDefinition[] = [
+  position({
+    id: 'free', group: 'free', sideAware: true, better: 'higher', thresholds: [0, 0, 0, 0], joints: FREE_JOINTS, defaultJoints: ['shoulder', 'hip', 'elbow', 'knee'], generic: true,
+    core: (pose, side) => {
+      const measured = side ?? clearerSide(pose, [SHOULDER, ELBOW, HIP, KNEE]);
+      const shoulder = triple(pose, measured, ELBOW, SHOULDER, HIP);
+      return { value: shoulder.value, angle: shoulder, confidence: shoulder.confidence, side: measured };
+    },
+  }),
   position({ id: 'front_split', group: 'splits', sideAware: true, better: 'higher', thresholds: [120, 140, 160, 175], joints: ['hip', 'knee'], defaultJoints: [], core: legSpread }),
   position({ id: 'middle_split', group: 'splits', sideAware: false, better: 'higher', thresholds: [110, 130, 150, 170], joints: ['hip', 'knee'], defaultJoints: [], core: legSpread }),
   position({ id: 'pike', group: 'folds', sideAware: false, better: 'lower', thresholds: [110, 90, 70, 50], joints: ['knee', 'shoulder', 'elbow'], defaultJoints: [], core: hipFold }),
@@ -316,6 +330,24 @@ export function selectedJoints(position: PositionDefinition, saved: readonly str
 
 export function findPosition(id: string): PositionDefinition | undefined {
   return POSITIONS.find((position) => position.id === id);
+}
+
+/**
+ * The angle a capture leads with. A position shows its own measurement; the free analysis shows the
+ * joint angle in focus, else the first picked one (or the shoulder when none is picked).
+ */
+export function displayedAngle(
+  position: PositionDefinition,
+  measurement: PoseMeasurement,
+  selected: readonly JointAngleId[],
+  focused: JointAngleId | null = null,
+): Pick<PoseMeasurement, 'value' | 'angle'> & { id: JointAngleId | null } {
+  if (!position.generic) return { id: null, value: measurement.value, angle: measurement.angle };
+  const joints = (measurement.joints ?? []).filter((joint) => selected.includes(joint.id));
+  const joint = joints.find((item) => item.id === focused) ?? joints[0];
+  return joint
+    ? { id: joint.id, value: joint.value, angle: { a: joint.a, vertex: joint.vertex, c: joint.c } }
+    : { id: 'shoulder', value: measurement.value, angle: measurement.angle };
 }
 
 /** Level 1–5 for a measured value. */

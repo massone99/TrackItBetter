@@ -1,6 +1,8 @@
-import { canonicalizeMovementTag, MOVEMENT_GROUP_IDS } from '../exercises/movementCatalog';
+import { exerciseMovementTags, MOVEMENT_GROUP_IDS } from '../exercises/movementCatalog';
+import { aggregatePairs, realMean } from '../../domain/setPairs';
 
 export type StatsDimension = 'group' | 'tag' | 'exercise';
+export type StatsScope = 'all' | 'strength' | 'mobility' | 'mobility-active' | 'mobility-passive';
 export type StatsPeriodKind = 'session' | 'day' | 'week' | 'month';
 type CalendarKind = Exclude<StatsPeriodKind, 'session'>;
 
@@ -9,6 +11,9 @@ export const OTHER_ID = '__other__';
 const HISTORY_LENGTH = 8;
 
 export interface StatsSetRow {
+  pairId?: string | null;
+  side?: string;
+  pairMembers?: readonly StatsSetRow[];
   workoutId: string;
   workoutName: string;
   workoutStartedAt: Date;
@@ -17,6 +22,10 @@ export interface StatsSetRow {
   metric: string;
   movementGroup: string | null;
   movementTag: string | null;
+  movementTags?: string | null;
+  category?: string;
+  extraCategories?: string | null;
+  mobilityMode?: string | null;
   reps: number | null;
   durationSec: number | null;
   addedLoadKg: number;
@@ -36,11 +45,30 @@ export interface TrainingStats {
   olderId: string | null;
   newerId: string | null;
 }
-export interface StatsOptions { dimension: StatsDimension; period: StatsPeriodKind; anchor: string | null; threshold: number; rpeOnly?: boolean; now?: Date }
+export interface StatsOptions { dimension: StatsDimension; period: StatsPeriodKind; anchor: string | null; threshold: number; rpeOnly?: boolean; scope?: StatsScope; now?: Date }
 
 /** With `rpeOnly`, only sets at or above the threshold count; periods and sessions stay navigable. */
-function counts(row: StatsSetRow, { threshold, rpeOnly }: StatsOptions): boolean {
-  return !rpeOnly || (row.rpe != null && row.rpe >= threshold);
+function counts(row: StatsSetRow, { threshold, rpeOnly, scope = 'all' }: StatsOptions): boolean {
+  return inScope(row, scope) && (!rpeOnly || (row.rpe != null && row.rpe >= threshold));
+}
+
+/** Mobility is any exercise with the mobility category, main or extra; everything else is strength work. */
+export function isMobilityStatsRow(row: Pick<StatsSetRow, 'category' | 'extraCategories'>): boolean {
+  if (row.category === 'mobility') return true;
+  try {
+    const extras: unknown = JSON.parse(row.extraCategories ?? '[]');
+    return Array.isArray(extras) && extras.includes('mobility');
+  } catch {
+    return false;
+  }
+}
+
+function inScope(row: StatsSetRow, scope: StatsScope): boolean {
+  if (scope === 'all') return true;
+  const mobility = isMobilityStatsRow(row);
+  if (scope === 'strength') return !mobility;
+  if (!mobility) return false;
+  return scope === 'mobility' || row.mobilityMode === scope.slice('mobility-'.length);
 }
 
 function localDateKey(date: Date): string {
@@ -78,6 +106,7 @@ function periodEnd(start: Date, kind: CalendarKind): Date {
 }
 
 export function buildTrainingStats(rows: readonly StatsSetRow[], options: StatsOptions): TrainingStats {
+  rows = aggregatePairs(rows);
   if (options.period === 'session') return buildSessionStats(rows, options);
   const kind = options.period;
   const latest = periodId(options.now ?? new Date(), kind);
@@ -123,39 +152,42 @@ function aggregate(rows: readonly StatsSetRow[], { dimension, threshold }: Stats
   const summary = emptyMetrics();
   const items = new Map<string, StatsItem>();
   for (const row of rows) {
-    const [id, name] = itemKey(row, dimension);
-    let item = items.get(id);
-    if (!item) {
-      item = { id, name, metrics: emptyMetrics() };
-      items.set(id, item);
-    }
+    // Count the set once in the total, and once under each associated tag.
     addSet(summary, row, threshold);
-    addSet(item.metrics, row, threshold);
+    for (const [id, name] of itemKeys(row, dimension)) {
+      let item = items.get(id);
+      if (!item) {
+        item = { id, name, metrics: emptyMetrics() };
+        items.set(id, item);
+      }
+      addSet(item.metrics, row, threshold);
+    }
   }
   return { summary, items: [...items.values()].sort(compareItems) };
 }
 
-function itemKey(row: StatsSetRow, dimension: StatsDimension): [string, string] {
-  if (dimension === 'exercise') return [row.exerciseId, row.exerciseName];
-  const value = dimension === 'group'
-    ? ((MOVEMENT_GROUP_IDS as readonly string[]).includes(row.movementGroup ?? '') ? row.movementGroup : null)
-    : canonicalizeMovementTag(row.movementTag);
-  return value ? [value, value] : [OTHER_ID, OTHER_ID];
+function itemKeys(row: StatsSetRow, dimension: StatsDimension): [string, string][] {
+  if (dimension === 'exercise') return [[row.exerciseId, row.exerciseName]];
+  if (dimension === 'tag') {
+    const tags = exerciseMovementTags(row);
+    return tags.length ? tags.map((tag) => [tag, tag]) : [[OTHER_ID, OTHER_ID]];
+  }
+  const value = (MOVEMENT_GROUP_IDS as readonly string[]).includes(row.movementGroup ?? '') ? row.movementGroup : null;
+  return value ? [[value, value]] : [[OTHER_ID, OTHER_ID]];
 }
 
 function addSet(metrics: StatsMetrics, row: StatsSetRow, threshold: number) {
   metrics.sets += 1;
   if (row.rpe != null && row.rpe >= threshold) metrics.setsAtThreshold += 1;
-  const load = Math.max(0, row.addedLoadKg);
   if (row.metric === 'reps' || row.metric === 'reps_load') {
     const reps = Math.max(0, row.reps ?? 0);
     metrics.reps += reps;
-    metrics.loadRepsKg += load * reps;
+    metrics.loadRepsKg += realMean(row, (side) => Math.max(0, side.addedLoadKg) * Math.max(0, side.reps ?? 0)) ?? 0;
   }
   if (row.metric === 'time' || row.metric === 'time_load') {
     const seconds = Math.max(0, row.durationSec ?? 0);
     metrics.holdSeconds += seconds;
-    metrics.loadSecondsKg += load * seconds;
+    metrics.loadSecondsKg += realMean(row, (side) => Math.max(0, side.addedLoadKg) * Math.max(0, side.durationSec ?? 0)) ?? 0;
   }
 }
 

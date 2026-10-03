@@ -1,3 +1,4 @@
+import { aggregatePairs } from '../../domain/setPairs';
 import { and, asc, desc, eq, isNotNull } from 'drizzle-orm';
 import { evaluateProgression, type ProgressionSession, type ProgressionTarget } from '../../domain/progression';
 import { db, initializeDatabase } from '../../db/client';
@@ -87,6 +88,8 @@ export async function getProgressionChain(chainId: string) {
       endedAt: workouts.endedAt,
       entryId: exerciseEntries.id,
       setId: trainingSets.id,
+      pairId: trainingSets.pairId,
+      side: trainingSets.side,
       setIndex: trainingSets.index,
       reps: trainingSets.reps,
       durationSec: trainingSets.durationSec,
@@ -107,7 +110,7 @@ export async function getProgressionChain(chainId: string) {
     level: number | null;
     sets: Map<string, { index: number; reps: number | null; durationSec: number | null; addedLoadKg: number }>;
   }>>();
-  for (const row of historyRows) {
+  for (const row of aggregatePairs(historyRows.map((row) => ({ ...row, side: row.side ?? undefined })))) {
     let byWorkout = sessionsByExercise.get(row.exerciseId);
     if (!byWorkout) {
       byWorkout = new Map();

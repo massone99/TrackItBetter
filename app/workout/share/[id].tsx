@@ -1,3 +1,4 @@
+import { completedSetCount } from '../../../src/domain/setPairs';
 import { useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -74,7 +75,7 @@ export default function ShareWorkoutScreen() {
         </View>
         <View style={[styles.divider, { backgroundColor: palette.border }]} />
         {movements.slice(0, 5).map((exercise) => {
-          const count = exercise.sets.filter((set) => set.completedAt).length;
+          const count = completedSetCount(exercise.sets);
           return <View key={exercise.entryId} style={styles.movementRow}>
             <Text numberOfLines={1} style={[styles.movementName, { color: palette.text }]}>{exercise.name}</Text>
             <Text style={[styles.movementCount, { color: palette.accentStrong }]}>{count} {t('shareCard.sets')}</Text>

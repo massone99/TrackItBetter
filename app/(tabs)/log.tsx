@@ -6,9 +6,10 @@ import { Text } from '../../src/shared/components/Text';
 import { PastWorkoutFlow } from '../../src/features/session/PastWorkoutFlow';
 import { getActiveWorkout, listRecentWorkouts } from '../../src/features/session/repository';
 import type { WorkoutHistoryItem } from '../../src/features/session/repository';
-import { ActionButton, Body, Card, EmptyState, Heading, IconButton, PageHeading, Screen } from '../../src/shared/components/ui';
+import { ActionButton, Body, Card, EmptyState, Heading, Icon, IconButton, PageHeading, Screen } from '../../src/shared/components/ui';
 import { useTheme } from '../../src/shared/theme/ThemeProvider';
 import { useScaledStyles } from '../../src/shared/theme/useScaledStyles';
+import { fonts } from '../../src/shared/theme/typography';
 
 const PAGE_SIZE = 30;
 
@@ -65,13 +66,15 @@ export default function LogScreen() {
   return (
     <Screen>
       <PageHeading title={t('log.title')} subtitle={t('log.subtitle')} />
-      <ActionButton icon={activeWorkoutId ? 'play' : 'add'} label={t(activeWorkoutId ? 'common.resumeWorkout' : 'common.startWorkout')} onPress={() => router.push({ pathname: '/workout/[id]', params: { id: activeWorkoutId ?? 'new' } })} />
+      <View style={styles.actions}>
+        <ActionButton icon={activeWorkoutId ? 'play' : 'add'} label={t(activeWorkoutId ? 'common.resumeWorkout' : 'common.startWorkout')} onPress={() => router.push({ pathname: '/workout/[id]', params: { id: activeWorkoutId ?? 'new' } })} />
       <ActionButton
         icon="time-outline"
         label={selectedDate && !selectedIsFuture ? t('log.addPastOnDate', { date: new Date(`${selectedDate}T12:00:00`).toLocaleDateString(locale, { day: 'numeric', month: 'short' }) }) : t('log.addPast')}
         secondary
         onPress={() => setPastOpen(true)}
       />
+      </View>
       {workouts.length === 0 && !loading ? (
         <EmptyState icon="calendar-clear-outline" title={t('log.empty')} body={t('log.emptyBody')} />
       ) : workouts.length > 0 ? (
@@ -114,13 +117,16 @@ export default function LogScreen() {
           ) : visibleWorkouts.slice(0, shownCount).map((workout) => {
         const duration = Math.max(0, Math.round((workout.endedAt.getTime() - workout.startedAt.getTime()) / 60_000));
         return (
-          <Pressable key={workout.id} accessibilityRole="button" accessibilityLabel={t('log.openWorkout', { name: workout.name })} onPress={() => router.push({ pathname: '/workout/history/[id]', params: { id: workout.id } })}>
+          <Pressable key={workout.id} accessibilityRole="button" accessibilityLabel={t('log.openWorkout', { name: workout.name })} onPress={() => router.push({ pathname: '/workout/history/[id]', params: { id: workout.id } })} style={({ pressed }) => ({ opacity: pressed ? 0.75 : 1 })}>
           <Card style={styles.workout}>
             <View style={styles.workoutTop}>
-              <Heading>{workout.name}</Heading>
-              <Text style={{ color: palette.accentStrong, fontWeight: '800' }}>{t('log.setCount', { count: workout.setCount })}</Text>
+              <Heading style={styles.workoutName}>{workout.name}</Heading>
+              <Icon name="chevron-forward" size={18} color={palette.textMuted} />
             </View>
-            <Body>{workout.startedAt.toLocaleDateString()} · {duration} min</Body>
+            <View style={styles.workoutMeta}>
+              <Body style={styles.workoutDate}>{workout.startedAt.toLocaleDateString(locale, { day: 'numeric', month: 'short', year: 'numeric' })} · {duration} min</Body>
+              <Text style={[styles.setCount, { color: palette.accentStrong, backgroundColor: palette.accentSoft }]}>{t('log.setCount', { count: workout.setCount })}</Text>
+            </View>
           </Card>
           </Pressable>
         );
@@ -134,18 +140,23 @@ export default function LogScreen() {
 }
 
 const baseStyles = StyleSheet.create({
+  actions: { gap: 8 },
   empty: { minHeight: 235, alignItems: 'center', justifyContent: 'center', padding: 26 },
   icon: { width: 62, height: 62, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
   center: { textAlign: 'center' },
   workout: { gap: 8 },
   workoutTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 12 },
+  workoutName: { flex: 1 },
+  workoutMeta: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 10 },
+  workoutDate: { flexGrow: 1 },
+  setCount: { fontFamily: fonts.semibold, fontSize: 13, lineHeight: 20, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
   calendar: { gap: 12 },
   calendarHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   monthButton: { width: 38, height: 38, alignItems: 'center', justifyContent: 'center' },
-  monthTitle: { textTransform: 'capitalize' },
+  monthTitle: { flex: 1, textAlign: 'center', textTransform: 'capitalize' },
   calendarGrid: { flexDirection: 'row', flexWrap: 'wrap' },
-  weekday: { width: '14.2857%', height: 32, textAlign: 'center', textAlignVertical: 'center', fontSize: 12, fontWeight: '700' },
-  day: { width: '14.2857%', height: 42, alignItems: 'center', justifyContent: 'center', borderRadius: 14 },
+  weekday: { width: '14.2857%', minHeight: 32, textAlign: 'center', textAlignVertical: 'center', fontSize: 12, fontWeight: '700' },
+  day: { width: '14.2857%', minHeight: 48, paddingVertical: 6, alignItems: 'center', justifyContent: 'center', borderRadius: 12 },
   dayDot: { width: 4, height: 4, borderRadius: 2, marginTop: 2 },
   dayDotPlaceholder: { width: 4, height: 4, marginTop: 2 },
   calendarFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', minHeight: 28 },

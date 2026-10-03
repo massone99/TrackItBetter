@@ -1,4 +1,5 @@
 import { ESTIMATED_SEC_PER_REP } from './mobilityPlan';
+import { groupSets } from './setPairs';
 
 /** 0 = Sunday … 6 = Saturday, as returned by Date#getDay. */
 export type Weekday = 0 | 1 | 2 | 3 | 4 | 5 | 6;
@@ -173,6 +174,8 @@ export function plannedLoads(exercise: Pick<UserProgramExercise, 'sets' | 'loadK
 
 /** What a logged or in-progress set contributes to a planned exercise. */
 export interface WorkoutSetLike {
+  pairId?: string | null;
+  side?: string;
   kind: string;
   reps: number | null;
   durationSec: number | null;
@@ -200,13 +203,14 @@ export function sessionFromWorkout(name: string, exercises: readonly WorkoutExer
     exercises: exercises.map((exercise) => {
       const working = exercise.sets.filter((set) => set.kind !== 'warmup');
       const used = working.length > 0 ? working : exercise.sets;
-      const first = used[0];
+      const groups = groupSets(used);
+      const first = groups[0]?.[0];
       const raw = !first ? null : isTimedMetric(exercise.metric) ? first.durationSec : exercise.metric === 'distance' ? first.distanceM : first.reps;
       const load = first && isLoadMetric(exercise.metric) && first.addedLoadKg !== 0 ? first.addedLoadKg : null;
       return {
         id: newId(),
         exerciseId: exercise.exerciseId,
-        sets: Math.max(1, used.length),
+        sets: Math.max(1, groups.length),
         target: raw && raw > 0 ? raw : null,
         note: exercise.notes?.trim() || null,
         restSeconds: first?.restSec != null && first.restSec >= 0 ? Math.round(first.restSec) : null,

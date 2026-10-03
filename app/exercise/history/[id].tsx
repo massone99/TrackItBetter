@@ -59,5 +59,5 @@ export default function ExerciseHistoryRoute() {
 
 const baseStyles = StyleSheet.create({
   month: { gap: 10 },
-  card: { borderRadius: 20, borderWidth: StyleSheet.hairlineWidth, overflow: 'hidden' },
+  card: { borderRadius: 16, borderWidth: 1, overflow: 'hidden' },
 });

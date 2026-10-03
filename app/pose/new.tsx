@@ -4,7 +4,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
-import { findPosition, LOW_CONFIDENCE, levelFor, nextLevelTarget, type JointAngleId, type Pose, type PoseSide, type PositionId } from '../../src/domain/pose';
+import { displayedAngle, findPosition, LOW_CONFIDENCE, levelFor, nextLevelTarget, type JointAngleId, type Pose, type PoseSide, type PositionId } from '../../src/domain/pose';
 import { detectPose, poseDetectionAvailable } from '../../src/features/pose/detectPose';
 import { extractFrames, normalizeImage, type PoseImage, type VideoFrame } from '../../src/features/pose/media';
 import { PoseCanvas } from '../../src/features/pose/PoseCanvas';
@@ -17,6 +17,12 @@ import { JointPicker, useJointSelection } from '../../src/features/pose/JointPic
 import { useTheme } from '../../src/shared/theme/ThemeProvider';
 import { fonts } from '../../src/shared/theme/typography';
 import { useScaledStyles } from '../../src/shared/theme/useScaledStyles';
+
+/** The message with the technical cause in brackets, so a failure on a phone can be reported. */
+function withDetail(message: string, failure: unknown): string {
+  const detail = failure instanceof Error ? failure.message : String(failure);
+  return detail ? `${message} (${detail})` : message;
+}
 
 /** `detected` is the model's own result, kept so manual corrections can be reset. */
 type Analysis = { image: PoseImage; pose: Pose; detected: Pose; kind: 'photo' | 'frame' };
@@ -46,6 +52,8 @@ export default function NewPoseCheckScreen() {
   const measurement = useMemo(() => (analysis ? position.measure(analysis.pose, position.sideAware ? side : null) : null), [analysis, position, side]);
   const joints = measurement?.joints?.filter((joint) => jointIds.includes(joint.id)) ?? [];
   const legendAngles = joints.map((joint) => ({ id: joint.id, name: t(`pose.jointsShort.${joint.id}`), value: t('pose.degrees', { value: Math.round(joint.value) }) }));
+  // The free analysis leads with a picked joint angle; a position with its own measurement.
+  const shown = measurement ? displayedAngle(position, measurement, jointIds, focused) : null;
   const level = measurement ? levelFor(position, measurement.value) : null;
   const target = measurement ? nextLevelTarget(position, measurement.value) : null;
   const uncertain = analysis ? analysis.pose.some((point) => point.score < LOW_CONFIDENCE) : false;
@@ -54,9 +62,9 @@ export default function NewPoseCheckScreen() {
   useEffect(() => {
     if (!videoUri || !poseDetectionAvailable) return;
     let mounted = true;
-    void extractFrames(videoUri, Number(durationMs ?? 0)).then((extracted) => { if (mounted) setFrames(extracted); }).catch(() => undefined);
+    void extractFrames(videoUri, Number(durationMs ?? 0)).then((extracted) => { if (mounted) setFrames(extracted); }).catch((failure: unknown) => { if (mounted) setError(withDetail(t('pose.error'), failure)); });
     return () => { mounted = false; };
-  }, [videoUri, durationMs]);
+  }, [videoUri, durationMs, t]);
 
   const analyse = async (image: PoseImage, kind: 'photo' | 'frame') => {
     setBusy(t('pose.analysing'));
@@ -65,8 +73,8 @@ export default function NewPoseCheckScreen() {
       const { pose } = await detectPose(image.uri);
       setAnalysis({ image, pose, detected: pose, kind });
       setUndo([]);
-    } catch {
-      setError(t('pose.error'));
+    } catch (failure) {
+      setError(withDetail(t('pose.error'), failure));
     } finally {
       setBusy(null);
     }
@@ -74,40 +82,32 @@ export default function NewPoseCheckScreen() {
 
   const pick = async (source: 'camera' | 'photo' | 'video') => {
     setError(null);
-    const permission = source === 'camera'
-      ? await ImagePicker.requestCameraPermissionsAsync()
-      : await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!permission.granted) { setError(t('pose.permission')); return; }
-    const options: ImagePicker.ImagePickerOptions = { mediaTypes: source === 'video' ? ['videos'] : ['images'], quality: 1, videoMaxDuration: 60 };
-    let result: ImagePicker.ImagePickerResult;
     try {
-      result = source === 'camera' ? await ImagePicker.launchCameraAsync(options) : await ImagePicker.launchImageLibraryAsync(options);
-    } catch (reason) {
-      setError(isPickerUnavailableError(reason) ? t('common.pickerRestart') : t('pose.error'));
-      return;
-    }
-    const asset = result.canceled ? null : result.assets[0];
-    if (!asset) return;
-    setAnalysis(null);
-    setFrames([]);
-    setSelectedFrame(null);
-    if (source === 'video') {
-      setBusy(t('pose.analysing'));
-      try {
-        setFrames(await extractFrames(asset.uri, asset.duration ?? 0));
-      } catch {
-        setError(t('pose.error'));
-      } finally {
-        setBusy(null);
+      // Only the camera needs a permission: the system gallery picker hands over the chosen file without one,
+      // so asking for library access could only get in the way (or fail) before it opens.
+      if (source === 'camera') {
+        const permission = await ImagePicker.requestCameraPermissionsAsync();
+        if (!permission.granted) { setError(t('pose.permission')); return; }
       }
-      return;
-    }
-    setBusy(t('pose.analysing'));
-    try {
-      const image = await normalizeImage(asset.uri, asset.width, asset.height);
-      await analyse(image, 'photo');
-    } catch {
-      setError(t('pose.error'));
+      const options: ImagePicker.ImagePickerOptions = { mediaTypes: source === 'video' ? ['videos'] : ['images'], quality: 1, videoMaxDuration: 60 };
+      const result = source === 'camera' ? await ImagePicker.launchCameraAsync(options) : await ImagePicker.launchImageLibraryAsync(options);
+      const asset = result.canceled ? null : result.assets[0];
+      if (!asset) return;
+      setAnalysis(null);
+      setFrames([]);
+      setSelectedFrame(null);
+      setBusy(t('pose.analysing'));
+      if (source === 'video') {
+        setFrames(await extractFrames(asset.uri, asset.duration ?? 0));
+      } else {
+        const image = await normalizeImage(asset.uri, asset.width, asset.height);
+        await analyse(image, 'photo');
+      }
+    } catch (failure) {
+      // Nothing may fail silently: a button that does nothing is the worst answer.
+      console.warn('[pose] pick failed:', failure);
+      setError(isPickerUnavailableError(failure) ? t('common.pickerRestart') : withDetail(t('pose.error'), failure));
+    } finally {
       setBusy(null);
     }
   };
@@ -146,8 +146,9 @@ export default function NewPoseCheckScreen() {
       await savePoseCapture({
         positionId,
         side: position.sideAware ? side : null,
-        value: measurement.value,
-        level,
+        value: shown?.value ?? measurement.value,
+        // The free analysis has no levels.
+        level: position.generic ? 0 : level,
         pose: analysis.pose,
         sourceUri: analysis.image.uri,
         width: analysis.image.width,
@@ -201,7 +202,7 @@ export default function NewPoseCheckScreen() {
       {busy ? (
         <View style={styles.busy}><ActivityIndicator color={palette.accentStrong} /><Body>{busy}</Body></View>
       ) : null}
-      {error ? <Text style={[styles.error, { color: palette.warning }]}>{error}</Text> : null}
+      {error ? <Text accessibilityLiveRegion="polite" style={[styles.error, { color: palette.warning }]}>{error}</Text> : null}
 
       {analysis && measurement && level !== null ? (
         <>
@@ -210,8 +211,8 @@ export default function NewPoseCheckScreen() {
             imageWidth={analysis.image.width}
             imageHeight={analysis.image.height}
             pose={analysis.pose}
-            highlight={measurement.angle}
-            label={t('pose.degrees', { value: Math.round(measurement.value) })}
+            highlight={shown?.angle ?? measurement.angle}
+            label={t('pose.degrees', { value: Math.round(shown?.value ?? measurement.value) })}
             angles={legendAngles.map((angle, index) => ({ ...joints[index], ...angle }))}
             settings={overlay}
             focused={focused}
@@ -235,16 +236,20 @@ export default function NewPoseCheckScreen() {
           ) : null}
           <Body style={styles.center}>{noPerson ? t('pose.noPerson') : uncertain ? t('pose.uncertain') : t('pose.adjustHint')}</Body>
           <Card style={styles.result}>
-            <View style={styles.resultRow}>
-              <View>
-                <Label>{t(`pose.positions.${positionId}.metric`)}</Label>
-                <Numeral>{t('pose.degrees', { value: Math.round(measurement.value) })}</Numeral>
-                <Label>{position.better === 'higher' ? t('pose.higherBetter') : t('pose.lowerBetter')}</Label>
+            {position.generic ? (
+              joints.length === 0 ? <Body>{t('pose.freePick')}</Body> : null
+            ) : <>
+              <View style={styles.resultRow}>
+                <View>
+                  <Label>{t(`pose.positions.${positionId}.metric`)}</Label>
+                  <Numeral>{t('pose.degrees', { value: Math.round(measurement.value) })}</Numeral>
+                  <Label>{position.better === 'higher' ? t('pose.higherBetter') : t('pose.lowerBetter')}</Label>
+                </View>
+                <LevelBadge level={level} />
               </View>
-              <LevelBadge level={level} />
-            </View>
-            <Body>{target === null ? t('pose.topLevel') : t('pose.nextTarget', { value: target })}</Body>
-            {measurement.warning ? <Text style={[styles.warning, { color: palette.warning }]}>{t(`pose.warnings.${measurement.warning}`)}</Text> : null}
+              <Body>{target === null ? t('pose.topLevel') : t('pose.nextTarget', { value: target })}</Body>
+            </>}
+            {!position.generic && measurement.warning ? <Text style={[styles.warning, { color: palette.warning }]}>{t(`pose.warnings.${measurement.warning}`)}</Text> : null}
             {joints.length > 0 ? (
               <View style={styles.joints}>
                 <Label>{t('pose.jointAngles')}</Label>
@@ -279,8 +284,8 @@ function SourceButton({ icon, label, onPress }: { icon: 'camera-outline' | 'imag
 const baseStyles = StyleSheet.create({
   editRow: { gap: 8 },
   sources: { flexDirection: 'row', gap: 10 },
-  source: { flex: 1, alignItems: 'center', gap: 8, paddingVertical: 14, paddingHorizontal: 6, borderRadius: 18, borderWidth: StyleSheet.hairlineWidth },
-  sourceLabel: { fontFamily: fonts.medium, fontSize: 13, textAlign: 'center' },
+  source: { flex: 1, alignItems: 'center', gap: 10, paddingVertical: 16, paddingHorizontal: 6, borderRadius: 16, borderWidth: 1 },
+  sourceLabel: { fontFamily: fonts.semibold, fontSize: 14, lineHeight: 20, textAlign: 'center' },
   iconCircle: { width: 44, height: 44, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
   frames: { gap: 10 },
   frameStrip: { gap: 8 },
@@ -290,9 +295,9 @@ const baseStyles = StyleSheet.create({
   error: { fontFamily: fonts.medium, fontSize: 14, textAlign: 'center' },
   center: { textAlign: 'center' },
   result: { gap: 10 },
-  resultRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  resultRow: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: 12 },
   warning: { fontFamily: fonts.medium, fontSize: 14 },
   joints: { gap: 4 },
-  jointRow: { flexDirection: 'row', justifyContent: 'space-between' },
+  jointRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 12, minHeight: 32 },
   jointStrong: { fontFamily: fonts.display, fontSize: 17 },
 });

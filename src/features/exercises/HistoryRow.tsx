@@ -35,10 +35,10 @@ export function HistoryRow({ session, metric, locale, first }: { session: Exerci
 
 const baseStyles = StyleSheet.create({
   flex: { flex: 1 },
-  historyRow: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingHorizontal: 16, paddingVertical: 12, minHeight: 60 },
+  historyRow: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingHorizontal: 16, paddingVertical: 16, minHeight: 72 },
   historyDate: { width: 40, alignItems: 'center' },
   historyDay: { fontFamily: fonts.display, fontSize: 22, lineHeight: 24, fontVariant: ['tabular-nums'] },
   historyMonth: { fontFamily: fonts.medium, fontSize: 12, textTransform: 'uppercase', letterSpacing: 0.4 },
-  historyWorkout: { fontFamily: fonts.medium, fontSize: 13 },
-  historySets: { fontFamily: fonts.semibold, fontSize: 15, marginTop: 2, fontVariant: ['tabular-nums'] },
+  historyWorkout: { fontFamily: fonts.medium, fontSize: 14, lineHeight: 20 },
+  historySets: { fontFamily: fonts.semibold, fontSize: 16, lineHeight: 23, marginTop: 4, fontVariant: ['tabular-nums'] },
 });

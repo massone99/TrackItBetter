@@ -122,3 +122,26 @@ describe('buildTrainingStats', () => {
     expect(latest.history.map((bar) => bar.sets)).toEqual([0, 3]);
   });
 });
+
+describe('scope', () => {
+  const rows = [
+    row({ category: 'push' }),
+    row({ exerciseId: 'a', exerciseName: 'Active stretch', metric: 'time', category: 'mobility', mobilityMode: 'active', movementTags: '["Hip flexion"]', reps: null, durationSec: 30 }),
+    row({ exerciseId: 'p', exerciseName: 'Passive split', metric: 'time', category: 'skill', extraCategories: '["mobility"]', mobilityMode: 'passive', movementTags: '["Hip flexion"]', reps: null, durationSec: 60 }),
+    row({ exerciseId: 'u', exerciseName: 'Unclassified', metric: 'time', category: 'mobility', movementTags: '["Hip flexion"]', reps: null, durationSec: 10 }),
+  ];
+  const run = (scope: 'all' | 'strength' | 'mobility' | 'mobility-active' | 'mobility-passive') => buildTrainingStats(rows, { dimension: 'tag', period: 'week', anchor: null, threshold: 8, scope, now });
+
+  it('splits strength from mobility and mobility by mode', () => {
+    expect(run('all').summary.sets).toBe(4);
+    expect(run('strength').summary.sets).toBe(1);
+    expect(run('mobility').summary.sets).toBe(3);
+    expect(run('mobility-active').summary.holdSeconds).toBe(30);
+    expect(run('mobility-passive').summary.holdSeconds).toBe(60);
+  });
+
+  it('adds up mobility volume under each tag', () => {
+    const hip = run('mobility').items.find((item) => item.id === 'Hip flexion');
+    expect(hip?.metrics).toMatchObject({ sets: 3, holdSeconds: 100 });
+  });
+});

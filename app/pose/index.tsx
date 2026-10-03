@@ -38,13 +38,14 @@ export default function PoseOverviewScreen() {
         initiallyOpen={measuredGroups}
         subtitle={(position) => {
           const capture = latest.get(position.id);
+          if (capture && position.generic) return capture.capturedAt.toLocaleDateString(i18n.language, { day: 'numeric', month: 'short' });
           return capture
             ? `${t('pose.degrees', { value: Math.round(capture.value) })} · ${capture.capturedAt.toLocaleDateString(i18n.language, { day: 'numeric', month: 'short' })}`
             : t(`pose.positions.${position.id}.how`);
         }}
         trailing={(position) => {
           const capture = latest.get(position.id);
-          return capture ? <LevelBadge level={capture.level} compact /> : undefined;
+          return capture && !position.generic ? <LevelBadge level={capture.level} compact /> : undefined;
         }}
         onSelect={(id) => router.push({ pathname: '/pose/[positionId]', params: { positionId: id } })}
       />

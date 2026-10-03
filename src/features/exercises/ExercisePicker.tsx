@@ -1,8 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Modal, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { useAppInsets } from '../../shared/layout/useAppInsets';
-import { Body, Chip, Heading, Icon, IconButton, ListRow, tapFeedback } from '../../shared/components/ui';
+import { Body, Chip, Heading, Icon, IconButton, Label, ListRow, tapFeedback } from '../../shared/components/ui';
 import { KeyboardScroll } from '../../shared/components/keyboard';
 import { iconForCategory } from '../../shared/components/categoryIcons';
 import { useTheme } from '../../shared/theme/ThemeProvider';
@@ -11,9 +11,17 @@ import { useScaledStyles } from '../../shared/theme/useScaledStyles';
 import { EXERCISE_CATEGORIES } from './categories';
 import { listExercises } from './repository';
 import { openExercisePage } from './openExercise';
+import { exerciseMovementTags } from './movementCatalog';
+import { movementTagLabel } from './ClassificationChoices';
+import { groupExercises } from './groupExercises';
+import { ExerciseGroupingControls, ExerciseGroupingHeader, useExerciseGrouping } from './ExerciseGrouping';
 import { useAnimationSettings } from '../../shared/settings/AnimationProvider';
+import { MAX_FONT_SCALE } from '../../shared/theme/scale';
 
-export type ExerciseChoice = { id: string; name: string; metric: string; category: string; extraCategories: string; level: number | null };
+export type ExerciseChoice = {
+  id: string; name: string; metric: string; category: string; extraCategories: string; level: number | null;
+  movementGroup?: string | null; movementTag?: string | null; movementTags?: string | null;
+};
 
 const CATEGORIES = EXERCISE_CATEGORIES;
 
@@ -38,19 +46,21 @@ export function ExercisePicker({ visible, title, subtitle, initialCategory = nul
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState<string | null>(initialCategory);
   const [choices, setChoices] = useState<ExerciseChoice[]>([]);
+  const { grouping } = useExerciseGrouping();
 
   useEffect(() => {
     if (!visible) return;
     let mounted = true;
     void listExercises({ query }).then((items) => {
-      if (mounted) setChoices(items.map(({ id, name, metric, category: itemCategory, extraCategories, level }) => ({ id, name, metric, category: itemCategory, extraCategories, level })));
+      if (mounted) setChoices(items.map(({ id, name, metric, category: itemCategory, extraCategories, level, movementGroup, movementTag, movementTags }) => ({ id, name, metric, category: itemCategory, extraCategories, level, movementGroup, movementTag, movementTags })));
     });
     return () => { mounted = false; };
   }, [visible, query]);
 
   // Every opening starts from a clean search: leaving the picker clears what was typed.
   const leave = (action: () => void) => () => { setQuery(''); setCategory(initialCategory); action(); };
-  const filtered = choices.filter((choice) => !include || include(choice)).filter((choice) => !category || choice.category === category || choice.extraCategories.includes(`"${category}"`)).slice(0, 80);
+  const filtered = useMemo(() => choices.filter((choice) => !include || include(choice)).filter((choice) => !category || choice.category === category || choice.extraCategories.includes(`"${category}"`)), [choices, include, category]);
+  const sections = useMemo(() => groupExercises(filtered, grouping), [filtered, grouping]);
 
   return (
     <Modal visible={visible} animationType={reducedMotion || speed === 'off' ? 'none' : speed === 'fast' ? 'fade' : 'slide'} onRequestClose={leave(onClose)} statusBarTranslucent navigationBarTranslucent>
@@ -64,7 +74,7 @@ export function ExercisePicker({ visible, title, subtitle, initialCategory = nul
         </View>
         <View style={[styles.searchBox, { backgroundColor: palette.surface, borderColor: palette.border }]}>
           <Icon name="search" size={18} color={palette.textMuted} />
-          <TextInput
+          <TextInput maxFontSizeMultiplier={MAX_FONT_SCALE}
             accessibilityLabel={t('workout.search')}
             placeholder={t('workout.search')}
             placeholderTextColor={palette.textMuted}
@@ -79,12 +89,18 @@ export function ExercisePicker({ visible, title, subtitle, initialCategory = nul
         </ScrollView>
         <KeyboardScroll contentContainerStyle={[styles.list, { paddingBottom: insets.bottom + 24 }]}>
           {onCreate ? <ListRow icon="create-outline" title={query.trim() ? t('logger.createNamed', { name: query.trim() }) : t('logger.createExercise')} subtitle={query.trim() ? t('logger.createNamedHint') : undefined} onPress={() => { const typed = query.trim(); leave(() => onCreate(typed))(); }} /> : null}
-          {filtered.map((exercise) => (
+          <View style={styles.controls}>
+            <ExerciseGroupingControls />
+            <Label>{t('library.results', { count: filtered.length })}</Label>
+          </View>
+          {sections.map((section) => <View key={section.id} style={styles.group}>
+            {section.path.length ? <View style={styles.groupHeader}><ExerciseGroupingHeader path={section.path} count={section.items.length} /></View> : null}
+            {section.items.map((exercise) => (
             <ListRow
               key={exercise.id}
               icon={iconForCategory(exercise.category)}
               title={exercise.name}
-              subtitle={[t(`library.category.${exercise.category}`), t(`metric.${exercise.metric}`), exercise.level ? t('progression.level', { number: exercise.level }) : null].filter(Boolean).join(' · ')}
+              subtitle={[t(`library.category.${exercise.category}`), t(`metric.${exercise.metric}`), exercise.level ? t('progression.level', { number: exercise.level }) : null, exerciseMovementTags(exercise).map((tag) => movementTagLabel(tag, t)).join(', ')].filter(Boolean).join(' · ')}
               onPress={leave(() => onChoose(exercise))}
               // Long press opens the exercise page; the picker closes so the page is not hidden behind it.
               onLongPress={leave(() => { onClose(); openExercisePage(exercise.id); })}
@@ -101,7 +117,8 @@ export function ExercisePicker({ visible, title, subtitle, initialCategory = nul
                 </Pressable>
               )}
             />
-          ))}
+            ))}
+          </View>)}
         </KeyboardScroll>
       </View>
     </Modal>
@@ -118,4 +135,7 @@ const baseStyles = StyleSheet.create({
   chipScroll: { flexGrow: 0, flexShrink: 0, marginTop: 12 },
   chips: { gap: 8, paddingHorizontal: 20, paddingVertical: 4, alignItems: 'center' },
   list: { paddingHorizontal: 8, paddingTop: 8 },
+  controls: { paddingHorizontal: 12, paddingVertical: 12, gap: 12 },
+  group: { marginBottom: 12 },
+  groupHeader: { paddingHorizontal: 12, paddingTop: 12, paddingBottom: 4 },
 });

@@ -63,7 +63,7 @@ describe('edit exercise', () => {
     save();
 
     await waitFor(() => expect(updateExercise).toHaveBeenCalledTimes(1));
-    expect(updateExercise).toHaveBeenCalledWith('tuck-planche', {
+    expect(updateExercise).toHaveBeenCalledWith('tuck-planche', { unilateral: false,
       name: 'Tuck Planche',
       metric: 'time',
       category: 'skill',
@@ -72,7 +72,9 @@ describe('edit exercise', () => {
       cues: ['Lean forward', 'Protract the shoulders'],
       demoUrl: null,
       movementTag: 'Shoulder flexion',
+      movementTags: ['Shoulder flexion'],
       movementGroup: 'vertical-push',
+      mobilityMode: null,
     });
     expect(goBack).toHaveBeenCalled();
   });

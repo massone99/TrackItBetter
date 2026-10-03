@@ -1,15 +1,20 @@
 import { router, useFocusEffect } from 'expo-router';
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import type { Exercise } from '../../db/schema';
-import { Chip, EmptyState, Icon, Label, ListGroup, ListRow, SectionTitle } from '../../shared/components/ui';
+import { Chip, EmptyState, Icon, Label, ListGroup, ListRow } from '../../shared/components/ui';
 import { iconForCategory } from '../../shared/components/categoryIcons';
 import { useTheme } from '../../shared/theme/ThemeProvider';
 import { useScaledStyles } from '../../shared/theme/useScaledStyles';
+import { fonts } from '../../shared/theme/typography';
 import { EXERCISE_CATEGORIES } from './categories';
 import { listExercises, setExerciseFavourite } from './repository';
-import { MOVEMENT_GROUPS, MOVEMENT_GROUP_IDS } from './movementCatalog';
+import { exerciseMovementTags } from './movementCatalog';
+import { movementTagLabel } from './ClassificationChoices';
+import { groupExercises } from './groupExercises';
+import { ExerciseGroupingControls, ExerciseGroupingHeader, useExerciseGrouping } from './ExerciseGrouping';
+import { MAX_FONT_SCALE } from '../../shared/theme/scale';
 
 const categories = ['all', ...EXERCISE_CATEGORIES] as const;
 type CategoryFilter = (typeof categories)[number];
@@ -23,6 +28,8 @@ export function LibraryView() {
   const [category, setCategory] = useState<CategoryFilter>('all');
   const [favouritesOnly, setFavouritesOnly] = useState(false);
   const [items, setItems] = useState<Exercise[]>([]);
+  const { grouping } = useExerciseGrouping();
+  const sections = useMemo(() => groupExercises(items, grouping), [items, grouping]);
   const [loadedFilter, setLoadedFilter] = useState<string | null>(null);
   const filterKey = JSON.stringify([query, category, favouritesOnly]);
 
@@ -50,7 +57,7 @@ export function LibraryView() {
       key={exercise.id}
       icon={iconForCategory(exercise.category)}
       title={exercise.name}
-      subtitle={[t(`library.category.${exercise.category}`), t(`metric.${exercise.metric}`), exercise.level ? t('progression.level', { number: exercise.level }) : null].filter(Boolean).join(' · ')}
+      subtitle={[t(`library.category.${exercise.category}`), t(`metric.${exercise.metric}`), exercise.level ? t('progression.level', { number: exercise.level }) : null, exerciseMovementTags(exercise).map((tag) => movementTagLabel(tag, t)).join(', ')].filter(Boolean).join(' · ')}
       onPress={() => router.push({ pathname: '/exercise/[id]', params: { id: exercise.id } })}
       trailing={
         <Pressable accessibilityRole="button" accessibilityLabel={exercise.favourite ? t('library.removeFavourite') : t('library.addFavourite')} onPress={() => void toggleFavourite(exercise)} hitSlop={12} style={styles.star}>
@@ -59,13 +66,12 @@ export function LibraryView() {
       }
     />
   );
-  const ungrouped = items.filter((exercise) => !exercise.movementGroup || !(MOVEMENT_GROUP_IDS as readonly string[]).includes(exercise.movementGroup));
 
   return (
     <>
       <View style={[styles.searchBox, { backgroundColor: palette.surface, borderColor: palette.border }]}>
         <Icon name="search" size={18} color={palette.textMuted} />
-        <TextInput
+        <TextInput maxFontSizeMultiplier={MAX_FONT_SCALE}
           accessibilityLabel={t('library.search')}
           value={query}
           onChangeText={setQuery}
@@ -80,26 +86,18 @@ export function LibraryView() {
           <Chip key={value} label={t(`library.category.${value}`)} selected={value === category} onPress={() => setCategory(value)} />
         ))}
       </ScrollView>
+      <ExerciseGroupingControls />
       <Label>{t('library.results', { count: items.length })} · {t('library.offline')}</Label>
       {loadedFilter !== filterKey ? <ActivityIndicator color={palette.accentStrong} /> : items.length === 0 ? (
         <EmptyState icon="search-outline" title={t('library.empty')} body={t('library.emptyBody')} />
       ) : (
         <>
-          {MOVEMENT_GROUPS.map(({ id }) => {
-            const groupItems = items.filter((exercise) => exercise.movementGroup === id);
-            return groupItems.length ? (
-              <View key={id} style={styles.group}>
-                <SectionTitle title={`${t(`movement.groups.${id}`)} · ${groupItems.length}`} />
-                <ListGroup>{groupItems.map(exerciseRow)}</ListGroup>
-              </View>
-            ) : null;
-          })}
-          {ungrouped.length ? (
-            <View style={styles.group}>
-              <SectionTitle title={`${t('movement.other')} · ${ungrouped.length}`} />
-              <ListGroup>{ungrouped.map(exerciseRow)}</ListGroup>
+          {sections.map((section) => (
+            <View key={section.id} style={styles.group}>
+              <ExerciseGroupingHeader path={section.path} count={section.items.length} />
+              <ListGroup>{section.items.map(exerciseRow)}</ListGroup>
             </View>
-          ) : null}
+          ))}
         </>
       )}
     </>
@@ -107,10 +105,10 @@ export function LibraryView() {
 }
 
 const baseStyles = StyleSheet.create({
-  searchBox: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14, borderWidth: 1, borderRadius: 14, minHeight: 50 },
-  search: { flex: 1, minHeight: 48, fontSize: 16, outlineWidth: 0 },
+  searchBox: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, borderWidth: 1, borderRadius: 12, minHeight: 56 },
+  search: { flex: 1, minHeight: 48, fontFamily: fonts.body, fontSize: 16, outlineWidth: 0 },
   chipRow: { marginHorizontal: -20 },
   categories: { gap: 8, paddingHorizontal: 20 },
-  star: { width: 36, height: 44, alignItems: 'center', justifyContent: 'center' },
-  group: { gap: 8 },
+  star: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center' },
+  group: { gap: 12 },
 });

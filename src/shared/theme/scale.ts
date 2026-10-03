@@ -16,6 +16,18 @@ const LAYOUT_KEYS = new Set([
   "top", "bottom", "left", "right",
 ]);
 
+/** Largest factor the system font size may add on top of the interface size: beyond it layouts break before text helps. */
+export const MAX_FONT_SCALE = 1.4;
+
+/**
+ * The interface size actually used for layout: the chosen one, tightened a little on narrow phones so
+ * rows that fit a 390 dp screen still fit a 320 dp one.
+ */
+export function effectiveScale(scale: number, windowWidth: number): number {
+  const narrow = windowWidth > 0 && windowWidth < 340 ? 0.9 : windowWidth > 0 && windowWidth < 360 ? 0.95 : 1;
+  return Math.round(scale * narrow * 100) / 100;
+}
+
 export const FONT_KEYS = new Set(["fontSize", "lineHeight", "letterSpacing"]);
 
 /** Multiplies numeric layout sizes of one style object; strings (percentages) and other keys are kept. */

@@ -1,4 +1,4 @@
-import { findPosition, jointAngle, KP, levelFor, nextLevelTarget, POSITION_GROUPS, POSITIONS, selectedJoints, type Keypoint, type Pose } from '../pose';
+import { displayedAngle, findPosition, jointAngle, KP, levelFor, nextLevelTarget, POSITION_GROUPS, POSITIONS, selectedJoints, type Keypoint, type Pose } from '../pose';
 
 const k = (x: number, y: number, score = 0.9): Keypoint => ({ x, y, score });
 
@@ -160,5 +160,30 @@ describe('levels', () => {
     expect(levelFor(pike, 85)).toBe(3);
     expect(levelFor(pike, 40)).toBe(5);
     expect(nextLevelTarget(pike, 85)).toBe(70);
+  });
+});
+
+describe('free analysis', () => {
+  const free = findPosition('free')!;
+  const pose = poseWith({});
+
+  it('has no position formula or levels and offers every joint angle', () => {
+    expect(free.generic).toBe(true);
+    expect(free.joints).toEqual(['shoulder', 'hip', 'elbow', 'knee', 'lean']);
+  });
+
+  it('leads with the joint in focus, else the first picked one', () => {
+    const measurement = free.measure(pose, 'left');
+    const hip = measurement.joints!.find((joint) => joint.id === 'hip')!;
+    const knee = measurement.joints!.find((joint) => joint.id === 'knee')!;
+    expect(displayedAngle(free, measurement, ['hip', 'knee'])).toMatchObject({ id: 'hip', value: hip.value });
+    expect(displayedAngle(free, measurement, ['hip', 'knee'], 'knee')).toMatchObject({ id: 'knee', value: knee.value });
+    expect(displayedAngle(free, measurement, [], null)).toMatchObject({ id: 'shoulder', value: measurement.value });
+  });
+
+  it('leaves the catalogued positions on their own measurement', () => {
+    const split = findPosition('front_split')!;
+    const measurement = split.measure(pose, 'left');
+    expect(displayedAngle(split, measurement, ['hip'], 'hip')).toEqual({ id: null, value: measurement.value, angle: measurement.angle });
   });
 });

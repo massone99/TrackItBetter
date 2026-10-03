@@ -15,6 +15,14 @@ describe('superset type', () => {
 });
 
 describe('supersetStep', () => {
+  it('stays on a unilateral exercise after R, then advances after L', () => {
+    const a = ex('a', 'g', 3);
+    a.sets = [{ pairId: 'p', completedAt: null }, { pairId: 'p', completedAt: new Date() }];
+    const b = ex('b', 'g', 3);
+    expect(supersetStep([a, b], 'a')?.nextEntryId).toBe('a');
+    a.sets[0].completedAt = new Date();
+    expect(supersetStep([a, b], 'a')?.nextEntryId).toBe('b');
+  });
   it('is null outside a superset', () => {
     expect(supersetStep([ex('a', null, 2)], 'a')).toBeNull();
   });

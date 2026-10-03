@@ -15,8 +15,10 @@ import {
   exerciseToFormValues,
   formValuesToInput,
   toggleExtraCategory,
+  type ExerciseFormInput,
   type ExerciseFormValues,
 } from '../../src/features/exercises/exerciseForm';
+import { MOBILITY_MODES } from '../../src/features/exercises/mobilityMode';
 import { ActionButton, Body, Chip, Icon, Label, PageHeading, Screen, TextField } from '../../src/shared/components/ui';
 import { addExerciseToCompletedWorkout, addExerciseToWorkout, replaceEntryExercise } from '../../src/features/session/repository';
 import { getExerciseById } from '../../src/features/exercises/repository';
@@ -34,17 +36,18 @@ export default function NewExerciseRoute() {
   // `name` prefills the name field, e.g. what was searched for in a picker before choosing "create".
   // `replaceEntry` (with `addTo`) makes the new exercise take the place of that exercise of the workout; `replaceProgramExercise` (with `addToProgram`) does the same for a program workout.
   const { addTo, addToPast, addToProgram, edit, name: suggestedName, replaceEntry, replaceProgramExercise } = useLocalSearchParams<{ addTo?: string; addToPast?: string; addToProgram?: string; edit?: string; name?: string; replaceEntry?: string; replaceProgramExercise?: string }>();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { palette } = useTheme();
   const [saving, setSaving] = useState(false);
   // Why the last save failed, shown with the message so a failure on a phone can be reported.
   const [saveError, setSaveError] = useState<string | null>(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
-  const { control, handleSubmit, reset, setValue, getValues, formState: { errors } } = useForm<ExerciseFormValues>({
+  const { control, handleSubmit, reset, setValue, getValues, formState: { errors } } = useForm<ExerciseFormInput, unknown, ExerciseFormValues>({
     resolver: zodResolver(exerciseFormSchema),
     defaultValues: { ...EMPTY_EXERCISE_FORM, name: edit ? EMPTY_EXERCISE_FORM.name : suggestedName?.slice(0, 80) ?? EMPTY_EXERCISE_FORM.name },
   });
-  const [category, extraCategories, movementTag, movementGroup] = useWatch({ control, name: ['category', 'extraCategories', 'movementTag', 'movementGroup'] });
+  const [category, extraCategories, movementTags, movementGroup, mobilityMode] = useWatch({ control, name: ['category', 'extraCategories', 'movementTags', 'movementGroup', 'mobilityMode'] });
+  const isMobility = category === 'mobility' || extraCategories.includes('mobility');
   const detailErrors = Boolean(errors.equipment || errors.cues || errors.demoUrl);
 
   useEffect(() => {
@@ -123,6 +126,13 @@ export default function NewExerciseRoute() {
       </View>
 
       <View style={styles.field}>
+        <Controller control={control} name="unilateral" render={({ field: { onChange, value } }) => {
+          const label = t('customExercise.unilateral', { defaultValue: i18n.language.startsWith('it') ? 'Monolaterale' : 'Unilateral' });
+          return <Chip label={label} accessibilityLabel={label} selected={value === true} onPress={() => onChange(value !== true)} />;
+        }} />
+      </View>
+
+      <View style={styles.field}>
         <Label>{t('customExercise.category')}</Label>
         <View style={styles.choices}>
           {EXERCISE_CATEGORIES.map((item) => {
@@ -150,10 +160,20 @@ export default function NewExerciseRoute() {
         </View>
       </View>
 
+      {isMobility ? (
+        <View style={styles.field}>
+          <Label>{t('customExercise.mobilityMode.title')}</Label>
+          <View style={styles.choices}>
+            {MOBILITY_MODES.map((mode) => <Chip key={mode} label={t(`customExercise.mobilityMode.${mode}`)} selected={mobilityMode === mode} onPress={() => setValue('mobilityMode', mobilityMode === mode ? null : mode)} />)}
+          </View>
+          <Body style={{ color: palette.textMuted }}>{mobilityMode ? t(`customExercise.mobilityMode.${mobilityMode}Hint`) : t('customExercise.mobilityMode.hint')}</Body>
+        </View>
+      ) : null}
+
       <ClassificationChoices
-        movementTag={movementTag}
+        movementTags={movementTags ?? []}
         movementGroup={movementGroup}
-        onTagChange={(value) => setValue('movementTag', value)}
+        onTagsChange={(value) => { setValue('movementTags', value); setValue('movementTag', value[0] ?? null); }}
         onGroupChange={(value) => setValue('movementGroup', value)}
       />
 
@@ -216,5 +236,5 @@ export default function NewExerciseRoute() {
 const baseStyles = StyleSheet.create({
   field: { gap: 8 },
   choices: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
-  detailsToggle: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 44, borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 8 },
+  detailsToggle: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, minHeight: 48, borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 12 },
 });

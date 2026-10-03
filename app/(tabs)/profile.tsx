@@ -2,7 +2,7 @@ import { router } from "expo-router";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { StyleSheet, View } from "react-native";
-import { Body, Card, Label, ListGroup, ListRow, PageHeading, Screen, SectionTitle, SegmentedControl, SwitchRow } from "../../src/shared/components/ui";
+import { Body, Card, Icon, Label, ListGroup, ListRow, PageHeading, Screen, SectionTitle, SegmentedControl, SwitchRow } from "../../src/shared/components/ui";
 import { DurationField } from "../../src/shared/components/DateTimePickers";
 import { readDefaultRest, writeDefaultRest } from "../../src/features/session/restDefaults";
 import { readBooleanPreference, RPE_PROMPT_KEY, writePreference } from "../../src/shared/settings/preferences";
@@ -86,15 +86,19 @@ export default function ProfileScreen() {
         <ListRow icon="cloud-download-outline" title={t("profile.backup")} onPress={() => router.push("/data")} />
       </ListGroup>
 
-      <View style={[styles.about, { borderTopColor: palette.border }]}>
-        <Label>{t("profile.about")}</Label>
-        <Body>{t("profile.aboutBody")}</Body>
-      </View>
+      <Card style={styles.about}>
+        <Icon name="shield-checkmark-outline" size={24} color={palette.success} />
+        <View style={styles.aboutCopy}>
+          <Label>{t("profile.about")}</Label>
+          <Body>{t("profile.aboutBody")}</Body>
+        </View>
+      </Card>
     </Screen>
   );
 }
 
 const baseStyles = StyleSheet.create({
   spaced: { marginTop: 6 },
-  about: { borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 18, gap: 4 },
+  about: { flexDirection: "row", alignItems: "flex-start", gap: 12 },
+  aboutCopy: { flex: 1, gap: 4 },
 });

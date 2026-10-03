@@ -9,11 +9,12 @@ import { listUserPrograms } from "../../src/features/programs/userPrograms";
 import type { PersonalBest } from "../../src/features/analytics/summary";
 import { getGoalSnapshot, GoalSnapshot } from "../../src/features/goals/repository";
 import { ActiveWorkout, getActiveWorkout, listRecentWorkoutNames, listRecentWorkouts, repeatWorkout, WorkoutHistoryItem } from "../../src/features/session/repository";
-import { ActionButton, Body, Card, Icon, Label, ListGroup, ListRow, Numeral, Screen, SectionTitle, tapFeedback, Text, Title } from "../../src/shared/components/ui";
+import { ActionButton, Body, Card, Icon, Label, ListGroup, ListRow, Numeral, ProgressMeter, Screen, SectionTitle, tapFeedback, Text, Title } from "../../src/shared/components/ui";
 import type { IconName } from "../../src/shared/components/ui";
 import { poseDetectionAvailable } from "../../src/features/pose/detectPose";
 import { useTheme } from "../../src/shared/theme/ThemeProvider";
 import { fonts } from "../../src/shared/theme/typography";
+import { radii } from "../../src/shared/theme/tokens";
 import { formatBestValue } from "../../src/shared/utils/format";
 import { useScaledStyles } from "../../src/shared/theme/useScaledStyles";
 
@@ -69,6 +70,9 @@ export default function TodayScreen() {
     }
   };
   const activeMinutes = active ? Math.max(0, Math.round((now.getTime() - active.startedAt.getTime()) / 60000)) : 0;
+  const weeklyTarget = goals?.weeklyTarget ?? 3;
+  const weeklySessions = goals?.thisWeekSessions ?? 0;
+  const goalReached = weeklySessions >= weeklyTarget;
 
   return (
     <Screen>
@@ -97,9 +101,10 @@ export default function TodayScreen() {
           onPress={() => router.push({ pathname: "/workout/[id]", params: { id: active?.id ?? "new" } })}
         />
         {active ? null : (
-          <Text accessibilityRole="button" onPress={() => router.push("/programs")} style={[styles.heroLink, { color: palette.heroText }]}>
-            {t("home.choosePlan")}
-          </Text>
+          <Pressable accessibilityRole="button" onPress={() => router.push("/programs")} style={styles.heroLinkRow}>
+            <Text style={[styles.heroLink, { color: palette.heroText }]}>{t("home.choosePlan")}</Text>
+            <Icon name="arrow-forward" size={18} color={palette.heroText} />
+          </Pressable>
         )}
       </View>
 
@@ -119,24 +124,18 @@ export default function TodayScreen() {
         </Card>
       ))}
 
-      <View style={styles.tiles}>
-        {poseDetectionAvailable ? (
-          <Tile icon="scan-outline" title={t("home.pose")} body={t("home.poseBody")} onPress={() => router.push("/pose")} />
-        ) : null}
-        <Tile icon="body-outline" title={t("home.mobility")} body={t("home.mobilityBody")} onPress={() => router.push("/mobility")} />
-      </View>
-
       <Card style={styles.weekCard}>
         <View style={styles.weekHeader}>
           <View>
             <Label>{t("home.weekTitle")}</Label>
             <View style={styles.weekCount}>
-              <Numeral>{goals?.thisWeekSessions ?? 0}</Numeral>
-              <Body>{t("home.ofTarget", { target: goals?.weeklyTarget ?? 3 })}</Body>
+              <Numeral style={goalReached ? { color: palette.success } : undefined}>{weeklySessions}</Numeral>
+              <Body>{t("home.ofTarget", { target: weeklyTarget })}</Body>
             </View>
           </View>
-          <Icon name="calendar-outline" size={20} color={palette.textMuted} />
+          <Icon name={goalReached ? "checkmark-circle" : "calendar-outline"} size={24} color={goalReached ? palette.success : palette.textMuted} />
         </View>
+        <ProgressMeter value={weeklySessions} total={weeklyTarget} label={t("home.weekTitle")} tone={goalReached ? "success" : "accent"} />
         <View style={styles.days}>
           {week.map((day, index) => {
             const trained = day.count > 0;
@@ -157,15 +156,18 @@ export default function TodayScreen() {
         </View>
       </Card>
 
-      {/* One strip with hairline dividers instead of four cramped tiles. */}
       <View style={[styles.stats, { backgroundColor: palette.surface, borderColor: palette.border }]}>
         <Stat value={data.weekSets} label={t("home.setsWeek")} />
-        <View style={[styles.statDivider, { backgroundColor: palette.border }]} />
         <Stat value={goals?.currentStreak ?? 0} label={t("home.streak")} />
-        <View style={[styles.statDivider, { backgroundColor: palette.border }]} />
         <Stat value={goals?.totalSessions ?? 0} label={t("home.total")} />
-        <View style={[styles.statDivider, { backgroundColor: palette.border }]} />
         <Stat value={data.mobilityMinutes} label={t("mobilityStats.todayTile")} />
+      </View>
+
+      <View style={styles.tiles}>
+        {poseDetectionAvailable ? (
+          <Tile icon="scan-outline" title={t("home.pose")} body={t("home.poseBody")} onPress={() => router.push("/pose")} />
+        ) : null}
+        <Tile icon="body-outline" title={t("home.mobility")} body={t("home.mobilityBody")} onPress={() => router.push("/mobility")} />
       </View>
 
       {data.bests.length > 0 ? (
@@ -236,41 +238,41 @@ function Stat({ value, label }: { value: number; label: string }) {
   return (
     <View style={styles.stat}>
       <Numeral style={styles.statValue}>{value}</Numeral>
-      <Label numberOfLines={2} style={styles.statLabel}>{label}</Label>
+      <Label style={styles.statLabel}>{label}</Label>
     </View>
   );
 }
 
 const baseStyles = StyleSheet.create({
-  topline: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  date: { fontSize: 14 },
-  streakPill: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, height: 30, borderRadius: 999 },
+  topline: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 12 },
+  date: { flex: 1, fontSize: 14 },
+  streakPill: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, minHeight: 30, paddingVertical: 2, borderRadius: 999 },
   streakText: { fontFamily: fonts.display, fontSize: 17 },
-  greeting: { marginTop: -8, fontSize: 44, lineHeight: 46 },
-  hero: { borderRadius: 26, padding: 22, gap: 16 },
+  greeting: { marginTop: -10, fontSize: 40, lineHeight: 44 },
+  hero: { borderRadius: radii.surface, padding: 20, gap: 16 },
   heroCopy: { gap: 8 },
   heroTitle: { fontFamily: fonts.display, fontSize: 30, lineHeight: 32 },
   heroBody: { fontFamily: fonts.body, fontSize: 15, lineHeight: 22, opacity: 0.88 },
-  heroLink: { fontFamily: fonts.semibold, fontSize: 15, textAlign: "center", textDecorationLine: "underline", paddingVertical: 2 },
+  heroLinkRow: { flexDirection: "row", justifyContent: "center", alignItems: "center", gap: 8, minHeight: 48 },
+  heroLink: { flexShrink: 1, fontFamily: fonts.semibold, fontSize: 15, lineHeight: 22, textAlign: "center" },
   weekCard: { gap: 16 },
   planCard: { gap: 14 },
   planCopy: { gap: 4 },
   planName: { fontFamily: fonts.display, fontSize: 24, lineHeight: 28 },
   tiles: { flexDirection: "row", gap: 10 },
-  tile: { flex: 1, borderRadius: 20, borderWidth: StyleSheet.hairlineWidth, padding: 16, gap: 8, minHeight: 132 },
-  tileIcon: { width: 42, height: 42, borderRadius: 14, alignItems: "center", justifyContent: "center" },
+  tile: { flex: 1, borderRadius: radii.surface, borderWidth: 1, padding: 16, gap: 8, minHeight: 144 },
+  tileIcon: { width: 36, height: 36, borderRadius: 12, alignItems: "center", justifyContent: "center" },
   tileTitle: { fontFamily: fonts.display, fontSize: 21, lineHeight: 24 },
   tileBody: { fontFamily: fonts.body, fontSize: 13, lineHeight: 18 },
   weekHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" },
-  weekCount: { flexDirection: "row", alignItems: "baseline", gap: 8, marginTop: 2 },
+  weekCount: { flexDirection: "row", flexWrap: "wrap", alignItems: "baseline", gap: 8, marginTop: 2 },
   days: { flexDirection: "row", justifyContent: "space-between" },
   day: { alignItems: "center", gap: 6 },
   dayDot: { width: 36, height: 36, borderRadius: 18, borderWidth: 2, alignItems: "center", justifyContent: "center" },
   dayLabel: { fontFamily: fonts.semibold, fontSize: 12, textTransform: "capitalize" },
-  stats: { flexDirection: "row", alignItems: "stretch", borderRadius: 20, borderWidth: StyleSheet.hairlineWidth, paddingVertical: 14 },
-  stat: { flex: 1, paddingHorizontal: 10, gap: 2, alignItems: "center" },
-  statLabel: { textAlign: "center" },
-  statDivider: { width: StyleSheet.hairlineWidth, marginVertical: 4 },
+  stats: { flexDirection: "row", flexWrap: "wrap", borderRadius: radii.surface, borderWidth: 1, padding: 16, rowGap: 20 },
+  stat: { width: "50%", paddingRight: 12, gap: 3, alignItems: "flex-start" },
+  statLabel: { fontSize: 14, lineHeight: 20 },
   statValue: { fontSize: 32, lineHeight: 36 },
   link: { fontFamily: fonts.semibold, fontSize: 14 },
   bestValue: { fontFamily: fonts.display, fontSize: 22 },

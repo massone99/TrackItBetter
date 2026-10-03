@@ -26,6 +26,8 @@ import { useTheme } from '../../../src/shared/theme/ThemeProvider';
 import { fonts } from '../../../src/shared/theme/typography';
 import { useScaledStyles } from '../../../src/shared/theme/useScaledStyles';
 import { goBack } from '../../../src/shared/navigation/goBack';
+import { DurationField, HoldDurationField } from '../../../src/shared/components/DateTimePickers';
+import { formatClock } from '../../../src/shared/utils/format';
 
 type ExerciseInfo = { name: string; metric: string };
 
@@ -97,9 +99,9 @@ export default function RoutineBuilderScreen() {
       <PageHeading title={isNew ? t('mobility.builderNew') : name || t('mobility.builderTitle')} subtitle={steps.length ? t('mobility.estimated', { count: minutes }) : undefined} />
       <TextField label={t('mobility.name')} value={name} onChangeText={(value) => { setName(value); setError(null); }} placeholder={t('mobility.namePlaceholder')} maxLength={60} />
       <Card style={styles.transitionCard}>
-        <Stepper layout="row" label={t('mobility.prep')} value={prepSec} display={prepSec === 0 ? t('mobility.prepOff') : t('mobility.seconds', { count: prepSec })} step={1} min={0} max={30} onChange={setPrepSec} />
+        <DurationField label={t('mobility.prep')} value={prepSec} format={(seconds) => seconds === 0 ? t('mobility.prepOff') : formatClock(seconds)} step={1} min={0} max={30} presets={[0, 3, 5, 10]} onChange={setPrepSec} />
         <Body style={styles.prepHint}>{t('mobility.prepHint')}</Body>
-        <Stepper layout="row" label={t('mobility.transition')} value={transitionSec} display={t('mobility.seconds', { count: transitionSec })} step={5} min={0} max={60} onChange={setTransitionSec} />
+        <DurationField label={t('mobility.transition')} value={transitionSec} format={formatClock} step={5} min={0} max={60} presets={[0, 5, 10, 15]} onChange={setTransitionSec} />
       </Card>
 
       <SectionTitle title={t('mobility.drillsTitle')} />
@@ -124,12 +126,12 @@ export default function RoutineBuilderScreen() {
           />
           <View style={styles.steppers}>
             {step.mode === 'hold' ? (
-              <Stepper layout="row" label={t('mobility.hold')} value={step.seconds} display={t('mobility.seconds', { count: step.seconds })} step={5} min={5} max={600} onChange={(seconds) => updateStep(step.id, { seconds })} />
+              <HoldDurationField label={t('mobility.hold')} value={step.seconds} min={5} max={600} onChange={(seconds) => updateStep(step.id, { seconds })} />
             ) : (
               <Stepper layout="row" label={t('mobility.reps')} value={step.reps} step={1} min={1} max={100} onChange={(reps) => updateStep(step.id, { reps })} />
             )}
             <Stepper layout="row" label={t('mobility.rounds')} value={step.rounds} step={1} min={1} max={10} onChange={(rounds) => updateStep(step.id, { rounds })} />
-            <Stepper layout="row" label={t('mobility.rest')} value={step.restSec} display={t('mobility.seconds', { count: step.restSec })} step={5} min={0} max={300} onChange={(restSec) => updateStep(step.id, { restSec })} />
+            <DurationField label={t('mobility.rest')} value={step.restSec} format={formatClock} step={5} min={0} max={300} presets={[0, 15, 30, 60]} onChange={(restSec) => updateStep(step.id, { restSec })} />
           </View>
           <View style={[styles.sideRow, { borderTopColor: palette.border }]}>
             <SwitchRow title={t('mobility.perSide')} value={step.perSide} onChange={(perSide) => updateStep(step.id, { perSide })} />
@@ -167,12 +169,12 @@ const baseStyles = StyleSheet.create({
   flex: { flex: 1 },
   transitionCard: { paddingVertical: 8 },
   prepHint: { fontSize: 13, lineHeight: 18, marginTop: -4 },
-  stepCard: { gap: 12, paddingBottom: 6 },
-  stepHeader: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  stepCard: { gap: 16, paddingBottom: 12 },
+  stepHeader: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   stepNumber: { width: 28, height: 28, borderRadius: 9, alignItems: 'center', justifyContent: 'center', marginRight: 4 },
   stepNumberText: { fontFamily: fonts.display, fontSize: 16 },
-  stepName: { flex: 1, fontFamily: fonts.display, fontSize: 21, lineHeight: 24 },
+  stepName: { flex: 1, fontFamily: fonts.display, fontSize: 24, lineHeight: 28 },
   steppers: { gap: 2 },
-  sideRow: { borderTopWidth: StyleSheet.hairlineWidth, marginHorizontal: -18 },
+  sideRow: { borderTopWidth: StyleSheet.hairlineWidth, marginHorizontal: -16 },
   error: { fontFamily: fonts.medium, fontSize: 14 },
 });

@@ -9,6 +9,7 @@ import { fonts } from '../../shared/theme/typography';
 import { useScaledStyles } from '../../shared/theme/useScaledStyles';
 
 export const GROUP_ICONS: Record<PositionGroup, IconName> = {
+  free: 'scan-outline',
   splits: 'resize-outline',
   folds: 'body-outline',
   shoulders: 'accessibility-outline',

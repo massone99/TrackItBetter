@@ -1,11 +1,11 @@
 import { useCallback, useMemo, useState } from 'react';
 import { useFocusEffect } from 'expo-router';
 import { useTranslation } from 'react-i18next';
-import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
-import { Body, Card, Heading, IconButton, PageHeading, Screen, SegmentedControl, Stepper } from '../src/shared/components/ui';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Body, Card, Chip, Heading, IconButton, PageHeading, Screen, SegmentedControl, Stepper } from '../src/shared/components/ui';
 import { Text } from '../src/shared/components/Text';
 import { getTrainingStatsRows } from '../src/features/analytics/repository';
-import { buildTrainingStats, OTHER_ID, type StatsDimension, type StatsMetrics, type StatsPeriodKind, type StatsSetRow } from '../src/features/analytics/trainingStats';
+import { buildTrainingStats, OTHER_ID, type StatsDimension, type StatsMetrics, type StatsScope, type StatsPeriodKind, type StatsSetRow } from '../src/features/analytics/trainingStats';
 import { formatPeriod, formatPeriodShort } from '../src/features/analytics/periodLabels';
 import { PeriodBars } from '../src/features/analytics/PeriodBars';
 import { movementTagLabel } from '../src/features/exercises/ClassificationChoices';
@@ -20,7 +20,7 @@ const copy = {
     pattern: 'Pattern', exercise: 'Exercise', groups: 'Groups', tags: 'Tags',
     session: 'Session', day: 'Day', week: 'Week', month: 'Month',
     previous: 'Previous period', next: 'Next period', today: 'Today', latestSession: 'Latest',
-    set: 'set', sets: 'sets', reps: 'reps', threshold: 'RPE threshold', allSets: 'All sets',
+    set: 'set', sets: 'sets', reps: 'reps', threshold: 'RPE threshold', allSets: 'All sets', scopeAll: 'All', scopeStrength: 'Strength', scopeMobility: 'Mobility', modeAll: 'Any', modeActive: 'Active', modePassive: 'Passive', emptyMobility: 'No mobility sets in this period.', emptyStrength: 'No strength sets in this period.',
     empty: 'No working sets in this period.', noData: 'Finish a workout to see statistics here.',
     other: 'Other movements', untagged: 'No tag', loading: 'Loading statistics…', error: 'Statistics could not be loaded.', retry: 'Retry',
   },
@@ -29,7 +29,7 @@ const copy = {
     pattern: 'Pattern', exercise: 'Esercizio', groups: 'Gruppi', tags: 'Tag',
     session: 'Sessione', day: 'Giorno', week: 'Sett.', month: 'Mese',
     previous: 'Periodo precedente', next: 'Periodo successivo', today: 'Oggi', latestSession: 'Ultima',
-    set: 'serie', sets: 'serie', reps: 'rip', threshold: 'Soglia RPE', allSets: 'Tutte le serie',
+    set: 'serie', sets: 'serie', reps: 'rip', threshold: 'Soglia RPE', allSets: 'Tutte le serie', scopeAll: 'Tutto', scopeStrength: 'Potenziamento', scopeMobility: 'Mobilità', modeAll: 'Tutte', modeActive: 'Attiva', modePassive: 'Passiva', emptyMobility: 'Nessuna serie di mobilità in questo periodo.', emptyStrength: 'Nessuna serie di potenziamento in questo periodo.',
     empty: 'Nessuna serie di lavoro in questo periodo.', noData: 'Completa un allenamento per vedere qui le statistiche.',
     other: 'Altri movimenti', untagged: 'Senza tag', loading: 'Caricamento statistiche…', error: 'Impossibile caricare le statistiche.', retry: 'Riprova',
   },
@@ -38,6 +38,8 @@ type Strings = (typeof copy)['en'] | (typeof copy)['it'];
 
 type StatsView = 'pattern' | 'exercise';
 type PatternKind = 'group' | 'tag';
+type MainScope = 'all' | 'strength' | 'mobility';
+type MobilityKind = 'all' | 'active' | 'passive';
 const pick = <T extends string>(key: string, allowed: readonly T[], fallback: T): T => {
   const value = readPreference(key);
   return allowed.includes(value as T) ? (value as T) : fallback;
@@ -59,6 +61,8 @@ export default function StatsScreen() {
     return stored >= 6 && stored <= 10 ? stored : 8;
   });
   const [rpeOnly, setRpeOnly] = useState(() => readPreference('stats.rpeOnly') === 'true');
+  const [mainScope, setMainScope] = useState<MainScope>(() => pick('stats.scope', ['all', 'strength', 'mobility'], 'all'));
+  const [mobilityKind, setMobilityKind] = useState<MobilityKind>(() => pick('stats.mobilityKind', ['all', 'active', 'passive'], 'all'));
   const [anchor, setAnchor] = useState<string | null>(null);
 
   const load = useCallback(() => {
@@ -70,7 +74,8 @@ export default function StatsScreen() {
   useFocusEffect(load);
 
   const dimension: StatsDimension = view === 'exercise' ? 'exercise' : patternKind;
-  const stats = useMemo(() => rows ? buildTrainingStats(rows, { dimension, period: periodKind, anchor, threshold, rpeOnly }) : null, [rows, dimension, periodKind, anchor, threshold, rpeOnly]);
+  const scope: StatsScope = mainScope === 'mobility' && mobilityKind !== 'all' ? `mobility-${mobilityKind}` : mainScope;
+  const stats = useMemo(() => rows ? buildTrainingStats(rows, { dimension, period: periodKind, anchor, threshold, rpeOnly, scope }) : null, [rows, dimension, periodKind, anchor, threshold, rpeOnly, scope]);
 
   function remember<T extends string>(key: string, setter: (value: T) => void) {
     return (value: T) => {
@@ -92,6 +97,17 @@ export default function StatsScreen() {
   return <Screen>
     <PageHeading title={strings.title} subtitle={strings.subtitle} />
     <View style={styles.controls}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
+        {(['all', 'strength', 'mobility'] as const).map((value) => <Chip key={value} label={strings[value === 'all' ? 'scopeAll' : value === 'strength' ? 'scopeStrength' : 'scopeMobility']} selected={mainScope === value} onPress={() => remember<MainScope>('stats.scope', setMainScope)(value)} />)}
+      </ScrollView>
+      {mainScope === 'mobility' && <View style={styles.quietToggle}>
+        {(['all', 'active', 'passive'] as const).map((kind, index) => <View key={kind} style={styles.quietItem}>
+          {index > 0 && <Text style={{ color: palette.textMuted }}>·</Text>}
+          <Pressable accessibilityRole="button" accessibilityState={{ selected: mobilityKind === kind }} hitSlop={10} onPress={() => remember<MobilityKind>('stats.mobilityKind', setMobilityKind)(kind)}>
+            <Text style={[styles.quietText, { color: mobilityKind === kind ? palette.text : palette.textMuted, fontFamily: mobilityKind === kind ? 'Barlow_600SemiBold' : undefined }]}>{kind === 'all' ? strings.modeAll : kind === 'active' ? strings.modeActive : strings.modePassive}</Text>
+          </Pressable>
+        </View>)}
+      </View>}
       <SegmentedControl<StatsView> value={view} onChange={remember<StatsView>('stats.view', setView)} options={[{ value: 'pattern', label: strings.pattern }, { value: 'exercise', label: strings.exercise }]} />
       {view === 'pattern' && <View style={styles.quietToggle}>
         {(['group', 'tag'] as const).map((kind, index) => <View key={kind} style={styles.quietItem}>
@@ -135,10 +151,11 @@ export default function StatsScreen() {
       </Card>
 
       <Card>
-        {stats.items.length === 0 ? <Body>{strings.empty}</Body> : stats.items.map((item, index) => <View key={item.id} style={[styles.row, index > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: palette.border }]}>
+        {dimension === 'tag' && stats.items.length > 0 ? <Body>{t('exerciseGrouping.statsHint')}</Body> : null}
+        {stats.items.length === 0 ? <Body>{mainScope === 'mobility' ? strings.emptyMobility : mainScope === 'strength' ? strings.emptyStrength : strings.empty}</Body> : stats.items.map((item, index) => <View key={item.id} style={[styles.row, index > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: palette.border }]}>
           <View style={styles.rowHead}>
             <Text numberOfLines={1} style={[styles.rowName, { color: palette.text }]}>{itemName(item.id, item.name)}</Text>
-            <Text style={[styles.rowValue, { color: palette.text }]}>{item.metrics.sets}</Text>
+            <Text style={[styles.rowValue, { color: palette.text }]}>{mainScope === 'mobility' && item.metrics.holdSeconds > 0 ? formatDuration(item.metrics.holdSeconds) : item.metrics.sets}</Text>
           </View>
           <View style={[styles.rowBar, { width: `${Math.max(3, (item.metrics.sets / maxSets) * 100)}%`, backgroundColor: palette.accentSoft }]} />
           {detail(item.metrics, threshold, strings, rpeOnly) ? <Text style={[styles.rowDetail, { color: palette.textMuted }]}>{detail(item.metrics, threshold, strings, rpeOnly)}</Text> : null}
@@ -161,22 +178,23 @@ function detail(metrics: StatsMetrics, threshold: number, strings: Strings, rpeO
 }
 
 const baseStyles = StyleSheet.create({
-  controls: { gap: 8, marginBottom: 12 },
+  controls: { gap: 12, marginBottom: 4 },
+  chipRow: { gap: 8, paddingRight: 4 },
   quietToggle: { flexDirection: 'row', justifyContent: 'center', gap: 8 },
   quietItem: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  quietText: { fontSize: 14 },
+  quietText: { fontSize: 14, paddingVertical: 12 },
   loadingCard: { minHeight: 120, alignItems: 'center', justifyContent: 'center', gap: 10 },
   navigator: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 },
   periodLabel: { flex: 1, textAlign: 'center', fontSize: 16, fontFamily: 'Barlow_600SemiBold' },
   latest: { alignSelf: 'center', marginBottom: 8 },
   latestText: { fontSize: 13, fontFamily: 'Barlow_600SemiBold' },
   summary: { flexDirection: 'row', alignItems: 'baseline', gap: 6, marginTop: 14 },
-  summaryValue: { fontSize: 28, fontFamily: 'Barlow_600SemiBold', fontVariant: ['tabular-nums'] },
+  summaryValue: { fontSize: 40, lineHeight: 44, fontFamily: 'BarlowCondensed_700Bold', fontVariant: ['tabular-nums'] },
   summaryUnit: { fontSize: 15 },
-  row: { paddingVertical: 10, gap: 5 },
+  row: { paddingVertical: 14, gap: 8 },
   rowHead: { flexDirection: 'row', alignItems: 'baseline', gap: 10 },
   rowName: { flex: 1, fontSize: 15, fontFamily: 'Barlow_600SemiBold' },
-  rowValue: { fontSize: 16, fontFamily: 'Barlow_600SemiBold', fontVariant: ['tabular-nums'] },
-  rowBar: { height: 4, borderRadius: 2 },
-  rowDetail: { fontSize: 13 },
+  rowValue: { fontSize: 24, lineHeight: 28, fontFamily: 'BarlowCondensed_700Bold', fontVariant: ['tabular-nums'] },
+  rowBar: { height: 6, borderRadius: 3 },
+  rowDetail: { fontSize: 14, lineHeight: 20 },
 });

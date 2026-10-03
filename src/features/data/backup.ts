@@ -36,11 +36,26 @@ const exerciseSchema = z.object({
   movementPattern: nullableString,
   // Added in schema v6; old backups omit both user-editable classifications.
   movementTag: nullableString.optional().refine((tag) => tag == null || (MOVEMENT_TAGS as readonly string[]).includes(canonicalizeMovementTag(tag) ?? '')),
+  // Added in schema v9. Missing lists are restored from the legacy single tag.
+  movementTags: z.string().optional().refine((value) => {
+    if (value === undefined) return true;
+    try {
+      const tags: unknown = JSON.parse(value);
+      return Array.isArray(tags) && tags.every((tag) => typeof tag === 'string'
+        && (MOVEMENT_TAGS as readonly string[]).includes(canonicalizeMovementTag(tag) ?? ''));
+    } catch {
+      return false;
+    }
+  }),
   movementGroup: z.enum(MOVEMENT_GROUP_IDS).nullable().optional(),
+  // Added in schema v11; older backups leave it unspecified.
+  mobilityMode: z.enum(['active', 'passive']).nullable().optional(),
   primaryMuscles: z.string(),
   secondaryMuscles: z.string(),
   equipment: z.string(),
   unilateral: z.boolean(),
+  // Added in schema v10; old backups use the default pair-level recovery.
+  unilateralRestMode: z.enum(['side', 'pair']).default('pair'),
   chainId: nullableString,
   level: z.number().int().nullable(),
   leverageFactor: nullableNumber,
@@ -88,6 +103,10 @@ const entrySchema = z.object({
   groupId: nullableString,
   groupType: nullableString,
   notes: nullableString,
+  // Added in schema v10; null means the exercise preference applies.
+  unilateralRestMode: z.enum(['side', 'pair']).nullable().default(null),
+  // Added in schema v12; null is the main work.
+  block: z.enum(['warmup', 'main', 'mobility']).nullable().default(null),
 }).strict();
 
 const setSchema = z.object({
@@ -108,6 +127,8 @@ const setSchema = z.object({
   // Added in schema v4; older backups omit it.
   note: nullableString.optional(),
   completedAt: nullableTimestamp,
+  // Added in schema v10; null keeps legacy, unpaired-set semantics.
+  pairId: z.string().min(1).nullable().default(null),
 }).strict();
 
 const measurementSchema = z.object({
@@ -167,6 +188,45 @@ function validateBackupData(data: z.infer<typeof backupDataObject>, ctx: z.Refin
   });
   data.trainingSets.forEach((set, index) => {
     if (!entriesById.has(set.entryId)) ctx.addIssue({ code: 'custom', path: ['data', 'trainingSets', index, 'entryId'], message: 'Entry does not exist in backup' });
+  });
+
+  // A pair is deliberately validated as a unit. Legacy sets have no pairId and
+  // retain their historical meaning, while a v3 pair must contain one L and one R
+  // set for the same exercise entry and set kind.
+  const entryById = new Map(data.exerciseEntries.map((entry) => [entry.id, entry]));
+  const workoutById = new Map(data.workouts.map((workout) => [workout.id, workout]));
+  const pairs = new Map<string, { set: (typeof data.trainingSets)[number]; index: number }[]>();
+  data.trainingSets.forEach((set, index) => {
+    if (set.pairId === null) return;
+    const pair = pairs.get(set.pairId) ?? [];
+    pair.push({ set, index });
+    pairs.set(set.pairId, pair);
+  });
+  pairs.forEach((members, pairId) => {
+    const path = ['data', 'trainingSets', members[0]?.index ?? 0, 'pairId'];
+    if (members.length !== 2) {
+      ctx.addIssue({ code: 'custom', path, message: `Pair ${pairId} must contain exactly one left and one right set` });
+      return;
+    }
+    const sides = members.map(({ set }) => set.side);
+    if (new Set(sides).size !== 2 || !sides.includes('left') || !sides.includes('right')) {
+      ctx.addIssue({ code: 'custom', path, message: `Pair ${pairId} must contain one left and one right set` });
+    }
+    const [first, second] = members.map(({ set }) => set);
+    if (first.entryId !== second.entryId) {
+      ctx.addIssue({ code: 'custom', path, message: `Pair ${pairId} must use one exercise entry` });
+    }
+    if (first.kind !== second.kind) {
+      ctx.addIssue({ code: 'custom', path, message: `Pair ${pairId} must use one set kind` });
+    }
+    const entry = entryById.get(first.entryId);
+    const workout = entry ? workoutById.get(entry.workoutId) : undefined;
+    if (workout?.endedAt !== null && workout?.endedAt !== undefined) {
+      const completed = members.map(({ set }) => set.completedAt !== null);
+      if (completed[0] !== completed[1]) {
+        ctx.addIssue({ code: 'custom', path, message: `Pair ${pairId} is partially completed in an ended workout` });
+      }
+    }
   });
   data.levelCriteria.forEach((criteria, index) => {
     if (!chainsById.has(criteria.chainId)) ctx.addIssue({ code: 'custom', path: ['data', 'levelCriteria', index, 'chainId'], message: 'Progression chain does not exist in backup' });
@@ -233,7 +293,28 @@ const backupV2Schema = z.object({
   });
 });
 
-const backupSchema = z.union([backupV1Schema, backupV2Schema]);
+const backupV3Schema = z.object({
+  format: z.literal('trackitbetter-backup'),
+  version: z.literal(3),
+  exportedAt: timestamp,
+  data: backupDataObject.extend({
+    progressPhotos: z.array(photoAssetSchema).max(500),
+    // Kept optional so backups produced during the v2 pose rollout remain valid.
+    poseCaptures: z.array(poseCaptureAssetSchema).max(500).optional(),
+  }).strict().superRefine((data, ctx) => {
+    validateBackupData(data, ctx);
+  }),
+}).strict().superRefine(({ data }, ctx) => {
+  const seen = new Set<string>();
+  data.progressPhotos.forEach((photo, index) => {
+    if (seen.has(photo.id)) ctx.addIssue({ code: 'custom', path: ['data', 'progressPhotos', index, 'id'], message: 'Duplicate id' });
+    seen.add(photo.id);
+    const expectedMime = photo.fileName.endsWith('.png') ? 'image/png' : photo.fileName.endsWith('.webp') ? 'image/webp' : photo.fileName.endsWith('.heic') ? 'image/heic' : photo.fileName.endsWith('.heif') ? 'image/heif' : 'image/jpeg';
+    if (photo.mimeType !== expectedMime) ctx.addIssue({ code: 'custom', path: ['data', 'progressPhotos', index, 'mimeType'], message: 'Photo extension and MIME type do not match' });
+  });
+});
+
+const backupSchema = z.union([backupV1Schema, backupV2Schema, backupV3Schema]);
 
 export type LocalBackup = z.infer<typeof backupSchema>;
 
@@ -241,6 +322,35 @@ async function insertInChunks<T>(rows: T[], insert: (chunk: T[]) => Promise<void
   for (let index = 0; index < rows.length; index += 40) {
     await insert(rows.slice(index, index + 40));
   }
+}
+
+type BackupSet = z.infer<typeof setSchema>;
+
+/** Give each imported pair a fresh id while keeping its two sides together. */
+function regeneratePairIds(sets: readonly BackupSet[], skipPairs = new Set<string>()): BackupSet[] {
+  const replacements = new Map<string, string>();
+  return sets
+    .filter((set) => set.pairId === null || !skipPairs.has(set.pairId))
+    .map((set) => {
+      if (set.pairId === null) return set;
+      let pairId = replacements.get(set.pairId);
+      if (!pairId) {
+        pairId = Crypto.randomUUID();
+        replacements.set(set.pairId, pairId);
+      }
+      return { ...set, pairId };
+    });
+}
+
+function pairMembers(sets: readonly BackupSet[]): Map<string, BackupSet[]> {
+  const pairs = new Map<string, BackupSet[]>();
+  sets.forEach((set) => {
+    if (set.pairId === null) return;
+    const members = pairs.get(set.pairId) ?? [];
+    members.push(set);
+    pairs.set(set.pairId, members);
+  });
+  return pairs;
 }
 
 /** What a backup file holds: everything, the workouts started in a date range, or only the exercise library. */
@@ -286,7 +396,7 @@ export async function createBackup(scope: BackupScope = { kind: 'full' }): Promi
   })));
   return backupSchema.parse({
     format: 'trackitbetter-backup',
-    version: 2,
+    version: 3,
     exportedAt: new Date().toISOString(),
     data: {
       exercises: exerciseRows.map((row) => ({ ...row, createdAt: row.createdAt.toISOString() })),
@@ -331,7 +441,7 @@ async function createPartialBackup(scope: Exclude<BackupScope, { kind: 'full' }>
   const keptChainIds = new Set(keptChains.map(({ id }) => id));
   return backupSchema.parse({
     format: 'trackitbetter-backup',
-    version: 2,
+    version: 3,
     exportedAt: new Date().toISOString(),
     data: {
       exercises: keptExercises.map((row) => ({ ...row, createdAt: row.createdAt.toISOString() })),
@@ -383,6 +493,16 @@ export async function mergeBackup(input: string): Promise<void> {
   const { data } = parseBackup(input);
   const date = (value: string) => new Date(value);
   await initializeDatabase();
+  // If either side of an imported pair already exists locally, skip the whole
+  // pair. Inserting only the other side would silently turn a complete pair into
+  // a half-pair. Fresh pair ids also prevent an imported pair from attaching to
+  // a local pair that happens to use the same source id.
+  const existingSetIds = new Set((await db.select({ id: trainingSets.id }).from(trainingSets)).map(({ id }) => id));
+  const blockedPairs = new Set<string>();
+  pairMembers(data.trainingSets).forEach((members, pairId) => {
+    if (members.some(({ id }) => existingSetIds.has(id))) blockedPairs.add(pairId);
+  });
+  const importedSets = regeneratePairIds(data.trainingSets, blockedPairs);
   await db.transaction(async (tx) => {
     await insertInChunks(data.progressionChains, async (rows) => {
       await tx.insert(progressionChains).values(rows).onConflictDoNothing();
@@ -403,7 +523,7 @@ export async function mergeBackup(input: string): Promise<void> {
     await insertInChunks(data.exerciseEntries, async (rows) => {
       await tx.insert(exerciseEntries).values(rows).onConflictDoNothing();
     });
-    await insertInChunks(data.trainingSets, async (rows) => {
+    await insertInChunks(importedSets, async (rows) => {
       await tx.insert(trainingSets).values(rows.map((row) => ({
         ...row,
         note: row.note ?? null,
@@ -428,6 +548,7 @@ async function replaceWithBackup(input: string): Promise<void> {
   const { data } = backup;
   const photoAssets = 'progressPhotos' in data ? data.progressPhotos : [];
   const poseAssets = 'poseCaptures' in data ? data.poseCaptures ?? [] : [];
+  const importedSets = regeneratePairIds(data.trainingSets);
   const date = (value: string) => new Date(value);
   await initializeDatabase();
   const oldPhotos = await db.select().from(progressPhotos);
@@ -507,7 +628,7 @@ async function replaceWithBackup(input: string): Promise<void> {
     await insertInChunks(data.exerciseEntries, async (rows) => {
       await tx.insert(exerciseEntries).values(rows);
     });
-    await insertInChunks(data.trainingSets, async (rows) => {
+    await insertInChunks(importedSets, async (rows) => {
       await tx.insert(trainingSets).values(rows.map((row) => ({
         ...row,
         note: row.note ?? null,

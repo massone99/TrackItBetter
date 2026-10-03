@@ -13,6 +13,7 @@ export interface MobilityStep {
   rounds: number;
   /** Rest after each round except the last. */
   restSec: number;
+  unilateralRestMode?: 'side' | 'pair';
 }
 
 export interface MobilityRoutineShape {
@@ -71,7 +72,7 @@ function expandWork(routine: MobilityRoutineShape): MobilitySegment[] {
           durationSec: step.mode === 'hold' ? Math.max(1, Math.round(step.seconds)) : null,
           reps: step.mode === 'reps' ? Math.max(1, Math.round(step.reps)) : null,
         });
-        if (sideIndex < sides.length - 1) segments.push({ kind: 'switch', stepIndex, durationSec: SIDE_SWITCH_SEC });
+        if (sideIndex < sides.length - 1) segments.push({ kind: 'switch', stepIndex, durationSec: step.unilateralRestMode === 'side' ? Math.max(SIDE_SWITCH_SEC, step.restSec) : SIDE_SWITCH_SEC });
       });
       if (round < rounds && step.restSec > 0) segments.push({ kind: 'rest', stepIndex, durationSec: Math.round(step.restSec) });
     }

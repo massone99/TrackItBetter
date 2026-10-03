@@ -1,6 +1,6 @@
 import { Text as NativeText, StyleSheet, TextProps } from "react-native";
 import { useTheme } from "../theme/ThemeProvider";
-import { FONT_KEYS, scaleStyle } from "../theme/scale";
+import { FONT_KEYS, MAX_FONT_SCALE, scaleStyle } from "../theme/scale";
 import { bodyFamilyForWeight } from "../theme/typography";
 
 /**
@@ -8,12 +8,13 @@ import { bodyFamilyForWeight } from "../theme/typography";
  * interface scale chosen in settings (the one place font sizes are scaled).
  */
 export function Text({ style, ...props }: TextProps) {
-  const { palette, scale } = useTheme();
+  const { palette, layoutScale: scale } = useTheme();
   const flat = StyleSheet.flatten(style) ?? {};
   const { fontWeight, fontFamily, ...rest } = flat;
   const sized = scaleStyle({ fontSize: 14, ...rest }, scale, FONT_KEYS);
   return (
     <NativeText
+      maxFontSizeMultiplier={MAX_FONT_SCALE}
       {...props}
       style={[{ color: palette.text }, sized, { fontFamily: fontFamily ?? bodyFamilyForWeight(fontWeight) }]}
     />

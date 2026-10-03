@@ -1,3 +1,4 @@
+import { groupSets } from '../../domain/setPairs';
 /** How rest works inside a superset: none until the round ends, or a short rest between exercises. */
 export interface SupersetRest { mode: 'round' | 'between'; betweenSec: number }
 
@@ -15,7 +16,7 @@ interface GroupedExercise {
   entryId: string;
   groupId: string | null;
   groupType: string | null;
-  sets: { completedAt: Date | null }[];
+  sets: { completedAt: Date | null; pairId?: string | null }[];
 }
 
 export interface SupersetStep extends SupersetRest {
@@ -32,6 +33,9 @@ export function supersetStep(exercises: readonly GroupedExercise[], entryId: str
   const group = exercises.filter((exercise) => exercise.groupId === current.groupId);
   const open = (exercise: GroupedExercise) => exercise.sets.some((set) => !set.completedAt);
   const rest = parseSupersetType(group[0].groupType);
+  if (groupSets(current.sets).some((pair) => pair[0].pairId && pair.some((s) => s.completedAt) && pair.some((s) => !s.completedAt))) {
+    return { nextEntryId: entryId, endOfRound: false, ...rest };
+  }
   const later = group.slice(group.indexOf(current) + 1).find(open);
   if (later) return { nextEntryId: later.entryId, endOfRound: false, ...rest };
   return { nextEntryId: group.find(open)?.entryId ?? null, endOfRound: true, ...rest };

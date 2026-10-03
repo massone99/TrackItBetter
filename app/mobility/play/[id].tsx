@@ -3,7 +3,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import * as Speech from 'expo-speech';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useAppInsets } from '../../../src/shared/layout/useAppInsets';
 import { expandRoutine, type MobilitySegment, type MobilitySide } from '../../../src/domain/mobilityPlan';
 import { openReferenceVideo } from '../../../src/features/exercises/ReferenceLinkSheet';
@@ -11,7 +11,7 @@ import { getExerciseById } from '../../../src/features/exercises/repository';
 import { getMobilityRoutine, type MobilityRoutine } from '../../../src/features/mobility/routines';
 import { logCompletedWorkout, type LoggedSetInput } from '../../../src/features/session/repository';
 import { ActionButton, Icon, IconButton, PageHeading, Screen, Sheet, tapFeedback, Text } from '../../../src/shared/components/ui';
-import { readBooleanPreference, writePreference } from '../../../src/shared/settings/preferences';
+import { readBooleanPreference, readPreference, writePreference } from '../../../src/shared/settings/preferences';
 import { useTheme } from '../../../src/shared/theme/ThemeProvider';
 import { fonts } from '../../../src/shared/theme/typography';
 import { useScaledStyles } from '../../../src/shared/theme/useScaledStyles';
@@ -22,7 +22,15 @@ import { goBack } from '../../../src/shared/navigation/goBack';
 const VOICE_KEY = 'mobility.voice';
 
 type DrillInfo = { name: string; cue: string | null; demoUrl: string | null };
-type Performed = { stepIndex: number; side: MobilitySide | null; seconds: number | null; reps: number | null; completedAt: Date };
+type Performed = { stepIndex: number; round?: number; side: MobilitySide | null; seconds: number | null; reps: number | null; completedAt: Date };
+
+function readDraft(id: string): { records: [number, Performed][]; index: number; startedAt: number } | null {
+  try {
+    const value = JSON.parse(readPreference(`mobility.draft.${id}`) ?? 'null');
+    if (!value || !Array.isArray(value.records)) return null;
+    return { ...value, records: value.records.map(([key, row]: [number, Performed]) => [key, { ...row, completedAt: new Date(row.completedAt) }]) };
+  } catch { return null; }
+}
 
 function readCues(value: string): string | null {
   try {
@@ -42,24 +50,32 @@ export default function MobilityPlayerScreen() {
   const insets = useAppInsets();
   const [routine, setRoutine] = useState<MobilityRoutine | null | undefined>(undefined);
   const [drills, setDrills] = useState<DrillInfo[]>([]);
-  const [index, setIndex] = useState(0);
+  const [index, setIndex] = useState(() => readDraft(id)?.index ?? 0);
   const [endsAt, setEndsAt] = useState<number | null>(null);
   const [pausedRemaining, setPausedRemaining] = useState<number | null>(null);
   const [now, setNow] = useState(() => Date.now());
-  const [performed, setPerformed] = useState<Map<number, Performed>>(new Map());
+  const [performed, setPerformed] = useState<Map<number, Performed>>(() => new Map(readDraft(id)?.records ?? []));
   const [ending, setEnding] = useState(false);
   const [voice, setVoice] = useState(() => readBooleanPreference(VOICE_KEY, true));
-  const startedAt = useRef(new Date());
+  const [initialStart] = useState(() => new Date(readDraft(id)?.startedAt ?? Date.now()));
+  const startedAt = useRef(initialStart);
   const finished = useRef(false);
   const started = useRef(false);
+  useEffect(() => {
+    if (!finished.current) writePreference(`mobility.draft.${id}`, JSON.stringify({ records: [...performed], index, startedAt: startedAt.current.getTime() }));
+  }, [id, performed, index]);
 
   useEffect(() => {
     let mounted = true;
     void (async () => {
       const found = await getMobilityRoutine(id);
       if (!mounted) return;
-      setRoutine(found);
       if (!found) return;
+      const resolved = await Promise.all(found.steps.map(async (step) => {
+        const exercise = await getExerciseById(step.exerciseId);
+        return { ...step, perSide: step.perSide || !!exercise?.unilateral, unilateralRestMode: exercise?.unilateralRestMode ?? 'pair' as const };
+      }));
+      setRoutine({ ...found, steps: resolved });
       const infos = await Promise.all(found.steps.map(async (step) => {
         const exercise = await getExerciseById(step.exerciseId);
         return { name: exercise?.name ?? '—', cue: exercise ? readCues(exercise.cues) : null, demoUrl: exercise?.demoUrl ?? null };
@@ -90,12 +106,23 @@ export default function MobilityPlayerScreen() {
 
   const finish = useCallback(async (records: Map<number, Performed>) => {
     if (finished.current || !routine) return;
+    const missing = [...records.values()].find((row) => row.side && ![...records.values()].some((other) => other.stepIndex === row.stepIndex && other.round === row.round && other.side && other.side !== row.side));
+    if (missing) {
+      const missingIndex = segments.findIndex((s) => s.kind === 'work' && s.stepIndex === missing.stepIndex && s.round === missing.round && s.side !== missing.side);
+      Alert.alert('Completa la coppia L / R', `${drills[missing.stepIndex]?.name ?? ''} · Serie ${missing.round}: ${missing.side === 'left' ? 'Destro' : 'Sinistro'} mancante`);
+      if (missingIndex >= 0) {
+        const target = segments[missingIndex];
+        setIndex(missingIndex); setEndsAt(null);
+        setPausedRemaining(target.kind === 'work' && target.mode === 'hold' ? (target.durationSec ?? 0) * 1000 : null);
+      }
+      return;
+    }
     finished.current = true;
     void Speech.stop();
     const byStep = new Map<number, LoggedSetInput[]>();
     for (const record of [...records.values()].sort((a, b) => a.completedAt.getTime() - b.completedAt.getTime())) {
       const sets = byStep.get(record.stepIndex) ?? [];
-      sets.push({ durationSec: record.seconds, reps: record.reps, side: record.side ?? 'both', completedAt: record.completedAt });
+      sets.push({ pairId: record.side ? `${record.stepIndex}:${record.round}` : null, durationSec: record.seconds, reps: record.reps, side: record.side ?? 'both', completedAt: record.completedAt });
       byStep.set(record.stepIndex, sets);
     }
     if (byStep.size === 0) { goBack('/mobility'); return; }
@@ -105,8 +132,9 @@ export default function MobilityPlayerScreen() {
       endedAt: new Date(),
       entries: [...byStep.entries()].sort(([a], [b]) => a - b).map(([stepIndex, sets]) => ({ exerciseId: routine.steps[stepIndex].exerciseId, sets })),
     });
+    writePreference(`mobility.draft.${id}`, 'null');
     router.replace({ pathname: '/workout/summary/[id]', params: { id: workoutId } });
-  }, [routine]);
+  }, [routine, segments, drills, id]);
 
   const goTo = useCallback((next: number, records: Map<number, Performed>) => {
     if (next >= segments.length) { void finish(records); return; }
@@ -137,15 +165,14 @@ export default function MobilityPlayerScreen() {
   useEffect(() => {
     if (started.current || segments.length === 0 || drills.length === 0) return;
     started.current = true;
-    startedAt.current = new Date();
-    goTo(0, new Map());
-  }, [segments, drills, goTo]);
+    goTo(index, performed);
+  }, [segments, drills, goTo, index, performed]);
 
   const completeCurrent = useCallback((records: Map<number, Performed>) => {
     if (!segment) return records;
     if (segment.kind !== 'work') return records;
     const next = new Map(records);
-    next.set(index, { stepIndex: segment.stepIndex, side: segment.side, seconds: segment.durationSec, reps: segment.reps, completedAt: new Date() });
+    next.set(index, { stepIndex: segment.stepIndex, round: segment.round, side: segment.side, seconds: segment.durationSec, reps: segment.reps, completedAt: new Date() });
     return next;
   }, [segment, index]);
 
@@ -246,17 +273,17 @@ export default function MobilityPlayerScreen() {
         ))}
       </View>
 
-      <View style={styles.center}>
+      <ScrollView style={styles.centerScroll} contentContainerStyle={styles.center} showsVerticalScrollIndicator={false}>
         <Text style={[styles.phase, { color: soft }]}>{label}</Text>
-        <Text style={[styles.drillName, { color: ink }]} numberOfLines={3}>{drill?.name}</Text>
+        <Text style={[styles.drillName, { color: ink }]}>{drill?.name}</Text>
         <View style={styles.badges}>
           {sideLabel ? <Badge text={sideLabel} dark={isWork} /> : null}
           {step && step.rounds > 1 && segment.kind === 'work' ? <Badge text={t('mobility.round', { round: segment.round, rounds: step.rounds })} dark={isWork} /> : null}
         </View>
         {repsMode ? (
-          <Text style={[styles.timer, { color: ink }]}>{t('mobility.repsValue', { count: segment.reps ?? 0 })}</Text>
+          <Text style={[styles.timer, { color: ink }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.5}>{t('mobility.repsValue', { count: segment.reps ?? 0 })}</Text>
         ) : (
-          <Text accessibilityLiveRegion="polite" style={[styles.timer, { color: ink }]}>{formatClock((remainingMs ?? 0) / 1000 + 0.999)}</Text>
+          <Text accessibilityLiveRegion="polite" style={[styles.timer, { color: ink }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.5}>{formatClock((remainingMs ?? 0) / 1000 + 0.999)}</Text>
         )}
         {drill?.cue && (isWork || segment.kind === 'prep') ? <Text style={[styles.cue, { color: soft }]}>{drill.cue}</Text> : null}
         {drill?.demoUrl ? (
@@ -265,7 +292,7 @@ export default function MobilityPlayerScreen() {
             <Text style={[styles.referenceText, { color: ink }]}>{t('logger.referenceOpen')}</Text>
           </Pressable>
         ) : null}
-      </View>
+      </ScrollView>
 
       <Text style={[styles.nextUp, { color: soft }]}>{nextName ? t('mobility.nextUp', { name: nextName }) : !nextWork ? t('mobility.lastOne') : ' '}</Text>
 
@@ -334,21 +361,22 @@ const baseStyles = StyleSheet.create({
   segmentsBar: { flexDirection: 'row', gap: 4, marginTop: 14 },
   segmentTrack: { flex: 1, height: 5, borderRadius: 3, overflow: 'hidden' },
   segmentFill: { height: '100%', borderRadius: 3 },
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 10, paddingHorizontal: 8 },
+  centerScroll: { flex: 1 },
+  center: { flexGrow: 1, justifyContent: 'center', alignItems: 'center', gap: 12, paddingHorizontal: 8, paddingVertical: 16 },
   phase: { fontFamily: fonts.semibold, fontSize: 17 },
   drillName: { fontFamily: fonts.display, fontSize: 40, lineHeight: 44, textAlign: 'center' },
-  badges: { flexDirection: 'row', gap: 8, minHeight: 30 },
+  badges: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 8, minHeight: 30 },
   badge: { paddingHorizontal: 12, minHeight: 30, borderRadius: 999, justifyContent: 'center' },
   badgeText: { fontFamily: fonts.semibold, fontSize: 14 },
-  timer: { fontFamily: fonts.display, fontSize: 112, lineHeight: 118, fontVariant: ['tabular-nums'] },
+  timer: { width: '100%', textAlign: 'center', fontFamily: fonts.display, fontSize: 104, lineHeight: 114, fontVariant: ['tabular-nums'] },
   cue: { fontFamily: fonts.body, fontSize: 16, lineHeight: 23, textAlign: 'center', maxWidth: 420 },
-  reference: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 6 },
+  reference: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 48, paddingVertical: 10 },
   referenceText: { fontFamily: fonts.semibold, fontSize: 15, textDecorationLine: 'underline' },
   nextUp: { textAlign: 'center', fontFamily: fonts.medium, fontSize: 15, marginBottom: 18 },
-  controls: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 28 },
+  controls: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 24 },
   mainButton: { width: 84, height: 84, borderRadius: 42, alignItems: 'center', justifyContent: 'center' },
   sideButton: { width: 58, height: 58, borderRadius: 29, alignItems: 'center', justifyContent: 'center' },
-  addTen: { alignSelf: 'center', paddingVertical: 12, paddingHorizontal: 20 },
+  addTen: { alignSelf: 'center', minHeight: 48, justifyContent: 'center', paddingVertical: 12, paddingHorizontal: 20 },
   addTenText: { fontFamily: fonts.semibold, fontSize: 16 },
   addTenSpacer: { height: 44 },
 });

@@ -1,4 +1,4 @@
-import { and, asc, count, desc, eq, gt, inArray, isNotNull, isNull, max, or } from 'drizzle-orm';
+import { and, asc, count, desc, eq, gt, gte, inArray, isNotNull, isNull, max, or } from 'drizzle-orm';
 import * as Crypto from 'expo-crypto';
 import { db, initializeDatabase } from '../../db/client';
 import { bodyMeasurements, exerciseEntries, exercises, formCheckVideos, trainingSets, workouts } from '../../db/schema';
@@ -7,8 +7,12 @@ import { isValidRpe } from '../../domain/rpe';
 import { isLoadMetric, measureOf } from '../../domain/userProgram';
 import type { SetKind } from './restDefaults';
 import { formatSupersetType, type SupersetRest } from './superset';
+import { groupSets, completedSetCount, validatePairs } from '../../domain/setPairs';
+import { blockAfterMove, blockOf, sortByBlock, type Block } from '../../domain/blocks';
 
 export interface SessionSet {
+  pairId?: string | null;
+  side?: string;
   id: string;
   index: number;
   /** Warm-ups stay out of statistics, records and previous values, and use their own rest. */
@@ -27,6 +31,11 @@ export interface SessionSet {
 }
 
 export interface SessionExercise {
+  unilateral?: boolean;
+  unilateralRestMode?: 'side' | 'pair';
+  unilateralRestOverride?: 'side' | 'pair' | null;
+  /** Part of the workout this exercise belongs to. */
+  block: Block;
   entryId: string;
   exerciseId: string;
   name: string;
@@ -64,6 +73,88 @@ export interface CompletedWorkout extends ActiveWorkout {
 }
 
 const id = () => Crypto.randomUUID();
+
+async function pairCondition(setId: string) {
+  const [set] = await db.select().from(trainingSets).where(eq(trainingSets.id, setId));
+  return set?.pairId ? eq(trainingSets.pairId, set.pairId) : eq(trainingSets.id, setId);
+}
+
+async function assertSetWorkout(setId: string, workoutId: string) {
+  const [row] = await db.select({ workoutId: exerciseEntries.workoutId }).from(trainingSets)
+    .innerJoin(exerciseEntries, eq(trainingSets.entryId, exerciseEntries.id)).where(eq(trainingSets.id, setId));
+  if (row?.workoutId !== workoutId) throw new Error('Set does not belong to workout');
+}
+
+async function requireActiveSet(setId: string) {
+  const [row] = await db.select({ endedAt: workouts.endedAt }).from(trainingSets)
+    .innerJoin(exerciseEntries, eq(trainingSets.entryId, exerciseEntries.id))
+    .innerJoin(workouts, eq(exerciseEntries.workoutId, workouts.id)).where(eq(trainingSets.id, setId));
+  if (!row || row.endedAt) throw new Error('Use the completed workout editor');
+}
+
+export async function setUnilateralRest(entryId: string, mode: 'side' | 'pair' | null, habitual = false): Promise<void> {
+  await initializeDatabase();
+  const [entry] = await db.select().from(exerciseEntries).where(eq(exerciseEntries.id, entryId));
+  if (!entry) throw new Error('Exercise not found');
+  if (mode !== null && mode !== 'side' && mode !== 'pair') throw new Error('Invalid rest mode');
+  await db.transaction(async (tx) => {
+    if (habitual && mode) await tx.update(exercises).set({ unilateralRestMode: mode }).where(eq(exercises.id, entry.exerciseId));
+    await tx.update(exerciseEntries).set({ unilateralRestMode: habitual ? null : mode }).where(eq(exerciseEntries.id, entryId));
+  });
+}
+
+export type PairEditValues = Pick<SessionSet, 'reps' | 'durationSec' | 'distanceM' | 'addedLoadKg' | 'rpe'>;
+
+function validatePairValues(left: PairEditValues, right: PairEditValues) {
+  for (const values of [left, right]) {
+    for (const field of ['reps', 'durationSec', 'distanceM', 'addedLoadKg'] as const) {
+      const v = values[field];
+      if (v !== null && (!Number.isFinite(v) || (field !== 'addedLoadKg' && v < 0) || ((field === 'reps' || field === 'durationSec') && !Number.isInteger(v)))) throw new Error('Invalid set value');
+    }
+    if (values.rpe !== null && !isValidRpe(values.rpe)) throw new Error('Invalid RPE');
+  }
+}
+
+export async function addCompletedPair(workoutId: string, entryId: string, left: PairEditValues, right: PairEditValues): Promise<string> {
+  await initializeDatabase();
+  await completedWorkoutEnd(workoutId);
+  const [entry] = await db.select().from(exerciseEntries).where(eq(exerciseEntries.id, entryId));
+  if (entry?.workoutId !== workoutId) throw new Error('Exercise does not belong to workout');
+  validatePairValues(left, right);
+  return addSet(entryId, { left, right });
+}
+
+/** Explicit conversion preserves the original row id (and therefore its note and videos). */
+export async function saveCompletedPair(workoutId: string, setId: string, originalSide: 'left' | 'right', left: PairEditValues, right: PairEditValues, otherSetId?: string): Promise<void> {
+  await initializeDatabase();
+  const endedAt = await completedWorkoutEnd(workoutId);
+  await assertSetWorkout(setId, workoutId);
+  for (const values of [left, right]) {
+    for (const field of ['reps', 'durationSec', 'distanceM', 'addedLoadKg'] as const) {
+      const v = values[field];
+      if (v !== null && (!Number.isFinite(v) || (field !== 'addedLoadKg' && v < 0) || ((field === 'reps' || field === 'durationSec') && !Number.isInteger(v)))) throw new Error('Invalid set value');
+    }
+    if (values.rpe !== null && !isValidRpe(values.rpe)) throw new Error('Invalid RPE');
+  }
+  await db.transaction(async (tx) => {
+    const [original] = await tx.select().from(trainingSets).where(eq(trainingSets.id, setId));
+    const pairId = original.pairId ?? id();
+    const side = original.pairId ? original.side : originalSide;
+    const other = original.pairId ? (await tx.select().from(trainingSets).where(eq(trainingSets.pairId, pairId))).find((s) => s.id !== setId)
+      : otherSetId ? (await tx.select().from(trainingSets).where(eq(trainingSets.id, otherSetId)))[0] : null;
+    if (otherSetId && (!other || other.id === original.id || other.entryId !== original.entryId || other.kind !== original.kind || other.pairId)) throw new Error('Invalid legacy pair association');
+    await tx.update(trainingSets).set({ ...(side === 'left' ? left : right), side, pairId, completedAt: endedAt }).where(eq(trainingSets.id, setId));
+    const values = { ...(side === 'left' ? right : left), side: side === 'left' ? 'right' : 'left', pairId, index: original.index, completedAt: endedAt };
+    if (other) await tx.update(trainingSets).set(values).where(eq(trainingSets.id, other.id));
+    else await tx.insert(trainingSets).values({ ...original, ...values, id: id(), pairId, note: null });
+    if (otherSetId) {
+      const rows = await tx.select().from(trainingSets).where(eq(trainingSets.entryId, original.entryId)).orderBy(asc(trainingSets.index));
+      for (const [position, group] of groupSets(rows).entries()) {
+        for (const row of group) await tx.update(trainingSets).set({ index: position + 1 }).where(eq(trainingSets.id, row.id));
+      }
+    }
+  });
+}
 
 export async function startWorkout(name = 'Workout'): Promise<string> {
   await initializeDatabase();
@@ -142,12 +233,18 @@ async function loadSessionExercises(workoutId: string): Promise<SessionExercise[
       exerciseId: exercise.id,
       name: exercise.name,
       metric: exercise.metric,
+      unilateral: exercise.unilateral,
+      unilateralRestMode: entry.unilateralRestMode ?? exercise.unilateralRestMode,
+      unilateralRestOverride: entry.unilateralRestMode,
       demoUrl: exercise.demoUrl,
       notes: entry.notes,
+      block: blockOf(entry.block),
       groupId: entry.groupId,
       groupType: entry.groupType,
       sets: sets.map((set) => ({
         id: set.id,
+        pairId: set.pairId,
+        side: set.side,
         index: set.index,
         kind: set.kind === 'warmup' ? 'warmup' as const : 'working' as const,
         reps: set.reps,
@@ -227,22 +324,68 @@ export async function addExerciseToWorkout(
     .from(exerciseEntries)
     .where(eq(exerciseEntries.workoutId, workoutId));
   const entryId = id();
+  // A mobility exercise joining a workout of other exercises goes to the mobility block (changeable in its options).
+  const [added] = await db.select({ category: exercises.category, extra: exercises.extraCategories }).from(exercises).where(eq(exercises.id, exerciseId)).limit(1);
+  const others = await db.select({ category: exercises.category, extra: exercises.extraCategories }).from(exerciseEntries)
+    .innerJoin(exercises, eq(exerciseEntries.exerciseId, exercises.id)).where(eq(exerciseEntries.workoutId, workoutId));
+  const isMobility = (row?: { category: string; extra: string }) => !!row && (row.category === 'mobility' || row.extra.includes('"mobility"'));
+  const block: Block | null = isMobility(added) && others.some((row) => !isMobility(row)) ? 'mobility' : null;
   await db.insert(exerciseEntries).values({
     id: entryId,
     workoutId,
     exerciseId,
     order: (lastOrder?.value ?? 0) + 1,
+    block,
   });
+  await normalizeBlockOrder(workoutId);
   await addSet(entryId);
   return entryId;
 }
 
-export async function addSet(entryId: string): Promise<string> {
+/** Renumbers a workout's exercises so every block is contiguous (warm-up, main work, mobility). */
+async function normalizeBlockOrder(workoutId: string): Promise<void> {
+  const entries = await db.select().from(exerciseEntries).where(eq(exerciseEntries.workoutId, workoutId)).orderBy(asc(exerciseEntries.order));
+  const sorted = sortByBlock(entries);
+  await db.transaction(async (tx) => {
+    for (const [position, entry] of sorted.entries()) {
+      if (entry.order !== position + 1) await tx.update(exerciseEntries).set({ order: position + 1 }).where(eq(exerciseEntries.id, entry.id));
+    }
+  });
+}
+
+/** Puts an exercise in a block of its workout; the exercises are kept grouped by block. */
+export async function setEntryBlock(entryId: string, block: Block): Promise<void> {
   await initializeDatabase();
+  const [entry] = await db.select().from(exerciseEntries).where(eq(exerciseEntries.id, entryId));
+  if (!entry) throw new Error('Exercise not found');
+  const stored = block === 'main' ? null : block;
+  if ((entry.block ?? null) === stored) return;
+  await db.update(exerciseEntries).set({ block: stored }).where(eq(exerciseEntries.id, entryId));
+  await normalizeBlockOrder(entry.workoutId);
+  await splitBrokenSuperset(entry.workoutId, entryId);
+}
+
+/** A superset must stay contiguous: an exercise moved out of its run leaves the superset. */
+async function splitBrokenSuperset(workoutId: string, movedId: string): Promise<void> {
+  const entries = await db.select().from(exerciseEntries).where(eq(exerciseEntries.workoutId, workoutId)).orderBy(asc(exerciseEntries.order));
+  const moved = entries.find((entry) => entry.id === movedId);
+  if (!moved?.groupId) return;
+  const members = entries.filter((entry) => entry.groupId === moved.groupId);
+  const positions = members.map((entry) => entries.indexOf(entry));
+  if (positions[positions.length - 1] - positions[0] === members.length - 1) return;
+  await db.update(exerciseEntries).set({ groupId: null, groupType: null }).where(eq(exerciseEntries.id, movedId));
+  const rest = members.filter((entry) => entry.id !== movedId);
+  if (rest.length === 1) await db.update(exerciseEntries).set({ groupId: null, groupType: null }).where(eq(exerciseEntries.id, rest[0].id));
+}
+
+export async function addSet(entryId: string, pairValues?: { left: PairEditValues; right: PairEditValues }): Promise<string> {
+  await initializeDatabase();
+  if (pairValues) validatePairValues(pairValues.left, pairValues.right);
   const [entryExercise] = await db
-    .select({ metric: exercises.metric })
+    .select({ metric: exercises.metric, unilateral: exercises.unilateral, endedAt: workouts.endedAt })
     .from(exerciseEntries)
     .innerJoin(exercises, eq(exerciseEntries.exerciseId, exercises.id))
+    .innerJoin(workouts, eq(exerciseEntries.workoutId, workouts.id))
     .where(eq(exerciseEntries.id, entryId))
     .limit(1);
   const [previous] = await db
@@ -257,7 +400,7 @@ export async function addSet(entryId: string): Promise<string> {
     : entryExercise?.metric === 'distance'
       ? { distanceM: 10 }
       : { reps: 8 };
-  await db.insert(trainingSets).values({
+  const values = {
     id: setId,
     entryId,
     index: (previous?.index ?? 0) + 1,
@@ -269,8 +412,19 @@ export async function addSet(entryId: string): Promise<string> {
     restSec: previous?.restSec ?? null,
     band: previous?.band ?? null,
     rpe: previous?.rpe ?? null,
-    side: previous?.side ?? 'both',
+    side: 'both',
     note: previous?.note ?? null,
+    completedAt: entryExercise?.endedAt ?? null,
+  };
+  await db.transaction(async (tx) => {
+    if (entryExercise?.unilateral || pairValues) {
+      const pairId = id();
+      const prior = previous?.pairId ? await tx.select().from(trainingSets).where(eq(trainingSets.pairId, previous.pairId)) : [];
+      await tx.insert(trainingSets).values(['left', 'right'].map((side, position) => {
+        const source = prior.find((s) => s.side === side);
+        return { ...values, ...(source ? { reps: source.reps, durationSec: source.durationSec, distanceM: source.distanceM, addedLoadKg: source.addedLoadKg, rpe: source.rpe, note: source.note } : {}), ...(pairValues ? pairValues[side as 'left' | 'right'] : {}), id: position === 0 ? setId : id(), side, pairId };
+      }));
+    } else await tx.insert(trainingSets).values(values);
   });
   return setId;
 }
@@ -284,6 +438,7 @@ export async function updateSet(
   if (field === 'restSec' && (!Number.isInteger(value) || value < 0 || value > 3600)) {
     throw new RangeError('Rest time must be an integer between 0 and 3600 seconds.');
   }
+  if (!Number.isFinite(value) || (field !== 'addedLoadKg' && value < 0) || ((field === 'reps' || field === 'durationSec') && !Number.isInteger(value))) throw new Error('Invalid workout set value');
   if (field === 'reps') {
     await db.update(trainingSets).set({ reps: value }).where(eq(trainingSets.id, setId));
   } else if (field === 'durationSec') {
@@ -299,11 +454,57 @@ export async function updateSet(
 
 export async function completeSet(setId: string): Promise<void> {
   await initializeDatabase();
+  await requireActiveSet(setId);
   await db.update(trainingSets).set({ completedAt: new Date() }).where(eq(trainingSets.id, setId));
+}
+
+/** Rounds of an EMOM already recorded: completed working sets of the entry since round 1 began (a pair counts once). */
+export async function countEmomRounds(entryId: string, since: Date): Promise<number> {
+  await initializeDatabase();
+  const rows = await db.select({ id: trainingSets.id, pairId: trainingSets.pairId }).from(trainingSets)
+    .where(and(eq(trainingSets.entryId, entryId), eq(trainingSets.kind, 'working'), gte(trainingSets.completedAt, since)));
+  return new Set(rows.map((row) => row.pairId ?? row.id)).size;
+}
+
+/**
+ * Records one EMOM round as a completed working set at the round's end: the next planned set of the
+ * exercise not done yet is used first, otherwise a new set (a left/right pair when unilateral) is added.
+ */
+export async function recordEmomRound(entryId: string, field: 'reps' | 'durationSec', value: number, at: Date): Promise<void> {
+  await initializeDatabase();
+  if (!Number.isInteger(value) || value < 0) throw new Error('Invalid workout set value');
+  const [entry] = await db.select({ endedAt: workouts.endedAt }).from(exerciseEntries)
+    .innerJoin(workouts, eq(exerciseEntries.workoutId, workouts.id)).where(eq(exerciseEntries.id, entryId));
+  if (!entry || entry.endedAt) throw new Error('Use the completed workout editor');
+  const sets = await db.select().from(trainingSets).where(eq(trainingSets.entryId, entryId)).orderBy(asc(trainingSets.index));
+  // Only sets after the last completed one: a gap left by hand is never filled with a later round.
+  const groups = groupSets(sets);
+  const lastDone = groups.reduce((last, group, index) => (group.some((set) => set.completedAt) ? index : last), -1);
+  const open = groups.slice(lastDone + 1).find((group) => group[0].kind === 'working' && group.every((set) => !set.completedAt));
+  const ids = open ? open.map((set) => set.id) : await (async () => {
+    const created = await addSet(entryId);
+    const [first] = await db.select({ pairId: trainingSets.pairId }).from(trainingSets).where(eq(trainingSets.id, created));
+    return first?.pairId
+      ? (await db.select({ id: trainingSets.id }).from(trainingSets).where(eq(trainingSets.pairId, first.pairId))).map((row) => row.id)
+      : [created];
+  })();
+  await db.update(trainingSets)
+    .set({ ...(field === 'reps' ? { reps: value } : { durationSec: value }), kind: 'working', completedAt: at })
+    .where(inArray(trainingSets.id, ids));
 }
 
 export async function finishWorkout(workoutId: string): Promise<void> {
   await initializeDatabase();
+  const session = await loadSessionExercises(workoutId);
+  for (const exercise of session) {
+    validatePairs(exercise.sets);
+    for (const pair of groupSets(exercise.sets)) {
+      if (pair[0].pairId && pair.some((s) => s.completedAt) && !pair.every((s) => s.completedAt)) {
+        const missing = pair.find((s) => !s.completedAt)!;
+        throw new Error(`${exercise.name} · Serie ${pair[0].index}: ${missing.side === 'left' ? 'Sinistro (L)' : 'Destro (R)'} mancante`);
+      }
+    }
+  }
   await db
     .update(workouts)
     .set({ endedAt: new Date() })
@@ -374,11 +575,13 @@ export async function convertToPastWorkout(workoutId: string, startedAt: Date, m
   const endedAt = new Date(start + Math.min(600, Math.max(1, Math.round(minutes))) * 60_000);
   await initializeDatabase();
   await db.transaction(async (tx) => {
-    await tx.update(workouts).set({ startedAt, endedAt }).where(eq(workouts.id, workoutId));
     const entries = await tx.select({ id: exerciseEntries.id }).from(exerciseEntries).where(eq(exerciseEntries.workoutId, workoutId));
     if (entries.length > 0) {
+      const sets = await tx.select().from(trainingSets).where(inArray(trainingSets.entryId, entries.map((entry) => entry.id)));
+      validatePairs(sets);
       await tx.update(trainingSets).set({ completedAt: endedAt }).where(inArray(trainingSets.entryId, entries.map((entry) => entry.id)));
     }
+    await tx.update(workouts).set({ startedAt, endedAt }).where(eq(workouts.id, workoutId));
   });
 }
 
@@ -391,9 +594,10 @@ async function completedWorkoutEnd(workoutId: string): Promise<Date> {
 /** Adds a set to an exercise of a finished workout, already marked as done. */
 export async function addSetToCompletedWorkout(workoutId: string, entryId: string): Promise<string> {
   await initializeDatabase();
-  const endedAt = await completedWorkoutEnd(workoutId);
+  await completedWorkoutEnd(workoutId);
+  const [entry] = await db.select().from(exerciseEntries).where(eq(exerciseEntries.id, entryId));
+  if (entry?.workoutId !== workoutId) throw new Error('Exercise does not belong to workout');
   const setId = await addSet(entryId);
-  await db.update(trainingSets).set({ completedAt: endedAt }).where(eq(trainingSets.id, setId));
   return setId;
 }
 
@@ -410,7 +614,8 @@ export async function addExerciseToCompletedWorkout(workoutId: string, exerciseI
 export async function setCompletedWorkoutSetDone(workoutId: string, setId: string, done: boolean): Promise<void> {
   await initializeDatabase();
   const endedAt = await completedWorkoutEnd(workoutId);
-  await db.update(trainingSets).set({ completedAt: done ? endedAt : null }).where(eq(trainingSets.id, setId));
+  await assertSetWorkout(setId, workoutId);
+  await db.update(trainingSets).set({ completedAt: done ? endedAt : null }).where(await pairCondition(setId));
 }
 
 /** Names of finished workouts, newest first; programs use them to know which session comes next. */
@@ -431,12 +636,12 @@ export async function listRecentWorkouts(limit = 365): Promise<WorkoutHistoryIte
     .limit(limit);
 
   const setCounts = rows.length === 0 ? [] : await db
-    .select({ workoutId: exerciseEntries.workoutId, value: count(trainingSets.id) })
+    .select({ workoutId: exerciseEntries.workoutId, pairId: trainingSets.pairId, side: trainingSets.side, completedAt: trainingSets.completedAt })
     .from(trainingSets)
     .innerJoin(exerciseEntries, eq(trainingSets.entryId, exerciseEntries.id))
     .where(and(inArray(exerciseEntries.workoutId, rows.map((workout) => workout.id)), isNotNull(trainingSets.completedAt)))
-    .groupBy(exerciseEntries.workoutId);
-  const setsByWorkout = new Map(setCounts.map((row) => [row.workoutId, row.value]));
+    ;
+  const setsByWorkout = new Map(rows.map((row) => [row.id, completedSetCount(setCounts.filter((s) => s.workoutId === row.id))]));
 
   return rows.map((workout) => ({
     ...workout,
@@ -472,7 +677,33 @@ export async function updateEntryNote(entryId: string, note: string): Promise<vo
 /** Switches a set between warm-up and working; its own rest is cleared so the kind's rest applies. */
 export async function setSetKind(setId: string, kind: SetKind): Promise<void> {
   await initializeDatabase();
-  await db.update(trainingSets).set({ kind, restSec: null }).where(eq(trainingSets.id, setId));
+  await db.update(trainingSets).set({ kind, restSec: null }).where(await pairCondition(setId));
+}
+
+/**
+ * Adds a warm-up set (a left/right pair for unilateral exercises) after the warm-ups the exercise already
+ * has and before its first working set, which is where warm-ups are done. It starts from the values of the
+ * set it follows, like any new set, and its own rest is left to the warm-up default.
+ */
+export async function addWarmupSet(entryId: string): Promise<string> {
+  const created = await addSet(entryId);
+  const rows = await db.select().from(trainingSets).where(eq(trainingSets.entryId, entryId)).orderBy(asc(trainingSets.index));
+  const added = rows.find((row) => row.id === created);
+  const groups = groupSets(rows);
+  const newGroup = groups.find((group) => group.some((row) => row.id === created));
+  if (!added || !newGroup) return created;
+  const others = groups.filter((group) => group !== newGroup);
+  const leading = others.findIndex((group) => group[0].kind !== 'warmup');
+  const position = leading < 0 ? others.length : leading;
+  const ordered = [...others.slice(0, position), newGroup, ...others.slice(position)];
+  await db.transaction(async (tx) => {
+    for (const [position2, group] of ordered.entries()) {
+      for (const row of group) {
+        await tx.update(trainingSets).set({ index: position2 + 1, ...(group === newGroup ? { kind: 'warmup', restSec: null } : {}) }).where(eq(trainingSets.id, row.id));
+      }
+    }
+  });
+  return created;
 }
 
 /** Sets the rest after every not-yet-completed set of one kind in an exercise. */
@@ -494,13 +725,17 @@ export async function removeSet(setId: string): Promise<void> {
   await initializeDatabase();
   const [set] = await db.select({ entryId: trainingSets.entryId }).from(trainingSets).where(eq(trainingSets.id, setId)).limit(1);
   if (!set) return;
-  await deleteFormCheckVideosForSets([setId]);
-  await db.delete(trainingSets).where(eq(trainingSets.id, setId));
-  const remaining = await db.select({ id: trainingSets.id }).from(trainingSets)
+  const condition = await pairCondition(setId);
+  const removed = await db.select({ id: trainingSets.id }).from(trainingSets).where(condition);
+  await deleteFormCheckVideosForSets(removed.map((s) => s.id));
+  await db.transaction(async (tx) => {
+  await tx.delete(trainingSets).where(condition);
+  const remaining = await tx.select().from(trainingSets)
     .where(eq(trainingSets.entryId, set.entryId)).orderBy(asc(trainingSets.index));
-  for (const [position, row] of remaining.entries()) {
-    await db.update(trainingSets).set({ index: position + 1 }).where(eq(trainingSets.id, row.id));
+  for (const [position, group] of groupSets(remaining).entries()) {
+    for (const row of group) await tx.update(trainingSets).set({ index: position + 1 }).where(eq(trainingSets.id, row.id));
   }
+  });
 }
 
 /** Removes an exercise from a workout together with its sets and their clips. */
@@ -513,17 +748,25 @@ export async function removeExerciseEntry(entryId: string): Promise<void> {
 
 /** What a removal took away, kept briefly so it can be put back ("Restore" in the undo toast). */
 export interface RemovedRows {
+  videos?: (typeof formCheckVideos.$inferSelect)[];
   entry: typeof exerciseEntries.$inferSelect | null;
   sets: (typeof trainingSets.$inferSelect)[];
 }
 
-/** Removes a set and returns a snapshot that `restoreRemoved` can put back (clips are not kept). */
+/** Removes a whole set group, retaining its clips on disk and their metadata for undo. */
 export async function removeSetWithUndo(setId: string): Promise<RemovedRows | null> {
   await initializeDatabase();
   const [row] = await db.select().from(trainingSets).where(eq(trainingSets.id, setId)).limit(1);
   if (!row) return null;
-  await removeSet(setId);
-  return { entry: null, sets: [row] };
+  const sets = await db.select().from(trainingSets).where(await pairCondition(setId));
+  const videos = await db.select().from(formCheckVideos).where(inArray(formCheckVideos.setId, sets.map((s) => s.id)));
+  await db.transaction(async (tx) => {
+    await tx.delete(formCheckVideos).where(inArray(formCheckVideos.setId, sets.map((s) => s.id)));
+    await tx.delete(trainingSets).where(inArray(trainingSets.id, sets.map((s) => s.id)));
+    const remaining = await tx.select().from(trainingSets).where(eq(trainingSets.entryId, row.entryId)).orderBy(asc(trainingSets.index));
+    for (const [position, group] of groupSets(remaining).entries()) for (const s of group) await tx.update(trainingSets).set({ index: position + 1 }).where(eq(trainingSets.id, s.id));
+  });
+  return { entry: null, sets, videos };
 }
 
 /** Removes an exercise with its sets and returns a snapshot that `restoreRemoved` can put back. */
@@ -546,16 +789,19 @@ export async function restoreRemoved(removed: RemovedRows): Promise<void> {
     if (removed.entry) {
       await tx.insert(exerciseEntries).values(removed.entry);
       if (removed.sets.length > 0) await tx.insert(trainingSets).values(removed.sets);
+      if (removed.videos?.length) await tx.insert(formCheckVideos).values(removed.videos);
       return;
     }
-    for (const set of removed.sets) {
+    for (const group of groupSets(removed.sets)) {
+      const set = group[0];
       const later = await tx.select({ id: trainingSets.id, index: trainingSets.index }).from(trainingSets)
         .where(eq(trainingSets.entryId, set.entryId)).orderBy(desc(trainingSets.index));
       for (const row of later) {
         if (row.index >= set.index) await tx.update(trainingSets).set({ index: row.index + 1 }).where(eq(trainingSets.id, row.id));
       }
-      await tx.insert(trainingSets).values(set);
+      await tx.insert(trainingSets).values(group);
     }
+    if (removed.videos?.length) await tx.insert(formCheckVideos).values(removed.videos);
   });
 }
 
@@ -564,7 +810,7 @@ export interface PreviousPerformance {
   sets: PreviousSetValues[];
 }
 
-export type PreviousSetValues = Pick<SessionSet, 'reps' | 'durationSec' | 'distanceM' | 'addedLoadKg' | 'rpe' | 'note'>;
+export type PreviousSetValues = Pick<SessionSet, 'reps' | 'durationSec' | 'distanceM' | 'addedLoadKg' | 'rpe' | 'note' | 'side' | 'pairId'>;
 
 /** Fills an open set with the values of a set from last time, note included. */
 export async function copyValuesToSet(setId: string, values: PreviousSetValues): Promise<void> {
@@ -597,9 +843,11 @@ export async function repeatWorkout(sourceId: string): Promise<string> {
     if (sets.length === 0) continue;
     order += 1;
     const entryId = id();
-    await db.insert(exerciseEntries).values({ id: entryId, workoutId, exerciseId: entry.exerciseId, order, notes: entry.notes, groupId: entry.groupId, groupType: entry.groupType });
-    await db.insert(trainingSets).values(sets.map((set, index) => ({
-      ...set, id: id(), entryId, index: index + 1, completedAt: null,
+    await db.insert(exerciseEntries).values({ id: entryId, workoutId, exerciseId: entry.exerciseId, order, notes: entry.notes, groupId: entry.groupId, groupType: entry.groupType, unilateralRestMode: entry.unilateralRestMode, block: entry.block });
+    const pairIds = new Map(sets.filter((s) => s.pairId).map((s) => [s.pairId, id()]));
+    validatePairs(sets, true);
+    await db.insert(trainingSets).values(sets.map((set) => ({
+      ...set, id: id(), pairId: set.pairId ? pairIds.get(set.pairId)! : null, entryId, completedAt: null,
     })));
   }
   return workoutId;
@@ -615,6 +863,8 @@ export async function getPreviousPerformance(exerciseIds: string[], excludeWorko
       exerciseId: exerciseEntries.exerciseId,
       workoutId: workouts.id,
       startedAt: workouts.startedAt,
+      side: trainingSets.side,
+      pairId: trainingSets.pairId,
       reps: trainingSets.reps,
       durationSec: trainingSets.durationSec,
       distanceM: trainingSets.distanceM,
@@ -634,7 +884,7 @@ export async function getPreviousPerformance(exerciseIds: string[], excludeWorko
     if (chosen && chosen !== row.workoutId) continue;
     latestWorkout.set(row.exerciseId, row.workoutId);
     const entry = result.get(row.exerciseId) ?? { workoutStartedAt: row.startedAt, sets: [] };
-    entry.sets.push({ reps: row.reps, durationSec: row.durationSec, distanceM: row.distanceM, addedLoadKg: row.addedLoadKg, rpe: row.rpe, note: row.note });
+    entry.sets.push({ side: row.side, pairId: row.pairId, reps: row.reps, durationSec: row.durationSec, distanceM: row.distanceM, addedLoadKg: row.addedLoadKg, rpe: row.rpe, note: row.note });
     result.set(row.exerciseId, entry);
   }
   return result;
@@ -643,10 +893,12 @@ export async function getPreviousPerformance(exerciseIds: string[], excludeWorko
 /** Marks a completed set as not done again, e.g. after tapping complete by mistake. */
 export async function uncompleteSet(setId: string): Promise<void> {
   await initializeDatabase();
+  await requireActiveSet(setId);
   await db.update(trainingSets).set({ completedAt: null }).where(eq(trainingSets.id, setId));
 }
 
 export interface LoggedSetInput {
+  pairId?: string | null;
   reps?: number | null;
   durationSec?: number | null;
   side?: 'left' | 'right' | 'both';
@@ -664,21 +916,39 @@ export async function logCompletedWorkout(input: {
   entries: { exerciseId: string; sets: LoggedSetInput[] }[];
 }): Promise<string> {
   await initializeDatabase();
+  if (!Number.isFinite(input.startedAt.getTime()) || !Number.isFinite(input.endedAt.getTime()) || input.endedAt < input.startedAt) throw new Error('Invalid workout times');
   const workoutId = id();
   const entries = input.entries.filter((entry) => entry.sets.length > 0);
+  for (const entry of entries) {
+    const [exercise] = await db.select().from(exercises).where(eq(exercises.id, entry.exerciseId));
+    if (!exercise) throw new Error('Exercise not found');
+    entry.sets = entry.sets.flatMap((set) => {
+      if (!Number.isFinite(set.completedAt.getTime()) || (set.reps != null && (!Number.isInteger(set.reps) || set.reps < 0)) || (set.durationSec != null && (!Number.isInteger(set.durationSec) || set.durationSec < 0))) throw new Error('Invalid logged set');
+      if (set.side && set.side !== 'both' && !set.pairId) throw new Error('Unilateral sets require an explicit pair');
+      if (exercise.unilateral && !set.pairId && (!set.side || set.side === 'both')) {
+        const pairId = id();
+        return [{ ...set, pairId, side: 'left' as const }, { ...set, pairId, side: 'right' as const }];
+      }
+      return [set];
+    });
+    validatePairs(entry.sets, true);
+  }
   await db.transaction(async (tx) => {
     await tx.insert(workouts).values({ id: workoutId, name: input.name, startedAt: input.startedAt, endedAt: input.endedAt });
     for (const [order, entry] of entries.entries()) {
       const entryId = id();
+      const pairIds = new Map(entry.sets.filter((s) => s.pairId).map((s) => [s.pairId!, id()]));
       await tx.insert(exerciseEntries).values({ id: entryId, workoutId, exerciseId: entry.exerciseId, order: order + 1 });
-      for (const [position, set] of entry.sets.entries()) {
+      const indexes = new Map(groupSets(entry.sets).flatMap((group, position) => group.map((set) => [set, position + 1] as const)));
+      for (const set of entry.sets) {
         await tx.insert(trainingSets).values({
           id: id(),
           entryId,
-          index: position + 1,
+          index: indexes.get(set)!,
           reps: set.reps ?? null,
           durationSec: set.durationSec ?? null,
           side: set.side ?? 'both',
+          pairId: set.pairId ? pairIds.get(set.pairId)! : null,
           completedAt: set.completedAt,
         });
       }
@@ -759,10 +1029,13 @@ export async function moveExerciseEntry(workoutId: string, entryId: string, toIn
   const reordered = [...entries];
   const [moved] = reordered.splice(from, 1);
   reordered.splice(target, 0, moved);
+  // Dropped between two blocks, the exercise joins the block above it (the one below when it became first).
+  const movedBlock = blockAfterMove(reordered, target);
   await db.transaction(async (tx) => {
     for (const [position, entry] of reordered.entries()) {
       if (entry.order !== position + 1) await tx.update(exerciseEntries).set({ order: position + 1 }).where(eq(exerciseEntries.id, entry.id));
     }
+    if (blockOf(moved.block) !== movedBlock) await tx.update(exerciseEntries).set({ block: movedBlock === 'main' ? null : movedBlock }).where(eq(exerciseEntries.id, moved.id));
     if (!moved.groupId) return;
     const members = reordered.filter((entry) => entry.groupId === moved.groupId);
     const positions = members.map((entry) => reordered.indexOf(entry));
