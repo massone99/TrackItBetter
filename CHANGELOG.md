@@ -2,6 +2,19 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.10.4 - 2026-10-03
+
+### A calmer pose analysis screen
+
+- The joint angles you measure now sit right under the frame being evaluated, each chip showing its
+  live angle in degrees and its colour. Tap to add an angle (it shows on the photo), tap again to
+  show it, once more to remove it.
+- With a video, the frame strip comes first with the selected time, "Find my best position" is a
+  chip beside it, and the strip scrolls to the frame that was picked for you.
+- Once a photo or video is loaded, the camera, photo and video buttons shrink to one slim row so
+  the frame and its result take the screen.
+- Before anything is loaded, the joint choice stays above the source buttons as before.
+
 ## 0.10.3 - 2026-10-03
 
 ### Pickers recover after Android recreates the screen
