@@ -51,3 +51,33 @@ wants short answers. Product context: `PRODUCT.md`, `DESIGN.md`.
   (see `app/__tests__/programBuilder.test.tsx`).
 - Tests that render components need `jest.mock('react-native-keyboard-controller', () =>
   jest.requireActual('react-native-keyboard-controller/jest'))`.
+
+## UX and UI principles (owner's standing brief)
+
+Apply these to every screen you touch; the measurable targets are in `src/shared/theme/tokens.ts`.
+
+| Property | Target |
+| --- | --- |
+| Android touch targets | at least 48 x 48 dp (`MIN_TOUCH_TARGET`; `hitSlop` counts) |
+| Normal / large text contrast | at least 4.5:1 / 3:1 (check both light and dark palettes) |
+| Font scaling | layouts survive up to 200 % (wrap, `minHeight`, never fixed heights on text); `MAX_FONT_SCALE` is 1.4 today |
+| Primary navigation | 3 to 5 destinations |
+| Spacing | the `spacing` scale in tokens.ts (4 / 8 / 12 / 16 / 20 / 24), never ad hoc values |
+| Animation | short and purposeful; honour reduced motion (`useAnimationSettings`, `useReducedMotion`) |
+
+- Treat every screen as a state machine: loading, empty (with a first step), error (with retry),
+  saving, saved, offline, validation error, permission denied. Every action needs an observable
+  outcome and a recovery path when it fails.
+- Build on shared tokens and components (`src/shared/components/ui.tsx`, `src/shared/theme`), not
+  per-screen styling. Shared patterns for loading, empty and error states.
+- Optimise the core journey first (logging a set in a couple of taps) before animation or custom
+  components. Rich detail stays one tap away, never competing with the primary action.
+- A held press on a set row opens the same menu as its three dots (active and completed workouts).
+  Controls that own a long press keep it: the stepper buttons (hold to repeat) and the timed-set
+  play button (hold to mark done without the timer).
+- `src/shared/components/__tests__/uiStandards.test.ts` enforces accessibility roles and translated
+  labels; a container `Pressable` that only forwards a long press uses `accessible={false}` and
+  `accessibilityRole="none"`.
+- References worth consulting: Material Design 3, Apple HIG, Nielsen's 10 heuristics, WCAG 2.2.
+  Validate with real users when possible: about five per iteration, realistic tasks, track
+  completion, time, errors and confusion.

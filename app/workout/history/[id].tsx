@@ -397,7 +397,7 @@ export default function PastWorkoutScreen() {
                   : null;
                 return (
                   <View key={set.id} style={[styles.setBlock, { borderColor: palette.border }]}>
-                    <View style={styles.row}>
+                    <Pressable accessible={false} accessibilityRole="none" onLongPress={() => { tapFeedback(); setSetFor({ exercise, set }); }} delayLongPress={450} style={styles.row}>
                       <Pressable
                         accessibilityRole="checkbox"
                         accessibilityState={{ checked: done }}
@@ -410,6 +410,8 @@ export default function PastWorkoutScreen() {
                           tapFeedback();
                           void edit(() => setCompletedWorkoutSetDone(id, set.id, !done));
                         }}
+                        onLongPress={() => { tapFeedback(); setSetFor({ exercise, set }); }}
+                        delayLongPress={450}
                         style={styles.setMeta}
                       >
                         <View
@@ -460,8 +462,8 @@ export default function PastWorkoutScreen() {
                         label={t("logger.setOptions", { number: set.index })}
                         onPress={() => setSetFor({ exercise, set })}
                       />
-                    </View>
-                    <View style={styles.setValues}>
+                    </Pressable>
+                    <Pressable accessible={false} accessibilityRole="none" onLongPress={() => { tapFeedback(); setSetFor({ exercise, set }); }} delayLongPress={450} style={styles.setValues}>
                       <View style={styles.counter}>
                         <Pressable
                           accessibilityRole="button"
@@ -497,6 +499,7 @@ export default function PastWorkoutScreen() {
                                 distance ? Math.round(next * 100) / 100 : Math.round(next),
                               )
                             }
+                            onLongPress={() => { tapFeedback(); setSetFor({ exercise, set }); }}
                             style={[styles.value, { color: palette.text }]}
                           />
                         )}
@@ -519,7 +522,7 @@ export default function PastWorkoutScreen() {
                           onSave={(next) => void adjust(set.id, "addedLoadKg", next)}
                         />
                       ) : null}
-                    </View>
+                    </Pressable>
                     {set.note || set.rpe !== null || set.clipCount > 0 ? (
                       <Pressable
                         accessibilityRole="button"

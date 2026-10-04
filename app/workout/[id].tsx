@@ -985,6 +985,8 @@ function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, previous
         const previousGroups = groupSets(previous?.sets ?? []);
         const lastTime = set.kind === 'working' ? previousGroups[workingNumber - 1]?.find((s) => !set.pairId || s.side === set.side || !s.side || s.side === 'both') ?? null : null;
         const holding = hold?.setId === set.id;
+        // A held press anywhere on the set opens the same menu as its three dots.
+        const openMenu = () => { tapFeedback(); onSetOptions(set); };
         const stored = timed ? set.durationSec ?? 0 : distance ? set.distanceM ?? 0 : set.reps ?? 0;
         const value = holding && hold ? holdDisplay(hold) : timed ? formatClock(stored) : distance ? formatNumber(stored) : String(stored);
         return (
@@ -998,7 +1000,7 @@ function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, previous
               onSwipeRight={() => { onSwiped(); if (done) onUncomplete(set); else onComplete(set); }}
               onSwipeLeft={() => { onSwiped(); onRemoveSet(set); }}
             >
-            <View style={styles.setRow}>
+            <Pressable accessible={false} accessibilityRole="none" onLongPress={openMenu} delayLongPress={450} style={styles.setRow}>
               <View style={styles.colSet}>
                 <PopOnActivate active={done}>
                   <Pressable
@@ -1007,6 +1009,8 @@ function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, previous
                     accessibilityHint={t('logger.warmupHint')}
                     hitSlop={6}
                     onPress={() => onToggleWarmup(set)}
+                    onLongPress={openMenu}
+                    delayLongPress={450}
                     style={[styles.setBadge, { backgroundColor: done ? palette.accent : palette.surfaceMuted }, set.kind === 'warmup' && { borderWidth: 1, borderStyle: 'dashed', borderColor: done ? palette.accentText : palette.textMuted }]}
                   >
                     <Text style={[styles.setBadgeText, { color: done ? palette.accentText : set.kind === 'warmup' ? palette.textMuted : palette.text }]}>{set.kind === 'warmup' ? 'W' : workingNumber}</Text>
@@ -1027,6 +1031,7 @@ function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, previous
                     clock={timed}
                     label={`${t('logger.editValue', { number: set.index })} ${sideLabel}`}
                     onCommit={(next) => onSetValue(set, field, timed || field === 'reps' ? Math.round(next) : next)}
+                    onLongPress={openMenu}
                     style={[styles.setValue, { color: palette.text }]}
                   />
                 )}
@@ -1042,6 +1047,8 @@ function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, previous
                       accessibilityHint={emomLocked ? t('emom.editHint') : undefined}
                       disabled={emomLocked}
                       onPress={() => { tapFeedback(); onUncomplete(set); }}
+                      onLongPress={openMenu}
+                      delayLongPress={450}
                       style={[styles.checkButton, { backgroundColor: palette.success }]}
                     >
                       <Icon name="checkmark" size={20} color={palette.successText} />
@@ -1066,15 +1073,17 @@ function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, previous
                     accessibilityRole="button"
                     accessibilityLabel={`${t('workout.completeSet')} ${sideLabel}`}
                     onPress={() => onComplete(set)}
+                    onLongPress={openMenu}
+                    delayLongPress={450}
                     style={[styles.checkButton, { backgroundColor: palette.surfaceMuted, borderColor: palette.border, borderWidth: 1 }]}
                   >
                     <Icon name="checkmark" size={20} color={palette.textMuted} />
                   </Pressable>
                 )}
               </View>
-            </View>
+            </Pressable>
             </SwipeableSetRow>
-            <View style={[styles.setDetailRow, !loaded && styles.setDetailRowCompact]}>
+            <Pressable accessible={false} accessibilityRole="none" onLongPress={openMenu} delayLongPress={450} style={[styles.setDetailRow, !loaded && styles.setDetailRowCompact]}>
               {/* Same three columns as the row above: copy last time under the number, load under the value, menu under the check. */}
               <View style={[styles.colSet, styles.detailCell]}>
                 {!done && lastTime ? (
@@ -1090,7 +1099,7 @@ function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, previous
               <View style={[styles.colAction, styles.detailCell]}>
                 <IconButton icon="ellipsis-horizontal" label={t('logger.setOptions', { number: set.index })} tone="plain" size={36} onPress={() => onSetOptions(set)} />
               </View>
-            </View>
+            </Pressable>
             {rpePromptFor === set.id && set.completedAt ? (
               <RpePicker sideLabel={sideLabel} inline value={set.rpe} onChange={(rpe) => onRpe(set, rpe)} onDismiss={onDismissRpe} />
             ) : set.note || set.clipCount > 0 || set.rpe !== null || setRecords.has(set.id) ? (

@@ -521,13 +521,15 @@ export function Sheet({ visible, onClose, title, body, children }: PropsWithChil
  * A number shown as text that turns into a numeric field when tapped, so a value can be typed
  * instead of stepped. With `clock`, "1:30" is accepted as 90 seconds. Invalid input is discarded.
  */
-export function NumberEdit({ value, display, label, onCommit, initialDraft, clock = false, allowNegative = false, disabled = false, style }: {
+export function NumberEdit({ value, display, label, onCommit, onLongPress, initialDraft, clock = false, allowNegative = false, disabled = false, style }: {
   value: number;
   /** Text shown while not editing, e.g. "1:05". */
   display: string;
   /** Accessible name, e.g. "Reps, set 2". */
   label: string;
   onCommit: (value: number) => void;
+  /** Held press on the value, so a parent row can offer its own menu from here too. */
+  onLongPress?: () => void;
   /** What the field starts with when tapped, when that differs from the value (e.g. a placeholder value). */
   initialDraft?: string;
   clock?: boolean;
@@ -574,6 +576,8 @@ export function NumberEdit({ value, display, label, onCommit, initialDraft, cloc
       disabled={disabled}
       hitSlop={6}
       onPress={() => { tapFeedback(); setDraft(initialDraft ?? (clock ? display : String(value))); }}
+      onLongPress={onLongPress}
+      delayLongPress={450}
     >
       <Text style={style}>{display}</Text>
     </Pressable>

@@ -2,6 +2,16 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.10.6 - 2026-10-04
+
+### Hold a set to open its menu
+
+- A held press on a set (active workout and completed workout) opens the same menu as its three dots:
+  on the number, the value, the check, or the empty parts of the row. The stepper buttons keep
+  hold-to-repeat and the timed-set play button keeps hold-to-mark-done.
+- The project notes now carry the owner's UX and UI principles (48 dp targets, contrast, font
+  scaling, spacing scale, reduced motion, screen states).
+
 ## 0.10.5 - 2026-10-03
 
 ### Pose analysis: more of the frame, less around it
