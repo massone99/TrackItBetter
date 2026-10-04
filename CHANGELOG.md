@@ -2,6 +2,10 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.10.9 - 2026-10-04
+
+- Editing a movement now saves automatically when you go back; invalid changes are discarded.
+
 ## 0.10.8 - 2026-10-04
 
 - Long press an exercise name to open the exercise from stats, training totals, progress, today, workout summary and quick session.
