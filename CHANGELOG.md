@@ -2,6 +2,10 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.10.8 - 2026-10-04
+
+- Long press an exercise name to open the exercise from stats, training totals, progress, today, workout summary and quick session.
+
 ## 0.10.7 - 2026-10-04
 
 ### Depth, touch feedback and a proper finish
