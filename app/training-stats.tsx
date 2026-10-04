@@ -2,6 +2,7 @@ import { useCallback, useMemo, useState } from 'react';
 import { useFocusEffect } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { openExercisePage } from '../src/features/exercises/openExercise';
 import { Body, Card, Chip, Heading, IconButton, PageHeading, Screen, SegmentedControl, Stepper } from '../src/shared/components/ui';
 import { Text } from '../src/shared/components/Text';
 import { getTrainingStatsRows } from '../src/features/analytics/repository';
@@ -152,14 +153,14 @@ export default function StatsScreen() {
 
       <Card>
         {dimension === 'tag' && stats.items.length > 0 ? <Body>{t('exerciseGrouping.statsHint')}</Body> : null}
-        {stats.items.length === 0 ? <Body>{mainScope === 'mobility' ? strings.emptyMobility : mainScope === 'strength' ? strings.emptyStrength : strings.empty}</Body> : stats.items.map((item, index) => <View key={item.id} style={[styles.row, index > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: palette.border }]}>
+        {stats.items.length === 0 ? <Body>{mainScope === 'mobility' ? strings.emptyMobility : mainScope === 'strength' ? strings.emptyStrength : strings.empty}</Body> : stats.items.map((item, index) => <Pressable key={item.id} accessible={false} accessibilityRole="none" onLongPress={dimension === 'exercise' && item.id !== OTHER_ID ? () => openExercisePage(item.id) : undefined} style={[styles.row, index > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: palette.border }]}>
           <View style={styles.rowHead}>
             <Text numberOfLines={1} style={[styles.rowName, { color: palette.text }]}>{itemName(item.id, item.name)}</Text>
             <Text style={[styles.rowValue, { color: palette.text }]}>{mainScope === 'mobility' && item.metrics.holdSeconds > 0 ? formatDuration(item.metrics.holdSeconds) : item.metrics.sets}</Text>
           </View>
           <View style={[styles.rowBar, { width: `${Math.max(3, (item.metrics.sets / maxSets) * 100)}%`, backgroundColor: palette.accentSoft }]} />
           {detail(item.metrics, threshold, strings, rpeOnly) ? <Text style={[styles.rowDetail, { color: palette.textMuted }]}>{detail(item.metrics, threshold, strings, rpeOnly)}</Text> : null}
-        </View>)}
+        </Pressable>)}
       </Card>
 
     </>}

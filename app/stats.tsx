@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { ActivityIndicator, BackHandler, Pressable, StyleSheet, View } from 'react-native';
 import { Text } from '../src/shared/components/Text';
 import { fonts } from '../src/shared/theme/typography';
+import { openExercisePage } from '../src/features/exercises/openExercise';
 import { Body, Card, Chip, EmptyState, Heading, Icon, IconButton, Label, ListGroup, ListRow, PageHeading, Screen, SectionTitle, SegmentedControl, Sheet, Stepper, TextField } from '../src/shared/components/ui';
 import { getExploreData } from '../src/features/analytics/repository';
 import {
@@ -371,6 +372,7 @@ export default function StatsScreen() {
                     accessibilityState={{ disabled: !open }}
                     disabled={!open}
                     onPress={() => narrow(level, item.key)}
+                    onLongPress={level === 'exercise' && item.key ? () => openExercisePage(item.key) : undefined}
                     style={({ pressed }) => [styles.breakdownRow, { opacity: pressed ? 0.6 : 1 }]}
                   >
                     <View style={styles.breakdownCopy}>
@@ -417,6 +419,8 @@ export default function StatsScreen() {
                 subtitle={`${option.sets} ${t('stats.metrics.sets').toLowerCase()}`}
                 selected={option.key === currentChoice}
                 onPress={() => narrow(choiceLevel, option.key)}
+                onLongPress={choiceLevel === 'exercise' ? () => { setSheet(null); openExercisePage(option.key); } : undefined}
+                longPressLabel={t('logger.openExercise')}
               />
             ))}
           </ListGroup>

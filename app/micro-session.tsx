@@ -12,6 +12,7 @@ import { useTheme } from '../src/shared/theme/ThemeProvider';
 import { useScaledStyles } from '../src/shared/theme/useScaledStyles';
 import { goBack } from '../src/shared/navigation/goBack';
 import { MAX_FONT_SCALE } from '../src/shared/theme/scale';
+import { openExercisePage } from '../src/features/exercises/openExercise';
 
 type Exercise = Awaited<ReturnType<typeof listMicroSessionExercises>>[number];
 
@@ -123,7 +124,7 @@ export default function MicroSessionScreen() {
         <TextInput maxFontSizeMultiplier={MAX_FONT_SCALE} accessibilityLabel={t('micro.search')} placeholder={t('micro.search')} placeholderTextColor={palette.textMuted} value={query} onChangeText={setQuery} style={[styles.search, { backgroundColor: palette.surfaceMuted, color: palette.text, borderColor: palette.border }]} />
         {exercises.length === 0 ? <Body>{t('micro.empty')}</Body> : exercises.map((exercise, index) => {
           const active = exercise.id === selected?.id;
-          return <Pressable key={exercise.id} accessibilityRole="button" accessibilityState={{ selected: active }} onPress={() => selectExercise(exercise)} style={[styles.item, index > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: palette.border }]}>
+          return <Pressable key={exercise.id} accessibilityRole="button" accessibilityState={{ selected: active }} onPress={() => selectExercise(exercise)} onLongPress={() => openExercisePage(exercise.id)} style={[styles.item, index > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: palette.border }]}>
             <Text numberOfLines={1} style={[styles.itemName, { color: active ? palette.accentStrong : palette.text }]}>{exercise.name}</Text>
             <Text style={[styles.itemUnit, { color: palette.textMuted }]}>{unitFor(exercise.metric)}</Text>
             <View style={styles.check}>{active ? <Icon name="checkmark" size={18} color={palette.accentStrong} /> : null}</View>

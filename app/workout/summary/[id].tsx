@@ -2,7 +2,7 @@ import { aggregatePairs } from '../../../src/domain/setPairs';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ActivityIndicator, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
 import { getSessionRecords, getWorkoutMobilitySeconds, getWorkoutRecords } from '../../../src/features/analytics/repository';
 import type { SetRecord, VolumeRecord } from '../../../src/features/analytics/records';
 import { formatRecordValue } from '../../../src/features/analytics/recordLabels';
@@ -15,6 +15,7 @@ import { fonts } from '../../../src/shared/theme/typography';
 import { formatBestValue } from '../../../src/shared/utils/format';
 import { useScaledStyles } from '../../../src/shared/theme/useScaledStyles';
 import { averageRpe, formatRpe } from '../../../src/domain/rpe';
+import { openExercisePage } from '../../../src/features/exercises/openExercise';
 
 export default function WorkoutSummaryScreen() {
   const styles = useScaledStyles(baseStyles);
@@ -118,14 +119,14 @@ export default function WorkoutSummaryScreen() {
               );
             })}
             {records.map((record) => (
-              <View key={`${record.exerciseId}-${record.kind}`} style={[styles.record, { backgroundColor: palette.recordSoft }]}>
+              <Pressable key={`${record.exerciseId}-${record.kind}`} accessible={false} accessibilityRole="none" onLongPress={() => openExercisePage(record.exerciseId)} style={[styles.record, { backgroundColor: palette.recordSoft }]}>
                 <Icon name="trophy" size={20} color={palette.record} />
                 <View style={styles.recordCopy}>
                   <Text style={styles.recordName}>{record.exerciseName}</Text>
                   <Label>{t('summary.previous', { value: formatBestValue({ kind: record.kind, value: record.previous }) })}</Label>
                 </View>
                 <Text style={[styles.recordValue, { color: palette.record }]}>{formatBestValue(record)}</Text>
-              </View>
+              </Pressable>
             ))}
           </View>
         </>

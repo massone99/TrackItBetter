@@ -15,6 +15,7 @@ import { useTheme } from '../../src/shared/theme/ThemeProvider';
 import { fonts } from '../../src/shared/theme/typography';
 import { formatBestValue, formatDuration, formatNumber } from '../../src/shared/utils/format';
 import { useScaledStyles } from '../../src/shared/theme/useScaledStyles';
+import { openExercisePage } from '../../src/features/exercises/openExercise';
 
 const copy = {
   en: {
@@ -119,7 +120,7 @@ export default function ProgressScreen() {
           {slots.length ? slots.map((slot) => slot.trend ? (
             <TrendCard key={slot.exerciseId} trend={slot.trend} label={strings.trendKind[slot.trend.kind]} palette={palette} locale={i18n.language} />
           ) : (
-            <Pressable key={slot.exerciseId} accessibilityRole="button" onPress={() => router.push({ pathname: '/exercise/[id]', params: { id: slot.exerciseId } })} style={[styles.pendingTrend, { borderTopColor: palette.border }]}>
+            <Pressable key={slot.exerciseId} accessibilityRole="button" onPress={() => router.push({ pathname: '/exercise/[id]', params: { id: slot.exerciseId } })} onLongPress={() => openExercisePage(slot.exerciseId)} style={[styles.pendingTrend, { borderTopColor: palette.border }]}>
               <Text numberOfLines={1} style={[styles.exerciseName, { color: palette.text }]}>{exerciseNames.get(slot.exerciseId) ?? ''}</Text>
               <Body>{t('trendSettings.notEnough')}</Body>
             </Pressable>
@@ -162,7 +163,7 @@ function TrendCard({ trend, label, palette, locale }: { trend: ExerciseTrend; la
   const deltaText = `${delta > 0 ? '+' : ''}${formatNumber(delta)}${trendUnit(trend.kind)}`;
   const metric = latestEstimate != null ? (trend.kind === 'hold' ? 'estMaxHold' : 'estMaxReps') : TREND_METRIC[trend.kind];
   const open = () => router.push({ pathname: '/stats', params: { exerciseId: trend.exerciseId, metric } });
-  return <Pressable accessibilityRole="button" accessibilityLabel={`${trend.exerciseName} · ${label}`} onPress={open} style={[styles.trendCard, { borderTopColor: palette.border }]}>
+  return <Pressable accessibilityRole="button" accessibilityLabel={`${trend.exerciseName} · ${label}`} onPress={open} onLongPress={() => openExercisePage(trend.exerciseId)} style={[styles.trendCard, { borderTopColor: palette.border }]}>
     <View style={styles.trendHeader}>
       <View style={styles.bestText}>
         <Text numberOfLines={1} style={[styles.exerciseName, { color: palette.text }]}>{trend.exerciseName}</Text>

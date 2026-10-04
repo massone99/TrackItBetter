@@ -17,6 +17,7 @@ import { fonts } from "../../src/shared/theme/typography";
 import { radii } from "../../src/shared/theme/tokens";
 import { formatBestValue } from "../../src/shared/utils/format";
 import { useScaledStyles } from "../../src/shared/theme/useScaledStyles";
+import { openExercisePage } from '../../src/features/exercises/openExercise';
 
 type HomeData = {
   active: ActiveWorkout | null;
@@ -180,6 +181,8 @@ export default function TodayScreen() {
                 icon="trophy"
                 tint={palette.record}
                 title={best.exerciseName}
+                onLongPress={() => openExercisePage(best.exerciseId)}
+                longPressLabel={t("logger.openExercise")}
                 subtitle={best.achievedAt.toLocaleDateString(i18n.language, { day: "numeric", month: "short" })}
                 trailing={<Text style={[styles.bestValue, { color: palette.text }]}>{formatBestValue(best)}</Text>}
               />
