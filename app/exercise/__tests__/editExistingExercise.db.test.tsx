@@ -13,10 +13,13 @@ jest.mock('../../../src/db/client', () => {
   return { db: real.db, initializeDatabase: jest.fn(async () => undefined), mockReal: real };
 });
 const mockParams: { edit?: string } = {};
+const mockListeners: ((event: any) => void)[] = [];
+const mockNavigation = { addListener: (_: string, fn: (event: any) => void) => { mockListeners.push(fn); return () => { mockListeners.splice(mockListeners.indexOf(fn), 1); }; }, dispatch: jest.fn() };
 jest.mock('expo-router', () => ({
   router: { replace: jest.fn(), push: jest.fn(), back: jest.fn(), canGoBack: () => true },
   useLocalSearchParams: () => mockParams,
   useSegments: () => ['exercise'],
+  useNavigation: () => mockNavigation,
 }));
 jest.mock('../../../src/shared/navigation/goBack', () => ({ goBack: jest.fn() }));
 

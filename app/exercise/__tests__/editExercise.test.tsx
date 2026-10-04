@@ -7,10 +7,13 @@ import NewExerciseRoute from '../new';
 jest.mock('react-native-keyboard-controller', () => jest.requireActual('react-native-keyboard-controller/jest'));
 
 const mockParams: { edit?: string; addTo?: string } = {};
+const mockListeners: ((event: any) => void)[] = [];
+const mockNavigation = { addListener: (_: string, fn: (event: any) => void) => { mockListeners.push(fn); return () => { mockListeners.splice(mockListeners.indexOf(fn), 1); }; }, dispatch: jest.fn() };
 jest.mock('expo-router', () => ({
   router: { replace: jest.fn(), push: jest.fn(), back: jest.fn(), canGoBack: () => true },
   useLocalSearchParams: () => mockParams,
   useSegments: () => ['exercise'],
+  useNavigation: () => mockNavigation,
 }));
 jest.mock('../../../src/shared/navigation/goBack', () => ({ goBack: jest.fn() }));
 jest.mock('../../../src/features/session/repository', () => ({ addExerciseToWorkout: jest.fn() }));
@@ -49,6 +52,18 @@ const mainChip = (key: string) => screen.getByRole('button', { name: `${t('custo
 const save = () => fireEvent.press(screen.getByRole('button', { name: t('common.save') }));
 
 describe('edit exercise', () => {
+  it('autosaves valid changes when leaving with back', async () => {
+    mockParams.edit = 'tuck-planche';
+    getExerciseById.mockResolvedValue(tuckPlanche);
+    renderForm();
+    await screen.findByDisplayValue('Tuck Planche');
+    fireEvent.changeText(screen.getByDisplayValue('Tuck Planche'), 'Tuck Planche 2');
+    const event = { preventDefault: jest.fn(), data: { action: { type: 'GO_BACK' } } };
+    mockListeners.forEach((listener) => listener(event));
+    expect(event.preventDefault).toHaveBeenCalled();
+    await waitFor(() => expect(updateExercise).toHaveBeenCalledWith('tuck-planche', expect.objectContaining({ name: 'Tuck Planche 2' })));
+  });
+
   it('saves added categories, movement group and tag of a catalog exercise', async () => {
     mockParams.edit = 'tuck-planche';
     getExerciseById.mockResolvedValue(tuckPlanche);

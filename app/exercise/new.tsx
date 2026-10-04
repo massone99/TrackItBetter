@@ -1,8 +1,8 @@
 import { zodResolver } from '@hookform/resolvers/zod';
-import { router, useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams, useNavigation } from 'expo-router';
 import { Controller, useForm, useWatch } from 'react-hook-form';
 import { useTranslation } from 'react-i18next';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { createCustomExercise, updateExercise } from '../../src/features/exercises/customRepository';
 import { ClassificationChoices } from '../../src/features/exercises/ClassificationChoices';
@@ -42,7 +42,7 @@ export default function NewExerciseRoute() {
   // Why the last save failed, shown with the message so a failure on a phone can be reported.
   const [saveError, setSaveError] = useState<string | null>(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
-  const { control, handleSubmit, reset, setValue, getValues, formState: { errors } } = useForm<ExerciseFormInput, unknown, ExerciseFormValues>({
+  const { control, handleSubmit, reset, setValue, getValues, formState: { errors, isDirty } } = useForm<ExerciseFormInput, unknown, ExerciseFormValues>({
     resolver: zodResolver(exerciseFormSchema),
     defaultValues: { ...EMPTY_EXERCISE_FORM, name: edit ? EMPTY_EXERCISE_FORM.name : suggestedName?.slice(0, 80) ?? EMPTY_EXERCISE_FORM.name },
   });
@@ -56,6 +56,12 @@ export default function NewExerciseRoute() {
       if (exercise) reset(exerciseToFormValues(exercise));
     });
   }, [edit, reset]);
+
+  // Editing autosaves on the way out: back (header, gesture or system) saves valid changes, invalid ones are dropped.
+  const navigation = useNavigation();
+  const dirtyRef = useRef(false);
+  const leavingRef = useRef(false);
+  useEffect(() => { dirtyRef.current = isDirty; }, [isDirty]);
 
   const save = async (values: ExerciseFormValues) => {
     if (saving) return;
@@ -93,6 +99,15 @@ export default function NewExerciseRoute() {
   const submit = () => void handleSubmit(save, (invalid) => {
     if (invalid.equipment || invalid.cues || invalid.demoUrl) setDetailsOpen(true);
   })();
+
+  useEffect(() => navigation.addListener('beforeRemove', (event) => {
+    if (!edit || leavingRef.current || !dirtyRef.current) return;
+    event.preventDefault();
+    void handleSubmit(
+      async (values) => { leavingRef.current = true; await save(values); leavingRef.current = false; },
+      () => { leavingRef.current = true; navigation.dispatch(event.data.action); },
+    )();
+  }));
 
   const pickMain = (next: (typeof EXERCISE_CATEGORIES)[number]) => {
     const picked = chooseMainCategory(getValues(), next);
