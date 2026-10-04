@@ -8,7 +8,7 @@ import { useTranslation } from "react-i18next";
 import { useTheme } from "../theme/ThemeProvider";
 import { useAnimationSettings } from "../settings/AnimationProvider";
 import { fonts } from "../theme/typography";
-import { MIN_TOUCH_TARGET, radii, spacing, typeScale } from "../theme/tokens";
+import { MIN_TOUCH_TARGET, elevation, radii, spacing, typeScale } from "../theme/tokens";
 import { Icon, IconName } from "./Icon";
 import { Text } from "./Text";
 import { useScaledStyles } from "../theme/useScaledStyles";
@@ -94,10 +94,27 @@ export function Numeral({ children, style, ...props }: TextProps) {
   return <Text {...props} style={[styles.numeral, { color: palette.text }, style]}>{children}</Text>;
 }
 
+/** The light theme lifts surfaces with a soft shadow; the dark theme relies on border and tone. */
+export function useSurfaceDepth() {
+  const { mode } = useTheme();
+  return mode === "light" ? elevation.surface : undefined;
+}
+
+/**
+ * Press feedback for small controls: a quick shrink under the finger. Skipped when the system or the
+ * app asks for reduced motion, where only the colour/opacity change remains.
+ */
+export function usePressScale(amount = 0.94) {
+  const { reducedMotion, speed } = useAnimationSettings();
+  const calm = reducedMotion || speed === "off";
+  return (pressed: boolean) => (calm || !pressed ? undefined : { transform: [{ scale: amount }] });
+}
+
 export function Card({ children, style, ...props }: PropsWithChildren<ViewProps>) {
   const styles = useScaledStyles(baseStyles);
   const { palette } = useTheme();
-  return <View {...props} style={[styles.card, { backgroundColor: palette.surface, borderColor: palette.border }, style]}>{children}</View>;
+  const depth = useSurfaceDepth();
+  return <View {...props} style={[styles.card, { backgroundColor: palette.surface, borderColor: palette.border }, depth, style]}>{children}</View>;
 }
 
 export function SectionTitle({ title, action }: { title: string; action?: ReactNode }) {
@@ -145,6 +162,7 @@ export function ActionButton({ label, onPress, secondary = false, variant, icon,
   const styles = useScaledStyles(baseStyles);
   const { palette } = useTheme();
   const kind: ButtonVariant = variant ?? (secondary ? "secondary" : "primary");
+  const pressScale = usePressScale(0.98);
   const background = kind === "primary" ? palette.accent : kind === "secondary" ? palette.surfaceMuted : kind === "inverse" ? palette.heroText : "transparent";
   const color = kind === "primary" ? palette.accentText : kind === "danger" ? palette.warning : kind === "ghost" ? palette.accentStrong : kind === "inverse" ? palette.hero : palette.text;
   return (
@@ -156,7 +174,8 @@ export function ActionButton({ label, onPress, secondary = false, variant, icon,
       style={({ pressed }) => [
         styles.button,
         { minHeight: Math.max(MIN_TOUCH_TARGET, styles.button.minHeight) },
-        { backgroundColor: background, opacity: disabled ? 0.45 : pressed ? 0.8 : 1, transform: [{ scale: pressed ? 0.985 : 1 }] },
+        { backgroundColor: background, opacity: disabled ? 0.45 : pressed ? 0.8 : 1 },
+        pressScale(pressed),
         kind === "danger" && { borderWidth: 1, borderColor: palette.border },
       ]}
     >
@@ -181,6 +200,7 @@ export function IconButton({ icon, onPress, label, tone = "muted", size = 40, co
   const box = Math.max(MIN_TOUCH_TARGET, Math.round(size * scale));
   const background = tone === "accent" ? palette.accent : tone === "muted" ? palette.surfaceMuted : "transparent";
   const color = colorOverride ?? (tone === "accent" ? palette.accentText : palette.text);
+  const pressScale = usePressScale(0.92);
   return (
     <Pressable
       accessibilityRole="button"
@@ -189,7 +209,7 @@ export function IconButton({ icon, onPress, label, tone = "muted", size = 40, co
       disabled={disabled}
       hitSlop={6}
       onPress={() => { tapFeedback(); onPress(); }}
-      style={({ pressed }) => [styles.iconButton, { width: box, height: box, borderRadius: box / 2.6, backgroundColor: background, opacity: disabled ? 0.3 : pressed ? 0.7 : 1 }]}
+      style={({ pressed }) => [styles.iconButton, { width: box, height: box, borderRadius: box / 2.6, backgroundColor: background, opacity: disabled ? 0.3 : pressed ? 0.7 : 1 }, pressScale(pressed)]}
     >
       <Icon name={icon} size={Math.round(size * 0.5)} color={color} />
     </Pressable>
@@ -420,10 +440,11 @@ export function CheckRow({ icon, title, subtitle, checked, onChange, tint }: {
 export function ListGroup({ children }: PropsWithChildren) {
   const styles = useScaledStyles(baseStyles);
   const { palette } = useTheme();
+  const depth = useSurfaceDepth();
   // toArray flattens nested arrays (a mapped list beside fixed rows) and drops false/null.
   const items = Children.toArray(children);
   return (
-    <View style={[styles.listGroup, { backgroundColor: palette.surface, borderColor: palette.border }]}>
+    <View style={[styles.listGroup, { backgroundColor: palette.surface, borderColor: palette.border }, depth]}>
       {items.map((child, index) => (
         <View key={index} style={index > 0 ? { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: palette.border } : undefined}>{child}</View>
       ))}
@@ -435,6 +456,7 @@ export function Chip({ label, selected = false, onPress, icon, accessibilityLabe
   const styles = useScaledStyles(baseStyles);
   const { palette } = useTheme();
   const color = selected ? palette.accentStrong : palette.textMuted;
+  const pressScale = usePressScale(0.95);
   return (
     <Pressable
       accessibilityRole="button"
@@ -442,7 +464,7 @@ export function Chip({ label, selected = false, onPress, icon, accessibilityLabe
       accessibilityState={{ selected }}
       hitSlop={4}
       onPress={() => { tapFeedback(); onPress?.(); }}
-      style={({ pressed }) => [styles.chip, { minHeight: MIN_TOUCH_TARGET, backgroundColor: selected ? palette.accentSoft : palette.surface, borderColor: selected ? palette.accentStrong : palette.border, opacity: pressed ? 0.75 : 1 }]}
+      style={({ pressed }) => [styles.chip, { minHeight: MIN_TOUCH_TARGET, backgroundColor: selected ? palette.accentSoft : palette.surface, borderColor: selected ? palette.accentStrong : palette.border, opacity: pressed ? 0.75 : 1 }, pressScale(pressed)]}
     >
       {icon ? <Icon name={icon} size={14} color={color} /> : null}
       <Text style={[styles.chipText, { color }]}>{label}</Text>
@@ -453,8 +475,9 @@ export function Chip({ label, selected = false, onPress, icon, accessibilityLabe
 export function EmptyState({ icon, title, body, action }: { icon: IconName; title: string; body: string; action?: ReactNode }) {
   const styles = useScaledStyles(baseStyles);
   const { palette } = useTheme();
+  const depth = useSurfaceDepth();
   return (
-    <View style={[styles.empty, { backgroundColor: palette.surface, borderColor: palette.border }]}>
+    <View style={[styles.empty, { backgroundColor: palette.surface, borderColor: palette.border }, depth]}>
       <View style={[styles.emptyIcon, { backgroundColor: palette.accentSoft }]}><Icon name={icon} size={24} color={palette.accentStrong} /></View>
       <Heading style={styles.center}>{title}</Heading>
       <Body style={styles.center}>{body}</Body>

@@ -9,6 +9,7 @@ import { formatRecordValue } from '../../../src/features/analytics/recordLabels'
 import type { WorkoutRecord } from '../../../src/features/analytics/summary';
 import { CompletedWorkout, getCompletedWorkout } from '../../../src/features/session/repository';
 import { ActionButton, Body, Icon, Label, ListGroup, ListRow, Numeral, Screen, SectionTitle, tapFeedback, Text, Title } from '../../../src/shared/components/ui';
+import { Arrive } from '../../../src/shared/components/Arrive';
 import { useTheme } from '../../../src/shared/theme/ThemeProvider';
 import { fonts } from '../../../src/shared/theme/typography';
 import { formatBestValue } from '../../../src/shared/utils/format';
@@ -69,10 +70,12 @@ export default function WorkoutSummaryScreen() {
   return (
     <Screen>
       <View style={styles.header}>
-        <View style={[styles.badge, { backgroundColor: hasRecords ? palette.recordSoft : palette.successSoft }]}>
-          <Icon name={hasRecords ? 'trophy' : 'checkmark-done'} size={30} color={hasRecords ? palette.record : palette.success} />
-        </View>
-        <Title>{t('summary.title')}</Title>
+        <Arrive>
+          <View style={[styles.badge, { backgroundColor: hasRecords ? palette.recordSoft : palette.successSoft }]}>
+            <Icon name={hasRecords ? 'trophy' : 'checkmark-done'} size={30} color={hasRecords ? palette.record : palette.success} />
+          </View>
+        </Arrive>
+        <Title>{hasRecords ? t('summary.titleRecords') : t('summary.title')}</Title>
         <Body style={styles.subtitle}>{workout.name}</Body>
       </View>
 

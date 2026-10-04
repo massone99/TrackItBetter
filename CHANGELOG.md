@@ -2,6 +2,17 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.10.7 - 2026-10-04
+
+### Depth, touch feedback and a proper finish
+
+- Cards, grouped lists and empty states lift off the page with a soft shadow in the light theme; the
+  dark theme keeps its border and tone, where shadows would not show.
+- Buttons, chips and icon buttons shrink slightly under the finger. With reduced motion (system or
+  app setting) the shrink is skipped.
+- The finished-workout badge grows into place with a soft spring (still, with reduced motion), and
+  a session with a personal best is titled "New personal best" instead of the generic title.
+
 ## 0.10.6 - 2026-10-04
 
 ### Hold a set to open its menu

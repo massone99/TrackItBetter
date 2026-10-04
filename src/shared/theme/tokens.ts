@@ -1,6 +1,14 @@
 /** Shared native UI measurements. Layout values follow the user's interface scale. */
 export const spacing = { xs: 4, sm: 8, md: 12, lg: 16, xl: 20, section: 24, page: 20 } as const;
 
+/**
+ * Depth: a soft, low shadow that lifts surfaces off the page in the light theme. In the dark theme
+ * shadows disappear against the background, so surfaces keep their border and tonal step instead.
+ */
+export const elevation = {
+  surface: { shadowColor: '#1C2330', shadowOpacity: 0.07, shadowRadius: 10, shadowOffset: { width: 0, height: 3 }, elevation: 2 },
+} as const;
+
 export const radii = { small: 8, control: 12, surface: 16, sheet: 28, pill: 999 } as const;
 
 export const typeScale = {
