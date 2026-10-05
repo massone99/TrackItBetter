@@ -2,6 +2,16 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.12.0 - 2026-10-05
+
+- Workout screen redesigned: exercises are flat sections instead of cards, and every set has two rows: reps (or time) and kg, then RPE.
+- Every set can carry added load or assistance (kg with − and +). Adding load to a bodyweight exercise makes it track load from then on; its reps and hold records stay.
+- RPE is always one tap away: a row of values 6–10 under each working set, scrolling sideways and opening around 7–8. Profile can hide it.
+- The next set of each exercise has the filled ✓ button, so it is easy to spot.
+- The rest timer sits above Add exercise and Finish instead of covering them.
+- Clearer details: "Last time" and folded results show left and right sides separately, results carry units, and the voice cues button has a label.
+- "Copy last time" moved to the set menu (⋮).
+
 ## 0.11.0 - 2026-10-05
 
 - Today is simpler: one main card with the next workout of the program you trained last (or the one in progress), your week at a glance, a personal best only when it is from this week, and quick actions. The numbers and the list of records stay in Progress.
