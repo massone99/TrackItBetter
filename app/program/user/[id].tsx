@@ -2,16 +2,17 @@ import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
-import { estimateSessionSeconds, nextSessionInRotation, sessionSetCount, type UserProgram, type UserProgramSession } from '../../../src/domain/userProgram';
+import { estimateSessionSeconds, moveItem, nextSessionInRotation, sessionSetCount, type UserProgram, type UserProgramSession } from '../../../src/domain/userProgram';
 import { listExercises } from '../../../src/features/exercises/repository';
 import { openExercisePage } from '../../../src/features/exercises/openExercise';
 import { describePrescription } from '../../../src/features/programs/describe';
 import { defaultPastStart } from '../../../src/features/session/pastStart';
 import { logPastUserProgramSession, startUserProgramSession } from '../../../src/features/programs/startUserSession';
-import { deleteUserProgram, duplicateUserProgram, getUserProgram } from '../../../src/features/programs/userPrograms';
+import { deleteUserProgram, duplicateUserProgram, getUserProgram, saveUserProgram } from '../../../src/features/programs/userPrograms';
 import { readDefaultRest } from '../../../src/features/session/restDefaults';
 import { WorkoutInProgressSheet } from '../../../src/features/session/WorkoutInProgressSheet';
 import { getActiveWorkout, listRecentWorkoutNames } from '../../../src/features/session/repository';
+import { ReorderableList } from '../../../src/shared/components/ReorderableList';
 import { ActionButton, Body, Card, EmptyState, Icon, IconButton, Label, PageHeading, Screen, SectionTitle, Sheet, tapFeedback, Text } from '../../../src/shared/components/ui';
 import { readPreference, writePreference } from '../../../src/shared/settings/preferences';
 import { goBack } from '../../../src/shared/navigation/goBack';
@@ -117,6 +118,18 @@ export default function UserProgramScreen() {
   };
   const allCollapsed = program.sessions.length > 0 && program.sessions.every((session) => collapsed.has(session.id));
 
+  const reorder = async (from: number, to: number) => {
+    const previous = program;
+    const next = { ...program, sessions: moveItem(program.sessions, from, to - from) };
+    setProgram(next);
+    try {
+      setProgram(await saveUserProgram(next));
+    } catch (reason) {
+      setProgram(previous);
+      setError(`${t('programBuilder.startError')} (${reason instanceof Error ? reason.message : String(reason)})`);
+    }
+  };
+
   const duplicate = async () => {
     const copy = await duplicateUserProgram(program.id, t('userProgram.copyName', { name: program.name }));
     if (copy) router.replace({ pathname: '/program/user/[id]', params: { id: copy.id } });
@@ -155,9 +168,15 @@ export default function UserProgramScreen() {
           action={<View style={styles.emptyAction}><ActionButton icon="add" label={t('programBuilder.addDay')} onPress={() => router.push({ pathname: '/program-builder', params: { id: program.id } })} /></View>}
         />
       ) : null}
-      {program.sessions.map((session, index) => (
-        <Card key={session.id} style={[styles.session, session.id === nextId && { borderColor: palette.accentStrong }]}>
+      <ReorderableList
+        items={program.sessions}
+        keyOf={(session) => session.id}
+        nameOf={(session) => session.name}
+        onMove={(from, to) => void reorder(from, to)}
+        renderRow={(session, index, row) => (
+        <Card style={[styles.session, session.id === nextId && { borderColor: palette.accentStrong }]}>
           <View style={styles.sessionTop}>
+            {program.sessions.length > 1 ? row.handle : null}
             <Pressable
               accessibilityRole="button"
               accessibilityState={{ expanded: !collapsed.has(session.id) }}
@@ -219,7 +238,8 @@ export default function UserProgramScreen() {
             </>
           )}
         </Card>
-      ))}
+        )}
+      />
 
       <WorkoutInProgressSheet active={blockedBy} onClose={() => setBlockedBy(null)} />
 

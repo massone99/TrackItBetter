@@ -2,6 +2,10 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.10.10 - 2026-10-05
+
+- Drag the grip on a workout in a program to reorder its workouts.
+
 ## 0.10.9 - 2026-10-04
 
 - Editing a movement now saves automatically when you go back; invalid changes are discarded.
