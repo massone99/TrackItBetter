@@ -557,6 +557,9 @@ export function Sheet({ visible, onClose, title, body, children }: PropsWithChil
   );
 }
 
+/** Pause in typing after which a field saves on its own. */
+export const AUTOSAVE_DELAY_MS = 400;
+
 /**
  * A number shown as text that turns into a numeric field when tapped, so a value can be typed
  * instead of stepped. With `clock`, "1:30" is accepted as 90 seconds. Invalid input is discarded.
@@ -580,12 +583,33 @@ export function NumberEdit({ value, display, label, onCommit, onLongPress, initi
   const styles = useScaledStyles(baseStyles);
   const { palette } = useTheme();
   const [draft, setDraft] = useState<string | null>(null);
+  // Typing saves after a short pause rather than on every keystroke (each save reloads the workout);
+  // leaving the field, or the screen, saves at once.
+  const pending = useRef<{ timer: ReturnType<typeof setTimeout>; value: number } | null>(null);
+  const saved = useRef<number | null>(null);
+  const commitValue = (next: number) => {
+    if (next === value || next === saved.current) return;
+    saved.current = next;
+    onCommit(next);
+  };
+  const flush = () => {
+    const waiting = pending.current;
+    if (!waiting) return;
+    clearTimeout(waiting.timer);
+    pending.current = null;
+    commitValue(waiting.value);
+  };
+  const flushRef = useRef(flush);
+  useEffect(() => { flushRef.current = flush; });
+  useEffect(() => () => flushRef.current(), []);
   const commit = () => {
     if (draft === null) return;
     const parsed = parseNumberInput(draft, clock);
+    if (pending.current) { clearTimeout(pending.current.timer); pending.current = null; }
     setDraft(null);
-    if (parsed === null || (!allowNegative && parsed < 0) || parsed === value) return;
-    onCommit(parsed);
+    saved.current = null;
+    if (parsed === null || (!allowNegative && parsed < 0)) return;
+    if (parsed !== value) onCommit(parsed);
   };
   if (draft !== null) {
     return (
@@ -595,11 +619,14 @@ export function NumberEdit({ value, display, label, onCommit, onLongPress, initi
         selectTextOnFocus
         keyboardType={clock ? "numbers-and-punctuation" : allowNegative ? "numbers-and-punctuation" : "decimal-pad"}
         value={draft}
-        // Saved as you type, so a value counts even if the field is never confirmed (Save tapped, screen left).
+        // Saved shortly after typing stops, so a value counts even if the field is never confirmed.
         onChangeText={(text) => {
           setDraft(text);
           const parsed = parseNumberInput(text, clock);
-          if (parsed !== null && (allowNegative || parsed >= 0) && parsed !== value) onCommit(parsed);
+          if (pending.current) clearTimeout(pending.current.timer);
+          pending.current = parsed !== null && (allowNegative || parsed >= 0)
+            ? { value: parsed, timer: setTimeout(flush, AUTOSAVE_DELAY_MS) }
+            : null;
         }}
         onBlur={commit}
         onSubmitEditing={commit}

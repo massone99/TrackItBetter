@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { StyleSheet, View } from 'react-native';
 import { listBodyweights, recordBodyweight } from '../src/features/body/repository';
 import { ActionButton, Body, Card, Heading, Label, ListGroup, ListRow, Numeral, PageHeading, Screen, SectionTitle, SegmentedControl, TextField } from '../src/shared/components/ui';
+import { useSaveOnLeave } from '../src/shared/forms/useSaveOnLeave';
 import { useTheme } from '../src/shared/theme/ThemeProvider';
 import { useScaledStyles } from '../src/shared/theme/useScaledStyles';
 
@@ -21,17 +22,21 @@ export default function BodyweightScreen() {
   const refresh = useCallback(async () => setEntries(await listBodyweights()), []);
   useFocusEffect(useCallback(() => { void refresh(); }, [refresh]));
 
-  const save = async () => {
+  const save = async (): Promise<boolean> => {
     const parsed = Number(value.replace(',', '.'));
     try {
       await recordBodyweight(parsed, unit);
       setValue('');
       setError('');
       await refresh();
+      return true;
     } catch {
       setError(t('bodyweight.validation'));
+      return false;
     }
   };
+  // A value typed but not saved is recorded on the way out; an invalid one is dropped.
+  useSaveOnLeave({ dirty: value.trim() !== '', save });
 
   const latest = entries[0];
   return (
@@ -52,6 +57,10 @@ export default function BodyweightScreen() {
           value={value}
           onChangeText={setValue}
           keyboardType="decimal-pad"
+          maxLength={6}
+          selectTextOnFocus
+          returnKeyType="done"
+          onSubmitEditing={() => void save()}
           placeholder={unit === 'kg' ? '70.0' : '154.3'}
           error={error}
         />

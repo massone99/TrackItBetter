@@ -1,8 +1,8 @@
 import { zodResolver } from '@hookform/resolvers/zod';
-import { router, useLocalSearchParams, useNavigation } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { Controller, useForm, useWatch } from 'react-hook-form';
 import { useTranslation } from 'react-i18next';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { createCustomExercise, updateExercise } from '../../src/features/exercises/customRepository';
 import { ClassificationChoices } from '../../src/features/exercises/ClassificationChoices';
@@ -25,6 +25,7 @@ import { getExerciseById } from '../../src/features/exercises/repository';
 import { setPendingExercise } from '../../src/features/programs/pendingExercise';
 import { useTheme } from '../../src/shared/theme/ThemeProvider';
 import { useScaledStyles } from '../../src/shared/theme/useScaledStyles';
+import { useSaveOnLeave } from '../../src/shared/forms/useSaveOnLeave';
 import { goBack } from '../../src/shared/navigation/goBack';
 
 export default function NewExerciseRoute() {
@@ -57,12 +58,6 @@ export default function NewExerciseRoute() {
     });
   }, [edit, reset]);
 
-  // Editing autosaves on the way out: back (header, gesture or system) saves valid changes, invalid ones are dropped.
-  const navigation = useNavigation();
-  const dirtyRef = useRef(false);
-  const leavingRef = useRef(false);
-  useEffect(() => { dirtyRef.current = isDirty; }, [isDirty]);
-
   const save = async (values: ExerciseFormValues) => {
     if (saving) return;
     setSaving(true);
@@ -71,6 +66,7 @@ export default function NewExerciseRoute() {
       const input = formValuesToInput(values);
       if (edit) {
         await updateExercise(edit, input);
+        allowLeave();
         goBack({ pathname: '/exercise/[id]', params: { id: edit } });
         return;
       }
@@ -100,14 +96,16 @@ export default function NewExerciseRoute() {
     if (invalid.equipment || invalid.cues || invalid.demoUrl) setDetailsOpen(true);
   })();
 
-  useEffect(() => navigation.addListener('beforeRemove', (event) => {
-    if (!edit || leavingRef.current || !dirtyRef.current) return;
-    event.preventDefault();
-    void handleSubmit(
-      async (values) => { leavingRef.current = true; await save(values); leavingRef.current = false; },
-      () => { leavingRef.current = true; navigation.dispatch(event.data.action); },
-    )();
-  }));
+  // Editing autosaves on the way out: back (header, gesture or system) saves valid changes, invalid ones are dropped.
+  const { allowLeave } = useSaveOnLeave({
+    dirty: Boolean(edit) && isDirty,
+    save: () => new Promise<boolean>((resolve) => {
+      void handleSubmit(
+        async (values) => { await updateExercise(edit!, formValuesToInput(values)); resolve(true); },
+        () => resolve(false),
+      )().catch(() => resolve(false));
+    }),
+  });
 
   const pickMain = (next: (typeof EXERCISE_CATEGORIES)[number]) => {
     const picked = chooseMainCategory(getValues(), next);
@@ -123,6 +121,8 @@ export default function NewExerciseRoute() {
         <TextField
           label={t('customExercise.name')}
           autoCapitalize="words"
+          maxLength={80}
+          returnKeyType="done"
           value={value}
           onChangeText={onChange}
           onBlur={onBlur}
@@ -207,6 +207,7 @@ export default function NewExerciseRoute() {
           <Controller control={control} name="equipment" render={({ field: { onChange, onBlur, value } }) => (
             <TextField
               label={t('customExercise.equipment')}
+              maxLength={240}
               value={value}
               onChangeText={onChange}
               onBlur={onBlur}

@@ -108,7 +108,7 @@ export default function MicroSessionScreen() {
           <Body>{t('micro.value')} · {unit}</Body>
           {timed ? <HoldDurationField label={t('micro.value')} value={Number(value) || 0} min={1} onChange={(seconds) => setValue(String(seconds))} /> : <View style={styles.targetRow}>
             <Pressable accessibilityRole="button" accessibilityLabel={t('micro.decrease')} onPress={() => setValue(String(Math.max(increment, Number(value) - increment)))} style={[styles.adjust, { backgroundColor: palette.surfaceMuted }]}><Icon name="remove" size={18} color={palette.text} /></Pressable>
-            <TextInput maxFontSizeMultiplier={MAX_FONT_SCALE} accessibilityLabel={`${t('micro.value')} ${unit}`} keyboardType="numbers-and-punctuation" value={value} onChangeText={setValue} style={[styles.value, { backgroundColor: palette.surfaceMuted, borderColor: palette.border, color: palette.text }]} />
+            <TextInput maxFontSizeMultiplier={MAX_FONT_SCALE} accessibilityLabel={`${t('micro.value')} ${unit}`} keyboardType="numbers-and-punctuation" maxLength={5} selectTextOnFocus returnKeyType="done" value={value} onChangeText={setValue} style={[styles.value, { backgroundColor: palette.surfaceMuted, borderColor: palette.border, color: palette.text }]} />
             <Pressable accessibilityRole="button" accessibilityLabel={t('micro.increase')} onPress={() => setValue(String(Number(value || 0) + increment))} style={[styles.adjust, { backgroundColor: palette.surfaceMuted }]}><Icon name="add" size={18} color={palette.text} /></Pressable>
           </View>}
           <ActionButton label={working ? t('micro.working') : t('micro.save')} onPress={() => void log()} />

@@ -1,6 +1,7 @@
 import * as Crypto from 'expo-crypto';
-import { router, useFocusEffect, useLocalSearchParams, useNavigation } from 'expo-router';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
+import { useSaveOnLeave } from '../src/shared/forms/useSaveOnLeave';
+import { useCallback, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
 import {
@@ -62,7 +63,6 @@ export default function ProgramEditorScreen() {
   const { id } = useLocalSearchParams<{ id?: string }>();
   const { t } = useTranslation();
   const { palette } = useTheme();
-  const navigation = useNavigation();
   const [initial] = useState<Draft>(() => ({ name: '', sessions: [] }));
   const [loaded, setLoaded] = useState(!id);
   const [name, setName] = useState(initial.name);
@@ -75,8 +75,8 @@ export default function ProgramEditorScreen() {
   const [errors, setErrors] = useState<ProgramError[]>([]);
   const [saving, setSaving] = useState(false);
   const [undo, setUndo] = useState<{ message: string; previous: UserProgramSession[] } | null>(null);
-  const [leaveAction, setLeaveAction] = useState<Parameters<typeof navigation.dispatch>[0] | null>(null);
-  const allowLeave = useRef(false);
+  // Resumes a navigation held back because the edits could not be saved.
+  const [leaveAction, setLeaveAction] = useState<{ resume: () => void } | null>(null);
   // Days folded to their summary, and exercises opened for editing; the rest show one line.
   const [closedDays, setClosedDays] = useState<Set<string>>(new Set());
   const [openExercises, setOpenExercises] = useState<Set<string>>(new Set());
@@ -131,13 +131,6 @@ export default function ProgramEditorScreen() {
     return () => { mounted = false; };
   }, [id, loaded]));
 
-  // Leaving with unsaved edits asks first instead of silently dropping them.
-  useEffect(() => navigation.addListener('beforeRemove', (event) => {
-    if (!dirty || allowLeave.current) return;
-    event.preventDefault();
-    setLeaveAction(event.data.action);
-  }), [navigation, dirty]);
-
   const updateSession = (sessionId: string, patch: Partial<UserProgramSession>) => {
     setSessions((current) => current.map((session) => (session.id === sessionId ? { ...session, ...patch } : session)));
   };
@@ -155,16 +148,32 @@ export default function ProgramEditorScreen() {
   };
 
 
-  const save = async () => {
-    if (saving) return;
+  /** Validates and stores the program; false (with the errors shown) when it cannot be saved yet. */
+  const persist = async (): Promise<boolean> => {
     const found = validateUserProgram({ name, sessions });
     setErrors(found);
-    if (found.length > 0) return;
+    if (found.length > 0) return false;
+    const saved = await saveUserProgram({ id, name, sessions });
+    setSnapshot(JSON.stringify({ name: saved.name, sessions: saved.sessions } satisfies Draft));
+    savedId.current = saved.id;
+    return true;
+  };
+  const savedId = useRef<string | undefined>(undefined);
+
+  // Leaving saves valid edits on its own; edits that cannot be saved yet ask before being dropped.
+  const { allowLeave } = useSaveOnLeave({
+    dirty,
+    save: persist,
+    onInvalid: (resume) => setLeaveAction({ resume }),
+  });
+
+  const save = async () => {
+    if (saving) return;
     setSaving(true);
     try {
-      const saved = await saveUserProgram({ id, name, sessions });
-      allowLeave.current = true;
-      router.replace({ pathname: '/program/user/[id]', params: { id: saved.id } });
+      if (!(await persist())) return;
+      allowLeave();
+      router.replace({ pathname: '/program/user/[id]', params: { id: savedId.current! } });
     } catch {
       setErrors([{ code: 'invalidValue' }]);
     } finally {
@@ -366,14 +375,13 @@ export default function ProgramEditorScreen() {
         onClose={() => { setPickerFor(null); setReplacing(null); }}
       />
 
-      <Sheet visible={leaveAction !== null} onClose={() => setLeaveAction(null)} title={t('userProgram.unsavedTitle')} body={t('userProgram.unsavedBody')}>
+      <Sheet visible={leaveAction !== null} onClose={() => setLeaveAction(null)} title={t('userProgram.unsavedTitle')} body={t('userProgram.unsavedInvalidBody')}>
         <ActionButton icon="trash-outline" label={t('userProgram.discard')} variant="danger" onPress={() => {
           const action = leaveAction;
           setLeaveAction(null);
-          allowLeave.current = true;
-          if (action) navigation.dispatch(action);
+          action?.resume();
         }} />
-        <ActionButton label={t('userProgram.keepEditing')} secondary onPress={() => setLeaveAction(null)} />
+        <ActionButton label={t('userProgram.fixFields')} secondary onPress={() => setLeaveAction(null)} />
       </Sheet>
     </Screen>
   );

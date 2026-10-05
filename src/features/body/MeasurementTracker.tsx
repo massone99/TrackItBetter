@@ -15,6 +15,7 @@ import {
   recordMobilityTest,
   recordNamedMeasurement,
 } from './measurementsRepository';
+import { useSaveOnLeave } from '../../shared/forms/useSaveOnLeave';
 import { ActionButton, Body, Card, Chip, Heading, Label, PageHeading, Screen, SectionTitle, SegmentedControl, TextField } from '../../shared/components/ui';
 import { useTheme } from '../../shared/theme/ThemeProvider';
 import { useScaledStyles } from '../../shared/theme/useScaledStyles';
@@ -77,16 +78,20 @@ export function MeasurementTracker({ mode }: { mode: TrackerMode }) {
   }, [mode]);
   useFocusEffect(useCallback(() => { void refresh(); }, [refresh]));
 
-  const save = async () => {
+  const save = async (): Promise<boolean> => {
     const parsed = Number(value.trim().replace(',', '.'));
     try {
       if (mode === 'measurements') await recordNamedMeasurement(measurement, parsed, unit);
       else await recordMobilityTest(test, parsed, selectedMobility.sideAware ? side : 'both');
       setValue(''); setError(false); await refresh();
+      return true;
     } catch {
       setError(true);
+      return false;
     }
   };
+  // A value typed but not saved is recorded on the way out; an invalid one is dropped.
+  useSaveOnLeave({ dirty: value.trim() !== '', save });
 
   const titleForKind = useCallback((kind: string) => {
     const parts = kind.split(':');
@@ -126,6 +131,10 @@ export function MeasurementTracker({ mode }: { mode: TrackerMode }) {
           value={value}
           onChangeText={setValue}
           keyboardType="numbers-and-punctuation"
+          maxLength={6}
+          selectTextOnFocus
+          returnKeyType="done"
+          onSubmitEditing={() => void save()}
           placeholder={mode === 'mobility' && (test === 'pike' || test === 'splits') ? '0' : '0.0'}
           error={error ? text.validation : null}
         />
