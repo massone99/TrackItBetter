@@ -2,6 +2,12 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.17.0 - 2026-10-05
+
+- A finished workout's page now looks and works like the workout in progress: the same flat exercise sections and set rows (steppers for reps and kg, RPE and form chips, ✓ to mark done, ⋮ or a held press for the set menu, swipe to complete or remove, tap the number to make it a warm-up). Exercises open folded to their results. Done sets stay editable in place.
+- "Repeat workout" sits in the footer next to "Add exercise"; saving to a program, exporting the image and deleting are at the end of the page. Converting a set to L/R moved to the set menu.
+- Under the hood: the exercise section is one shared component (`ExerciseCard`) for both screens.
+
 ## 0.16.2 - 2026-10-05
 
 - Pose analyses are compared only with analyses of the same exercise (unlinked ones with each other); while comparing, the list shows only those.
