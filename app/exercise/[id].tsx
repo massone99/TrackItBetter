@@ -20,6 +20,7 @@ import type { ExerciseEstimate } from '../../src/features/analytics/estimates';
 import type { ExerciseCycle, ExerciseWeek } from '../../src/features/analytics/mobility';
 import { formatMinutes, formatNumber } from '../../src/shared/utils/format';
 import { formatRpe } from '../../src/domain';
+import { poseDetectionAvailable } from '../../src/features/pose/detectPose';
 import { countPoseCapturesForExercise } from '../../src/features/pose/repository';
 import { ActionButton, Body, FooterAction, Icon, IconButton, ListGroup, ListRow, PageHeading, Screen, SectionTitle, SegmentedControl, Sheet, SwitchRow, Text, Toast } from '../../src/shared/components/ui';
 import { aggregatePairs, type PairScope } from '../../src/domain/setPairs';
@@ -321,6 +322,21 @@ export default function ExerciseRoute() {
         </View>
       ) : null}
 
+      {/* Pose analyses of this exercise: open them to compare or manage, or add one already linked. */}
+      {poseDetectionAvailable || poseCount > 0 ? (
+        <View style={styles.section}>
+          <SectionTitle title={t('poseLink.exerciseRow')} />
+          <ListGroup>
+            {poseCount > 0 ? (
+              <ListRow icon="scan-outline" title={t('poseLink.exerciseOpen', { count: poseCount })} subtitle={t('poseLink.exerciseOpenBody')} onPress={() => router.push({ pathname: '/pose/[positionId]', params: { positionId: 'free', exerciseId: exercise.id } })} />
+            ) : null}
+            {poseDetectionAvailable ? (
+              <ListRow icon="add-circle-outline" title={t('poseLink.exerciseNew')} subtitle={poseCount > 0 ? undefined : t('poseLink.exerciseNewBody')} onPress={() => router.push({ pathname: '/pose/new', params: { positionId: 'free', exerciseId: exercise.id } })} />
+            ) : null}
+          </ListGroup>
+        </View>
+      ) : null}
+
       <View style={styles.section}>
         <SectionTitle title={t('exerciseManage.history')} />
         {history.length > 0 ? (
@@ -346,11 +362,7 @@ export default function ExerciseRoute() {
             {lateral ? <ListRow icon="git-branch-outline" title={compareTitle} subtitle={compareBody} onPress={() => router.push({ pathname: '/stats', params: { exerciseId: exercise.id, pairScope: 'comparison' } })} /> : null}
           </ListGroup>
         ) : null}
-        {poseCount > 0 ? (
-          <ListGroup>
-            <ListRow icon="scan-outline" title={t('poseLink.exerciseRow')} subtitle={t('poseLink.exerciseRowBody', { count: poseCount })} onPress={() => router.push({ pathname: '/pose/[positionId]', params: { positionId: 'free', exerciseId: exercise.id } })} />
-          </ListGroup>
-        ) : null}
+
       </View>
 
       <View style={styles.section}>

@@ -8,6 +8,7 @@ import { displayedAngle, findPosition, LOW_CONFIDENCE, levelFor, nextLevelTarget
 import { detectPose, poseDetectionAvailable } from '../../src/features/pose/detectPose';
 import { extractFrames, normalizeImage, type PoseImage, type VideoFrame } from '../../src/features/pose/media';
 import { PoseCanvas } from '../../src/features/pose/PoseCanvas';
+import { getExerciseById } from '../../src/features/exercises/repository';
 import { getSetLink, savePoseCapture, type PoseLink } from '../../src/features/pose/repository';
 import { describeLink, PoseLinkSheet } from '../../src/features/pose/PoseLink';
 import { ActionButton, Body, Card, Chip, Icon, IconButton, Label, ListGroup, ListRow, Numeral, PageHeading, Screen, SegmentedControl, tapFeedback, Text, TextField } from '../../src/shared/components/ui';
@@ -37,7 +38,7 @@ export default function NewPoseCheckScreen() {
   const styles = useScaledStyles(baseStyles);
   // A form-check clip can be opened here directly: its frames load on arrival. Opened from a set, the
   // analysis starts linked to that set and its exercise.
-  const { positionId: initial, videoUri, durationMs, setId } = useLocalSearchParams<{ positionId?: string; videoUri?: string; durationMs?: string; setId?: string }>();
+  const { positionId: initial, videoUri, durationMs, setId, exerciseId } = useLocalSearchParams<{ positionId?: string; videoUri?: string; durationMs?: string; setId?: string; exerciseId?: string }>();
   const { t, i18n } = useTranslation();
   const [link, setLink] = useState<PoseLink | null>(null);
   // The day the photo or video was taken: today unless set, or the day of the linked set's workout.
@@ -57,6 +58,13 @@ export default function NewPoseCheckScreen() {
     });
     return () => { mounted = false; };
   }, [setId]);
+  // Opened from an exercise page, the analysis starts linked to that exercise.
+  useEffect(() => {
+    if (!exerciseId || setId) return;
+    let mounted = true;
+    void getExerciseById(exerciseId).then((found) => { if (mounted && found) setLink({ exerciseId: found.id, exerciseName: found.name, set: null }); });
+    return () => { mounted = false; };
+  }, [exerciseId, setId]);
   const { palette } = useTheme();
   const { width: windowWidth } = useWindowDimensions();
   const [positionId, setPositionId] = useState<PositionId>((findPosition(initial ?? '')?.id) ?? 'front_split');
@@ -192,8 +200,8 @@ export default function NewPoseCheckScreen() {
         setId: position.generic ? link?.set?.id ?? null : null,
         capturedAt: atDay(day),
       });
-      // Started from a set, saving returns to it; otherwise to the position's history.
-      if (setId && router.canGoBack()) router.back();
+      // Started from a set or an exercise, saving returns there; otherwise to the position's history.
+      if ((setId || exerciseId) && router.canGoBack()) router.back();
       else router.replace({ pathname: '/pose/[positionId]', params: { positionId } });
     } catch {
       setError(t('pose.error'));

@@ -123,6 +123,14 @@ describe('computeMetric', () => {
     expect(computeMetric('energy', data.rows, data.workouts)).toBeNull();
   });
 
+  it('gives an exercise an average RPE in a workout only when every set has one', () => {
+    const a = (setId: string, rpe: number | null, exerciseId = 'a') => set('w9', w1.startedAt, { setId, exerciseId, exerciseName: exerciseId, rpe });
+    expect(computeMetric('avgRpe', [a('1', 8), a('2', 9)], [])).toBe(8.5);
+    expect(computeMetric('avgRpe', [a('1', 8), a('2', null)], [])).toBeNull();
+    // Another exercise with every set rated still counts.
+    expect(computeMetric('avgRpe', [a('1', 8), a('2', null), a('3', 7, 'b'), a('4', 7, 'b')], [])).toBe(7);
+  });
+
   it('averages the form of the rated sets, an L/R pair counting once', () => {
     const rated = [
       { ...w1Rows[0], setId: 'f1', formRating: 4 },

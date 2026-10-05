@@ -132,7 +132,8 @@ export function computeMetric(metric: MetricId, rows: readonly CompletedSetRow[]
     case 'bestE1rm': return max(rows, oneRepMax);
     case 'estMaxReps': return max(rows, (row) => { const estimate = setEstimate(row); return estimate?.kind === 'reps' ? estimate.value : null; });
     case 'estMaxHold': return max(rows, (row) => { const estimate = setEstimate(row); return estimate?.kind === 'hold' ? estimate.value : null; });
-    case 'avgRpe': return average(rows.map((row) => row.rpe ?? null));
+    // An exercise has an average RPE in a workout only when every one of its sets there has one.
+    case 'avgRpe': return average(fullyRated(rows).map((row) => row.rpe ?? null));
     // An L/R pair counts once, as the mean of its sides' ratings.
     case 'avgForm': return average(rows.map((row) => realMean(row, (side) => side.formRating ?? null)));
     case 'sessionRpe': return average(workouts.map((workout) => workout.sessionRpe));
@@ -362,6 +363,12 @@ function max<T>(items: readonly T[], pick: (item: T) => number | null | undefine
     if (value != null && value > 0 && (best == null || value > best)) best = value;
   }
   return best;
+}
+
+/** The sets of the exercises whose every set in that workout has an RPE (a pair counts when both sides do). */
+function fullyRated<T extends { workoutId: string; exerciseId: string; rpe?: number | null }>(rows: readonly T[]): T[] {
+  const groups = groupBy(rows, (row) => `${row.workoutId}\u0000${row.exerciseId}`);
+  return [...groups.values()].filter((group) => group.every((row) => row.rpe != null)).flat();
 }
 
 function average(values: readonly (number | null | undefined)[]): number | null {

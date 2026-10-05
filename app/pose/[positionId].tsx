@@ -2,7 +2,7 @@ import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { StyleSheet, useWindowDimensions, View } from 'react-native';
-import { displayedAngle, findPosition, nextLevelTarget, POSITIONS, type JointAngleId } from '../../src/domain/pose';
+import { displayedAngle, findPosition, nextLevelTarget, POSITIONS, type JointAngleId, type PositionDefinition } from '../../src/domain/pose';
 import { OverlayLegend, useOverlaySettings } from '../../src/features/pose/OverlayLegend';
 import { LevelBadge } from '../../src/features/pose/LevelBadge';
 import { JointPicker, useJointSelection } from '../../src/features/pose/JointPicker';
@@ -38,6 +38,8 @@ export default function PoseHistoryScreen() {
   const [filter, setFilter] = useState<{ exerciseId?: string; setId?: string }>(() => ({ exerciseId: params.exerciseId, setId: params.setId }));
   const [selectedId, setSelectedId] = useState<string | null>(params.captureId ?? null);
   const [linking, setLinking] = useState<PoseCapture | null>(null);
+  // In the comparison: the analysis set against the one on show (the oldest unless one is tapped).
+  const [compareId, setCompareId] = useState<string | null>(null);
   const { t, i18n } = useTranslation();
   const { palette } = useTheme();
   const { width: windowWidth } = useWindowDimensions();
@@ -58,6 +60,11 @@ export default function PoseHistoryScreen() {
   const latest = captures?.find((capture) => capture.id === selectedId) ?? captures?.[0];
   const filteredBy = filter.exerciseId || filter.setId ? captures?.[0]?.link : null;
   const first = captures && captures.length > 1 ? captures[captures.length - 1] : null;
+  const other = latest && captures
+    ? captures.find((capture) => capture.id === compareId && capture.id !== latest.id) ?? (first && first.id !== latest.id ? first : captures.find((capture) => capture.id !== latest.id) ?? null)
+    : null;
+  // Older on the left, newer on the right.
+  const pair = latest && other ? (other.capturedAt <= latest.capturedAt ? [other, latest] : [latest, other]) : null;
   const contentWidth = Math.min(windowWidth - 40, 600);
   const date = (capture: PoseCapture) => capture.capturedAt.toLocaleDateString(i18n.language, { day: 'numeric', month: 'short', year: 'numeric' });
   const sideLabel = (capture: PoseCapture) => capture.side === 'left' ? t('pose.sideLeft') : capture.side === 'right' ? t('pose.sideRight') : null;
@@ -140,11 +147,16 @@ export default function PoseHistoryScreen() {
           {first ? (
             <SegmentedControl value={view} onChange={setView} options={[{ value: 'latest', label: date(latest) }, { value: 'compare', label: t('pose.compare') }]} />
           ) : null}
-          {view === 'compare' && first ? (
-            <View style={styles.compare}>
-              <View style={styles.compareItem}>{canvas(first, (contentWidth - 10) / 2)}<Label style={styles.centerText}>{date(first)}</Label></View>
-              <View style={styles.compareItem}>{canvas(latest, (contentWidth - 10) / 2)}<Label style={styles.centerText}>{date(latest)}</Label></View>
-            </View>
+          {view === 'compare' && pair ? (
+            <>
+              <View style={styles.compare}>
+                {pair.map((capture) => (
+                  <View key={capture.id} style={styles.compareItem}>{canvas(capture, (contentWidth - 10) / 2)}<Label style={styles.centerText}>{date(capture)}</Label></View>
+                ))}
+              </View>
+              <CompareTable position={position} older={pair[0]} newer={pair[1]} jointIds={jointIds} />
+              <Body>{t('pose.compareHint', { date: date(latest) })}</Body>
+            </>
           ) : canvas(latest, contentWidth)}
           <OverlayLegend
             angles={(position.measure(latest.pose, position.sideAware ? (latest.side as 'left' | 'right' | null) : null).joints ?? [])
@@ -163,8 +175,9 @@ export default function PoseHistoryScreen() {
                 key={capture.id}
                 title={position.generic ? freeSummary(capture) : `${t('pose.degrees', { value: Math.round(capture.value) })} · ${t('pose.level', { level: capture.level })}`}
                 subtitle={[date(capture), sideLabel(capture), describeLink(capture.link, t, i18n.language), capture.note || null].filter(Boolean).join(' · ')}
-                selected={(captures ?? []).length > 1 ? capture.id === latest.id : undefined}
-                onPress={() => { setSelectedId(capture.id); setView('latest'); }}
+                selected={(captures ?? []).length > 1 ? capture.id === latest.id || (view === 'compare' && capture.id === other?.id) : undefined}
+                // While comparing, a tap picks the analysis to set against the one on show.
+                onPress={() => { if (view === 'compare') { if (capture.id !== latest.id) setCompareId(capture.id); } else setSelectedId(capture.id); }}
                 trailing={(
                   <View style={styles.rowActions}>
                     {position.generic ? <IconButton icon="link-outline" label={t('poseLink.title')} tone="plain" size={34} onPress={() => setLinking(capture)} /> : null}
@@ -196,6 +209,42 @@ export default function PoseHistoryScreen() {
   );
 }
 
+/** The picked joint angles (and a position's own measure) of two analyses, with the change between them. */
+function CompareTable({ position, older, newer, jointIds }: { position: PositionDefinition; older: PoseCapture; newer: PoseCapture; jointIds: readonly JointAngleId[] }) {
+  const styles = useScaledStyles(baseStyles);
+  const { t } = useTranslation();
+  const { palette } = useTheme();
+  const measure = (capture: PoseCapture) => position.measure(capture.pose, position.sideAware ? (capture.side as 'left' | 'right' | null) : null);
+  const before = measure(older);
+  const after = measure(newer);
+  const rows = [
+    ...(position.generic ? [] : [{ id: 'main', name: t(`pose.positions.${position.id}.metric`), a: older.value, b: newer.value }]),
+    ...jointIds.map((id) => ({
+      id,
+      name: t(`pose.jointsShort.${id}`),
+      a: before.joints?.find((joint) => joint.id === id)?.value ?? null,
+      b: after.joints?.find((joint) => joint.id === id)?.value ?? null,
+    })),
+  ];
+  if (rows.length === 0) return null;
+  const degrees = (value: number | null) => (value === null ? '–' : t('pose.degrees', { value: Math.round(value) }));
+  return (
+    <Card style={styles.table}>
+      {rows.map((row) => {
+        const delta = row.a !== null && row.b !== null ? Math.round(row.b - row.a) : null;
+        return (
+          <View key={row.id} style={styles.tableRow} accessible accessibilityLabel={`${row.name}: ${degrees(row.a)} → ${degrees(row.b)}${delta === null ? '' : `, ${t('pose.compareDiff')} ${delta > 0 ? '+' : ''}${delta}°`}`}>
+            <Text style={[styles.tableName, { color: palette.text }]}>{row.name}</Text>
+            <Text style={[styles.tableValue, { color: palette.textMuted }]}>{degrees(row.a)}</Text>
+            <Text style={[styles.tableValue, { color: palette.text }]}>{degrees(row.b)}</Text>
+            <Text style={[styles.tableValue, styles.tableDelta, { color: palette.accentStrong }]}>{delta === null ? '–' : `${delta > 0 ? '+' : ''}${delta}°`}</Text>
+          </View>
+        );
+      })}
+    </Card>
+  );
+}
+
 /** Oldest → newest bars; taller always means better, whichever direction the angle improves. */
 function Trend({ captures, better }: { captures: PoseCapture[]; better: 'higher' | 'lower' }) {
   const styles = useScaledStyles(baseStyles);
@@ -223,6 +272,11 @@ function Trend({ captures, better }: { captures: PoseCapture[]; better: 'higher'
 const baseStyles = StyleSheet.create({
   stretch: { alignSelf: 'stretch', marginTop: 6 },
   rowActions: { flexDirection: 'row', alignItems: 'center' },
+  table: { gap: 8 },
+  tableRow: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 28 },
+  tableName: { flex: 1, fontFamily: fonts.medium, fontSize: 14 },
+  tableValue: { minWidth: 48, textAlign: 'right', fontFamily: fonts.semibold, fontSize: 14, fontVariant: ['tabular-nums'] },
+  tableDelta: { minWidth: 56 },
   summary: { gap: 8 },
   summaryRow: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: 12 },
   change: { fontFamily: fonts.semibold, fontSize: 14 },

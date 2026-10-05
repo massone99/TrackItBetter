@@ -2,6 +2,12 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.16.0 - 2026-10-05
+
+- Statistics: "Average RPE" counts an exercise in a workout only when every one of its sets there has an RPE.
+- Pose analyses: compare any two analyses side by side, with each picked joint angle and its change; tap an analysis in the list to set it against the one on show.
+- Exercise page: a "Pose analyses" section opens the exercise's analyses (compare, relink, delete) and starts a new one already linked to the exercise.
+
 ## 0.15.1 - 2026-10-05
 
 - Today: "New pose analysis" opens a free analysis directly, ready to link to an exercise.
