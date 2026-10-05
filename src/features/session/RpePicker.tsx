@@ -1,4 +1,5 @@
 import { useTranslation } from 'react-i18next';
+import { useRef, type ReactNode } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { formatRpe, RPE_VALUES } from '../../domain/rpe';
 import { Icon, Label, tapFeedback, Text } from '../../shared/components/ui';
@@ -30,26 +31,17 @@ export function RpePicker({ value, onChange, inline = false, compact = false, on
         accessibilityRole="button"
         accessibilityLabel={`${sideLabel} ${t('logger.rpeTag', { value: formatRpe(rpe) })}`.trim()}
         accessibilityState={{ selected }}
-        hitSlop={compact ? { top: 8, bottom: 8, left: 2, right: 2 } : 6}
+        hitSlop={compact ? { top: 6, bottom: 6, left: 4, right: 4 } : 6}
         onPress={() => { tapFeedback(); onChange(selected ? null : rpe); }}
-        style={[compact ? styles.compactChip : inline ? styles.stripChip : styles.chip, { backgroundColor: selected ? palette.accent : palette.surface, borderColor: selected ? palette.accent : palette.border }]}
+        style={[compact ? styles.compactChip : inline ? styles.stripChip : styles.chip, { backgroundColor: selected ? palette.accent : compact ? 'transparent' : palette.surface, borderColor: selected ? palette.accent : palette.border }]}
       >
-        <Text style={[compact ? styles.compactChipText : styles.chipText, { color: selected ? palette.accentText : compact ? palette.textMuted : palette.text }]}>{formatRpe(rpe)}</Text>
+        <Text style={[compact ? styles.compactChipText : styles.chipText, { color: selected ? palette.accentText : palette.text }]}>{formatRpe(rpe)}</Text>
       </Pressable>
     );
   });
 
   if (compact) {
-    return (
-      <View style={styles.compactRow}>
-        {/* Same width as the set number column, so "RPE" sits right under the set number. */}
-        <View style={styles.compactLabel}>
-          <Text style={[styles.stripLabel, { color: palette.textMuted }]}>{t('logger.rpe')}</Text>
-        </View>
-        {/* The nine values share the width, so all of them are visible without scrolling. */}
-        <View style={styles.compactChips}>{chips}</View>
-      </View>
-    );
+    return <CompactRpe value={value} sideLabel={sideLabel} chips={chips} />;
   }
 
   if (!inline) {
@@ -77,6 +69,41 @@ export function RpePicker({ value, onChange, inline = false, compact = false, on
   );
 }
 
+/** Width of one compact chip plus the gap after it, so the strip can scroll to a value. */
+const COMPACT_STEP = 40 + 8;
+
+/**
+ * The RPE row of a set: a fixed strip that shows about five values and a sliver of the next (a cue
+ * that it scrolls sideways). It opens on the chosen value, or around 7–8 (where most working sets
+ * land), so the likely values are in view.
+ */
+function CompactRpe({ value, sideLabel, chips }: { value: number | null; sideLabel: string; chips: ReactNode[] }) {
+  const { t } = useTranslation();
+  const { palette } = useTheme();
+  const styles = useScaledStyles(baseStyles);
+  const scroll = useRef<ScrollView>(null);
+  const focus = Math.max(0, (RPE_VALUES as readonly number[]).indexOf(value ?? 7) - 1);
+  return (
+    <View style={styles.compactRow}>
+      {/* Same width as the set number column, so "RPE" sits right under the set number. */}
+      <View style={styles.compactLabel}>
+        <Text accessibilityLabel={`${t('logger.rpe')} ${sideLabel}`.trim()} style={[styles.stripLabel, { color: palette.textMuted }]}>{t('logger.rpe')}</Text>
+      </View>
+      <ScrollView
+        ref={scroll}
+        horizontal
+        style={styles.compactStrip}
+        showsHorizontalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        contentContainerStyle={styles.compactChips}
+        onLayout={() => scroll.current?.scrollTo({ x: focus * COMPACT_STEP, animated: false })}
+      >
+        {chips}
+      </ScrollView>
+    </View>
+  );
+}
+
 const baseStyles = StyleSheet.create({
   block: { gap: 8 },
   wrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
@@ -89,9 +116,11 @@ const baseStyles = StyleSheet.create({
   chip: { minWidth: 48, minHeight: 48, paddingHorizontal: 10, paddingVertical: 8, borderRadius: 12, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
   chipText: { fontFamily: fonts.display, fontSize: 20 },
   compactRow: { flexDirection: 'row', alignItems: 'center', paddingLeft: 2, paddingTop: 4, paddingBottom: 12 },
+  // Spans the reps and kg columns; the done and menu columns (44 + 32) stay clear.
+  compactStrip: { flex: 1, marginRight: 76 },
   compactLabel: { width: 40, alignItems: 'center' },
-  compactChips: { flex: 1, flexDirection: 'row', gap: 3 },
-  compactChip: { flex: 1, minHeight: 32, paddingHorizontal: 0, borderRadius: 8, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
-  compactChipText: { fontFamily: fonts.semibold, fontSize: 13 },
+  compactChips: { gap: 8, paddingRight: 8 },
+  compactChip: { width: 40, minHeight: 36, paddingHorizontal: 0, borderRadius: 10, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  compactChipText: { fontFamily: fonts.semibold, fontSize: 14, fontVariant: ['tabular-nums'] },
   dismiss: { width: 40, height: 48, alignItems: 'center', justifyContent: 'center' },
 });

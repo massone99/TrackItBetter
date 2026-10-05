@@ -988,11 +988,11 @@ function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, previous
         {exercise.demoUrl ? (
           <IconButton icon="play-circle-outline" label={t('logger.referenceOpen')} tone="plain" onPress={() => openReferenceVideo(exercise.demoUrl!)} />
         ) : null}
-        <IconButton icon="ellipsis-horizontal" label={t('logger.options')} tone="plain" onPress={onOptions} />
+        <IconButton icon="ellipsis-vertical" label={t('logger.options')} tone="plain" onPress={onOptions} />
       </View>
 
-      {collapsed ? null : <View style={[styles.columns, { borderBottomColor: palette.border }]}>
-        <Label style={styles.colSet}>{t('logger.setCol')}</Label>
+      {collapsed ? null : <View style={styles.columns}>
+        <Label style={[styles.colSet, styles.colHeader]}>{t('logger.setCol')}</Label>
         <Label style={[styles.colValue, styles.colHeader]}>{timed ? t('logger.holdCol') : distance ? t('logger.distanceCol') : t('logger.repsCol')}</Label>
         {withLoad ? <Label style={[styles.colLoad, styles.colHeader]}>{t('logger.kgCol')}</Label> : null}
         <View style={styles.colAction} />
@@ -1441,7 +1441,8 @@ function StepButton({ icon, label, onPress }: { icon: 'add' | 'remove'; label: s
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={label}
-      hitSlop={8}
+      // 30 dp button + 9 dp on each side = the 48 dp touch target.
+      hitSlop={9}
       {...handlers}
       style={({ pressed }) => [styles.stepButton, { backgroundColor: palette.surfaceMuted, opacity: pressed ? 0.6 : 1 }]}
     >
@@ -1507,7 +1508,8 @@ const baseStyles = StyleSheet.create({
   nameRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   progressRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', columnGap: 5 },
   exerciseName: { fontFamily: fonts.display, fontSize: 24, lineHeight: 28 },
-  columns: { flexDirection: 'row', alignItems: 'center', paddingBottom: 6, paddingHorizontal: 4, borderBottomWidth: StyleSheet.hairlineWidth },
+  // Column labels only: the section's hairline above already separates it, a second line would be noise.
+  columns: { flexDirection: 'row', alignItems: 'center', paddingLeft: 2 },
   colSet: { width: 40 },
   colValue: { flex: 1, textAlign: 'center' },
   colLoad: { flex: 1, textAlign: 'center' },

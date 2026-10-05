@@ -42,6 +42,8 @@ async function seed(count = 40, active = false, from = 0, total = count): Promis
     for (const exercise of pick(0).slice(0, 3)) await addExerciseToWorkout(workoutId, exercise.id);
     const weighted = (await listExercises()).find((exercise) => exercise.metric === 'reps_load');
     if (weighted) await addExerciseToWorkout(workoutId, weighted.id);
+    const hold = (await listExercises()).find((exercise) => exercise.metric === 'time');
+    if (hold) await addExerciseToWorkout(workoutId, hold.id);
   }
 }
 
