@@ -1,7 +1,7 @@
 import { migrateDatabase } from '../../../db/migrations';
 import { seedCatalogIfEmpty } from '../../../db/seed/import';
 import { createCustomExercise } from '../../exercises/customRepository';
-import { getActiveWorkout, getCompletedWorkout } from '../../session/repository';
+import { completeSet, finishWorkout, getActiveWorkout, getCompletedWorkout, getPreviousPerformance, setEntryFormRating } from '../../session/repository';
 import { logPastUserProgramSession, startUserProgramSession } from '../startUserSession';
 import { getUserProgram, saveUserProgram } from '../userPrograms';
 
@@ -103,5 +103,26 @@ describe('program exercises without a target', () => {
     const workout = (await getActiveWorkout(workoutId))!;
     expect(workout.exercises[0].notes).toBe('10–12 reps, slow');
     expect(workout.exercises[0].sets.map((set) => set.reps)).toEqual([12, 12]);
+  });
+});
+
+describe('RPE targets and form', () => {
+  it('writes the planned RPE on every set, shared or set by set', async () => {
+    const program = { id: 'rpe', name: 'RPE', updatedAt: '', sessions: [{ id: 's', name: 'A', exercises: [
+      { id: 'a', exerciseId: 'push-up', sets: 2, target: 8, rpe: 8 },
+      { id: 'b', exerciseId: 'pull-up', sets: 3, target: 5, rpePerSet: [7, 8, 9] },
+    ] }] };
+    const workoutId = await startUserProgramSession(program, program.sessions[0]);
+    const workout = (await getActiveWorkout(workoutId))!;
+    expect(workout.exercises[0].sets.map((set) => set.targetRpe)).toEqual([8, 8]);
+    expect(workout.exercises[1].sets.map((set) => set.targetRpe)).toEqual([7, 8, 9]);
+
+    await setEntryFormRating(workout.exercises[1].entryId, 4);
+    for (const set of workout.exercises[1].sets) await completeSet(set.id);
+    await finishWorkout(workoutId);
+    const previous = await getPreviousPerformance(['pull-up'], 'none');
+    expect(previous.get('pull-up')?.formRating).toBe(4);
+    expect((await getCompletedWorkout(workoutId))?.exercises[1].formRating).toBe(4);
+    await expect(setEntryFormRating(workout.exercises[1].entryId, 6)).rejects.toThrow();
   });
 });

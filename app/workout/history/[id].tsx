@@ -11,6 +11,7 @@ import { describeSets } from "../../../src/features/exercises/describeSets";
 import {
   addExerciseToCompletedWorkout,
   addSetToCompletedWorkout,
+  setEntryFormRating,
   deleteWorkout,
   getCompletedWorkout,
   moveExerciseEntry,
@@ -35,6 +36,7 @@ import type {
   SessionSet,
 } from "../../../src/features/session/repository";
 import { RpePicker } from "../../../src/features/session/RpePicker";
+import { FormRating } from "../../../src/features/session/LastTime";
 import { ExerciseNoteField } from "../../../src/features/session/ExerciseNoteField";
 import { PairEditor } from "../../../src/features/session/PairEditor";
 import { getWorkoutMobilitySeconds } from "../../../src/features/analytics/repository";
@@ -581,6 +583,9 @@ export default function PastWorkoutScreen() {
                     {t("logger.addSet")}
                   </Text>
                 </Pressable>
+              )}
+              {folded ? null : (
+                <FormRating value={exercise.formRating} onChange={(rating) => void edit(() => setEntryFormRating(exercise.entryId, rating))} />
               )}
             </Card>
           );

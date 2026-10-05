@@ -7,7 +7,9 @@ import { getSessionRecords, getWorkoutMobilitySeconds, getWorkoutRecords } from 
 import type { SetRecord, VolumeRecord } from '../../../src/features/analytics/records';
 import { formatRecordValue } from '../../../src/features/analytics/recordLabels';
 import type { WorkoutRecord } from '../../../src/features/analytics/summary';
-import { CompletedWorkout, getCompletedWorkout } from '../../../src/features/session/repository';
+import { CompletedWorkout, getCompletedWorkout, getPreviousPerformance, type PreviousPerformance } from '../../../src/features/session/repository';
+import { compareWithLast } from '../../../src/domain/lastTime';
+import { restForSet } from '../../../src/features/session/restDefaults';
 import { ActionButton, Body, Icon, Label, ListGroup, ListRow, Numeral, Screen, SectionTitle, tapFeedback, Text, Title } from '../../../src/shared/components/ui';
 import { Arrive } from '../../../src/shared/components/Arrive';
 import { useTheme } from '../../../src/shared/theme/ThemeProvider';
@@ -27,11 +29,14 @@ export default function WorkoutSummaryScreen() {
   const [prs, setPrs] = useState<{ sets: SetRecord[]; volume: VolumeRecord[] }>({ sets: [], volume: [] });
   const [loading, setLoading] = useState(true);
   const [mobilitySeconds, setMobilitySeconds] = useState(0);
+  const [previous, setPrevious] = useState<Map<string, PreviousPerformance>>(new Map());
 
   useEffect(() => {
     let mounted = true;
-    void Promise.all([getCompletedWorkout(id), getWorkoutRecords(id), getWorkoutMobilitySeconds(id), getSessionRecords(id)]).then(([completed, found, mobility, session]) => {
+    void Promise.all([getCompletedWorkout(id), getWorkoutRecords(id), getWorkoutMobilitySeconds(id), getSessionRecords(id)]).then(async ([completed, found, mobility, session]) => {
+      const last = completed ? await getPreviousPerformance(completed.exercises.map((exercise) => exercise.exerciseId), completed.id) : new Map<string, PreviousPerformance>();
       if (!mounted) return;
+      setPrevious(last);
       setMobilitySeconds(mobility);
       setWorkout(completed);
       // Distance bests come from the older summary; every other record from the per-set comparison.
@@ -39,7 +44,12 @@ export default function WorkoutSummaryScreen() {
       setRecords(distance);
       setPrs(session);
       setLoading(false);
-      if (distance.length + session.sets.length + session.volume.length > 0) tapFeedback('success');
+      const beatLastTime = (completed?.exercises ?? []).some((exercise) => {
+        const before = last.get(exercise.exerciseId);
+        const { improved } = compareWithLast(exercise.sets, before?.sets ?? null, exercise.metric, { formNow: exercise.formRating, formLast: before?.formRating ?? null, defaultRest: restForSet(exercise.exerciseId, { kind: 'working', restSec: null }) });
+        return improved.total || improved.rest || improved.form;
+      });
+      if (distance.length + session.sets.length + session.volume.length > 0 || beatLastTime) tapFeedback('success');
     }).catch(() => { if (mounted) setLoading(false); });
     return () => { mounted = false; };
   }, [id]);
@@ -65,6 +75,17 @@ export default function WorkoutSummaryScreen() {
     ...[...bestPrs.values()].map((record) => ({ key: `${record.exerciseId}:${record.kind}`, exerciseId: record.exerciseId, kind: record.kind, value: record.value, previous: record.previous })),
     ...prs.volume.map((record) => ({ key: `${record.exerciseId}:volume`, exerciseId: record.exerciseId, kind: 'volume' as const, value: record.value, previous: record.previous })),
   ];
+  // Mini PRs against last time: more in total, less rest, better form.
+  const betterLines = workout.exercises.flatMap((exercise) => {
+    const before = previous.get(exercise.exerciseId);
+    const { total, rest, improved } = compareWithLast(exercise.sets, before?.sets ?? null, exercise.metric, { formNow: exercise.formRating, formLast: before?.formRating ?? null, defaultRest: restForSet(exercise.exerciseId, { kind: 'working', restSec: null }) });
+    const items = [
+      improved.total && total ? t('lastTime.totalShort', { delta: Math.round(((total.now ?? 0) - total.last) * 10) / 10 }) : null,
+      improved.rest && rest ? t('lastTime.restShort', { delta: rest.last - (rest.now ?? rest.last) }) : null,
+      improved.form ? t('lastTime.formShort') : null,
+    ].filter((item): item is string => item !== null);
+    return items.length ? [{ entryId: exercise.entryId, exerciseId: exercise.exerciseId, name: exercise.name, items }] : [];
+  });
   const hasRecords = records.length + prLines.length > 0;
   const exercisesDone = workout.exercises.filter((exercise) => exercise.sets.some((set) => set.completedAt)).length;
 
@@ -100,6 +121,25 @@ export default function WorkoutSummaryScreen() {
         ) : null}
       </View>
 
+      {betterLines.length > 0 ? (
+        <>
+          <SectionTitle title={t('lastTime.summaryTitle')} />
+          <ListGroup>
+            {betterLines.map((line) => (
+              <ListRow
+                key={line.entryId}
+                icon="trending-up"
+                tint={palette.success}
+                title={line.name}
+                subtitle={line.items.join(' · ')}
+                onLongPress={() => openExercisePage(line.exerciseId)}
+                longPressLabel={t('logger.openExercise')}
+              />
+            ))}
+          </ListGroup>
+        </>
+      ) : null}
+
       {hasRecords ? (
         <>
           <SectionTitle title={t('summary.recordsTitle')} />
@@ -130,7 +170,7 @@ export default function WorkoutSummaryScreen() {
             ))}
           </View>
         </>
-      ) : (
+      ) : betterLines.length > 0 ? null : (
         <Body style={styles.noRecords}>{t('summary.noRecords')}</Body>
       )}
 

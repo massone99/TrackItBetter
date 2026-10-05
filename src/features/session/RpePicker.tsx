@@ -11,8 +11,12 @@ import { useScaledStyles } from '../../shared/theme/useScaledStyles';
  * RPE chips from 6 to 10. `inline` is the one-line strip shown under a just-completed set;
  * otherwise it wraps, for sheets.
  */
-export function RpePicker({ value, onChange, inline = false, compact = false, onDismiss, sideLabel = '' }: {
+export function RpePicker({ value, onChange, inline = false, compact = false, onDismiss, sideLabel = '', target = null, label }: {
   sideLabel?: string;
+  /** Compact only: replaces "RPE" in the label column (e.g. "1" for set 1 in the program editor). */
+  label?: string;
+  /** The RPE the program planned: drawn with a dashed outline until a value is chosen. */
+  target?: number | null;
   /** The always-visible second row of a set in the workout: small chips, no dismiss. */
   compact?: boolean;
   value: number | null;
@@ -25,15 +29,23 @@ export function RpePicker({ value, onChange, inline = false, compact = false, on
   const styles = useScaledStyles(baseStyles);
   const chips = RPE_VALUES.map((rpe) => {
     const selected = value === rpe;
+    const planned = target === rpe;
+    // Harder than planned keeps its fill but gets the warning edge: a gentle cue, not an error.
+    const over = selected && target !== null && rpe > target;
     return (
       <Pressable
         key={rpe}
         accessibilityRole="button"
-        accessibilityLabel={`${sideLabel} ${t('logger.rpeTag', { value: formatRpe(rpe) })}`.trim()}
+        accessibilityLabel={`${sideLabel} ${t('logger.rpeTag', { value: formatRpe(rpe) })}${planned ? ` · ${t('logger.rpeTargetShort')}` : ''}`.trim()}
         accessibilityState={{ selected }}
         hitSlop={compact ? { top: 6, bottom: 6, left: 4, right: 4 } : 6}
         onPress={() => { tapFeedback(); onChange(selected ? null : rpe); }}
-        style={[compact ? styles.compactChip : inline ? styles.stripChip : styles.chip, { backgroundColor: selected ? palette.accent : compact ? 'transparent' : palette.surface, borderColor: selected ? palette.accent : palette.border }]}
+        style={[
+          compact ? styles.compactChip : inline ? styles.stripChip : styles.chip,
+          { backgroundColor: selected ? palette.accent : compact ? 'transparent' : palette.surface, borderColor: over ? palette.warning : selected ? palette.accent : planned ? palette.accentStrong : palette.border },
+          planned && !selected ? styles.plannedChip : null,
+          over ? styles.overChip : null,
+        ]}
       >
         <Text style={[compact ? styles.compactChipText : styles.chipText, { color: selected ? palette.accentText : palette.text }]}>{formatRpe(rpe)}</Text>
       </Pressable>
@@ -41,7 +53,7 @@ export function RpePicker({ value, onChange, inline = false, compact = false, on
   });
 
   if (compact) {
-    return <CompactRpe value={value} sideLabel={sideLabel} chips={chips} />;
+    return <CompactRpe value={value ?? target} sideLabel={sideLabel} chips={chips} label={label} />;
   }
 
   if (!inline) {
@@ -77,7 +89,7 @@ const COMPACT_STEP = 40 + 8;
  * that it scrolls sideways). It opens on the chosen value, or around 7–8 (where most working sets
  * land), so the likely values are in view.
  */
-function CompactRpe({ value, sideLabel, chips }: { value: number | null; sideLabel: string; chips: ReactNode[] }) {
+function CompactRpe({ value, sideLabel, chips, label }: { value: number | null; sideLabel: string; chips: ReactNode[]; label?: string }) {
   const { t } = useTranslation();
   const { palette } = useTheme();
   const styles = useScaledStyles(baseStyles);
@@ -87,7 +99,7 @@ function CompactRpe({ value, sideLabel, chips }: { value: number | null; sideLab
     <View style={styles.compactRow}>
       {/* Same width as the set number column, so "RPE" sits right under the set number. */}
       <View style={styles.compactLabel}>
-        <Text accessibilityLabel={`${t('logger.rpe')} ${sideLabel}`.trim()} style={[styles.stripLabel, { color: palette.textMuted }]}>{t('logger.rpe')}</Text>
+        <Text accessibilityLabel={`${label ?? t('logger.rpe')} ${sideLabel}`.trim()} style={[styles.stripLabel, { color: palette.textMuted }]}>{label ?? t('logger.rpe')}</Text>
       </View>
       <ScrollView
         ref={scroll}
@@ -121,6 +133,8 @@ const baseStyles = StyleSheet.create({
   compactLabel: { width: 40, alignItems: 'center' },
   compactChips: { gap: 8, paddingRight: 8 },
   compactChip: { width: 40, minHeight: 36, paddingHorizontal: 0, borderRadius: 10, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  plannedChip: { borderStyle: 'dashed', borderWidth: 1.5 },
+  overChip: { borderWidth: 2 },
   compactChipText: { fontFamily: fonts.semibold, fontSize: 14, fontVariant: ['tabular-nums'] },
   dismiss: { width: 40, height: 48, alignItems: 'center', justifyContent: 'center' },
 });

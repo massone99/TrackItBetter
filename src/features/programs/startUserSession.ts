@@ -1,7 +1,7 @@
-import { isLoadMetric, isTimedMetric, plannedLoads, programSessionWorkoutName, type UserProgram, type UserProgramSession } from '../../domain/userProgram';
+import { isLoadMetric, isTimedMetric, plannedLoads, programSessionWorkoutName, targetRpeFor, type UserProgram, type UserProgramSession } from '../../domain/userProgram';
 import { groupSets } from '../../domain/setPairs';
 import { getExerciseById } from '../exercises/repository';
-import { addExerciseToWorkout, addSet, convertToPastWorkout, deleteWorkout, getActiveWorkout, getPreviousPerformance, startWorkout, updateEntryNote, updateSet } from '../session/repository';
+import { addExerciseToWorkout, addSet, convertToPastWorkout, deleteWorkout, getActiveWorkout, getPreviousPerformance, setSetTargetRpe, startWorkout, updateEntryNote, updateSet } from '../session/repository';
 
 type PreviousProgramSet = {
   reps: number | null;
@@ -110,6 +110,8 @@ async function fillWorkout(workoutId: string, exercises: UserProgramSession['exe
         }
         const load = prescription.loadKg != null ? prescription.loadKg : (last?.addedLoadKg ?? (loads.length > 0 ? loads[setIndex] : undefined));
         if (load != null && loads.length > 0) await updateSet(set.id, 'addedLoadKg', load);
+        const targetRpe = targetRpeFor(prescription, setIndex);
+        if (targetRpe !== null) await setSetTargetRpe(set.id, targetRpe);
       }
     }
   }

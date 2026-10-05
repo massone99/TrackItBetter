@@ -8,6 +8,7 @@ import {
   duplicateSession,
   estimateSessionSeconds,
   DEFAULT_TARGET_FOR,
+  fitRpePerSet,
   isLoadMetric,
   isTimedMetric,
   moveItem,
@@ -25,6 +26,8 @@ import { ReorderableList } from '../src/shared/components/ReorderableList';
 import { ExercisePicker } from '../src/features/exercises/ExercisePicker';
 import { openExercisePage } from '../src/features/exercises/openExercise';
 import { readDefaultRest } from '../src/features/session/restDefaults';
+import { RpePicker } from '../src/features/session/RpePicker';
+import { rpeTargetText } from '../src/features/programs/describe';
 import { takePendingExercise } from '../src/features/programs/pendingExercise';
 import { listExercises } from '../src/features/exercises/repository';
 import { getUserProgram, saveUserProgram } from '../src/features/programs/userPrograms';
@@ -40,6 +43,7 @@ import {
   PageHeading,
   Screen,
   SectionTitle,
+  SegmentedControl,
   Sheet,
   Stepper,
   Text,
@@ -269,7 +273,7 @@ export default function ProgramEditorScreen() {
                 prescription.target === null ? t('userProgram.setsOnly', { count: prescription.sets }) : `${prescription.sets} × ${prescription.target}${suffix}`,
                 isLoadMetric(metric) ? (prescription.loadKg == null ? null : `${prescription.loadKg} kg`) : null,
                 prescription.restSeconds == null ? null : `${prescription.restSeconds}s`,
-              ].filter(Boolean).join(' · ');
+              ].filter(Boolean).join(' · ') + (rpeTargetText(prescription) ? ` @ ${t('logger.rpeTag', { value: rpeTargetText(prescription) })}` : '');
               return (
                 <View key={prescription.id} style={[styles.exercise, { borderTopColor: palette.border }]}>
                   <Pressable
@@ -293,7 +297,7 @@ export default function ProgramEditorScreen() {
                   </Pressable>
                   {isOpen ? (
                     <>
-                  <Stepper layout="row" label={t('programBuilder.sets')} value={prescription.sets} step={1} min={1} max={20} editable onChange={(sets) => updateExercise(session.id, prescription.id, { sets: Math.max(1, Math.round(sets)) })} />
+                  <Stepper layout="row" label={t('programBuilder.sets')} value={prescription.sets} step={1} min={1} max={20} editable onChange={(sets) => updateExercise(session.id, prescription.id, { sets: Math.max(1, Math.round(sets)), ...(prescription.rpePerSet ? { rpePerSet: fitRpePerSet(prescription.rpePerSet, Math.max(1, Math.round(sets))) } : {}) })} />
                   <TargetStepper metric={metric} value={prescription.target} onChange={(target) => updateExercise(session.id, prescription.id, { target })} />
                   <TextField
                     label={t('userProgram.noteLabel')}
@@ -313,6 +317,29 @@ export default function ProgramEditorScreen() {
                     format={(seconds) => t('userProgram.secondsValue', { value: seconds })}
                     onChange={(restSeconds) => updateExercise(session.id, prescription.id, { restSeconds })}
                   />
+                  <View style={styles.rpeBlock}>
+                    <Label>{t('programBuilder.rpeTarget')}</Label>
+                    <SegmentedControl<'same' | 'perSet'>
+                      value={prescription.rpePerSet ? 'perSet' : 'same'}
+                      onChange={(mode) => updateExercise(session.id, prescription.id, mode === 'perSet'
+                        ? { rpePerSet: fitRpePerSet([prescription.rpe ?? null], prescription.sets), rpe: null }
+                        : { rpe: prescription.rpePerSet?.find((value) => value !== null) ?? null, rpePerSet: null })}
+                      options={[{ value: 'same', label: t('programBuilder.rpeSame') }, { value: 'perSet', label: t('programBuilder.rpePerSet') }]}
+                    />
+                    {prescription.rpePerSet ? prescription.rpePerSet.map((value, index) => (
+                      <RpePicker
+                        key={index}
+                        compact
+                        label={String(index + 1)}
+                        sideLabel={t('programBuilder.rpeSet', { number: index + 1 })}
+                        value={value}
+                        onChange={(next) => updateExercise(session.id, prescription.id, { rpePerSet: prescription.rpePerSet!.map((item, position) => (position === index ? next : item)) })}
+                      />
+                    )) : (
+                      <RpePicker compact value={prescription.rpe ?? null} onChange={(rpe) => updateExercise(session.id, prescription.id, { rpe })} />
+                    )}
+                    {!rpeTargetText(prescription) ? <Label>{t('programBuilder.rpeNone')}</Label> : null}
+                  </View>
                   {isLoadMetric(metric) ? (
                     <Stepper
                       layout="row"
@@ -426,6 +453,7 @@ function newSession(name: string): UserProgramSession {
 }
 
 const baseStyles = StyleSheet.create({
+  rpeBlock: { gap: 8 },
   flex: { flex: 1, gap: 2 },
   dayCard: { gap: 16 },
   header: { flexDirection: 'row', alignItems: 'center', gap: 8 },

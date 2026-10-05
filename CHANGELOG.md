@@ -2,6 +2,14 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.13.0 - 2026-10-05
+
+- Programs can set a target RPE for each movement: the same for every set, or set by set. The program shows it as "4 × 8 @ RPE 8".
+- In the workout the target is the dashed value in each set's RPE row; choosing a harder RPE than planned gets an amber edge.
+- Each exercise compares this session with the last one: total reps (or seconds), average rest set on the sets, and form. A beaten value turns green with an arrow; tap the strip to see last time's sets.
+- Rate the form of each exercise from 1 to 5 once you have done a set (also in past workouts).
+- The workout summary lists what went better than last time, and folded exercises show their mini PRs.
+
 ## 0.12.1 - 2026-10-05
 
 - Micro-sessions use the same set row as workouts: value with − and +, added load in kg, and the RPE strip; the ✓ logs it. Load and RPE are saved with the set.

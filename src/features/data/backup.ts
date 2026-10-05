@@ -107,6 +107,8 @@ const entrySchema = z.object({
   unilateralRestMode: z.enum(['side', 'pair']).nullable().default(null),
   // Added in schema v12; null is the main work.
   block: z.enum(['warmup', 'main', 'mobility']).nullable().default(null),
+  // Added in schema v14.
+  formRating: z.number().int().min(1).max(5).nullable().default(null),
 }).strict();
 
 const setSchema = z.object({
@@ -129,6 +131,8 @@ const setSchema = z.object({
   completedAt: nullableTimestamp,
   // Added in schema v10; null keeps legacy, unpaired-set semantics.
   pairId: z.string().min(1).nullable().default(null),
+  // Added in schema v14.
+  targetRpe: nullableNumber.default(null),
 }).strict();
 
 const measurementSchema = z.object({

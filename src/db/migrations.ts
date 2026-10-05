@@ -198,6 +198,13 @@ CREATE INDEX IF NOT EXISTS workout_ended_started_idx ON workout(ended_at, starte
 PRAGMA user_version = 13;
 `;
 
+/** Planned RPE per set (from programs) and a 1–5 form rating per exercise of a workout. */
+const targetsAndFormSchema = `
+ALTER TABLE training_set ADD COLUMN target_rpe REAL;
+ALTER TABLE exercise_entry ADD COLUMN form_rating INTEGER CHECK (form_rating BETWEEN 1 AND 5);
+PRAGMA user_version = 14;
+`;
+
 /** Applies numbered, local-first SQLite schema migrations once per database. */
 export async function migrateDatabase(database: SQLiteDatabase): Promise<void> {
   await database.execAsync('PRAGMA foreign_keys = ON;');
@@ -290,6 +297,12 @@ export async function migrateDatabase(database: SQLiteDatabase): Promise<void> {
   if (version < 13) {
     await database.withTransactionAsync(async () => {
       await database.execAsync(lookupIndexesSchema);
+    });
+  }
+
+  if (version < 14) {
+    await database.withTransactionAsync(async () => {
+      await database.execAsync(targetsAndFormSchema);
     });
   }
 }

@@ -23,6 +23,7 @@ import {
   updateEntryNote,
   addExerciseToWorkout,
   enableExerciseLoad,
+  setEntryFormRating,
   addSet,
   completeSet,
   copyValuesToSet,
@@ -83,6 +84,8 @@ import { SaveToProgramSheet } from '../../src/features/programs/SaveToProgramShe
 import { ExerciseNoteField } from '../../src/features/session/ExerciseNoteField';
 import { DoneTint, PopOnActivate, SwipeableSetRow } from '../../src/features/session/SwipeableSetRow';
 import { formatLoad, LOAD_STEP_KG, StepButton } from '../../src/features/session/SetEntry';
+import { FormRating, LastTimeStrip } from '../../src/features/session/LastTime';
+import { compareWithLast } from '../../src/domain/lastTime';
 import Animated, { FadeInDown, FadeOutLeft, LayoutAnimationConfig, LinearTransition, ZoomIn } from 'react-native-reanimated';
 import { formatRpe } from '../../src/domain/rpe';
 import { readBooleanPreference, RPE_PROMPT_KEY, writePreference } from '../../src/shared/settings/preferences';
@@ -687,6 +690,8 @@ export default function WorkoutScreen() {
             onRemoveSet={(set) => void removeSetFromRow(exercise, set)}
             onSwiped={markSwiped}
             showRpe={showRpe}
+            defaultRest={restForSet(exercise.exerciseId, { kind: 'working', restSec: null })}
+            onFormRating={(rating) => void setEntryFormRating(exercise.entryId, rating).then(() => refresh(workout.id))}
             onRpe={(set, rpe) => void saveRpe(set, rpe)}
             onOptions={() => setOptionsFor(exercise)}
           />
@@ -899,7 +904,7 @@ const nowMs = () => Date.now();
 /** Rest end times by workout id, so leaving and reopening the workout keeps the same countdown. */
 const runningRests = new Map<string, number>();
 
-function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, previous, hold, onChange, onSetValue, onComplete, onStartHold, onFinishHold, onAddSet, onAddWarmup, onSetOptions, onUncomplete, onRemoveSet, onSwiped, showRpe, onRpe, onOptions, onToggleWarmup, setRecords, volumeRecord, supersetLabel, emomLabel: emomBadgeLabel }: {
+function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, previous, hold, onChange, onSetValue, onComplete, onStartHold, onFinishHold, onAddSet, onAddWarmup, onSetOptions, onUncomplete, onRemoveSet, onSwiped, showRpe, onRpe, onOptions, onToggleWarmup, setRecords, volumeRecord, supersetLabel, emomLabel: emomBadgeLabel, defaultRest, onFormRating }: {
   handle?: ReactNode;
   exercise: SessionExercise;
   collapsed: boolean;
@@ -926,9 +931,12 @@ function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, previous
   volumeRecord: boolean;
   supersetLabel: string | null;
   emomLabel?: string | null;
+  /** Rest the app applies to a working set without its own, for the rest comparison. */
+  defaultRest: number;
+  onFormRating: (rating: number | null) => void;
 }) {
   const styles = useScaledStyles(baseStyles);
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { palette } = useTheme();
   const { duration } = useAnimationSettings();
   const setEntering = duration(220) ? FadeInDown.duration(duration(220)) : undefined;
@@ -952,6 +960,20 @@ function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, previous
   }).join(' · ');
   const results = doneValues && !timed && !distance ? t('logger.resultsReps', { values: doneValues }) : doneValues;
   const previousText = previous ? describeSets(previous.sets, exercise.metric) : null;
+  const comparison = compareWithLast(exercise.sets, previous?.sets ?? null, exercise.metric, { formNow: exercise.formRating, formLast: previous?.formRating ?? null, defaultRest });
+  const hasComparison = Boolean(comparison.total || comparison.rest || comparison.form);
+  // Mini PRs against last time, for the folded results line.
+  const prNotes = [
+    comparison.improved.total && comparison.total ? `↑ ${t('lastTime.totalShort', { delta: formatNumber(Math.round(((comparison.total.now ?? 0) - comparison.total.last) * 10) / 10) })}` : null,
+    comparison.improved.rest && comparison.rest ? `↑ ${t('lastTime.restShort', { delta: comparison.rest.last - (comparison.rest.now ?? comparison.rest.last) })}` : null,
+    comparison.improved.form ? `↑ ${t('lastTime.formShort')}` : null,
+  ].filter(Boolean);
+  // The program's target RPE: one value when the sets agree, else set by set.
+  const targets = groupSets(exercise.sets.filter((set) => set.kind === 'working')).map((group) => group[0].targetRpe);
+  const targetText = targets.some((value) => value !== null)
+    ? (targets.every((value) => value === targets[0]) ? formatRpe(targets[0]!) : targets.map((value) => (value === null ? '–' : formatRpe(value))).join(' · '))
+    : null;
+  const totalUnit = timed ? 's' : distance ? 'm' : t('lastTime.repsUnit');
   // The set to do next carries the filled button, so the eye lands on it; later sets stay quiet.
   const nextSetId = exercise.sets.find((set) => !set.completedAt)?.id ?? null;
 
@@ -976,6 +998,7 @@ function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, previous
           <View style={styles.progressRow}>
             <Icon name={allDone ? 'checkmark-circle' : 'ellipse-outline'} size={14} color={allDone ? palette.success : palette.textMuted} />
             <Label style={allDone ? { color: palette.success } : undefined}>{t('logger.setsProgress', { done: doneSets, total: totalSets })}</Label>
+            {targetText ? <Label>{`· @ ${t('logger.rpeTag', { value: targetText })}`}</Label> : null}
             {supersetLabel ? <Label style={{ color: palette.accentStrong }}>{`· ${supersetLabel}`}</Label> : null}
             {emomBadgeLabel ? <Label accessibilityLiveRegion="polite" style={{ color: palette.accentStrong }}>{`· ${emomBadgeLabel}`}</Label> : null}
             {volumeRecord ? (
@@ -986,7 +1009,8 @@ function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, previous
             ) : null}
           </View>
           {collapsed && results ? <Text numberOfLines={2} style={[styles.results, { color: palette.text }]}>{results}</Text> : null}
-          {collapsed ? null : <Label>{previousText ? t('logger.lastTime', { value: previousText }) : t('logger.firstTime')}</Label>}
+          {collapsed && prNotes.length ? <Text numberOfLines={2} style={[styles.prNotes, { color: palette.success }]}>{prNotes.join(' · ')}</Text> : null}
+          {collapsed || hasComparison ? null : <Label>{previousText ? t('logger.lastTime', { value: previousText }) : t('logger.firstTime')}</Label>}
           {exercise.notes ? <Text numberOfLines={3} style={[styles.exerciseNote, { color: palette.textMuted }]}>{exercise.notes}</Text> : null}
         </Pressable>
         {exercise.demoUrl ? (
@@ -994,6 +1018,13 @@ function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, previous
         ) : null}
         <IconButton icon="ellipsis-vertical" label={t('logger.options')} tone="plain" onPress={onOptions} />
       </View>
+      {!collapsed && hasComparison && previous ? (
+        <LastTimeStrip
+          comparison={comparison}
+          unit={totalUnit}
+          detail={t('lastTime.detail', { date: previous.workoutStartedAt.toLocaleDateString(i18n.language, { day: 'numeric', month: 'short' }), sets: previousText })}
+        />
+      ) : null}
 
       {collapsed ? null : <View style={styles.columns}>
         <Label style={[styles.colSet, styles.colHeader]}>{t('logger.setCol')}</Label>
@@ -1138,7 +1169,7 @@ function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, previous
             </Pressable>
             </SwipeableSetRow>
             {/* Row 2: how hard it was. */}
-            {rpeRow ? <RpePicker compact sideLabel={sideLabel} value={set.rpe} onChange={(rpe) => onRpe(set, rpe)} /> : null}
+            {rpeRow ? <RpePicker compact sideLabel={sideLabel} value={set.rpe} target={set.targetRpe} onChange={(rpe) => onRpe(set, rpe)} /> : null}
             {/* Only when there is something to show: PR, clips, note (and RPE when its row is hidden). */}
             {set.note || set.clipCount > 0 || (!rpeRow && set.rpe !== null) || setRecords.has(set.id) ? (
               <Pressable accessibilityRole="button" onPress={() => onSetOptions(set)} style={styles.setMeta}>
@@ -1181,6 +1212,8 @@ function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, previous
           <Text style={[styles.addSetText, { color: palette.textMuted }]}>{t('logger.addWarmup')}</Text>
         </Pressable>
       </View>}
+      {/* Form is judged after the sets, so its rating sits at the end and appears once a set is done. */}
+      {!collapsed && doneSets > 0 ? <FormRating value={exercise.formRating} onChange={onFormRating} /> : null}
     </View>
   );
 }
@@ -1475,6 +1508,7 @@ const baseStyles = StyleSheet.create({
   exerciseHeader: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, paddingHorizontal: 4, marginBottom: 4 },
   summary: { marginTop: -8 },
   results: { fontFamily: fonts.semibold, fontSize: 15, marginTop: 2 },
+  prNotes: { fontFamily: fonts.semibold, fontSize: 13 },
   footerRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   // Long labels: side by side only when each gets room for one line.
   footerCellWide: { flex: 1, minWidth: 220 },

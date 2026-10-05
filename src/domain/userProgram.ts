@@ -1,4 +1,5 @@
 import { ESTIMATED_SEC_PER_REP } from './mobilityPlan';
+import { isValidRpe } from './rpe';
 import { groupSets } from './setPairs';
 
 /** 0 = Sunday … 6 = Saturday, as returned by Date#getDay. */
@@ -24,6 +25,10 @@ export interface UserProgramExercise {
   restSeconds?: number | null;
   /** Planned added load for weighted exercises; null or missing means "reuse last time's load". */
   loadKg?: number | null;
+  /** Target RPE for every set; null or missing means no target. */
+  rpe?: number | null;
+  /** Target RPE set by set (index 0 is set 1); when present it wins over `rpe`. */
+  rpePerSet?: (number | null)[] | null;
 }
 
 /** One workout of a program; programs rotate through them in order, on whatever days suit the user. */
@@ -78,7 +83,20 @@ export function isValidPrescription(exercise: Partial<UserProgramExercise>): exe
     && (exercise.target === null || (Number.isFinite(exercise.target) && exercise.target! > 0))
     && (exercise.note === undefined || exercise.note === null || (typeof exercise.note === 'string' && exercise.note.length <= NOTE_MAX))
     && (exercise.restSeconds === undefined || exercise.restSeconds === null || (Number.isInteger(exercise.restSeconds) && exercise.restSeconds >= 0))
-    && (exercise.loadKg === undefined || exercise.loadKg === null || (Number.isFinite(exercise.loadKg) && exercise.loadKg >= 0));
+    && (exercise.loadKg === undefined || exercise.loadKg === null || (Number.isFinite(exercise.loadKg) && exercise.loadKg >= 0))
+    && (exercise.rpe === undefined || exercise.rpe === null || isValidRpe(exercise.rpe))
+    && (exercise.rpePerSet === undefined || exercise.rpePerSet === null || (Array.isArray(exercise.rpePerSet) && exercise.rpePerSet.every((value) => value === null || isValidRpe(value))));
+}
+
+/** The planned RPE of set `setIndex` (0-based): the per-set target when the program has one, else the shared one. */
+export function targetRpeFor(exercise: Pick<UserProgramExercise, 'rpe' | 'rpePerSet'>, setIndex: number): number | null {
+  if (exercise.rpePerSet) return exercise.rpePerSet[setIndex] ?? null;
+  return exercise.rpe ?? null;
+}
+
+/** Per-set targets resized to `sets` (new sets repeat the last target), so they follow the Sets stepper. */
+export function fitRpePerSet(values: readonly (number | null)[], sets: number): (number | null)[] {
+  return Array.from({ length: Math.max(1, sets) }, (_, index) => values[index] ?? values[values.length - 1] ?? null);
 }
 
 /** Returns a copy with the item at `index` moved by `delta` places; out-of-range moves return the list unchanged. */
@@ -197,6 +215,7 @@ export interface WorkoutSetLike {
   distanceM: number | null;
   addedLoadKg: number;
   restSec: number | null;
+  targetRpe?: number | null;
 }
 
 export interface WorkoutExerciseLike {
@@ -211,6 +230,13 @@ export interface WorkoutExerciseLike {
  * working sets done (warm-ups only when there is nothing else), the first set's reps, hold or distance
  * as the target, its load and rest, and the exercise note. A set without a value leaves the target open.
  */
+/** The workout's set targets as a program prescription: one shared value when they agree, else per set. */
+function rpeTargetsOf(targets: (number | null)[]): Pick<UserProgramExercise, 'rpe' | 'rpePerSet'> {
+  if (targets.every((value) => value === null)) return {};
+  if (targets.every((value) => value === targets[0])) return { rpe: targets[0] };
+  return { rpePerSet: targets };
+}
+
 export function sessionFromWorkout(name: string, exercises: readonly WorkoutExerciseLike[], newId: () => string): UserProgramSession {
   return {
     id: newId(),
@@ -230,6 +256,7 @@ export function sessionFromWorkout(name: string, exercises: readonly WorkoutExer
         note: exercise.notes?.trim() || null,
         restSeconds: first?.restSec != null && first.restSec >= 0 ? Math.round(first.restSec) : null,
         loadKg: load,
+        ...rpeTargetsOf(groups.map((group) => group[0]?.targetRpe ?? null)),
       };
     }),
   };

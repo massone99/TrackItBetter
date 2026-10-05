@@ -4,7 +4,8 @@
  */
 import * as Crypto from 'expo-crypto';
 import { listExercises } from '../features/exercises/repository';
-import { saveUserProgram } from '../features/programs/userPrograms';
+import { listUserPrograms, saveUserProgram } from '../features/programs/userPrograms';
+import { startUserProgramSession } from '../features/programs/startUserSession';
 import { programSessionWorkoutName } from '../domain/userProgram';
 import { addExerciseToWorkout, logCompletedWorkout, startWorkout } from '../features/session/repository';
 
@@ -16,12 +17,13 @@ async function seed(count = 40, active = false, from = 0, total = count): Promis
     sessions: sessions.map((session, index) => ({
       id: Crypto.randomUUID(),
       name: session,
-      exercises: pick(index * 5).map((exercise) => ({ id: Crypto.randomUUID(), exerciseId: exercise.id, sets: 4, target: 8 })),
+      // Targets: one RPE for the first workout, set by set for the second.
+      exercises: pick(index * 5).map((exercise) => ({ id: Crypto.randomUUID(), exerciseId: exercise.id, sets: 4, target: 8, ...(index === 0 ? { rpe: 8 } : index === 1 ? { rpePerSet: [7, 8, 8.5, 9] } : {}) })),
     })),
   });
   if (from === 0) {
-  await program('Push Pull Legs', ['Push', 'Pull', 'Legs']);
-  await program('Skills', ['Planche day', 'Front lever day']);
+    await program('Push Pull Legs', ['Push', 'Pull', 'Legs']);
+    await program('Skills', ['Planche day', 'Front lever day']);
   }
   const names = ['Push', 'Pull', 'Legs'].map((name) => programSessionWorkoutName({ name: 'Push Pull Legs' }, { name }));
   const now = Date.now();
@@ -38,8 +40,9 @@ async function seed(count = 40, active = false, from = 0, total = count): Promis
     });
   }
   if (active) {
-    const workoutId = await startWorkout(names[0]);
-    for (const exercise of pick(0).slice(0, 3)) await addExerciseToWorkout(workoutId, exercise.id);
+    // The active workout starts from the program, so it carries the RPE targets.
+    const ppl = (await listUserPrograms()).find((item) => item.name === 'Push Pull Legs');
+    const workoutId = ppl ? await startUserProgramSession(ppl, ppl.sessions[0]) : await startWorkout(names[0]);
     const weighted = (await listExercises()).find((exercise) => exercise.metric === 'reps_load');
     if (weighted) await addExerciseToWorkout(workoutId, weighted.id);
     const hold = (await listExercises()).find((exercise) => exercise.metric === 'time');

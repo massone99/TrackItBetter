@@ -7,6 +7,8 @@ import {
   nextSessionInRotation,
   plannedLoads,
   programsByRecentUse,
+  targetRpeFor,
+  fitRpePerSet,
   replaceExercise,
   programSessionWorkoutName,
   sessionFromWorkout,
@@ -229,5 +231,33 @@ describe('programsByRecentUse', () => {
 
   it('keeps the saved order when nothing was trained', () => {
     expect(programsByRecentUse([skills, ppl], []).map(({ program: item }) => item.id)).toEqual(['skills', 'ppl']);
+  });
+});
+
+describe('RPE targets', () => {
+  it('uses the per-set target when there is one, else the shared one', () => {
+    expect(targetRpeFor({ rpe: 8 }, 2)).toBe(8);
+    expect(targetRpeFor({ rpe: 8, rpePerSet: [7, 8, 9] }, 2)).toBe(9);
+    expect(targetRpeFor({}, 0)).toBeNull();
+  });
+
+  it('resizes per-set targets with the set count', () => {
+    expect(fitRpePerSet([7, 8], 4)).toEqual([7, 8, 8, 8]);
+    expect(fitRpePerSet([7, 8, 9], 2)).toEqual([7, 8]);
+  });
+
+  it('rejects targets outside the RPE scale', () => {
+    expect(isValidPrescription(exercise({ rpe: 8.5 }))).toBe(true);
+    expect(isValidPrescription(exercise({ rpe: 11 }))).toBe(false);
+    expect(isValidPrescription(exercise({ rpePerSet: [7, null, 9] }))).toBe(true);
+    expect(isValidPrescription(exercise({ rpePerSet: [7, 4] }))).toBe(false);
+  });
+
+  it('carries set targets from a workout into a program', () => {
+    const base = { kind: 'working', reps: 8, durationSec: null, distanceM: null, addedLoadKg: 0, restSec: null };
+    const same = sessionFromWorkout('A', [{ exerciseId: 'x', metric: 'reps', notes: null, sets: [{ ...base, targetRpe: 8 }, { ...base, targetRpe: 8 }] }], () => 'id');
+    expect(same.exercises[0]).toMatchObject({ rpe: 8 });
+    const varied = sessionFromWorkout('A', [{ exerciseId: 'x', metric: 'reps', notes: null, sets: [{ ...base, targetRpe: 7 }, { ...base, targetRpe: 9 }] }], () => 'id');
+    expect(varied.exercises[0]).toMatchObject({ rpePerSet: [7, 9] });
   });
 });

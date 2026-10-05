@@ -94,6 +94,8 @@ export const exerciseEntries = sqliteTable(
     /** Part of the workout (warm-up, main work, mobility); null is the main work. */
     block: text('block', { enum: ['warmup', 'main', 'mobility'] }),
     notes: text('notes'),
+    /** How clean the form was this time, 1–5; null when not rated. */
+    formRating: integer('form_rating'),
   },
   (table) => [index('entry_workout_order_idx').on(table.workoutId, table.order)],
 );
@@ -118,6 +120,8 @@ export const trainingSets = sqliteTable(
     pairId: text('pair_id'),
     tempo: text('tempo'),
     restSec: integer('rest_sec'),
+    /** RPE the program planned for this set; null without a target. */
+    targetRpe: real('target_rpe'),
     note: text('note'),
     completedAt: integer('completed_at', { mode: 'timestamp_ms' }),
   },
