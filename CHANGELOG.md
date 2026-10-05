@@ -2,6 +2,10 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.14.2 - 2026-10-05
+
+- Workout tracker touch fixes: completing, reopening, RPE and form ratings respond at once; a double tap on ✓ no longer undoes the set; reopening the last set also stops its rest; a finished exercise folds after a short pause instead of under your finger; swipes need a clearer sideways drag, so taps on steppers are not taken as swipes; ✓ buttons show press feedback.
+
 ## 0.14.1 - 2026-10-05
 
 - Average form is now a metric in Statistics (by workout, day, week or month, per exercise); the separate chart on the exercise page is removed.

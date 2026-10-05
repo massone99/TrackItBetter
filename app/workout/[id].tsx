@@ -97,6 +97,12 @@ import { useScaledStyles } from '../../src/shared/theme/useScaledStyles';
 import { useAnimationSettings } from '../../src/shared/settings/AnimationProvider';
 
 const VOICE_CUES_KEY = 'workout.voice_cues.enabled';
+/** Pause between finishing an exercise and folding it. */
+const FOLD_DELAY_MS = 650;
+
+/** Taps on the same set's done button closer than this are one tap. */
+const DOUBLE_TAP_MS = 500;
+
 /** Set once the first set has been swiped, which hides the gesture hint. */
 const SWIPE_HINT_KEY = 'workout.swipeHintSeen';
 
@@ -184,9 +190,21 @@ export default function WorkoutScreen() {
     const completed = new Map(next.exercises.map((exercise) => [exercise.entryId, exerciseFinished(exercise.sets)] as const));
     const initial = !loadedOnce.current;
     loadedOnce.current = true;
-    // Exercises start folded; see nextFolded for what keeps or changes that.
-    setCollapsedEntries((current) => nextFolded(completed, before, current, initial));
+    // Exercises start folded; see nextFolded for what keeps or changes that. One that has just been
+    // finished folds after a short pause, so it does not vanish under the finger that rated its last set.
+    const justFinished = initial ? [] : [...completed].filter(([entryId, done]) => done && before.get(entryId) === false).map(([entryId]) => entryId);
+    setCollapsedEntries((current) => {
+      const folded = nextFolded(completed, before, current, initial);
+      for (const entryId of justFinished) folded.set(entryId, current.get(entryId) ?? false);
+      return folded;
+    });
     completionState.current = completed;
+    if (justFinished.length > 0) {
+      setTimeout(() => setCollapsedEntries((current) => {
+        const ready = justFinished.filter((entryId) => completionState.current.get(entryId) && !current.get(entryId));
+        return ready.length === 0 ? current : new Map([...current, ...ready.map((entryId) => [entryId, true] as const)]);
+      }), FOLD_DELAY_MS);
+    }
     // "Last time" only changes when the exercises change, so it is not re-read after every set.
     const exerciseKey = `${next.id}:${next.exercises.map((exercise) => exercise.exerciseId).join(',')}`;
     const [previousPerformance, found] = await Promise.all([
@@ -415,15 +433,58 @@ export default function WorkoutScreen() {
     if (top !== undefined) scrollRef.current?.scrollTo({ y: Math.max(0, top - 16), animated: true });
   };
 
-  const completeRegularSet = async (set: SessionSet) => {
-    tapFeedback('success');
-    await completeSet(set.id);
-    afterSetDone(set.id);
+  /** Shows a change to a set at once; the write and the reload follow. */
+  const patchSet = (setId: string, patch: Partial<SessionSet>) => setWorkout((current) => current && {
+    ...current,
+    exercises: current.exercises.map((exercise) => exercise.sets.some((set) => set.id === setId)
+      ? { ...exercise, sets: exercise.sets.map((set) => (set.id === setId ? { ...set, ...patch } : set)) }
+      : exercise),
+  });
+
+  // Sets whose done state is being saved, and when each last changed: a second tap while saving, or a
+  // double tap, would otherwise undo the first one.
+  const settling = useRef(new Set<string>());
+  const lastToggle = useRef(new Map<string, number>());
+  const settle = async (setId: string, work: () => Promise<void>) => {
+    const now = Date.now();
+    if (settling.current.has(setId) || now - (lastToggle.current.get(setId) ?? 0) < DOUBLE_TAP_MS) return;
+    settling.current.add(setId);
+    lastToggle.current.set(setId, now);
+    try {
+      await work();
+    } finally {
+      settling.current.delete(setId);
+    }
     if (workout) await refresh(workout.id);
   };
 
+  const completeRegularSet = (set: SessionSet) => settle(set.id, async () => {
+    tapFeedback('success');
+    patchSet(set.id, { completedAt: new Date() });
+    await completeSet(set.id);
+    afterSetDone(set.id);
+  });
+
+  /** Reopens a set; when it was the last one done, the rest it started stops too. */
+  const reopenSet = (set: SessionSet) => settle(set.id, async () => {
+    tapFeedback();
+    const latest = workout?.exercises.flatMap((exercise) => exercise.sets).reduce<SessionSet | null>(
+      (last, item) => (item.completedAt && (!last?.completedAt || item.completedAt > last.completedAt) ? item : last), null);
+    patchSet(set.id, { completedAt: null });
+    if (latest?.id === set.id) skipRest();
+    await uncompleteSet(set.id);
+  });
+
   const saveRpe = async (set: SessionSet, rpe: number | null) => {
+    patchSet(set.id, { rpe });
     await updateSetRpe(set.id, rpe);
+    if (workout) await refresh(workout.id);
+  };
+
+  const saveFormRating = async (set: SessionSet, rating: number | null) => {
+    tapFeedback();
+    patchSet(set.id, { formRating: rating });
+    await setSetFormRating(set.id, rating);
     if (workout) await refresh(workout.id);
   };
 
@@ -686,12 +747,12 @@ export default function WorkoutScreen() {
             volumeRecord={records.volume.has(exercise.exerciseId)}
             emomLabel={exercise.entryId === emomEntryId && emom.phase ? emomBadge(emom.phase, emom.plan!, t) : null}
             supersetLabel={exercise.groupId ? t('superset.label', { letter: supersetLetters.get(exercise.groupId) ?? 'A' }) : null}
-            onUncomplete={(set) => void uncompleteSet(set.id).then(() => refresh(workout.id))}
+            onUncomplete={(set) => void reopenSet(set)}
             onRemoveSet={(set) => void removeSetFromRow(exercise, set)}
             onSwiped={markSwiped}
             showRpe={showRpe}
             defaultRest={restForSet(exercise.exerciseId, { kind: 'working', restSec: null })}
-            onFormRating={(set, rating) => { tapFeedback(); void setSetFormRating(set.id, rating).then(() => refresh(workout.id)); }}
+            onFormRating={(set, rating) => void saveFormRating(set, rating)}
             onRpe={(set, rpe) => void saveRpe(set, rpe)}
             onOptions={() => setOptionsFor(exercise)}
           />
@@ -1134,10 +1195,10 @@ function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, previous
                       accessibilityHint={emomLocked ? t('emom.editHint') : undefined}
                       disabled={emomLocked}
                       hitSlop={4}
-                      onPress={() => { tapFeedback(); onUncomplete(set); }}
+                      onPress={() => onUncomplete(set)}
                       onLongPress={openMenu}
                       delayLongPress={450}
-                      style={[styles.checkButton, { backgroundColor: palette.success }]}
+                      style={({ pressed }) => [styles.checkButton, { backgroundColor: palette.success }, pressed && styles.checkPressed]}
                     >
                       <Icon name="checkmark" size={20} color={palette.successText} />
                     </Pressable>
@@ -1153,7 +1214,7 @@ function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, previous
                     onPress={() => holding ? onFinishHold() : onStartHold(set)}
                     onLongPress={holding ? undefined : () => { tapFeedback(); onComplete(set); }}
                     delayLongPress={400}
-                    style={[styles.checkButton, holding || set.id === nextSetId ? { backgroundColor: palette.accent } : { backgroundColor: palette.surfaceMuted }]}
+                    style={({ pressed }) => [styles.checkButton, holding || set.id === nextSetId ? { backgroundColor: palette.accent } : { backgroundColor: palette.surfaceMuted }, pressed && styles.checkPressed]}
                   >
                     <Icon name={holding ? 'stop' : 'play'} size={18} color={holding || set.id === nextSetId ? palette.accentText : palette.text} />
                   </Pressable>
@@ -1165,7 +1226,7 @@ function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, previous
                     onPress={() => onComplete(set)}
                     onLongPress={openMenu}
                     delayLongPress={450}
-                    style={[styles.checkButton, set.id === nextSetId ? { backgroundColor: palette.accent } : { backgroundColor: palette.surfaceMuted, borderColor: palette.border, borderWidth: 1 }]}
+                    style={({ pressed }) => [styles.checkButton, set.id === nextSetId ? { backgroundColor: palette.accent } : { backgroundColor: palette.surfaceMuted, borderColor: palette.border, borderWidth: 1 }, pressed && styles.checkPressed]}
                   >
                     <Icon name="checkmark" size={20} color={set.id === nextSetId ? palette.accentText : palette.textMuted} />
                   </Pressable>
@@ -1557,6 +1618,7 @@ const baseStyles = StyleSheet.create({
   loadInput: { width: 76, minHeight: 48, borderRadius: 10, textAlign: 'center', textAlignVertical: 'center', fontFamily: fonts.display, fontSize: 20, lineHeight: 26, paddingVertical: 0, paddingHorizontal: 6, includeFontPadding: false },
   rowActions: { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 2 },
   checkButton: { width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  checkPressed: { opacity: 0.7, transform: [{ scale: 0.94 }] },
   addSet: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 48, paddingHorizontal: 4 },
   addRow: { flexDirection: 'row', flexWrap: 'wrap', columnGap: 20 },
   addSetText: { fontFamily: fonts.semibold, fontSize: 15 },

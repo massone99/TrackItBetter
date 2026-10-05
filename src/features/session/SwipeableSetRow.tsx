@@ -46,8 +46,9 @@ export function SwipeableSetRow({ done, completeLabel, reopenLabel, removeLabel,
       overshootFriction={8}
       leftThreshold={TRIGGER}
       rightThreshold={TRIGGER}
-      dragOffsetFromLeftEdge={12}
-      dragOffsetFromRightEdge={12}
+      // A clear sideways drag is needed, so a tap on a stepper or a vertical scroll never turns into a swipe.
+      dragOffsetFromLeftEdge={24}
+      dragOffsetFromRightEdge={24}
       containerStyle={styles.container}
       renderLeftActions={(progress) => (
         <SwipeAction progress={progress} align="left" color={done ? palette.textMuted : palette.success} icon={done ? 'arrow-undo' : 'checkmark'} label={done ? reopenLabel : completeLabel} />
@@ -59,7 +60,8 @@ export function SwipeableSetRow({ done, completeLabel, reopenLabel, removeLabel,
       onSwipeableOpen={(direction) => {
         const swipedRight = direction === SwipeDirection.RIGHT;
         swipeable.current?.close();
-        tapFeedback(swipedRight && !done ? 'success' : 'light');
+        // Completing and reopening give their own feedback.
+        if (!swipedRight) tapFeedback('light');
         if (swipedRight) onSwipeRight();
         else onSwipeLeft();
       }}
