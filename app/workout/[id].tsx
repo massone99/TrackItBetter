@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import { eq } from 'drizzle-orm';
 import { ActivityIndicator, Alert, Pressable, StyleSheet, View } from 'react-native';
 import { groupSets, completedSetCount } from '../../src/domain/setPairs';
+import { poseDetectionAvailable } from '../../src/features/pose/detectPose';
 import { ExercisePicker, type ExerciseChoice } from '../../src/features/exercises/ExercisePicker';
 import { openExercisePage } from '../../src/features/exercises/openExercise';
 import { openReferenceVideo, ReferenceLinkSheet } from '../../src/features/exercises/ReferenceLinkSheet';
@@ -1251,7 +1252,7 @@ function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, previous
             {/* Row 3, once the set is done: how clean the form was. The exercise folds only after the last rating. */}
             {done && set.kind === 'working' && !emomBadgeLabel ? <FormRating value={set.formRating} sideLabel={sideLabel} onChange={(rating) => onFormRating(set, rating)} /> : null}
             {/* Only when there is something to show: PR, clips, note (and RPE when its row is hidden). */}
-            {set.note || set.clipCount > 0 || (!rpeRow && set.rpe !== null) || setRecords.has(set.id) ? (
+            {set.note || set.clipCount > 0 || (set.poseCount ?? 0) > 0 || (!rpeRow && set.rpe !== null) || setRecords.has(set.id) ? (
               <Pressable accessibilityRole="button" onPress={() => onSetOptions(set)} style={styles.setMeta}>
                 {setRecords.has(set.id) ? (
                   <View
@@ -1272,6 +1273,12 @@ function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, previous
                   <View style={[styles.clipChip, { backgroundColor: palette.surface }]}>
                     <Icon name="videocam" size={13} color={palette.accentStrong} />
                     <Text style={[styles.clipChipText, { color: palette.accentStrong }]}>{t('logger.clip', { count: set.clipCount })}</Text>
+                  </View>
+                ) : null}
+                {(set.poseCount ?? 0) > 0 ? (
+                  <View accessibilityLabel={t('poseLink.setActionCount', { count: set.poseCount })} style={[styles.clipChip, { backgroundColor: palette.surface }]}>
+                    <Icon name="scan-outline" size={13} color={palette.accentStrong} />
+                    <Text style={[styles.clipChipText, { color: palette.accentStrong }]}>{set.poseCount}</Text>
                   </View>
                 ) : null}
                 {set.note ? <Icon name="chatbubble-ellipses-outline" size={14} color={palette.textMuted} /> : null}
@@ -1392,6 +1399,12 @@ function SetSheet({ exercise, set, holdMode, onHoldMode, onClose, onChanged, onR
             secondary
             onPress={openVideo}
           />
+          {(set.poseCount ?? 0) > 0 ? (
+            <ActionButton icon="scan-outline" label={t('poseLink.setActionCount', { count: set.poseCount })} secondary onPress={() => { close(); router.push({ pathname: '/pose/[positionId]', params: { positionId: 'free', setId: set.id } }); }} />
+          ) : null}
+          {poseDetectionAvailable ? (
+            <ActionButton icon="body-outline" label={t('poseLink.setAction')} secondary onPress={() => { close(); router.push({ pathname: '/pose/new', params: { positionId: 'free', setId: set.id } }); }} />
+          ) : null}
         </>
       )}
       <ActionButton icon="trash-outline" label={confirming ? t('logger.confirmRemove') : t('logger.removeSet')} variant="danger" onPress={() => void remove()} />

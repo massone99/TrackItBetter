@@ -260,7 +260,8 @@ const poseCaptureAssetSchema = z.object({
   positionId: z.string().min(1).max(40),
   side: z.enum(['left', 'right']).nullable(),
   value: z.number().finite(),
-  level: z.number().int().min(1).max(5),
+  // The free analysis has no levels and saves 0.
+  level: z.number().int().min(0).max(5),
   keypoints: z.string().max(20_000),
   fileName: z.string().regex(/^[a-f0-9-]{36}\.jpg$/i),
   width: z.number().int().positive(),
@@ -268,6 +269,9 @@ const poseCaptureAssetSchema = z.object({
   mediaKind: z.enum(['photo', 'frame']),
   note: z.string().max(2000),
   capturedAt: timestamp,
+  // Added with links to exercises and sets; older backups omit them.
+  exerciseId: z.string().min(1).nullable().optional(),
+  setId: z.string().min(1).nullable().optional(),
   base64: base64Schema,
 }).strict();
 
@@ -588,6 +592,8 @@ async function replaceWithBackup(input: string): Promise<void> {
       });
     }
 
+    const exerciseIds = new Set(data.exercises.map((exercise) => exercise.id));
+    const setIds = new Set(importedSets.map((set) => set.id));
     for (const [index, { base64, capturedAt, ...metadata }] of poseAssets.entries()) {
       const fileName = `${Crypto.randomUUID()}.jpg`;
       const stagedFile = new File(restoreDir, `pose-${index}.jpg`);
@@ -596,7 +602,10 @@ async function replaceWithBackup(input: string): Promise<void> {
       const storedFile = getPoseCaptureFile(fileName);
       await stagedFile.copy(storedFile);
       installedFiles.push(storedFile);
-      stagedPoses.push({ ...metadata, fileName, capturedAt: date(capturedAt) });
+      // A link to an exercise or set the backup does not hold is dropped rather than failing the restore.
+      const exerciseId = metadata.exerciseId && exerciseIds.has(metadata.exerciseId) ? metadata.exerciseId : null;
+      const setId = exerciseId && metadata.setId && setIds.has(metadata.setId) ? metadata.setId : null;
+      stagedPoses.push({ ...metadata, exerciseId, setId, fileName, capturedAt: date(capturedAt) });
     }
 
     await db.transaction(async (tx) => {

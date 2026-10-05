@@ -213,6 +213,15 @@ UPDATE training_set SET form_rating = (SELECT form_rating FROM exercise_entry WH
 PRAGMA user_version = 15;
 `;
 
+/** A pose analysis can belong to an exercise and to one of its logged sets. */
+const poseLinkSchema = `
+ALTER TABLE pose_capture ADD COLUMN exercise_id TEXT REFERENCES exercise(id) ON DELETE SET NULL;
+ALTER TABLE pose_capture ADD COLUMN set_id TEXT REFERENCES training_set(id) ON DELETE SET NULL;
+CREATE INDEX IF NOT EXISTS pose_capture_exercise_idx ON pose_capture(exercise_id);
+CREATE INDEX IF NOT EXISTS pose_capture_set_idx ON pose_capture(set_id);
+PRAGMA user_version = 16;
+`;
+
 /** Applies numbered, local-first SQLite schema migrations once per database. */
 export async function migrateDatabase(database: SQLiteDatabase): Promise<void> {
   await database.execAsync('PRAGMA foreign_keys = ON;');
@@ -317,6 +326,12 @@ export async function migrateDatabase(database: SQLiteDatabase): Promise<void> {
   if (version < 15) {
     await database.withTransactionAsync(async () => {
       await database.execAsync(setFormSchema);
+    });
+  }
+
+  if (version < 16) {
+    await database.withTransactionAsync(async () => {
+      await database.execAsync(poseLinkSchema);
     });
   }
 }

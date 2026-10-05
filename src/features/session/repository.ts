@@ -3,6 +3,7 @@ import * as Crypto from 'expo-crypto';
 import { db, initializeDatabase } from '../../db/client';
 import { bodyMeasurements, exerciseEntries, exercises, formCheckVideos, trainingSets, workouts } from '../../db/schema';
 import { deleteFormCheckVideosForSets } from '../media/formVideos';
+import { countPoseCapturesBySet } from '../pose/repository';
 import { isValidRpe } from '../../domain/rpe';
 import { isLoadMetric, measureOf } from '../../domain/userProgram';
 import type { SetKind } from './restDefaults';
@@ -31,6 +32,8 @@ export interface SessionSet {
   note: string | null;
   /** Number of form-check clips the user attached to this set. */
   clipCount: number;
+  /** Number of pose analyses linked to this set. */
+  poseCount?: number;
   completedAt: Date | null;
 }
 
@@ -228,6 +231,7 @@ async function loadSessionExercises(workoutId: string): Promise<SessionExercise[
     .where(eq(formCheckVideos.workoutId, workoutId))
     .groupBy(formCheckVideos.setId);
   const clipsBySet = new Map(clipRows.map((row) => [row.setId, row.value]));
+  const posesBySet = await countPoseCapturesBySet(workoutId);
 
   // One query for every set of the workout, grouped by entry, instead of one query per exercise.
   const setRows = entries.length === 0 ? [] : await db.select().from(trainingSets)
@@ -270,6 +274,7 @@ async function loadSessionExercises(workoutId: string): Promise<SessionExercise[
         formRating: set.formRating,
         note: set.note,
         clipCount: clipsBySet.get(set.id) ?? 0,
+        poseCount: posesBySet.get(set.id) ?? 0,
         completedAt: set.completedAt,
       })),
     };

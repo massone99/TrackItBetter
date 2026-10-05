@@ -20,6 +20,7 @@ import type { ExerciseEstimate } from '../../src/features/analytics/estimates';
 import type { ExerciseCycle, ExerciseWeek } from '../../src/features/analytics/mobility';
 import { formatMinutes, formatNumber } from '../../src/shared/utils/format';
 import { formatRpe } from '../../src/domain';
+import { countPoseCapturesForExercise } from '../../src/features/pose/repository';
 import { ActionButton, Body, FooterAction, Icon, IconButton, ListGroup, ListRow, PageHeading, Screen, SectionTitle, SegmentedControl, Sheet, SwitchRow, Text, Toast } from '../../src/shared/components/ui';
 import { aggregatePairs, type PairScope } from '../../src/domain/setPairs';
 import { useTheme } from '../../src/shared/theme/ThemeProvider';
@@ -57,6 +58,7 @@ export default function ExerciseRoute() {
   const [records, setRecords] = useState<ExerciseRecordSummary | null>(null);
   const [editingReference, setEditingReference] = useState(false);
   const [history, setHistory] = useState<ExerciseHistorySession[]>([]);
+  const [poseCount, setPoseCount] = useState(0);
   const [pairScope, setPairScope] = useState<PairScope>('average');
   const scopedHistory = useMemo(() => historyForScope(history, pairScope), [history, pairScope]);
   const loadProgress = useMemo(() => repsAtLoadFromHistory(scopedHistory), [scopedHistory]);
@@ -76,19 +78,21 @@ export default function ExerciseRoute() {
     if (!found) return;
     // Mobility and stretching count their own week from the first day trained; the rest the last 7 days.
     const mobility = [found.category, ...readList(found.extraCategories)].includes('mobility');
-    const [cycle, week, estimate, records, history, usage] = await Promise.all([
+    const [cycle, week, estimate, records, history, usage, poses] = await Promise.all([
       mobility ? getExerciseCycle(found.id, undefined, pairScope).catch(() => null) : null,
       mobility ? null : getExerciseWeekStats(found.id, found.metric, undefined, pairScope).catch(() => null),
       getExerciseEstimate(found.id, undefined, pairScope).catch(() => null),
       getExerciseRecordSummary(found.id, pairScope).catch(() => null),
       getExerciseHistory(found.id).catch(() => []),
       getExerciseUsage(found.id).catch(() => null),
+      countPoseCapturesForExercise(found.id).catch(() => 0),
     ]);
     if (mobility) setCycle(cycle); else setWeek(week);
     setEstimate(estimate);
     setRecords(records);
     setHistory(history);
     setUsage(usage);
+    setPoseCount(poses);
   }, [id, pairScope]);
 
   useFocusEffect(useCallback(() => { void reload(); }, [reload]));
@@ -340,6 +344,11 @@ export default function ExerciseRoute() {
           <ListGroup>
             <ListRow icon="analytics-outline" title={t('exerciseManage.fullAnalysis')} subtitle={t('exerciseManage.fullAnalysisBody')} onPress={() => router.push({ pathname: '/stats', params: { exerciseId: exercise.id, pairScope } })} />
             {lateral ? <ListRow icon="git-branch-outline" title={compareTitle} subtitle={compareBody} onPress={() => router.push({ pathname: '/stats', params: { exerciseId: exercise.id, pairScope: 'comparison' } })} /> : null}
+          </ListGroup>
+        ) : null}
+        {poseCount > 0 ? (
+          <ListGroup>
+            <ListRow icon="scan-outline" title={t('poseLink.exerciseRow')} subtitle={t('poseLink.exerciseRowBody', { count: poseCount })} onPress={() => router.push({ pathname: '/pose/[positionId]', params: { positionId: 'free', exerciseId: exercise.id } })} />
           </ListGroup>
         ) : null}
       </View>

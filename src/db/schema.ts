@@ -195,6 +195,13 @@ export const poseCaptures = sqliteTable(
     mediaKind: text('media_kind').notNull(),
     note: text('note').notNull().default(''),
     capturedAt: integer('captured_at', { mode: 'timestamp_ms' }).notNull(),
+    /** The exercise (and logged set) the analysis belongs to, if any. */
+    exerciseId: text('exercise_id').references(() => exercises.id, { onDelete: 'set null' }),
+    setId: text('set_id').references(() => trainingSets.id, { onDelete: 'set null' }),
   },
-  (table) => [index('pose_capture_position_idx').on(table.positionId, table.capturedAt)],
+  (table) => [
+    index('pose_capture_position_idx').on(table.positionId, table.capturedAt),
+    index('pose_capture_exercise_idx').on(table.exerciseId),
+    index('pose_capture_set_idx').on(table.setId),
+  ],
 );

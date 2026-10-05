@@ -121,7 +121,7 @@ export default function FormCheckScreen() {
                   <Pressable
                     accessibilityRole="button"
                     accessibilityLabel={t('formCheck.analysePose')}
-                    onPress={() => router.push({ pathname: '/pose/new', params: { videoUri: video.uri, durationMs: String(video.durationMs) } })}
+                    onPress={() => router.push({ pathname: '/pose/new', params: { positionId: 'free', videoUri: video.uri, durationMs: String(video.durationMs), setId: video.setId } })}
                     hitSlop={8}
                   >
                     <Icon name="scan-outline" size={19} color={palette.accentStrong} />

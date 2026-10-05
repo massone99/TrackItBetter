@@ -296,6 +296,8 @@ describe('schema v9 to v10 migration', () => {
     legacy.sqlite.exec(`
       DROP TRIGGER IF EXISTS set_pair_insert;
       DROP INDEX IF EXISTS set_pair_side_idx;
+      DROP TABLE pose_capture;
+      CREATE TABLE pose_capture (id TEXT PRIMARY KEY NOT NULL, position_id TEXT NOT NULL, side TEXT, value REAL NOT NULL, level INTEGER NOT NULL, keypoints TEXT NOT NULL, file_name TEXT NOT NULL UNIQUE, width INTEGER NOT NULL, height INTEGER NOT NULL, media_kind TEXT NOT NULL, note TEXT NOT NULL DEFAULT '', captured_at INTEGER NOT NULL);
       ALTER TABLE training_set DROP COLUMN target_rpe;
       ALTER TABLE training_set DROP COLUMN form_rating;
       ALTER TABLE exercise_entry DROP COLUMN form_rating;
@@ -311,7 +313,7 @@ describe('schema v9 to v10 migration', () => {
     `);
     await migrateDatabase(legacy.expo);
     await migrateDatabase(legacy.expo);
-    expect(legacy.sqlite.prepare('PRAGMA user_version').get()).toEqual({ user_version: 15 });
+    expect(legacy.sqlite.prepare('PRAGMA user_version').get()).toEqual({ user_version: 16 });
     expect(legacy.sqlite.prepare('SELECT side, reps, added_load_kg, pair_id FROM training_set WHERE id = ?').get('legacy-set')).toEqual({ side: 'both', reps: 8, added_load_kg: 12, pair_id: null });
     expect(legacy.sqlite.prepare('SELECT unilateral_rest_mode FROM exercise WHERE id = ?').get('reverse-lunge')).toEqual({ unilateral_rest_mode: 'pair' });
     expect(legacy.sqlite.prepare('SELECT unilateral_rest_mode FROM exercise_entry WHERE id = ?').get('legacy-entry')).toEqual({ unilateral_rest_mode: null });

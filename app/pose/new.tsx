@@ -8,8 +8,9 @@ import { displayedAngle, findPosition, LOW_CONFIDENCE, levelFor, nextLevelTarget
 import { detectPose, poseDetectionAvailable } from '../../src/features/pose/detectPose';
 import { extractFrames, normalizeImage, type PoseImage, type VideoFrame } from '../../src/features/pose/media';
 import { PoseCanvas } from '../../src/features/pose/PoseCanvas';
-import { savePoseCapture } from '../../src/features/pose/repository';
-import { ActionButton, Body, Card, Chip, Icon, IconButton, Label, Numeral, PageHeading, Screen, SegmentedControl, tapFeedback, Text, TextField } from '../../src/shared/components/ui';
+import { getSetLink, savePoseCapture, type PoseLink } from '../../src/features/pose/repository';
+import { describeLink, PoseLinkSheet } from '../../src/features/pose/PoseLink';
+import { ActionButton, Body, Card, Chip, Icon, IconButton, Label, ListGroup, ListRow, Numeral, PageHeading, Screen, SegmentedControl, tapFeedback, Text, TextField } from '../../src/shared/components/ui';
 import { useAppInsets } from '../../src/shared/layout/useAppInsets';
 import { OverlayLegend, useOverlaySettings } from '../../src/features/pose/OverlayLegend';
 import { PositionPicker } from '../../src/features/pose/PositionPicker';
@@ -33,9 +34,18 @@ type Analysis = { image: PoseImage; pose: Pose; detected: Pose; kind: 'photo' | 
 
 export default function NewPoseCheckScreen() {
   const styles = useScaledStyles(baseStyles);
-  // A form-check clip can be opened here directly: its frames load on arrival.
-  const { positionId: initial, videoUri, durationMs } = useLocalSearchParams<{ positionId?: string; videoUri?: string; durationMs?: string }>();
-  const { t } = useTranslation();
+  // A form-check clip can be opened here directly: its frames load on arrival. Opened from a set, the
+  // analysis starts linked to that set and its exercise.
+  const { positionId: initial, videoUri, durationMs, setId } = useLocalSearchParams<{ positionId?: string; videoUri?: string; durationMs?: string; setId?: string }>();
+  const { t, i18n } = useTranslation();
+  const [link, setLink] = useState<PoseLink | null>(null);
+  const [linkOpen, setLinkOpen] = useState(false);
+  useEffect(() => {
+    if (!setId) return;
+    let mounted = true;
+    void getSetLink(setId).then((found) => { if (mounted && found) setLink(found); });
+    return () => { mounted = false; };
+  }, [setId]);
   const { palette } = useTheme();
   const { width: windowWidth } = useWindowDimensions();
   const [positionId, setPositionId] = useState<PositionId>((findPosition(initial ?? '')?.id) ?? 'front_split');
@@ -167,8 +177,12 @@ export default function NewPoseCheckScreen() {
         height: analysis.image.height,
         mediaKind: analysis.kind,
         note,
+        exerciseId: position.generic ? link?.exerciseId ?? null : null,
+        setId: position.generic ? link?.set?.id ?? null : null,
       });
-      router.replace({ pathname: '/pose/[positionId]', params: { positionId } });
+      // Started from a set, saving returns to it; otherwise to the position's history.
+      if (setId && router.canGoBack()) router.back();
+      else router.replace({ pathname: '/pose/[positionId]', params: { positionId } });
     } catch {
       setError(t('pose.error'));
       setBusy(null);
@@ -335,9 +349,19 @@ export default function NewPoseCheckScreen() {
               {measurement.warning ? <Text style={[styles.warning, { color: palette.warning }]}>{t(`pose.warnings.${measurement.warning}`)}</Text> : null}
             </Card>
           )}
+          {/* A free analysis can belong to an exercise and one of its sets. */}
+          {position.generic ? <ListGroup>
+            <ListRow
+              icon="link-outline"
+              title={describeLink(link, t, i18n.language) ?? t('poseLink.none')}
+              subtitle={link ? t('poseLink.title') : t('poseLink.hint')}
+              onPress={() => { tapFeedback(); setLinkOpen(true); }}
+            />
+          </ListGroup> : null}
           <TextField value={note} onChangeText={setNote} placeholder={t('pose.notePlaceholder')} maxLength={200} />
         </>
       ) : null}
+      <PoseLinkSheet visible={linkOpen} value={link} onChange={setLink} onClose={() => setLinkOpen(false)} />
     </Screen>
   );
 }

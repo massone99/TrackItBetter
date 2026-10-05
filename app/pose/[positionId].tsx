@@ -7,7 +7,8 @@ import { OverlayLegend, useOverlaySettings } from '../../src/features/pose/Overl
 import { LevelBadge } from '../../src/features/pose/LevelBadge';
 import { JointPicker, useJointSelection } from '../../src/features/pose/JointPicker';
 import { PoseCanvas } from '../../src/features/pose/PoseCanvas';
-import { deletePoseCapture, listPoseCaptures, type PoseCapture } from '../../src/features/pose/repository';
+import { deletePoseCapture, linkPoseCapture, listPoseCaptures, type PoseCapture } from '../../src/features/pose/repository';
+import { describeLink, PoseLinkSheet } from '../../src/features/pose/PoseLink';
 import {
   ActionButton,
   Body,
@@ -31,7 +32,12 @@ import { useScaledStyles } from '../../src/shared/theme/useScaledStyles';
 
 export default function PoseHistoryScreen() {
   const styles = useScaledStyles(baseStyles);
-  const { positionId } = useLocalSearchParams<{ positionId: string }>();
+  // From an exercise or a set, the list starts filtered to its analyses; `captureId` opens one of them.
+  const params = useLocalSearchParams<{ positionId: string; exerciseId?: string; setId?: string; captureId?: string }>();
+  const { positionId } = params;
+  const [filter, setFilter] = useState<{ exerciseId?: string; setId?: string }>(() => ({ exerciseId: params.exerciseId, setId: params.setId }));
+  const [selectedId, setSelectedId] = useState<string | null>(params.captureId ?? null);
+  const [linking, setLinking] = useState<PoseCapture | null>(null);
   const { t, i18n } = useTranslation();
   const { palette } = useTheme();
   const { width: windowWidth } = useWindowDimensions();
@@ -43,12 +49,14 @@ export default function PoseHistoryScreen() {
   const [overlay, setOverlay] = useOverlaySettings();
   const [focused, setFocused] = useState<JointAngleId | null>(null);
 
-  const reload = useCallback(async () => setCaptures(await listPoseCaptures(positionId)), [positionId]);
+  const reload = useCallback(async () => setCaptures(await listPoseCaptures(positionId, filter)), [positionId, filter]);
   useFocusEffect(useCallback(() => { void reload(); }, [reload]));
 
   if (!position) return <Screen><PageHeading title={t('pose.title')} subtitle={t('pose.noCaptures')} /></Screen>;
   const name = t(`pose.positions.${position.id}.name`);
-  const latest = captures?.[0];
+  // The one on show: the analysis tapped in the list, else the latest.
+  const latest = captures?.find((capture) => capture.id === selectedId) ?? captures?.[0];
+  const filteredBy = filter.exerciseId || filter.setId ? captures?.[0]?.link : null;
   const first = captures && captures.length > 1 ? captures[captures.length - 1] : null;
   const contentWidth = Math.min(windowWidth - 40, 600);
   const date = (capture: PoseCapture) => capture.capturedAt.toLocaleDateString(i18n.language, { day: 'numeric', month: 'short', year: 'numeric' });
@@ -87,6 +95,17 @@ export default function PoseHistoryScreen() {
         subtitle={t(`pose.positions.${position.id}.how`)}
         action={<IconButton icon="add" tone="accent" label={t('pose.newCheck')} onPress={() => router.push({ pathname: '/pose/new', params: { positionId: position.id } })} />}
       />
+
+      {filter.exerciseId || filter.setId ? (
+        <ListGroup>
+          <ListRow
+            icon="funnel-outline"
+            title={filteredBy ? t('poseLink.filtered', { name: filter.setId ? describeLink(filteredBy, t, i18n.language) : filteredBy.exerciseName }) : t('poseLink.title')}
+            subtitle={t('poseLink.showAll')}
+            onPress={() => { setFilter({}); setSelectedId(null); }}
+          />
+        </ListGroup>
+      ) : null}
 
       {captures && captures.length === 0 ? (
         <EmptyState
@@ -143,13 +162,27 @@ export default function PoseHistoryScreen() {
               <ListRow
                 key={capture.id}
                 title={position.generic ? freeSummary(capture) : `${t('pose.degrees', { value: Math.round(capture.value) })} · ${t('pose.level', { level: capture.level })}`}
-                subtitle={[date(capture), sideLabel(capture), capture.note || null].filter(Boolean).join(' · ')}
-                trailing={<IconButton icon="trash-outline" label={t('pose.delete')} tone="plain" size={34} onPress={() => setDeleting(capture)} />}
+                subtitle={[date(capture), sideLabel(capture), describeLink(capture.link, t, i18n.language), capture.note || null].filter(Boolean).join(' · ')}
+                selected={(captures ?? []).length > 1 ? capture.id === latest.id : undefined}
+                onPress={() => { setSelectedId(capture.id); setView('latest'); }}
+                trailing={(
+                  <View style={styles.rowActions}>
+                    {position.generic ? <IconButton icon="link-outline" label={t('poseLink.title')} tone="plain" size={34} onPress={() => setLinking(capture)} /> : null}
+                    <IconButton icon="trash-outline" label={t('pose.delete')} tone="plain" size={34} onPress={() => setDeleting(capture)} />
+                  </View>
+                )}
               />
             ))}
           </ListGroup>
         </>
       ) : null}
+
+      <PoseLinkSheet
+        visible={linking !== null}
+        value={linking?.link ?? null}
+        onChange={(link) => { if (linking) void linkPoseCapture(linking.id, link ? { exerciseId: link.exerciseId, setId: link.set?.id ?? null } : null).then(reload); }}
+        onClose={() => setLinking(null)}
+      />
 
       <Sheet visible={deleting !== null} onClose={() => setDeleting(null)} title={t('pose.delete')} body={t('pose.deleteBody')}>
         <ActionButton icon="trash-outline" label={t('logger.confirmRemove')} variant="danger" onPress={() => {
@@ -189,6 +222,7 @@ function Trend({ captures, better }: { captures: PoseCapture[]; better: 'higher'
 
 const baseStyles = StyleSheet.create({
   stretch: { alignSelf: 'stretch', marginTop: 6 },
+  rowActions: { flexDirection: 'row', alignItems: 'center' },
   summary: { gap: 8 },
   summaryRow: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: 12 },
   change: { fontFamily: fonts.semibold, fontSize: 14 },

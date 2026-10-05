@@ -2,6 +2,13 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.15.0 - 2026-10-05
+
+- Free pose analyses can be linked to an exercise and to one of its sets (from the current or recent workouts), when saving or later from the analysis history.
+- From a set's menu: "Analyse pose" starts a free analysis already linked to that set; a set with analyses shows their count and opens them. A clip's "analyse pose" links to its set too.
+- The exercise page lists its linked analyses; the history can be filtered to an exercise or a set, and any analysis in it can be opened.
+- Fixed: backups failed to export when they held a free analysis.
+
 ## 0.14.3 - 2026-10-05
 
 - Set rows: the ✓ and ⋮ buttons no longer share touch area (⋮ used to catch taps meant for ✓); the row is slightly tighter so the steppers fit on narrow phones.
