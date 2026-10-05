@@ -1,6 +1,7 @@
 import { and, asc, desc, eq, isNotNull } from 'drizzle-orm';
 import { db, initializeDatabase } from '../../db/client';
 import { cachedUntilWrite } from '../../db/cache';
+import { buildFormSessions, type FormSession } from './formTrend';
 import { exerciseEntries, exercises, trainingSets, workouts } from '../../db/schema';
 import { buildExerciseCycle, buildExerciseWeek, buildMobilityCycles, buildMobilityWeek, mobilitySecondsForWorkout, type ExerciseCycle, type ExerciseWeek, type MobilityWeek } from './mobility';
 import { buildExerciseEstimate, type ExerciseEstimate } from './estimates';
@@ -241,6 +242,30 @@ export interface ExerciseHistorySession {
   startedAt: Date;
   notes: string | null;
   sets: ExerciseHistorySet[];
+}
+
+/** Average form per session of an exercise (rated working sets only), oldest first. */
+export async function getExerciseFormHistory(exerciseId: string): Promise<FormSession[]> {
+  await initializeDatabase();
+  const rows = await db.select({
+    workoutId: workouts.id,
+    workoutName: workouts.name,
+    startedAt: workouts.startedAt,
+    pairId: trainingSets.pairId,
+    side: trainingSets.side,
+    kind: trainingSets.kind,
+    reps: trainingSets.reps,
+    durationSec: trainingSets.durationSec,
+    distanceM: trainingSets.distanceM,
+    completedAt: trainingSets.completedAt,
+    formRating: trainingSets.formRating,
+  })
+    .from(trainingSets)
+    .innerJoin(exerciseEntries, eq(trainingSets.entryId, exerciseEntries.id))
+    .innerJoin(workouts, eq(exerciseEntries.workoutId, workouts.id))
+    .where(and(eq(exerciseEntries.exerciseId, exerciseId), isNotNull(workouts.endedAt), isNotNull(trainingSets.completedAt), eq(trainingSets.kind, 'working')))
+    .orderBy(asc(workouts.startedAt), asc(trainingSets.index));
+  return buildFormSessions(rows);
 }
 
 /** Every finished session that included an exercise, newest first, with its completed sets in order. */

@@ -38,9 +38,9 @@ async function seed(count = 40, active = false, from = 0, total = count): Promis
         sets: Array.from({ length: 4 }, (_, set) => ({ reps: 6 + Math.floor(index / 4) + (set % 2), completedAt: new Date(startedAt.getTime() + (order * 4 + set) * 120_000) })),
       })),
     });
-    // Every set rated 3 for form, so today's ratings have something to compare with.
+    // Form ratings that drift upwards, so the form trend and today's comparison have something to show.
     for (const entry of (await getCompletedWorkout(loggedId))?.exercises ?? []) {
-      for (const set of entry.sets) await setSetFormRating(set.id, 3);
+      for (const set of entry.sets) await setSetFormRating(set.id, [2, 3, 3, 4, 4, 5][Math.floor(index / 3) % 6]);
     }
   }
   if (active) {

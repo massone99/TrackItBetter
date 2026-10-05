@@ -2,6 +2,10 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.14.0 - 2026-10-05
+
+- Each exercise's page has a "Form over time" chart: the average form of the rated sets, session by session. Tap a bar to see that session's ratings and the change from the session before (green ↑ better, red ↓ worse), and open the workout.
+
 ## 0.13.2 - 2026-10-05
 
 - A folded exercise shows its average form with the trend on one line: "Average form 4 ↑" in green when better, "↓" in red when lower.

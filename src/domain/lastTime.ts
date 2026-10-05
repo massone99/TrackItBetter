@@ -80,3 +80,9 @@ export function compareWithLast(
 }
 
 const round = (value: number) => Math.round(value * 10) / 10;
+
+/** Average form of a session's rated working sets (an L/R pair counts once), to 0.1; null when none is rated. */
+export function averageForm(sets: readonly ComparableSet[]): number | null {
+  const value = mean(perSet(sets, (set) => set.formRating));
+  return value === null ? null : round(value);
+}
