@@ -2,6 +2,10 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.16.2 - 2026-10-05
+
+- Pose analyses are compared only with analyses of the same exercise (unlinked ones with each other); while comparing, the list shows only those.
+
 ## 0.16.1 - 2026-10-05
 
 - New mini PR: the same work as last time (same sets, reps or time and load, rest no longer, form no worse) at a lower average RPE. "Vs last time" shows an "Average RPE" cell when last time had an RPE on every set, and the summary lists it under "Better than last time".

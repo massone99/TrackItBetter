@@ -60,9 +60,10 @@ export default function PoseHistoryScreen() {
   const latest = captures?.find((capture) => capture.id === selectedId) ?? captures?.[0];
   const filteredBy = filter.exerciseId || filter.setId ? captures?.[0]?.link : null;
   const first = captures && captures.length > 1 ? captures[captures.length - 1] : null;
-  const other = latest && captures
-    ? captures.find((capture) => capture.id === compareId && capture.id !== latest.id) ?? (first && first.id !== latest.id ? first : captures.find((capture) => capture.id !== latest.id) ?? null)
-    : null;
+  // An analysis is compared only with others of the same exercise (unlinked ones with each other).
+  const sameExercise = (capture: PoseCapture) => latest !== undefined && capture.id !== latest.id && (capture.link?.exerciseId ?? null) === (latest.link?.exerciseId ?? null);
+  const comparable = captures?.filter(sameExercise) ?? [];
+  const other = comparable.find((capture) => capture.id === compareId) ?? comparable[comparable.length - 1] ?? null;
   // Older on the left, newer on the right.
   const pair = latest && other ? (other.capturedAt <= latest.capturedAt ? [other, latest] : [latest, other]) : null;
   const contentWidth = Math.min(windowWidth - 40, 600);
@@ -144,7 +145,7 @@ export default function PoseHistoryScreen() {
           </Card>}
 
           <JointPicker position={position} selected={jointIds} onChange={setJointIds} />
-          {first ? (
+          {other ? (
             <SegmentedControl value={view} onChange={setView} options={[{ value: 'latest', label: date(latest) }, { value: 'compare', label: t('pose.compare') }]} />
           ) : null}
           {view === 'compare' && pair ? (
@@ -170,14 +171,15 @@ export default function PoseHistoryScreen() {
 
           <SectionTitle title={t('pose.history')} />
           <ListGroup>
-            {(captures ?? []).map((capture) => (
+            {/* While comparing, only the analyses of the same exercise are listed. */}
+            {(view === 'compare' && other ? (captures ?? []).filter((capture) => capture.id === latest.id || sameExercise(capture)) : captures ?? []).map((capture) => (
               <ListRow
                 key={capture.id}
                 title={position.generic ? freeSummary(capture) : `${t('pose.degrees', { value: Math.round(capture.value) })} · ${t('pose.level', { level: capture.level })}`}
                 subtitle={[date(capture), sideLabel(capture), describeLink(capture.link, t, i18n.language), capture.note || null].filter(Boolean).join(' · ')}
                 selected={(captures ?? []).length > 1 ? capture.id === latest.id || (view === 'compare' && capture.id === other?.id) : undefined}
                 // While comparing, a tap picks the analysis to set against the one on show.
-                onPress={() => { if (view === 'compare') { if (capture.id !== latest.id) setCompareId(capture.id); } else setSelectedId(capture.id); }}
+                onPress={() => { if (view !== 'compare') setSelectedId(capture.id); else if (sameExercise(capture)) setCompareId(capture.id); }}
                 trailing={(
                   <View style={styles.rowActions}>
                     {position.generic ? <IconButton icon="link-outline" label={t('poseLink.title')} tone="plain" size={34} onPress={() => setLinking(capture)} /> : null}
