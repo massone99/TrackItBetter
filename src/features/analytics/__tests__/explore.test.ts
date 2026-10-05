@@ -123,6 +123,17 @@ describe('computeMetric', () => {
     expect(computeMetric('energy', data.rows, data.workouts)).toBeNull();
   });
 
+  it('averages the form of the rated sets, an L/R pair counting once', () => {
+    const rated = [
+      { ...w1Rows[0], setId: 'f1', formRating: 4 },
+      { ...w1Rows[0], setId: 'f2', formRating: 2, pairId: 'p', side: 'left' },
+      { ...w1Rows[0], setId: 'f3', formRating: 4, pairId: 'p', side: 'right' },
+      { ...w1Rows[0], setId: 'f4', formRating: null },
+    ];
+    expect(computeMetric('avgForm', rated, [w1])).toBe(3.5);
+    expect(computeMetric('avgForm', w1Rows, [w1])).toBeNull();
+  });
+
   it('sums training time of finished workouts', () => {
     expect(computeMetric('trainingSec', data.rows, [w1, w2])).toBe(7200);
     expect(computeMetric('trainingSec', [], [workout('open', at(9, 1), { endedAt: null })])).toBeNull();

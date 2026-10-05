@@ -2,6 +2,10 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.14.1 - 2026-10-05
+
+- Average form is now a metric in Statistics (by workout, day, week or month, per exercise); the separate chart on the exercise page is removed.
+
 ## 0.14.0 - 2026-10-05
 
 - Each exercise's page has a "Form over time" chart: the average form of the rated sets, session by session. Tap a bar to see that session's ratings and the change from the session before (green ↑ better, red ↓ worse), and open the workout.

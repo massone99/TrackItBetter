@@ -24,7 +24,7 @@ export type MetricId =
   | 'reps' | 'holdSec' | 'distanceM' | 'loadReps' | 'loadSec'
   | 'mobilityHoldSec' | 'mobilitySets'
   | 'bestReps' | 'bestHold' | 'bestLoad' | 'bestE1rm' | 'estMaxReps' | 'estMaxHold'
-  | 'setsAtRpe' | 'avgRpe' | 'sessionRpe' | 'trainingSec' | 'sleep' | 'energy' | 'soreness';
+  | 'setsAtRpe' | 'avgRpe' | 'avgForm' | 'sessionRpe' | 'trainingSec' | 'sleep' | 'energy' | 'soreness';
 
 export type MetricFamily = 'counts' | 'volume' | 'mobility' | 'performance' | 'intensity';
 export type MetricUnit = 'count' | 'reps' | 'seconds' | 'meters' | 'kgReps' | 'kgSeconds' | 'kg' | 'score';
@@ -56,6 +56,7 @@ export const METRICS: readonly MetricDef[] = [
   { id: 'estMaxHold', family: 'performance', unit: 'seconds', additive: false },
   { id: 'setsAtRpe', family: 'intensity', unit: 'count', additive: true },
   { id: 'avgRpe', family: 'intensity', unit: 'score', additive: false },
+  { id: 'avgForm', family: 'intensity', unit: 'score', additive: false },
   { id: 'sessionRpe', family: 'intensity', unit: 'score', additive: false },
   { id: 'trainingSec', family: 'intensity', unit: 'seconds', additive: false },
   { id: 'sleep', family: 'intensity', unit: 'score', additive: false },
@@ -132,6 +133,8 @@ export function computeMetric(metric: MetricId, rows: readonly CompletedSetRow[]
     case 'estMaxReps': return max(rows, (row) => { const estimate = setEstimate(row); return estimate?.kind === 'reps' ? estimate.value : null; });
     case 'estMaxHold': return max(rows, (row) => { const estimate = setEstimate(row); return estimate?.kind === 'hold' ? estimate.value : null; });
     case 'avgRpe': return average(rows.map((row) => row.rpe ?? null));
+    // An L/R pair counts once, as the mean of its sides' ratings.
+    case 'avgForm': return average(rows.map((row) => realMean(row, (side) => side.formRating ?? null)));
     case 'sessionRpe': return average(workouts.map((workout) => workout.sessionRpe));
     case 'sleep': return average(workouts.map((workout) => workout.sleep));
     case 'energy': return average(workouts.map((workout) => workout.energy));

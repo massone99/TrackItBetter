@@ -45,6 +45,8 @@ export interface CompletedSetRow {
   completedAt: Date | null;
   /** Optional so callers that only need volume and records can omit it. */
   rpe?: number | null;
+  /** Form rating of the set, 1–5. */
+  formRating?: number | null;
 }
 
 export interface PersonalBest {

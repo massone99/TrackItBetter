@@ -11,10 +11,8 @@ import { canTransfer, deleteExerciseWithHistory, getExerciseUsage, hideExercise,
 import { ExercisePicker, type ExerciseChoice } from '../../src/features/exercises/ExercisePicker';
 import { HistoryRow } from '../../src/features/exercises/HistoryRow';
 import { addExerciseToWorkout, getActiveWorkout, startWorkout } from '../../src/features/session/repository';
-import { getExerciseCycle, getExerciseEstimate, getExerciseFormHistory, getExerciseHistory, getExerciseRecordSummary, getExerciseWeekStats, type ExerciseHistorySession } from '../../src/features/analytics/repository';
+import { getExerciseCycle, getExerciseEstimate, getExerciseHistory, getExerciseRecordSummary, getExerciseWeekStats, type ExerciseHistorySession } from '../../src/features/analytics/repository';
 import type { ExerciseRecordSummary } from '../../src/features/analytics/records';
-import type { FormSession } from '../../src/features/analytics/formTrend';
-import { FormTrendCard } from '../../src/features/analytics/components/FormTrendCard';
 import { repsAtLoadFromHistory } from '../../src/features/analytics/repsAtLoad';
 import { RepsAtLoadCard } from '../../src/features/analytics/components/RepsAtLoadCard';
 import { formatRecordValue } from '../../src/features/analytics/recordLabels';
@@ -57,7 +55,6 @@ export default function ExerciseRoute() {
   const [cycle, setCycle] = useState<{ current: ExerciseCycle | null; previous: ExerciseCycle | null } | null>(null);
   const [estimate, setEstimate] = useState<ExerciseEstimate | null>(null);
   const [records, setRecords] = useState<ExerciseRecordSummary | null>(null);
-  const [formSessions, setFormSessions] = useState<FormSession[]>([]);
   const [editingReference, setEditingReference] = useState(false);
   const [history, setHistory] = useState<ExerciseHistorySession[]>([]);
   const [pairScope, setPairScope] = useState<PairScope>('average');
@@ -79,21 +76,19 @@ export default function ExerciseRoute() {
     if (!found) return;
     // Mobility and stretching count their own week from the first day trained; the rest the last 7 days.
     const mobility = [found.category, ...readList(found.extraCategories)].includes('mobility');
-    const [cycle, week, estimate, records, history, usage, forms] = await Promise.all([
+    const [cycle, week, estimate, records, history, usage] = await Promise.all([
       mobility ? getExerciseCycle(found.id, undefined, pairScope).catch(() => null) : null,
       mobility ? null : getExerciseWeekStats(found.id, found.metric, undefined, pairScope).catch(() => null),
       getExerciseEstimate(found.id, undefined, pairScope).catch(() => null),
       getExerciseRecordSummary(found.id, pairScope).catch(() => null),
       getExerciseHistory(found.id).catch(() => []),
       getExerciseUsage(found.id).catch(() => null),
-      getExerciseFormHistory(found.id).catch(() => []),
     ]);
     if (mobility) setCycle(cycle); else setWeek(week);
     setEstimate(estimate);
     setRecords(records);
     setHistory(history);
     setUsage(usage);
-    setFormSessions(forms);
   }, [id, pairScope]);
 
   useFocusEffect(useCallback(() => { void reload(); }, [reload]));
@@ -296,8 +291,6 @@ export default function ExerciseRoute() {
       ) : null}
 
       {exercise.metric === 'reps' || exercise.metric === 'reps_load' ? <RepsAtLoadCard key={exercise.id} groups={loadProgress} /> : null}
-
-      {exercise.metric !== 'distance' ? <FormTrendCard key={`form-${exercise.id}`} sessions={formSessions} /> : null}
 
       {estimate ? (
         <View style={styles.section}>
