@@ -76,13 +76,13 @@ import {
   TextField,
   Toast,
   tapFeedback,
-  useRepeatPress,
 } from '../../src/shared/components/ui';
 import { ReorderableList } from '../../src/shared/components/ReorderableList';
 import { RpePicker } from '../../src/features/session/RpePicker';
 import { SaveToProgramSheet } from '../../src/features/programs/SaveToProgramSheet';
 import { ExerciseNoteField } from '../../src/features/session/ExerciseNoteField';
 import { DoneTint, PopOnActivate, SwipeableSetRow } from '../../src/features/session/SwipeableSetRow';
+import { formatLoad, LOAD_STEP_KG, StepButton } from '../../src/features/session/SetEntry';
 import Animated, { FadeInDown, FadeOutLeft, LayoutAnimationConfig, LinearTransition, ZoomIn } from 'react-native-reanimated';
 import { formatRpe } from '../../src/domain/rpe';
 import { readBooleanPreference, RPE_PROMPT_KEY, writePreference } from '../../src/shared/settings/preferences';
@@ -1288,9 +1288,6 @@ function SetSheet({ exercise, set, holdMode, onHoldMode, onClose, onChanged, onR
   );
 }
 
-/** Step of the load buttons: the smallest common plate pair. */
-const LOAD_STEP_KG = 1.25;
-
 /** Last time's working set at the same position as `set` (same side for L/R pairs), or null. */
 function lastTimeFor(exercise: SessionExercise, set: SessionSet, previous: PreviousPerformance | undefined): PreviousSetValues | null {
   if (set.kind !== 'working' || !previous) return null;
@@ -1310,10 +1307,6 @@ function describeSets(sets: PreviousPerformance['sets'], metric: string): string
   return [side('left', 'L'), side('right', 'R')].filter(Boolean).join('  |  ');
 }
 
-/** Added (or assisted, negative) load with its sign and unit: "+10 kg", "−5 kg". */
-function formatLoad(kg: number): string {
-  return `${kg > 0 ? '+' : '−'}${formatNumber(Math.abs(kg))} kg`;
-}
 
 function describeSet(set: PreviousPerformance['sets'][number], metric: string): string {
   const base = metric === 'time' || metric === 'time_load'
@@ -1433,24 +1426,6 @@ function TimerAction({ label, filled = false, accessibilityLabel, onPress }: { l
   );
 }
 
-/** Tap to step once, hold to repeat (faster after a moment). */
-function StepButton({ icon, label, onPress }: { icon: 'add' | 'remove'; label: string; onPress: (multiplier: number) => void }) {
-  const styles = useScaledStyles(baseStyles);
-  const { palette } = useTheme();
-  const handlers = useRepeatPress(onPress);
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={label}
-      // 30 dp button + 9 dp on each side = the 48 dp touch target.
-      hitSlop={9}
-      {...handlers}
-      style={({ pressed }) => [styles.stepButton, { backgroundColor: palette.surfaceMuted, opacity: pressed ? 0.6 : 1 }]}
-    >
-      <Icon name={icon} size={16} color={palette.text} />
-    </Pressable>
-  );
-}
 
 function ReadinessRow({ label, value, onChange }: { label: string; value: number | null; onChange: (value: number) => void }) {
   const styles = useScaledStyles(baseStyles);
@@ -1534,7 +1509,6 @@ const baseStyles = StyleSheet.create({
   stepper: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
   setValue: { fontFamily: fonts.display, fontSize: 24, lineHeight: 30, minWidth: 36, textAlign: 'center', fontVariant: ['tabular-nums'] },
   loadValue: { fontFamily: fonts.display, fontSize: 20, lineHeight: 26, minWidth: 44, textAlign: 'center', fontVariant: ['tabular-nums'] },
-  stepButton: { width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center' },
   loadInput: { width: 76, minHeight: 48, borderRadius: 10, textAlign: 'center', textAlignVertical: 'center', fontFamily: fonts.display, fontSize: 20, lineHeight: 26, paddingVertical: 0, paddingHorizontal: 6, includeFontPadding: false },
   rowActions: { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 2 },
   checkButton: { width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },

@@ -2,6 +2,10 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.12.1 - 2026-10-05
+
+- Micro-sessions use the same set row as workouts: value with − and +, added load in kg, and the RPE strip; the ✓ logs it. Load and RPE are saved with the set.
+
 ## 0.12.0 - 2026-10-05
 
 - Workout screen redesigned: exercises are flat sections instead of cards, and every set has two rows: reps (or time) and kg, then RPE.

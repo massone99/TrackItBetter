@@ -7,7 +7,9 @@ import { HoldDurationField } from '../src/shared/components/DateTimePickers';
 import { WorkoutInProgressSheet } from '../src/features/session/WorkoutInProgressSheet';
 import { getActiveWorkout } from '../src/features/session/repository';
 import { defaultMicroTarget, getLastMicroSessionExercise, listMicroSessionExercises, listRecentMicroSessionExerciseIds, logMicroSession, pickRecent } from '../src/features/session/microSession';
-import { ActionButton, Body, Card, Chip, Label, PageHeading, Screen, Icon } from '../src/shared/components/ui';
+import { ActionButton, Body, Card, Chip, Label, NumberEdit, PageHeading, Screen, Icon, tapFeedback } from '../src/shared/components/ui';
+import { LOAD_STEP_KG, loadCell, setEntryStyles, StepButton } from '../src/features/session/SetEntry';
+import { RpePicker } from '../src/features/session/RpePicker';
 import { useTheme } from '../src/shared/theme/ThemeProvider';
 import { useScaledStyles } from '../src/shared/theme/useScaledStyles';
 import { goBack } from '../src/shared/navigation/goBack';
@@ -18,6 +20,7 @@ type Exercise = Awaited<ReturnType<typeof listMicroSessionExercises>>[number];
 
 export default function MicroSessionScreen() {
   const styles = useScaledStyles(baseStyles);
+  const sets = useScaledStyles(setEntryStyles);
   const { t } = useTranslation();
   const { palette } = useTheme();
   const [all, setAll] = useState<Exercise[]>([]);
@@ -27,6 +30,8 @@ export default function MicroSessionScreen() {
   const [recent, setRecent] = useState<Exercise[]>([]);
   const [query, setQuery] = useState('');
   const [value, setValue] = useState('3');
+  const [loadKg, setLoadKg] = useState(0);
+  const [rpe, setRpe] = useState<number | null>(null);
   const [working, setWorking] = useState(false);
   const workingRef = useRef(false);
   const requestRef = useRef(0);
@@ -71,6 +76,8 @@ export default function MicroSessionScreen() {
   const selectExercise = (exercise: Exercise) => {
     setSelected(exercise);
     setValue(defaultMicroTarget(exercise.metric));
+    setLoadKg(0);
+    setRpe(null);
     setMessage(null);
     Keyboard.dismiss();
   };
@@ -85,8 +92,10 @@ export default function MicroSessionScreen() {
     try {
       const open = await getActiveWorkout();
       if (open) { setBlockedBy({ id: open.id, name: open.name }); return; }
-      await logMicroSession(selected.id, parsed);
+      tapFeedback('success');
+      await logMicroSession(selected.id, parsed, { loadKg: distance ? 0 : loadKg, rpe });
       setMessage('done');
+      setRpe(null);
       void loadBase();
     } catch {
       setMessage('error');
@@ -105,13 +114,48 @@ export default function MicroSessionScreen() {
       <Card>
         {selected ? <>
           <Text numberOfLines={1} style={[styles.selectedName, { color: palette.text }]}>{selected.name}</Text>
-          <Body>{t('micro.value')} · {unit}</Body>
-          {timed ? <HoldDurationField label={t('micro.value')} value={Number(value) || 0} min={1} onChange={(seconds) => setValue(String(seconds))} /> : <View style={styles.targetRow}>
-            <Pressable accessibilityRole="button" accessibilityLabel={t('micro.decrease')} onPress={() => setValue(String(Math.max(increment, Number(value) - increment)))} style={[styles.adjust, { backgroundColor: palette.surfaceMuted }]}><Icon name="remove" size={18} color={palette.text} /></Pressable>
-            <TextInput maxFontSizeMultiplier={MAX_FONT_SCALE} accessibilityLabel={`${t('micro.value')} ${unit}`} keyboardType="numbers-and-punctuation" maxLength={5} selectTextOnFocus returnKeyType="done" value={value} onChangeText={setValue} style={[styles.value, { backgroundColor: palette.surfaceMuted, borderColor: palette.border, color: palette.text }]} />
-            <Pressable accessibilityRole="button" accessibilityLabel={t('micro.increase')} onPress={() => setValue(String(Number(value || 0) + increment))} style={[styles.adjust, { backgroundColor: palette.surfaceMuted }]}><Icon name="add" size={18} color={palette.text} /></Pressable>
-          </View>}
-          <ActionButton label={working ? t('micro.working') : t('micro.save')} onPress={() => void log()} />
+          {/* The same set row as a workout: set · value · kg · done, then RPE. */}
+          <View style={sets.columns}>
+            <Label style={[sets.colSet, sets.colHeader]}>{t('logger.setCol')}</Label>
+            <Label style={[sets.colValue, sets.colHeader]}>{timed ? t('logger.holdCol') : distance ? t('logger.distanceCol') : t('logger.repsCol')}</Label>
+            {distance ? null : <Label style={[sets.colLoad, sets.colHeader]}>{t('logger.kgCol')}</Label>}
+            <View style={sets.colAction} />
+          </View>
+          <View style={sets.row}>
+            <View style={sets.colSet}>
+              <View style={[sets.badge, { backgroundColor: palette.surfaceMuted }]}><Text style={[sets.badgeText, { color: palette.text }]}>1</Text></View>
+            </View>
+            <View style={[sets.colValue, sets.stepper]}>
+              <StepButton icon="remove" label={t('micro.decrease')} onPress={(multiplier) => setValue(String(Math.max(increment, Number(value) - increment * multiplier)))} />
+              {timed ? (
+                <HoldDurationField compact label={t('micro.value')} value={Number(value) || 0} min={1} onChange={(seconds) => setValue(String(seconds))} />
+              ) : (
+                <NumberEdit value={Number(value) || 0} display={value} label={`${t('micro.value')} ${unit}`} onCommit={(next) => setValue(String(distance ? next : Math.round(next)))} style={[sets.value, { color: palette.text }]} />
+              )}
+              <StepButton icon="add" label={t('micro.increase')} onPress={(multiplier) => setValue(String(Number(value || 0) + increment * multiplier))} />
+            </View>
+            {distance ? null : (
+              <View style={[sets.colLoad, sets.stepper]}>
+                <StepButton icon="remove" label={`${t('history.addedLoad')} −`} onPress={(multiplier) => setLoadKg((current) => Number((current - LOAD_STEP_KG * multiplier).toFixed(2)))} />
+                <NumberEdit value={loadKg} display={loadCell(loadKg)} allowNegative label={t('history.addedLoad')} onCommit={setLoadKg} style={[sets.loadValue, { color: loadKg === 0 ? palette.textMuted : palette.text }]} />
+                <StepButton icon="add" label={`${t('history.addedLoad')} +`} onPress={(multiplier) => setLoadKg((current) => Number((current + LOAD_STEP_KG * multiplier).toFixed(2)))} />
+              </View>
+            )}
+            <View style={sets.colAction}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={t('micro.save')}
+                accessibilityState={{ disabled: working, busy: working }}
+                disabled={working}
+                hitSlop={4}
+                onPress={() => void log()}
+                style={({ pressed }) => [sets.checkButton, { backgroundColor: palette.accent, opacity: working ? 0.5 : pressed ? 0.8 : 1 }]}
+              >
+                <Icon name="checkmark" size={20} color={palette.accentText} />
+              </Pressable>
+            </View>
+          </View>
+          <RpePicker compact value={rpe} onChange={setRpe} />
           {message === 'done' ? <Body style={{ color: palette.accentStrong }}>{t('micro.done')}</Body> : message === 'error' ? <Body style={{ color: palette.warning }}>{t('micro.error')}</Body> : null}
         </> : <Body>{t('micro.empty')}</Body>}
       </Card>
@@ -138,9 +182,6 @@ export default function MicroSessionScreen() {
 
 const baseStyles = StyleSheet.create({
   selectedName: { fontSize: 18, fontFamily: 'Barlow_600SemiBold' },
-  targetRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 12, marginVertical: 10 },
-  adjust: { width: 48, height: 48, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
-  value: { width: 96, minHeight: 52, borderWidth: 1, borderRadius: 12, textAlign: 'center', fontSize: 24, fontFamily: 'BarlowCondensed_700Bold' },
   section: { gap: 8, marginVertical: 8 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   search: { minHeight: 52, borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, fontSize: 16, fontFamily: 'Barlow_400Regular' },

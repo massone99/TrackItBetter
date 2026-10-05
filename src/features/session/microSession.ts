@@ -2,7 +2,7 @@ import { and, count, desc, eq, isNotNull, like, or } from 'drizzle-orm';
 import { db, initializeDatabase } from '../../db/client';
 import { exerciseEntries, settings, workouts } from '../../db/schema';
 import { getExerciseById, listExercises } from '../exercises/repository';
-import { addExerciseToWorkout, completeSet, finishWorkout, getActiveWorkout, startWorkout, updateSet } from './repository';
+import { addExerciseToWorkout, completeSet, enableExerciseLoad, finishWorkout, getActiveWorkout, startWorkout, updateSet, updateSetRpe } from './repository';
 
 const LAST_EXERCISE_KEY = 'gtg_last_exercise_id';
 
@@ -51,11 +51,18 @@ export async function getLastMicroSessionExercise(): Promise<string | null> {
   return value?.value ?? null;
 }
 
-export async function logMicroSession(exerciseId: string, value: number): Promise<void> {
+/**
+ * Saves one finished micro-session: the set's value and, like any workout set, its added load and
+ * RPE. A load on a bodyweight-only exercise makes it track load (see enableExerciseLoad).
+ */
+export async function logMicroSession(exerciseId: string, value: number, extra: { loadKg?: number; rpe?: number | null } = {}): Promise<void> {
   if (!Number.isFinite(value) || value <= 0 || value > 3600) throw new RangeError('Enter a positive practice target.');
   if (await getActiveWorkout()) throw new Error('Finish the active workout before logging a micro-session.');
   const exercise = await getExerciseById(exerciseId);
   if (!exercise) throw new Error('Exercise not found.');
+  const loadKg = extra.loadKg ?? 0;
+  if (!Number.isFinite(loadKg)) throw new RangeError('Invalid load.');
+  if (loadKg !== 0) await enableExerciseLoad(exerciseId);
 
   const workoutId = await startWorkout(await nextMicroSessionName());
   {
@@ -66,6 +73,8 @@ export async function logMicroSession(exerciseId: string, value: number): Promis
     const sets = (await getActiveWorkout(workoutId))?.exercises.find((item) => item.entryId === entryId)?.sets ?? [];
     for (const set of sets) {
       await updateSet(set.id, field, value);
+      if (loadKg !== 0 && field !== 'distanceM') await updateSet(set.id, 'addedLoadKg', loadKg);
+      if (extra.rpe != null) await updateSetRpe(set.id, extra.rpe);
       await completeSet(set.id);
     }
     await finishWorkout(workoutId);
