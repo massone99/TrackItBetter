@@ -3,7 +3,7 @@ import * as Speech from 'expo-speech';
 import { useTranslation } from 'react-i18next';
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { eq } from 'drizzle-orm';
-import { ActivityIndicator, Alert, Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, Pressable, StyleSheet, View } from 'react-native';
 import { groupSets, completedSetCount } from '../../src/domain/setPairs';
 import { useAppInsets } from '../../src/shared/layout/useAppInsets';
 import { ExercisePicker, type ExerciseChoice } from '../../src/features/exercises/ExercisePicker';
@@ -23,6 +23,7 @@ import { HoldDurationField } from '../../src/shared/components/DateTimePickers';
 import {
   updateEntryNote,
   addExerciseToWorkout,
+  enableExerciseLoad,
   addSet,
   completeSet,
   copyValuesToSet,
@@ -93,7 +94,6 @@ import { fonts } from '../../src/shared/theme/typography';
 import { formatClock, formatNumber } from '../../src/shared/utils/format';
 import { useScaledStyles } from '../../src/shared/theme/useScaledStyles';
 import { useAnimationSettings } from '../../src/shared/settings/AnimationProvider';
-import { MAX_FONT_SCALE } from '../../src/shared/theme/scale';
 
 const VOICE_CUES_KEY = 'workout.voice_cues.enabled';
 /** Set once the first set has been swiped, which hides the gesture hint. */
@@ -152,7 +152,9 @@ export default function WorkoutScreen() {
   const [removeExerciseFor, setRemoveExerciseFor] = useState<SessionExercise | null>(null);
   const [setSheet, setSetSheet] = useState<{ exercise: SessionExercise; setId: string } | null>(null);
   // Set that just got completed and is waiting for an optional RPE tap.
-  const [rpePromptFor, setRpePromptFor] = useState<string | null>(null);
+  // RPE chips under every working set; Profile can hide them.
+  const [showRpe] = useState(() => readBooleanPreference(RPE_PROMPT_KEY, true));
+  const [loadNotice, setLoadNotice] = useState<string | null>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -345,10 +347,19 @@ export default function WorkoutScreen() {
         : field === 'distanceM'
           ? set.distanceM ?? 0
           : set.addedLoadKg;
-    const next = Number((current + delta).toFixed(1));
+    const next = Number((current + delta).toFixed(2));
     const value = field === 'addedLoadKg' ? next : Math.max(0, next);
+    if (field === 'addedLoadKg' && value !== 0) {
+      const exercise = workout?.exercises.find((item) => item.sets.some((s) => s.id === set.id));
+      if (exercise) await allowLoad(exercise);
+    }
     await updateSet(set.id, field, value);
     if (workout) await refresh(workout.id);
+  };
+
+  /** First load on a bodyweight-only exercise: it starts tracking load (its reps and holds records stay). */
+  const allowLoad = async (exercise: SessionExercise) => {
+    if (await enableExerciseLoad(exercise.exerciseId)) setLoadNotice(t('logger.loadEnabled', { name: exercise.name }));
   };
 
   const chooseExercise = async (exercise: ExerciseChoice) => {
@@ -407,13 +418,10 @@ export default function WorkoutScreen() {
     tapFeedback('success');
     await completeSet(set.id);
     afterSetDone(set.id);
-    const inEmom = workout?.exercises.some((item) => item.entryId === emomEntryId && item.sets.some((s) => s.id === set.id));
-    if (!inEmom && readBooleanPreference(RPE_PROMPT_KEY, true)) setRpePromptFor(set.id);
     if (workout) await refresh(workout.id);
   };
 
   const saveRpe = async (set: SessionSet, rpe: number | null) => {
-    setRpePromptFor(null);
     await updateSetRpe(set.id, rpe);
     if (workout) await refresh(workout.id);
   };
@@ -423,7 +431,6 @@ export default function WorkoutScreen() {
     tapFeedback('success');
     await updateSet(setId, 'durationSec', seconds);
     await completeSet(setId);
-    if (readBooleanPreference(RPE_PROMPT_KEY, true)) setRpePromptFor(setId);
     afterSetDone(setId);
     if (workout) await refresh(workout.id);
   };
@@ -647,7 +654,7 @@ export default function WorkoutScreen() {
             previous={previous.get(exercise.exerciseId)}
             hold={hold.active}
             onChange={changeSet}
-            onSetValue={(set, field, value) => void updateSet(set.id, field, value).then(() => refresh(workout.id))}
+            onSetValue={(set, field, value) => void (field === 'addedLoadKg' && value !== 0 ? allowLoad(exercise) : Promise.resolve()).then(() => updateSet(set.id, field, value)).then(() => refresh(workout.id))}
             onComplete={(set) => void completeHoldManually(set)}
             onStartHold={startHoldFor}
             onFinishHold={() => void finishCurrentHold()}
@@ -659,15 +666,12 @@ export default function WorkoutScreen() {
             volumeRecord={records.volume.has(exercise.exerciseId)}
             emomLabel={exercise.entryId === emomEntryId && emom.phase ? emomBadge(emom.phase, emom.plan!, t) : null}
             supersetLabel={exercise.groupId ? t('superset.label', { letter: supersetLetters.get(exercise.groupId) ?? 'A' }) : null}
-            onCopyPrevious={(set, values) => { tapFeedback(); void copyValuesToSet(set.id, values).then(() => refresh(workout.id)); }}
             onUncomplete={(set) => void uncompleteSet(set.id).then(() => refresh(workout.id))}
             onRemoveSet={(set) => void removeSetFromRow(exercise, set)}
             onSwiped={markSwiped}
-            rpePromptFor={rpePromptFor}
+            showRpe={showRpe}
             onRpe={(set, rpe) => void saveRpe(set, rpe)}
-            onDismissRpe={() => setRpePromptFor(null)}
             onOptions={() => setOptionsFor(exercise)}
-            onSaved={() => refresh(workout.id)}
           />
             </Animated.View>
           )}
@@ -713,6 +717,7 @@ export default function WorkoutScreen() {
         bottomOffset={emom.plan ? 180 : hold.active || restSeconds !== null ? 110 : 0}
       />
       <Toast message={emomNotice} onHide={() => setEmomNotice(null)} />
+      <Toast message={loadNotice} onHide={() => setLoadNotice(null)} />
 
       <EmomSetupSheet
         exercise={emomSetupFor}
@@ -723,7 +728,6 @@ export default function WorkoutScreen() {
           setCollapsedEntries((current) => new Map(current).set(config.entryId, false));
           hold.stop();
           skipRest();
-          setRpePromptFor(null);
           if (emom.plan) void emom.stop().then(() => emom.start(config));
           else emom.start(config);
         }}
@@ -856,6 +860,8 @@ export default function WorkoutScreen() {
           onChanged={() => refresh(workout.id)}
           onRemoved={(removed) => offerUndo(t('logger.removedSet', { number: sheetSet.index }), removed)}
           onCompleteManually={() => void completeHoldManually(sheetSet)}
+          lastTime={lastTimeFor(sheetExercise, sheetSet, previous.get(sheetExercise.exerciseId))}
+          onCopyLast={(values) => { tapFeedback(); setSetSheet(null); void copyValuesToSet(sheetSet.id, values).then(() => refresh(workout.id)); }}
         />
       ) : null}
 
@@ -892,7 +898,7 @@ const nowMs = () => Date.now();
 /** Rest end times by workout id, so leaving and reopening the workout keeps the same countdown. */
 const runningRests = new Map<string, number>();
 
-function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, previous, hold, onChange, onSetValue, onComplete, onStartHold, onFinishHold, onAddSet, onAddWarmup, onSetOptions, onUncomplete, onRemoveSet, onSwiped, rpePromptFor, onRpe, onDismissRpe, onOptions, onSaved, onToggleWarmup, onCopyPrevious, setRecords, volumeRecord, supersetLabel, emomLabel: emomBadgeLabel }: {
+function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, previous, hold, onChange, onSetValue, onComplete, onStartHold, onFinishHold, onAddSet, onAddWarmup, onSetOptions, onUncomplete, onRemoveSet, onSwiped, showRpe, onRpe, onOptions, onToggleWarmup, setRecords, volumeRecord, supersetLabel, emomLabel: emomBadgeLabel }: {
   handle?: ReactNode;
   exercise: SessionExercise;
   collapsed: boolean;
@@ -900,7 +906,7 @@ function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, previous
   previous: PreviousPerformance | undefined;
   hold: ActiveHold | null;
   onChange: (set: SessionSet, field: 'reps' | 'durationSec' | 'distanceM' | 'addedLoadKg', delta: number) => Promise<void>;
-  onSetValue: (set: SessionSet, field: 'reps' | 'durationSec' | 'distanceM', value: number) => void;
+  onSetValue: (set: SessionSet, field: 'reps' | 'durationSec' | 'distanceM' | 'addedLoadKg', value: number) => void;
   onComplete: (set: SessionSet) => void;
   onStartHold: (set: SessionSet) => void;
   onFinishHold: () => void;
@@ -910,13 +916,11 @@ function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, previous
   onUncomplete: (set: SessionSet) => void;
   onRemoveSet: (set: SessionSet) => void;
   onSwiped: () => void;
-  rpePromptFor: string | null;
+  /** The RPE chips under every working set (Profile can hide them). */
+  showRpe: boolean;
   onRpe: (set: SessionSet, rpe: number | null) => void;
-  onDismissRpe: () => void;
   onOptions: () => void;
-  onSaved: () => Promise<void>;
   onToggleWarmup: (set: SessionSet) => void;
-  onCopyPrevious: (set: SessionSet, values: PreviousSetValues) => void;
   setRecords: ReadonlyMap<string, RecordKind[]>;
   volumeRecord: boolean;
   supersetLabel: string | null;
@@ -932,7 +936,8 @@ function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, previous
   const checkEntering = duration(180) ? ZoomIn.duration(duration(180)) : undefined;
   const timed = exercise.metric === 'time' || exercise.metric === 'time_load';
   const distance = exercise.metric === 'distance';
-  const loaded = exercise.metric === 'reps_load' || exercise.metric === 'time_load';
+  // Every set can carry added load or assistance, except distance work.
+  const withLoad = !distance;
   const field = timed ? 'durationSec' : distance ? 'distanceM' : 'reps';
   const doneSets = completedSetCount(exercise.sets);
   const totalSets = groupSets(exercise.sets).length;
@@ -941,15 +946,13 @@ function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, previous
   const doneValues = exercise.sets.filter((set) => set.completedAt).map((set) => {
     const base = timed ? formatClock(set.durationSec ?? 0) : distance ? `${formatNumber(set.distanceM ?? 0)} m` : String(set.reps ?? 0);
     const label = set.kind === 'warmup' ? `W ${base}` : base;
-    return loaded && set.addedLoadKg !== 0 ? `${label} ${formatLoad(set.addedLoadKg)}` : label;
+    return set.addedLoadKg !== 0 ? `${label} ${formatLoad(set.addedLoadKg)}` : label;
   }).join(' · ');
   const results = doneValues && !timed && !distance ? t('logger.resultsReps', { values: doneValues }) : doneValues;
-  const previousText = previous
-    ? previous.sets.map((set) => describeSet(set, exercise.metric)).join(' · ')
-    : null;
+  const previousText = previous ? describeSets(previous.sets, exercise.metric) : null;
 
   return (
-    <Card style={[styles.exerciseCard, allDone ? { borderColor: palette.success } : supersetLabel ? { borderColor: palette.accentStrong } : null]}>
+    <View style={[styles.exerciseSection, { borderTopColor: palette.border }]}>
       <View style={styles.exerciseHeader}>
         {handle}
         <Pressable
@@ -968,19 +971,19 @@ function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, previous
           </View>
           <View style={styles.progressRow}>
             <Icon name={allDone ? 'checkmark-circle' : 'ellipse-outline'} size={14} color={allDone ? palette.success : palette.textMuted} />
-            <Label>{t('logger.setsProgress', { done: doneSets, total: totalSets })}</Label>
+            <Label style={allDone ? { color: palette.success } : undefined}>{t('logger.setsProgress', { done: doneSets, total: totalSets })}</Label>
             {supersetLabel ? <Label style={{ color: palette.accentStrong }}>{`· ${supersetLabel}`}</Label> : null}
             {emomBadgeLabel ? <Label accessibilityLiveRegion="polite" style={{ color: palette.accentStrong }}>{`· ${emomBadgeLabel}`}</Label> : null}
+            {volumeRecord ? (
+              <View style={[styles.recordChip, { backgroundColor: palette.recordSoft }]}>
+                <Icon name="trophy-outline" size={13} color={palette.record} />
+                <Text style={[styles.clipChipText, { color: palette.record }]}>{t('records.kinds.volume')}</Text>
+              </View>
+            ) : null}
           </View>
           {collapsed && results ? <Text numberOfLines={2} style={[styles.results, { color: palette.text }]}>{results}</Text> : null}
           {collapsed ? null : <Label>{previousText ? t('logger.lastTime', { value: previousText }) : t('logger.firstTime')}</Label>}
           {exercise.notes ? <Text numberOfLines={3} style={[styles.exerciseNote, { color: palette.textMuted }]}>{exercise.notes}</Text> : null}
-          {volumeRecord ? (
-            <View style={[styles.recordChip, { backgroundColor: palette.recordSoft }]}>
-              <Icon name="trophy-outline" size={13} color={palette.record} />
-              <Text style={[styles.clipChipText, { color: palette.record }]}>{t('records.kinds.volume')}</Text>
-            </View>
-          ) : null}
         </Pressable>
         {exercise.demoUrl ? (
           <IconButton icon="play-circle-outline" label={t('logger.referenceOpen')} tone="plain" onPress={() => openReferenceVideo(exercise.demoUrl!)} />
@@ -990,7 +993,8 @@ function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, previous
 
       {collapsed ? null : <View style={[styles.columns, { borderBottomColor: palette.border }]}>
         <Label style={styles.colSet}>{t('logger.setCol')}</Label>
-        <Label style={styles.colValue}>{timed ? t('logger.holdCol') : distance ? t('logger.distanceCol') : t('logger.repsCol')}</Label>
+        <Label style={[styles.colValue, styles.colHeader]}>{timed ? t('logger.holdCol') : distance ? t('logger.distanceCol') : t('logger.repsCol')}</Label>
+        {withLoad ? <Label style={[styles.colLoad, styles.colHeader]}>{t('logger.kgCol')}</Label> : null}
         <View style={styles.colAction} />
         <View style={styles.colMenu} />
       </View>}
@@ -1002,25 +1006,26 @@ function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, previous
         const showSteps = !done || emomLocked;
         const workingNumber = groupSets(exercise.sets.filter((item) => item.kind === 'working' && item.index <= set.index)).length;
         const sideLabel = set.side === 'left' ? t('logger.sideLeft') : set.side === 'right' ? t('logger.sideRight') : '';
-        // Last time's working set at the same position; tapping it copies its values and note.
-        const previousGroups = groupSets(previous?.sets ?? []);
-        const lastTime = set.kind === 'working' ? previousGroups[workingNumber - 1]?.find((s) => !set.pairId || s.side === set.side || !s.side || s.side === 'both') ?? null : null;
         const holding = hold?.setId === set.id;
         // A held press anywhere on the set opens the same menu as its three dots.
         const openMenu = () => { tapFeedback(); onSetOptions(set); };
         const stored = timed ? set.durationSec ?? 0 : distance ? set.distanceM ?? 0 : set.reps ?? 0;
         const value = holding && hold ? holdDisplay(hold) : timed ? formatClock(stored) : distance ? formatNumber(stored) : String(stored);
+        const loadText = set.addedLoadKg === 0 ? '0' : formatLoad(set.addedLoadKg).replace(' kg', '');
+        const rpeRow = showRpe && set.kind === 'working' && !emomBadgeLabel;
         return (
           <Animated.View key={set.id} entering={setEntering} exiting={itemExiting} layout={rowLayout} style={styles.setBlock}>
             <DoneTint done={done} color={palette.accentSoft} />
             <SwipeableSetRow
               done={done}
+              onPage
               completeLabel={t('logger.swipeComplete')}
               reopenLabel={t('logger.swipeReopen')}
               removeLabel={t('logger.swipeRemove')}
               onSwipeRight={() => { onSwiped(); if (done) onUncomplete(set); else onComplete(set); }}
               onSwipeLeft={() => { onSwiped(); onRemoveSet(set); }}
             >
+            {/* Row 1: set, reps (or time, or distance), load, done, menu. */}
             <Pressable accessible={false} accessibilityRole="none" onLongPress={openMenu} delayLongPress={450} style={styles.setRow}>
               <View style={styles.colSet}>
                 <PopOnActivate active={done}>
@@ -1028,7 +1033,7 @@ function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, previous
                     accessibilityRole="button"
                     accessibilityLabel={set.kind === 'warmup' ? t('logger.warmupOn') : t('logger.warmupOff', { number: workingNumber })}
                     accessibilityHint={t('logger.warmupHint')}
-                    hitSlop={6}
+                    hitSlop={8}
                     onPress={() => onToggleWarmup(set)}
                     onLongPress={openMenu}
                     delayLongPress={450}
@@ -1040,7 +1045,7 @@ function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, previous
                 </PopOnActivate>
               </View>
               <View style={[styles.colValue, styles.stepper]}>
-                {showSteps ? <StepButton icon="remove" label="−" onPress={(multiplier) => void onChange(set, field, (distance ? -0.5 : timed ? -5 : -1) * multiplier)} /> : null}
+                {showSteps ? <StepButton icon="remove" label={`− ${sideLabel}`} onPress={(multiplier) => void onChange(set, field, (distance ? -0.5 : timed ? -5 : -1) * multiplier)} /> : null}
                 {done || holding ? (
                   <Text style={[styles.setValue, { color: holding ? palette.accentStrong : palette.text }]}>{value}</Text>
                 ) : timed ? (
@@ -1049,16 +1054,34 @@ function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, previous
                   <NumberEdit
                     value={stored}
                     display={value}
-                    clock={timed}
                     label={`${t('logger.editValue', { number: set.index })} ${sideLabel}`}
-                    onCommit={(next) => onSetValue(set, field, timed || field === 'reps' ? Math.round(next) : next)}
+                    onCommit={(next) => onSetValue(set, field, field === 'reps' ? Math.round(next) : next)}
                     onLongPress={openMenu}
                     style={[styles.setValue, { color: palette.text }]}
                   />
                 )}
                 {showSteps ? <StepButton icon="add" label={`+ ${sideLabel}`} onPress={(multiplier) => void onChange(set, field, (distance ? 0.5 : timed ? 5 : 1) * multiplier)} /> : null}
               </View>
-              <View style={[styles.colAction, styles.rowActions]}>
+              {withLoad ? (
+                <View style={[styles.colLoad, styles.stepper]}>
+                  {showSteps ? <StepButton icon="remove" label={`${t('history.addedLoad')} − ${sideLabel}`} onPress={(multiplier) => void onChange(set, 'addedLoadKg', -LOAD_STEP_KG * multiplier)} /> : null}
+                  {done ? (
+                    <Text style={[styles.loadValue, { color: set.addedLoadKg === 0 ? palette.textMuted : palette.text }]}>{loadText}</Text>
+                  ) : (
+                    <NumberEdit
+                      value={set.addedLoadKg}
+                      display={loadText}
+                      allowNegative
+                      label={`${t('history.addedLoad')} ${sideLabel}`}
+                      onCommit={(next) => onSetValue(set, 'addedLoadKg', next)}
+                      onLongPress={openMenu}
+                      style={[styles.loadValue, { color: set.addedLoadKg === 0 ? palette.textMuted : palette.text }]}
+                    />
+                  )}
+                  {showSteps ? <StepButton icon="add" label={`${t('history.addedLoad')} + ${sideLabel}`} onPress={(multiplier) => void onChange(set, 'addedLoadKg', LOAD_STEP_KG * multiplier)} /> : null}
+                </View>
+              ) : null}
+              <View style={styles.colAction}>
                 {done ? (
                   <Animated.View entering={checkEntering}>
                     <Pressable
@@ -1067,6 +1090,7 @@ function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, previous
                       accessibilityState={{ checked: true, disabled: emomLocked }}
                       accessibilityHint={emomLocked ? t('emom.editHint') : undefined}
                       disabled={emomLocked}
+                      hitSlop={4}
                       onPress={() => { tapFeedback(); onUncomplete(set); }}
                       onLongPress={openMenu}
                       delayLongPress={450}
@@ -1082,6 +1106,7 @@ function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, previous
                     accessibilityHint={holding ? undefined : t('logger.holdLongPressHint')}
                     accessibilityActions={holding ? undefined : [{ name: 'longpress', label: t('logger.markDoneNoTimer') }]}
                     onAccessibilityAction={(event) => { if (event.nativeEvent.actionName === 'longpress') onComplete(set); }}
+                    hitSlop={4}
                     onPress={() => holding ? onFinishHold() : onStartHold(set)}
                     onLongPress={holding ? undefined : () => { tapFeedback(); onComplete(set); }}
                     delayLongPress={400}
@@ -1093,6 +1118,7 @@ function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, previous
                   <Pressable
                     accessibilityRole="button"
                     accessibilityLabel={`${t('workout.completeSet')} ${sideLabel}`}
+                    hitSlop={4}
                     onPress={() => onComplete(set)}
                     onLongPress={openMenu}
                     delayLongPress={450}
@@ -1107,34 +1133,10 @@ function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, previous
               </View>
             </Pressable>
             </SwipeableSetRow>
-            {loaded || (!done && lastTime) ? (
-              <Pressable accessible={false} accessibilityRole="none" onLongPress={openMenu} delayLongPress={450} style={styles.setDetailRow}>
-                {/* Under the value: the added load, labelled. On the right: last time's set, which a tap copies. */}
-                {loaded ? (
-                  <View style={styles.loadField}>
-                    <Label>{t('logger.loadShort')}</Label>
-                    <LoadEditor sideLabel={sideLabel} key={`${set.id}:${set.addedLoadKg}`} setId={set.id} value={set.addedLoadKg} disabled={done} onSaved={onSaved} />
-                    <Label>kg</Label>
-                  </View>
-                ) : null}
-                <View style={styles.flex} />
-                {!done && lastTime ? (
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel={t('logger.copyPrevious', { value: describeSet(lastTime, exercise.metric) })}
-                    hitSlop={8}
-                    onPress={() => onCopyPrevious(set, lastTime)}
-                    style={({ pressed }) => [styles.lastChip, { borderColor: palette.border, opacity: pressed ? 0.6 : 1 }]}
-                  >
-                    <Icon name="arrow-undo-outline" size={14} color={palette.accentStrong} />
-                    <Text style={[styles.lastChipText, { color: palette.accentStrong }]}>{t('logger.lastShort', { value: describeSet(lastTime, exercise.metric) })}</Text>
-                  </Pressable>
-                ) : null}
-              </Pressable>
-            ) : null}
-            {rpePromptFor === set.id && set.completedAt ? (
-              <RpePicker sideLabel={sideLabel} inline value={set.rpe} onChange={(rpe) => onRpe(set, rpe)} onDismiss={onDismissRpe} />
-            ) : set.note || set.clipCount > 0 || set.rpe !== null || setRecords.has(set.id) ? (
+            {/* Row 2: how hard it was. */}
+            {rpeRow ? <RpePicker compact sideLabel={sideLabel} value={set.rpe} onChange={(rpe) => onRpe(set, rpe)} /> : null}
+            {/* Only when there is something to show: PR, clips, note (and RPE when its row is hidden). */}
+            {set.note || set.clipCount > 0 || (!rpeRow && set.rpe !== null) || setRecords.has(set.id) ? (
               <Pressable accessibilityRole="button" onPress={() => onSetOptions(set)} style={styles.setMeta}>
                 {setRecords.has(set.id) ? (
                   <View
@@ -1145,7 +1147,7 @@ function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, previous
                     <Text style={[styles.clipChipText, { color: palette.record }]}>{t('records.pr')}</Text>
                   </View>
                 ) : null}
-                {set.rpe !== null ? (
+                {!rpeRow && set.rpe !== null ? (
                   <View style={[styles.clipChip, { backgroundColor: palette.surface }]}>
                     <Icon name="speedometer-outline" size={13} color={palette.accentStrong} />
                     <Text style={[styles.clipChipText, { color: palette.accentStrong }]}>{t('logger.rpeTag', { value: formatRpe(set.rpe) })}</Text>
@@ -1166,21 +1168,21 @@ function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, previous
       })}
 
       {collapsed ? null : <View style={styles.addRow}>
-        <Pressable accessibilityRole="button" onPress={() => { tapFeedback(); onAddSet(); }} style={({ pressed }) => [styles.addSet, styles.addCell, { borderColor: palette.border, opacity: pressed ? 0.6 : 1 }]}>
+        <Pressable accessibilityRole="button" onPress={() => { tapFeedback(); onAddSet(); }} style={({ pressed }) => [styles.addSet, { opacity: pressed ? 0.6 : 1 }]}>
           <Icon name="add" size={18} color={palette.accentStrong} />
           <Text style={[styles.addSetText, { color: palette.accentStrong }]}>{t('logger.addSet')}</Text>
         </Pressable>
-        <Pressable accessibilityRole="button" accessibilityHint={t('logger.warmupHint')} onPress={() => { tapFeedback(); onAddWarmup(); }} style={({ pressed }) => [styles.addSet, styles.addCell, { borderColor: palette.border, borderStyle: 'dashed', opacity: pressed ? 0.6 : 1 }]}>
+        <Pressable accessibilityRole="button" accessibilityHint={t('logger.warmupHint')} onPress={() => { tapFeedback(); onAddWarmup(); }} style={({ pressed }) => [styles.addSet, { opacity: pressed ? 0.6 : 1 }]}>
           <Icon name="flame-outline" size={18} color={palette.textMuted} />
           <Text style={[styles.addSetText, { color: palette.textMuted }]}>{t('logger.addWarmup')}</Text>
         </Pressable>
       </View>}
-    </Card>
+    </View>
   );
 }
 
 /** Per-set details kept out of the row: note, form-check video, removal. */
-function SetSheet({ exercise, set, holdMode, onHoldMode, onClose, onChanged, onRemoved, onCompleteManually }: {
+function SetSheet({ exercise, set, holdMode, onHoldMode, onClose, onChanged, onRemoved, onCompleteManually, lastTime, onCopyLast }: {
   exercise: SessionExercise;
   set: SessionSet;
   holdMode: HoldMode;
@@ -1191,6 +1193,9 @@ function SetSheet({ exercise, set, holdMode, onHoldMode, onClose, onChanged, onR
   onRemoved: (removed: RemovedRows | null) => void;
   /** Completes a hold with its entered time, skipping the timer. */
   onCompleteManually: () => void;
+  /** Last time's set at the same position, which can be copied into this one. */
+  lastTime: PreviousSetValues | null;
+  onCopyLast: (values: PreviousSetValues) => void;
 }) {
   const { t } = useTranslation();
   const [note, setNote] = useState(set.note ?? '');
@@ -1251,6 +1256,9 @@ function SetSheet({ exercise, set, holdMode, onHoldMode, onClose, onChanged, onR
               <Body>{t('logger.holdLongPressHint')}</Body>
             </View>
           ) : null}
+          {lastTime && !set.completedAt ? (
+            <ActionButton icon="arrow-undo-outline" label={t('logger.copyPrevious', { value: describeSet(lastTime, exercise.metric) })} secondary onPress={() => onCopyLast(lastTime)} />
+          ) : null}
           <RpePicker value={rpe} onChange={(next) => { setRpe(next); void updateSetRpe(set.id, next).then(onChanged); }} />
           <TextField
             label={t('logger.noteLabel')}
@@ -1274,6 +1282,28 @@ function SetSheet({ exercise, set, holdMode, onHoldMode, onClose, onChanged, onR
         : <ActionButton label={t('logger.done')} onPress={close} />}
     </Sheet>
   );
+}
+
+/** Step of the load buttons: the smallest common plate pair. */
+const LOAD_STEP_KG = 1.25;
+
+/** Last time's working set at the same position as `set` (same side for L/R pairs), or null. */
+function lastTimeFor(exercise: SessionExercise, set: SessionSet, previous: PreviousPerformance | undefined): PreviousSetValues | null {
+  if (set.kind !== 'working' || !previous) return null;
+  const workingNumber = groupSets(exercise.sets.filter((item) => item.kind === 'working' && item.index <= set.index)).length;
+  const group = groupSets(previous.sets)[workingNumber - 1];
+  return group?.find((s) => !set.pairId || s.side === set.side || !s.side || s.side === 'both') ?? null;
+}
+
+/** Last time's sets for the header; L/R pairs are listed per side instead of interleaved. */
+function describeSets(sets: PreviousPerformance['sets'], metric: string): string {
+  const sided = sets.some((set) => set.side === 'left' || set.side === 'right');
+  if (!sided) return sets.map((set) => describeSet(set, metric)).join(' · ');
+  const side = (which: 'left' | 'right', letter: string) => {
+    const values = sets.filter((set) => set.side === which).map((set) => describeSet(set, metric));
+    return values.length ? `${letter} ${values.join(' · ')}` : null;
+  };
+  return [side('left', 'L'), side('right', 'R')].filter(Boolean).join('  |  ');
 }
 
 /** Added (or assisted, negative) load with its sign and unit: "+10 kg", "−5 kg". */
@@ -1442,32 +1472,6 @@ function ReadinessRow({ label, value, onChange }: { label: string; value: number
   </View>;
 }
 
-function LoadEditor({ setId, value, disabled, onSaved, sideLabel = '' }: { sideLabel?: string; setId: string; value: number; disabled: boolean; onSaved: () => Promise<void> }) {
-  const styles = useScaledStyles(baseStyles);
-  const { t } = useTranslation();
-  const { palette } = useTheme();
-  const [draft, setDraft] = useState(String(value));
-  const save = async () => {
-    const parsed = Number(draft.replace(',', '.'));
-    if (!Number.isFinite(parsed)) { setDraft(String(value)); return; }
-    if (parsed === value) return;
-    await updateSet(setId, 'addedLoadKg', parsed);
-    await onSaved();
-  };
-
-  return (
-    <TextInput maxFontSizeMultiplier={MAX_FONT_SCALE}
-      accessibilityLabel={`${t('history.addedLoad')} ${sideLabel}`}
-      value={draft}
-      editable={!disabled}
-      onChangeText={setDraft}
-      onBlur={() => void save()}
-      keyboardType="numbers-and-punctuation"
-      selectTextOnFocus
-      style={[styles.loadInput, { color: palette.text, backgroundColor: disabled ? 'transparent' : palette.surfaceMuted }]}
-    />
-  );
-}
 
 const baseStyles = StyleSheet.create({
   root: { flex: 1 },
@@ -1483,7 +1487,8 @@ const baseStyles = StyleSheet.create({
   readinessOption: { width: 40, height: 44, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
   readinessValue: { fontFamily: fonts.display, fontSize: 18 },
   emptyAction: { alignSelf: 'stretch', marginTop: 6, gap: 8 },
-  exerciseCard: { paddingHorizontal: 14, paddingBottom: 12, gap: 6 },
+  // Exercises are flat sections divided by a hairline, not cards: more room for the sets.
+  exerciseSection: { borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 12, gap: 4 },
   blockHeader: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: 12, paddingBottom: 6, marginBottom: 10, borderBottomWidth: StyleSheet.hairlineWidth },
   blockTitle: { fontFamily: fonts.semibold, fontSize: 16 },
   blockCount: { fontFamily: fonts.medium, fontSize: 13 },
@@ -1503,20 +1508,22 @@ const baseStyles = StyleSheet.create({
   progressRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', columnGap: 5 },
   exerciseName: { fontFamily: fonts.display, fontSize: 24, lineHeight: 28 },
   columns: { flexDirection: 'row', alignItems: 'center', paddingBottom: 6, paddingHorizontal: 4, borderBottomWidth: StyleSheet.hairlineWidth },
-  colSet: { width: 44 },
+  colSet: { width: 40 },
   colValue: { flex: 1, textAlign: 'center' },
-  colAction: { width: 48 },
-  setBlock: { borderRadius: 12, overflow: 'hidden', paddingTop: 4 },
-  setRow: { flexDirection: 'row', alignItems: 'center', minHeight: 60, paddingHorizontal: 4 },
+  colLoad: { flex: 1, textAlign: 'center' },
+  colHeader: { textAlign: 'center' },
+  colAction: { width: 44, alignItems: 'center' },
+  setBlock: { borderRadius: 10, overflow: 'hidden' },
+  setRow: { flexDirection: 'row', alignItems: 'center', minHeight: 52, paddingLeft: 2 },
   setDetailRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8, paddingLeft: 48, paddingRight: 4, paddingBottom: 8 },
   loadField: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   lastChip: { flexDirection: 'row', alignItems: 'center', gap: 4, minHeight: 32, paddingHorizontal: 10, borderRadius: 999, borderWidth: 1 },
   lastChipText: { fontFamily: fonts.semibold, fontSize: 13 },
-  colMenu: { width: 36, alignItems: 'center' },
+  colMenu: { width: 32, alignItems: 'center' },
   swipeHint: { flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: 14, paddingHorizontal: 14, paddingVertical: 10 },
   swipeHintText: { flex: 1, fontFamily: fonts.medium, fontSize: 14 },
   recordChip: { flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-start', borderRadius: 10, paddingHorizontal: 8, paddingVertical: 3, marginTop: 4 },
-  setMeta: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingLeft: 48, paddingRight: 12, paddingBottom: 10, marginTop: -4 },
+  setMeta: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingLeft: 40, paddingRight: 12, paddingBottom: 8 },
   clipChip: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, minHeight: 24, borderRadius: 999 },
   clipChipText: { fontFamily: fonts.semibold, fontSize: 12 },
   setNote: { flex: 1, fontFamily: fonts.body, fontSize: 13, lineHeight: 18 },
@@ -1525,14 +1532,14 @@ const baseStyles = StyleSheet.create({
   setBadgeText: { fontFamily: fonts.display, fontSize: 16 },
   setBadgeSide: { fontFamily: fonts.semibold, fontSize: 10, lineHeight: 11, marginTop: -2 },
   stepper: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
-  setValue: { fontFamily: fonts.display, fontSize: 28, lineHeight: 34, minWidth: 40, textAlign: 'center', fontVariant: ['tabular-nums'] },
-  stepButton: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
+  setValue: { fontFamily: fonts.display, fontSize: 24, lineHeight: 30, minWidth: 36, textAlign: 'center', fontVariant: ['tabular-nums'] },
+  loadValue: { fontFamily: fonts.display, fontSize: 20, lineHeight: 26, minWidth: 44, textAlign: 'center', fontVariant: ['tabular-nums'] },
+  stepButton: { width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center' },
   loadInput: { width: 76, minHeight: 48, borderRadius: 10, textAlign: 'center', textAlignVertical: 'center', fontFamily: fonts.display, fontSize: 20, lineHeight: 26, paddingVertical: 0, paddingHorizontal: 6, includeFontPadding: false },
   rowActions: { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 2 },
-  checkButton: { width: 48, height: 48, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
-  addSet: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, minHeight: 48, borderRadius: 12, borderWidth: 1, marginTop: 8 },
-  addRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 },
-  addCell: { flex: 1, minWidth: 130, marginTop: 0 },
+  checkButton: { width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  addSet: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 48, paddingHorizontal: 4 },
+  addRow: { flexDirection: 'row', flexWrap: 'wrap', columnGap: 20 },
   addSetText: { fontFamily: fonts.semibold, fontSize: 15 },
   footerActions: { gap: 10, marginTop: 4 },
   timerBar: { position: 'absolute', left: 0, right: 0, bottom: 0, alignItems: 'center', paddingHorizontal: 22, paddingTop: 14, borderTopLeftRadius: 24, borderTopRightRadius: 24 },

@@ -25,8 +25,10 @@ const TRIGGER = 64;
  * A set row that completes (or reopens) when swiped right and asks to be removed when swiped left.
  * The row snaps back after either action; the buttons inside keep working for anyone who does not swipe.
  */
-export function SwipeableSetRow({ done, completeLabel, reopenLabel, removeLabel, onSwipeRight, onSwipeLeft, children }: PropsWithChildren<{
+export function SwipeableSetRow({ done, completeLabel, reopenLabel, removeLabel, onSwipeRight, onSwipeLeft, onPage = false, children }: PropsWithChildren<{
   done: boolean;
+  /** Sits directly on the page (no card around it): matches the page colour instead of the card's. */
+  onPage?: boolean;
   completeLabel: string;
   reopenLabel: string;
   removeLabel: string;
@@ -63,7 +65,7 @@ export function SwipeableSetRow({ done, completeLabel, reopenLabel, removeLabel,
       }}
     >
       {/* Opaque so the action panels stay hidden until the row moves. */}
-      <View style={{ backgroundColor: palette.surface }}>
+      <View style={{ backgroundColor: onPage ? palette.background : palette.surface }}>
         <DoneTint done={done} color={palette.accentSoft} />
         {children}
       </View>

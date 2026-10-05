@@ -675,6 +675,20 @@ export async function getRecentWeekSummary(): Promise<{ sessions: number; sets: 
   };
 }
 
+/**
+ * Lets an exercise measured in reps or time carry added load (or assistance): reps becomes
+ * reps_load and time becomes time_load. Loaded metrics count everything the plain ones do, so
+ * past sets keep their records. Returns true when the metric changed.
+ */
+export async function enableExerciseLoad(exerciseId: string): Promise<boolean> {
+  await initializeDatabase();
+  const [exercise] = await db.select({ metric: exercises.metric }).from(exercises).where(eq(exercises.id, exerciseId));
+  const next = exercise?.metric === 'reps' ? 'reps_load' : exercise?.metric === 'time' ? 'time_load' : null;
+  if (!next) return false;
+  await db.update(exercises).set({ metric: next }).where(eq(exercises.id, exerciseId));
+  return true;
+}
+
 /** Saves an optional free-text note on a set; blank text clears it. */
 export async function updateSetNote(setId: string, note: string): Promise<void> {
   await initializeDatabase();

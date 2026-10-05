@@ -10,8 +10,10 @@ import { useScaledStyles } from '../../shared/theme/useScaledStyles';
  * RPE chips from 6 to 10. `inline` is the one-line strip shown under a just-completed set;
  * otherwise it wraps, for sheets.
  */
-export function RpePicker({ value, onChange, inline = false, onDismiss, sideLabel = '' }: {
+export function RpePicker({ value, onChange, inline = false, compact = false, onDismiss, sideLabel = '' }: {
   sideLabel?: string;
+  /** The always-visible second row of a set in the workout: small chips, no dismiss. */
+  compact?: boolean;
   value: number | null;
   onChange: (value: number | null) => void;
   inline?: boolean;
@@ -28,14 +30,24 @@ export function RpePicker({ value, onChange, inline = false, onDismiss, sideLabe
         accessibilityRole="button"
         accessibilityLabel={`${sideLabel} ${t('logger.rpeTag', { value: formatRpe(rpe) })}`.trim()}
         accessibilityState={{ selected }}
-        hitSlop={6}
+        hitSlop={compact ? { top: 8, bottom: 8, left: 2, right: 2 } : 6}
         onPress={() => { tapFeedback(); onChange(selected ? null : rpe); }}
-        style={[inline ? styles.stripChip : styles.chip, { backgroundColor: selected ? palette.accent : palette.surface, borderColor: selected ? palette.accent : palette.border }]}
+        style={[compact ? styles.compactChip : inline ? styles.stripChip : styles.chip, { backgroundColor: selected ? palette.accent : palette.surface, borderColor: selected ? palette.accent : palette.border }]}
       >
-        <Text style={[styles.chipText, { color: selected ? palette.accentText : palette.text }]}>{formatRpe(rpe)}</Text>
+        <Text style={[compact ? styles.compactChipText : styles.chipText, { color: selected ? palette.accentText : compact ? palette.textMuted : palette.text }]}>{formatRpe(rpe)}</Text>
       </Pressable>
     );
   });
+
+  if (compact) {
+    return (
+      <View style={styles.compactRow}>
+        <Text style={[styles.stripLabel, { color: palette.textMuted }]}>{t('logger.rpe')}</Text>
+        {/* The nine values share the width, so all of them are visible without scrolling. */}
+        <View style={styles.compactChips}>{chips}</View>
+      </View>
+    );
+  }
 
   if (!inline) {
     return (
@@ -73,5 +85,9 @@ const baseStyles = StyleSheet.create({
   stripChip: { minWidth: 44, minHeight: 48, paddingHorizontal: 8, paddingVertical: 8, borderRadius: 12, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
   chip: { minWidth: 48, minHeight: 48, paddingHorizontal: 10, paddingVertical: 8, borderRadius: 12, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
   chipText: { fontFamily: fonts.display, fontSize: 20 },
+  compactRow: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingLeft: 40, paddingBottom: 8 },
+  compactChips: { flex: 1, flexDirection: 'row', gap: 3 },
+  compactChip: { flex: 1, minHeight: 32, paddingHorizontal: 0, borderRadius: 8, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  compactChipText: { fontFamily: fonts.semibold, fontSize: 13 },
   dismiss: { width: 40, height: 48, alignItems: 'center', justifyContent: 'center' },
 });
