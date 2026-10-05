@@ -11,7 +11,8 @@ import { formatNumber } from '../../shared/utils/format';
 /**
  * This session against the last one: a title line ("Vs last time · Sat 3 Oct", with a button that shows
  * last time's sets) and one cell per measure, each reading "8 today" over "last time 26". A beaten
- * value turns green with ↑ and the gain; a lower average form turns red with ↓.
+ * value turns green with ↑ and the gain; a lower average form turns red with ↓. A lower average RPE
+ * for the same work is a mini PR too.
  */
 export function LastTimeStrip({ comparison, metric, date, detail }: {
   comparison: LastTimeComparison;
@@ -26,12 +27,14 @@ export function LastTimeStrip({ comparison, metric, date, detail }: {
   const { palette } = useTheme();
   const styles = useScaledStyles(baseStyles);
   const [open, setOpen] = useState(false);
-  const { total, rest, form, improved, worse } = comparison;
+  const { total, rest, form, rpe, improved, worse } = comparison;
   const totalLabel = metric === 'time' || metric === 'time_load' ? t('lastTime.totalTime') : metric === 'distance' ? t('lastTime.totalMeters') : t('lastTime.totalReps');
   const cells: { key: string; label: string; pairing: Pairing; trend: 'up' | 'down' | null; delta: string | null; format: (value: number) => string }[] = [];
   const signed = (value: number) => `${value > 0 ? '+' : '−'}${formatNumber(Math.abs(Math.round(value * 10) / 10))}`;
   if (total) cells.push({ key: 'total', label: totalLabel, pairing: total, trend: improved.total ? 'up' : null, delta: improved.total && total.now !== null ? signed(total.now - total.last) : null, format: (value) => formatNumber(value) });
   if (rest) cells.push({ key: 'rest', label: t('lastTime.restAverage'), pairing: rest, trend: improved.rest ? 'up' : null, delta: improved.rest && rest.now !== null ? `${signed(rest.now - rest.last)} s` : null, format: (value) => `${value} s` });
+  // Average RPE shows only when last time had one; lower is a mini PR only for the same work.
+  if (rpe) cells.push({ key: 'rpe', label: t('lastTime.rpeAverage'), pairing: rpe, trend: improved.rpe ? 'up' : null, delta: improved.rpe && rpe.now !== null ? signed(rpe.now - rpe.last) : null, format: (value) => formatNumber(value) });
   if (form) cells.push({ key: 'form', label: t('lastTime.formAverage', { value: '' }).trim(), pairing: form, trend: improved.form ? 'up' : worse.form ? 'down' : null, delta: form.now !== null && form.now !== form.last ? signed(form.now - form.last) : null, format: (value) => formatNumber(value) });
   return (
     <View style={styles.wrap}>

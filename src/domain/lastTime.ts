@@ -9,8 +9,10 @@ export interface ComparableSet {
   reps: number | null;
   durationSec: number | null;
   distanceM: number | null;
+  addedLoadKg?: number;
   restSec?: number | null;
   formRating?: number | null;
+  rpe?: number | null;
 }
 
 /** This session against last time; `now` is null until there is something to compare (no set done, no rating). */
@@ -23,8 +25,13 @@ export interface LastTimeComparison {
   rest: Pairing | null;
   /** Average form rating of the sets, 1–5. */
   form: Pairing | null;
-  /** The mini PRs: more in total, less rest, better form. */
-  improved: { total: boolean; rest: boolean; form: boolean };
+  /** Average RPE of the sets; only when every set has one (last time; and today, for `now`). */
+  rpe: Pairing | null;
+  /**
+   * The mini PRs: more in total, less rest, better form, and the same work at a lower average RPE
+   * (every set done with the same reps or time and load as last time, rest no longer, form no worse).
+   */
+  improved: { total: boolean; rest: boolean; form: boolean; rpe: boolean };
   /** Regressions worth flagging. Only form: total and rest fill up during the workout, so "less so far" is not one. */
   worse: { form: boolean };
 }
@@ -39,6 +46,15 @@ function perSet(sets: readonly ComparableSet[], value: (set: ComparableSet) => n
     return values.length ? [values.reduce((sum, item) => sum + item, 0) / values.length] : [];
   });
 }
+
+/** The mean of one value per working set, or null unless every working set has it. */
+function fullMean(sets: readonly ComparableSet[], value: (set: ComparableSet) => number | null | undefined): number | null {
+  const groups = groupSets(sets.filter((set) => set.kind !== 'warmup'));
+  if (groups.length === 0 || groups.some((group) => group.some((set) => value(set) == null))) return null;
+  return mean(perSet(sets, value));
+}
+
+const sameValues = (a: number[], b: number[]) => a.length === b.length && a.every((value, index) => Math.abs(value - b[index]) < 1e-6);
 
 const sum = (values: number[]) => values.reduce((total, value) => total + value, 0);
 const mean = (values: number[]) => (values.length ? sum(values) / values.length : null);
@@ -66,16 +82,29 @@ export function compareWithLast(
   const formNow = mean(perSet(done, (set) => set.formRating));
   const formLast = previous ? mean(perSet(previous, (set) => set.formRating)) : null;
   const form = formLast !== null ? { now: formNow === null ? null : round(formNow), last: round(formLast) } : null;
+  const rpeLast = previous ? fullMean(previous, (set) => set.rpe) : null;
+  const rpeNow = done.length ? fullMean(done, (set) => set.rpe) : null;
+  const rpe = rpeLast !== null ? { now: rpeNow === null ? null : round(rpeNow), last: round(rpeLast) } : null;
+  const working = current.filter((set) => set.kind !== 'warmup');
+  const sameWork = previous !== null && working.length > 0 && working.every((set) => set.completedAt)
+    && sameValues(perSet(done, (set) => amountOf(set, metric)), totalLast)
+    && sameValues(perSet(done, (set) => set.addedLoadKg ?? 0), perSet(previous, (set) => set.addedLoadKg ?? 0));
+  const improvedRest = rest !== null && rest.now !== null && rest.now < rest.last;
+  const improvedForm = form !== null && form.now !== null && form.now > form.last;
+  const worseForm = form !== null && form.now !== null && form.now < form.last;
   return {
     total,
     rest,
     form,
+    rpe,
     improved: {
       total: total !== null && total.now !== null && total.now > total.last,
-      rest: rest !== null && rest.now !== null && rest.now < rest.last,
-      form: form !== null && form.now !== null && form.now > form.last,
+      rest: improvedRest,
+      form: improvedForm,
+      rpe: sameWork && rpe !== null && rpe.now !== null && rpe.now < rpe.last
+        && (rest === null || rest.now === null || rest.now <= rest.last) && !worseForm,
     },
-    worse: { form: form !== null && form.now !== null && form.now < form.last },
+    worse: { form: worseForm },
   };
 }
 

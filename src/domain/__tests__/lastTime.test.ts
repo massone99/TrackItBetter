@@ -27,7 +27,7 @@ describe('compareWithLast', () => {
     const result = compareWithLast([hold(20, 4), hold(25, 5)], [hold(20, 3), hold(20, 4)], 'time', options);
     expect(result.total).toEqual({ now: 45, last: 40 });
     expect(result.form).toEqual({ now: 4.5, last: 3.5 });
-    expect(result.improved).toEqual({ total: true, rest: false, form: true });
+    expect(result.improved).toEqual({ total: true, rest: false, form: true, rpe: false });
     expect(result.worse.form).toBe(false);
   });
 
@@ -37,9 +37,26 @@ describe('compareWithLast', () => {
     expect(result.worse.form).toBe(true);
   });
 
+  it('calls the same work at a lower average RPE a mini PR', () => {
+    const at = (reps: number, kg: number, rpe: number | null, extra: Partial<ComparableSet> = {}) => set(reps, { addedLoadKg: kg, rpe, ...extra });
+    const last = [at(8, 10, 9), at(8, 10, 9)];
+    const easier = compareWithLast([at(8, 10, 8), at(8, 10, 8.5)], last, 'reps', options);
+    expect(easier.rpe).toEqual({ now: 8.3, last: 9 });
+    expect(easier.improved.rpe).toBe(true);
+    // Fewer reps, another load, a set still open or a set without RPE: not the same work, or no average.
+    expect(compareWithLast([at(8, 10, 8), at(7, 10, 8)], last, 'reps', options).improved.rpe).toBe(false);
+    expect(compareWithLast([at(8, 5, 8), at(8, 10, 8)], last, 'reps', options).improved.rpe).toBe(false);
+    expect(compareWithLast([at(8, 10, 8), at(8, 10, 8, { completedAt: null })], last, 'reps', options).improved.rpe).toBe(false);
+    expect(compareWithLast([at(8, 10, 8), at(8, 10, null)], last, 'reps', options).rpe).toEqual({ now: null, last: 9 });
+    // Last time without an RPE on every set has no average to beat.
+    expect(compareWithLast([at(8, 10, 8), at(8, 10, 8)], [at(8, 10, 9), at(8, 10, null)], 'reps', options).rpe).toBeNull();
+    // Longer rest or worse form spoil it.
+    expect(compareWithLast([at(8, 10, 8, { restSec: 180 }), at(8, 10, 8, { restSec: 180 })], last, 'reps', options).improved.rpe).toBe(false);
+  });
+
   it('has nothing to compare the first time', () => {
     const result = compareWithLast([set(8, { formRating: 4 })], null, 'reps', options);
-    expect(result).toEqual({ total: null, rest: null, form: null, improved: { total: false, rest: false, form: false }, worse: { form: false } });
+    expect(result).toEqual({ total: null, rest: null, form: null, rpe: null, improved: { total: false, rest: false, form: false, rpe: false }, worse: { form: false } });
   });
 
   it('keeps last time visible before anything is done today', () => {
@@ -47,6 +64,6 @@ describe('compareWithLast', () => {
     expect(result.total).toEqual({ now: 0, last: 8 });
     expect(result.rest).toEqual({ now: null, last: 60 });
     expect(result.form).toEqual({ now: null, last: 3 });
-    expect(result.improved).toEqual({ total: false, rest: false, form: false });
+    expect(result.improved).toEqual({ total: false, rest: false, form: false, rpe: false });
   });
 });

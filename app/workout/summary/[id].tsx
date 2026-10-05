@@ -47,7 +47,7 @@ export default function WorkoutSummaryScreen() {
       const beatLastTime = (completed?.exercises ?? []).some((exercise) => {
         const before = last.get(exercise.exerciseId);
         const { improved } = compareWithLast(exercise.sets, before?.sets ?? null, exercise.metric, { defaultRest: restForSet(exercise.exerciseId, { kind: 'working', restSec: null }) });
-        return improved.total || improved.rest || improved.form;
+        return improved.total || improved.rest || improved.form || improved.rpe;
       });
       if (distance.length + session.sets.length + session.volume.length > 0 || beatLastTime) tapFeedback('success');
     }).catch(() => { if (mounted) setLoading(false); });
@@ -75,14 +75,15 @@ export default function WorkoutSummaryScreen() {
     ...[...bestPrs.values()].map((record) => ({ key: `${record.exerciseId}:${record.kind}`, exerciseId: record.exerciseId, kind: record.kind, value: record.value, previous: record.previous })),
     ...prs.volume.map((record) => ({ key: `${record.exerciseId}:volume`, exerciseId: record.exerciseId, kind: 'volume' as const, value: record.value, previous: record.previous })),
   ];
-  // Mini PRs against last time: more in total, less rest, better form.
+  // Mini PRs against last time: more in total, less rest, better form, the same work at a lower RPE.
   const betterLines = workout.exercises.flatMap((exercise) => {
     const before = previous.get(exercise.exerciseId);
-    const { total, rest, improved } = compareWithLast(exercise.sets, before?.sets ?? null, exercise.metric, { defaultRest: restForSet(exercise.exerciseId, { kind: 'working', restSec: null }) });
+    const { total, rest, rpe, improved } = compareWithLast(exercise.sets, before?.sets ?? null, exercise.metric, { defaultRest: restForSet(exercise.exerciseId, { kind: 'working', restSec: null }) });
     const items = [
       improved.total && total ? t('lastTime.totalShort', { delta: Math.round(((total.now ?? 0) - total.last) * 10) / 10 }) : null,
       improved.rest && rest ? t('lastTime.restShort', { delta: rest.last - (rest.now ?? rest.last) }) : null,
       improved.form ? t('lastTime.formShort') : null,
+      improved.rpe && rpe && rpe.now !== null ? t('lastTime.rpeShort', { value: formatRpe(rpe.now), last: formatRpe(rpe.last) }) : null,
     ].filter((item): item is string => item !== null);
     return items.length ? [{ entryId: exercise.entryId, exerciseId: exercise.exerciseId, name: exercise.name, items }] : [];
   });

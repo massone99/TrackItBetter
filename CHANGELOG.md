@@ -2,6 +2,10 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.16.1 - 2026-10-05
+
+- New mini PR: the same work as last time (same sets, reps or time and load, rest no longer, form no worse) at a lower average RPE. "Vs last time" shows an "Average RPE" cell when last time had an RPE on every set, and the summary lists it under "Better than last time".
+
 ## 0.16.0 - 2026-10-05
 
 - Statistics: "Average RPE" counts an exercise in a workout only when every one of its sets there has an RPE.
