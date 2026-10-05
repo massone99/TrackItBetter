@@ -6,7 +6,7 @@ import * as Crypto from 'expo-crypto';
 import { listExercises } from '../features/exercises/repository';
 import { saveUserProgram } from '../features/programs/userPrograms';
 import { programSessionWorkoutName } from '../domain/userProgram';
-import { logCompletedWorkout, startWorkout } from '../features/session/repository';
+import { addExerciseToWorkout, logCompletedWorkout, startWorkout } from '../features/session/repository';
 
 async function seed(count = 40, active = false, from = 0, total = count): Promise<void> {
   const library = (await listExercises()).filter((exercise) => exercise.metric === 'reps');
@@ -37,7 +37,10 @@ async function seed(count = 40, active = false, from = 0, total = count): Promis
       })),
     });
   }
-  if (active) await startWorkout(names[0]);
+  if (active) {
+    const workoutId = await startWorkout(names[0]);
+    for (const exercise of pick(0)) await addExerciseToWorkout(workoutId, exercise.id);
+  }
 }
 
 (globalThis as { __seed?: typeof seed }).__seed = seed;

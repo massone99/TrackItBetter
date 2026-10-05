@@ -2,6 +2,14 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.11.0 - 2026-10-05
+
+- Today is simpler: one main card with the next workout of the program you trained last (or the one in progress), your week at a glance, a personal best only when it is from this week, and quick actions. The numbers and the list of records stay in Progress.
+- Main actions stay pinned at the bottom: Add exercise and Finish in a workout, Save in the program and movement editors, Add exercise in a past workout, Add to workout on a movement, and Start next on a program.
+- Leaving the program editor saves valid changes on its own; it only asks when something needs fixing. A bodyweight or measurement typed but not saved is recorded when you go back.
+- Set values save shortly after you stop typing instead of on every key.
+- Faster everywhere: statistics are read once and reused until something changes, new database indexes, fewer queries when a workout opens, and automatic memoization of screens.
+
 ## 0.10.10 - 2026-10-05
 
 - Drag the grip on a workout in a program to reorder its workouts.

@@ -31,7 +31,12 @@ wants short answers. Product context: `PRODUCT.md`, `DESIGN.md`.
 
 - No emulator here. Use Expo web: `CI=1 npx expo start --web --port 8081 --clear` (restart with
   `--clear` after adding files) and Playwright driven with Chromium `--no-sandbox`. Each run has an
-  empty database, so create the data in the same script.
+  empty database, so create the data in the same script. The dev server may not send the
+  cross-origin isolation headers on the HTML page (SQLite then fails with "SharedArrayBuffer is not
+  defined"); add them in Playwright with `page.route` (`cross-origin-embedder-policy: credentialless`,
+  `cross-origin-opener-policy: same-origin`). In dev builds on web, `globalThis.__seed(count, active)`
+  (`src/dev/webSeed.ts`) creates two programs and `count` finished workouts; call it in chunks of
+  about 8 (big batches hit "Sync operation timeout"). `__time(__loads.today)` times a data load.
 - Pose analysis (`app/pose/new.tsx`) does not run on web (`poseDetectionAvailable` is false), so it
   can only be checked with unit tests and on a phone.
 - Native-only behaviour (pickers, gestures, timers in the background) can only be confirmed by the owner.
@@ -42,6 +47,12 @@ wants short answers. Product context: `PRODUCT.md`, `DESIGN.md`.
 - Colours from `src/shared/theme/palette.ts` only; touch targets at least 48 dp (hitSlop counts);
   text at least 12 sp; no fixed heights on text containers (users scale fonts).
 - Long lists render in pages ("Show more"), not all at once.
+- Main actions of long screens go in `Screen`'s `footer` (`FooterAction`, at most two, never a
+  destructive one), so they are reachable without scrolling to the end.
+- Editing screens save on the way out with `useSaveOnLeave` (`src/shared/forms`); invalid edits ask
+  or are dropped. `NumberEdit` saves after a short pause in typing, and at once on blur or unmount.
+- Analytics read the set history through `cachedUntilWrite` (`src/db/cache.ts`), which reloads only
+  after a write. The React Compiler is on (`experiments.reactCompiler`).
 - i18n: en and it in `src/shared/i18n/resources.ts`. A string with `{{count}}` needs `_one` and
   `_other` keys (a test enforces it); do not put `{{count}}` in a non-plural key.
 - Lint uses the React Compiler rules: no ref reads or writes during render, no setState in effects,

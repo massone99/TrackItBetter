@@ -239,13 +239,16 @@ export default function UserProgramScreen() {
           ))}
           {collapsed.has(session.id) ? null : (
             <>
-              <ActionButton
-                icon="play"
-                label={starting === session.id ? t('programBuilder.starting') : t('userProgram.start')}
-                secondary={session.id !== nextId}
-                disabled={starting !== null}
-                onPress={() => void start(session)}
-              />
+              {/* The next workout starts from the footer; the others from their own card. */}
+              {session.id === nextId ? null : (
+                <ActionButton
+                  icon="play"
+                  label={starting === session.id ? t('programBuilder.starting') : t('userProgram.start')}
+                  secondary
+                  disabled={starting !== null}
+                  onPress={() => void start(session)}
+                />
+              )}
               <ActionButton icon="time-outline" label={t('userProgram.logPast')} variant="ghost" disabled={starting !== null} onPress={() => void logPast(session)} />
             </>
           )}
