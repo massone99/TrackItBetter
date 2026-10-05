@@ -46,3 +46,4 @@ export function initializeDatabase(): Promise<void> {
     });
   return migrationPromise;
 }
+

@@ -73,13 +73,22 @@ export default function ExerciseRoute() {
     const found = await getExerciseById(id);
     setExercise(found);
     setLoading(false);
+    if (!found) return;
     // Mobility and stretching count their own week from the first day trained; the rest the last 7 days.
-    if (found && [found.category, ...readList(found.extraCategories)].includes('mobility')) setCycle(await getExerciseCycle(found.id, undefined, pairScope).catch(() => null));
-    else if (found) setWeek(await getExerciseWeekStats(found.id, found.metric, undefined, pairScope).catch(() => null));
-    if (found) setEstimate(await getExerciseEstimate(found.id, undefined, pairScope).catch(() => null));
-    if (found) setRecords(await getExerciseRecordSummary(found.id, pairScope).catch(() => null));
-    if (found) setHistory(await getExerciseHistory(found.id).catch(() => []));
-    if (found) setUsage(await getExerciseUsage(found.id).catch(() => null));
+    const mobility = [found.category, ...readList(found.extraCategories)].includes('mobility');
+    const [cycle, week, estimate, records, history, usage] = await Promise.all([
+      mobility ? getExerciseCycle(found.id, undefined, pairScope).catch(() => null) : null,
+      mobility ? null : getExerciseWeekStats(found.id, found.metric, undefined, pairScope).catch(() => null),
+      getExerciseEstimate(found.id, undefined, pairScope).catch(() => null),
+      getExerciseRecordSummary(found.id, pairScope).catch(() => null),
+      getExerciseHistory(found.id).catch(() => []),
+      getExerciseUsage(found.id).catch(() => null),
+    ]);
+    if (mobility) setCycle(cycle); else setWeek(week);
+    setEstimate(estimate);
+    setRecords(records);
+    setHistory(history);
+    setUsage(usage);
   }, [id, pairScope]);
 
   useFocusEffect(useCallback(() => { void reload(); }, [reload]));

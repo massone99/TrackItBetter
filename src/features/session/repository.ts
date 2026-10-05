@@ -225,9 +225,18 @@ async function loadSessionExercises(workoutId: string): Promise<SessionExercise[
     .groupBy(formCheckVideos.setId);
   const clipsBySet = new Map(clipRows.map((row) => [row.setId, row.value]));
 
-  return Promise.all(entries.map(async ({ entry, exercise }) => {
-    const sets = await db.select().from(trainingSets)
-      .where(eq(trainingSets.entryId, entry.id)).orderBy(asc(trainingSets.index));
+  // One query for every set of the workout, grouped by entry, instead of one query per exercise.
+  const setRows = entries.length === 0 ? [] : await db.select().from(trainingSets)
+    .where(inArray(trainingSets.entryId, entries.map(({ entry }) => entry.id))).orderBy(asc(trainingSets.index));
+  const setsByEntry = new Map<string, (typeof setRows)[number][]>();
+  for (const set of setRows) {
+    const list = setsByEntry.get(set.entryId);
+    if (list) list.push(set);
+    else setsByEntry.set(set.entryId, [set]);
+  }
+
+  return entries.map(({ entry, exercise }) => {
+    const sets = setsByEntry.get(entry.id) ?? [];
     return {
       entryId: entry.id,
       exerciseId: exercise.id,
@@ -258,7 +267,7 @@ async function loadSessionExercises(workoutId: string): Promise<SessionExercise[
         completedAt: set.completedAt,
       })),
     };
-  }));
+  });
 }
 
 /** Read a finished workout for review/editing without reopening its lifecycle. */
@@ -641,7 +650,13 @@ export async function listRecentWorkouts(limit = 365): Promise<WorkoutHistoryIte
     .innerJoin(exerciseEntries, eq(trainingSets.entryId, exerciseEntries.id))
     .where(and(inArray(exerciseEntries.workoutId, rows.map((workout) => workout.id)), isNotNull(trainingSets.completedAt)))
     ;
-  const setsByWorkout = new Map(rows.map((row) => [row.id, completedSetCount(setCounts.filter((s) => s.workoutId === row.id))]));
+  const setsOf = new Map<string, typeof setCounts>();
+  for (const set of setCounts) {
+    const list = setsOf.get(set.workoutId);
+    if (list) list.push(set);
+    else setsOf.set(set.workoutId, [set]);
+  }
+  const setsByWorkout = new Map(rows.map((row) => [row.id, completedSetCount(setsOf.get(row.id) ?? [])]));
 
   return rows.map((workout) => ({
     ...workout,

@@ -1,5 +1,5 @@
 import { AccessibilityInfo } from "react-native";
-import { createContext, PropsWithChildren, useCallback, useContext, useEffect, useState } from "react";
+import { createContext, PropsWithChildren, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { readAnimationPreference, writePreference, ANIMATION_PREFERENCE_KEY, type AnimationSpeed } from "./preferences";
 
 type AnimationContextValue = {
@@ -37,7 +37,8 @@ export function AnimationProvider({ children }: PropsWithChildren) {
     return speed === "fast" ? Math.max(80, Math.round(normal * 0.55)) : normal;
   }, [reducedMotion, speed]);
 
-  return <AnimationContext.Provider value={{ speed, setSpeed, reducedMotion, duration }}>{children}</AnimationContext.Provider>;
+  const value = useMemo(() => ({ speed, setSpeed, reducedMotion, duration }), [speed, setSpeed, reducedMotion, duration]);
+  return <AnimationContext.Provider value={value}>{children}</AnimationContext.Provider>;
 }
 
 export function useAnimationSettings() {

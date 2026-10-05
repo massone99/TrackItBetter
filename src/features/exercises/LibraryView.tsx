@@ -1,5 +1,5 @@
 import { router, useFocusEffect } from 'expo-router';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useDeferredValue, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import type { Exercise } from '../../db/schema';
@@ -31,12 +31,13 @@ export function LibraryView() {
   const { grouping } = useExerciseGrouping();
   const sections = useMemo(() => groupExercises(items, grouping), [items, grouping]);
   const [loadedFilter, setLoadedFilter] = useState<string | null>(null);
-  const filterKey = JSON.stringify([query, category, favouritesOnly]);
+  // Typing stays responsive: the list follows the query once React has time, not on every keystroke.
+  const search = useDeferredValue(query);
+  const filterKey = JSON.stringify([search, category, favouritesOnly]);
 
   useFocusEffect(useCallback(() => {
     let current = true;
-    setLoadedFilter(null);
-    void listExercises({ query, category: category === 'all' ? undefined : category, favouritesOnly })
+    void listExercises({ query: search, category: category === 'all' ? undefined : category, favouritesOnly })
       .then((results) => {
         if (current) {
           setItems(results);
@@ -44,7 +45,7 @@ export function LibraryView() {
         }
     });
     return () => { current = false; };
-  }, [query, category, favouritesOnly, filterKey]));
+  }, [search, category, favouritesOnly, filterKey]));
 
   const toggleFavourite = async (exercise: Exercise) => {
     await setExerciseFavourite(exercise.id, !exercise.favourite);
@@ -88,7 +89,7 @@ export function LibraryView() {
       </ScrollView>
       <ExerciseGroupingControls />
       <Label>{t('library.results', { count: items.length })} · {t('library.offline')}</Label>
-      {loadedFilter !== filterKey ? <ActivityIndicator color={palette.accentStrong} /> : items.length === 0 ? (
+      {loadedFilter === null ? <ActivityIndicator color={palette.accentStrong} /> : items.length === 0 ? (
         <EmptyState icon="search-outline" title={t('library.empty')} body={t('library.emptyBody')} />
       ) : (
         <>

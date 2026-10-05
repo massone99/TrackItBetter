@@ -1,0 +1,66 @@
+/**
+ * Development only (Expo web): `window.__seed(workouts)` fills an empty database with programs and
+ * finished workouts, so screenshots and timings run against realistic data.
+ */
+import * as Crypto from 'expo-crypto';
+import { listExercises } from '../features/exercises/repository';
+import { saveUserProgram } from '../features/programs/userPrograms';
+import { logCompletedWorkout, startWorkout } from '../features/session/repository';
+
+async function seed(count = 40, active = false, from = 0, total = count): Promise<void> {
+  const library = (await listExercises()).filter((exercise) => exercise.metric === 'reps');
+  const pick = (start: number) => library.slice(start, start + 5);
+  const program = (name: string, sessions: string[]) => saveUserProgram({
+    name,
+    sessions: sessions.map((session, index) => ({
+      id: Crypto.randomUUID(),
+      name: session,
+      exercises: pick(index * 5).map((exercise) => ({ id: Crypto.randomUUID(), exerciseId: exercise.id, sets: 4, target: 8 })),
+    })),
+  });
+  if (from === 0) {
+  await program('Push Pull Legs', ['Push', 'Pull', 'Legs']);
+  await program('Skills', ['Planche day', 'Front lever day']);
+  }
+  const names = ['Push', 'Pull', 'Legs', 'Planche day'];
+  const now = Date.now();
+  for (let index = from; index < from + count; index += 1) {
+    const startedAt = new Date(now - (total - index) * 2 * 86_400_000 + 3_600_000);
+    await logCompletedWorkout({
+      name: names[index % names.length],
+      startedAt,
+      endedAt: new Date(startedAt.getTime() + 3_000_000),
+      entries: pick((index % 3) * 5).map((exercise, order) => ({
+        exerciseId: exercise.id,
+        sets: Array.from({ length: 4 }, (_, set) => ({ reps: 6 + Math.floor(index / 4) + (set % 2), completedAt: new Date(startedAt.getTime() + (order * 4 + set) * 120_000) })),
+      })),
+    });
+  }
+  if (active) await startWorkout('Push');
+}
+
+(globalThis as { __seed?: typeof seed }).__seed = seed;
+
+/** Times `fn` over `runs` calls and returns the median in ms. */
+async function time(fn: () => Promise<unknown>, runs = 5): Promise<number> {
+  const samples: number[] = [];
+  for (let run = 0; run < runs; run += 1) {
+    const start = performance.now();
+    await fn();
+    samples.push(performance.now() - start);
+  }
+  return samples.sort((a, b) => a - b)[Math.floor(runs / 2)];
+}
+(globalThis as { __time?: typeof time }).__time = time;
+
+/** The data loads behind the main screens, for `__time(__loads.today)`. */
+(globalThis as { __loads?: unknown }).__loads = {
+  today: async () => {
+    const { getMobilityWeek, getProgressSnapshot } = await import('../features/analytics/repository');
+    const { getGoalSnapshot } = await import('../features/goals/repository');
+    const { getActiveWorkout, listRecentWorkoutNames, listRecentWorkouts } = await import('../features/session/repository');
+    const { listUserPrograms } = await import('../features/programs/userPrograms');
+    return Promise.all([getActiveWorkout(), getGoalSnapshot(), getProgressSnapshot(), listRecentWorkouts(1), getMobilityWeek(), listUserPrograms(), listRecentWorkoutNames()]);
+  },
+  log: async () => (await import('../features/session/repository')).listRecentWorkouts(),
+};

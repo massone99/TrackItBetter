@@ -191,6 +191,13 @@ ALTER TABLE exercise_entry ADD COLUMN block TEXT CHECK (block IN ('warmup', 'mai
 PRAGMA user_version = 12;
 `;
 
+/** Lookups by exercise (history, last time) and by finished state (every analytics query). */
+const lookupIndexesSchema = `
+CREATE INDEX IF NOT EXISTS entry_exercise_idx ON exercise_entry(exercise_id);
+CREATE INDEX IF NOT EXISTS workout_ended_started_idx ON workout(ended_at, started_at);
+PRAGMA user_version = 13;
+`;
+
 /** Applies numbered, local-first SQLite schema migrations once per database. */
 export async function migrateDatabase(database: SQLiteDatabase): Promise<void> {
   await database.execAsync('PRAGMA foreign_keys = ON;');
@@ -277,6 +284,12 @@ export async function migrateDatabase(database: SQLiteDatabase): Promise<void> {
   if (version < 12) {
     await database.withTransactionAsync(async () => {
       await database.execAsync(workoutBlocksSchema);
+    });
+  }
+
+  if (version < 13) {
+    await database.withTransactionAsync(async () => {
+      await database.execAsync(lookupIndexesSchema);
     });
   }
 }

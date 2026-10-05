@@ -16,6 +16,9 @@ import { fontAssets } from "../src/shared/theme/typography";
 import { useTranslation } from "react-i18next";
 import { AnimationProvider, useAnimationSettings } from "../src/shared/settings/AnimationProvider";
 
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+if (__DEV__ && process.env.EXPO_OS === "web") require("../src/dev/webSeed");
+
 void SplashScreen.preventAutoHideAsync().catch(() => undefined);
 
 function AppNavigator() {

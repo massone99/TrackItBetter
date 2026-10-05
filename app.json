@@ -65,7 +65,8 @@
       ]
     ],
     "experiments": {
-      "typedRoutes": true
+      "typedRoutes": true,
+      "reactCompiler": true
     },
     "icon": "./assets/images/icon.png"
   }

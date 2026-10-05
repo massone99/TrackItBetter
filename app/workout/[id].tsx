@@ -170,6 +170,7 @@ export default function WorkoutScreen() {
     return () => { mounted = false; };
   }, []);
 
+  const previousKey = useRef<string | null>(null);
   const refresh = useCallback(async (workoutId: string) => {
     const next = await getActiveWorkout(workoutId);
     setWorkout(next);
@@ -181,8 +182,13 @@ export default function WorkoutScreen() {
     // Exercises start folded; see nextFolded for what keeps or changes that.
     setCollapsedEntries((current) => nextFolded(completed, before, current, initial));
     completionState.current = completed;
-    setPrevious(await getPreviousPerformance(next.exercises.map((exercise) => exercise.exerciseId), next.id));
-    const found = await getSessionRecords(next.id).catch(() => null);
+    // "Last time" only changes when the exercises change, so it is not re-read after every set.
+    const exerciseKey = `${next.id}:${next.exercises.map((exercise) => exercise.exerciseId).join(',')}`;
+    const [previousPerformance, found] = await Promise.all([
+      previousKey.current === exerciseKey ? null : getPreviousPerformance(next.exercises.map((exercise) => exercise.exerciseId), next.id),
+      getSessionRecords(next.id).catch(() => null),
+    ]);
+    if (previousPerformance) { previousKey.current = exerciseKey; setPrevious(previousPerformance); }
     if (!found) return;
     const bySet = new Map<string, RecordKind[]>();
     for (const record of found.sets) bySet.set(record.setId, [...(bySet.get(record.setId) ?? []), record.kind]);
@@ -229,7 +235,10 @@ export default function WorkoutScreen() {
   const emomEntryId = emom.plan?.entryId ?? null;
 
   // Returning from the form-check or new-exercise screens brings back clips and exercises added there.
+  // The first focus is the mount, which the effect above already loads.
+  const focusedOnce = useRef(false);
   useFocusEffect(useCallback(() => {
+    if (!focusedOnce.current) { focusedOnce.current = true; return; }
     if (id && id !== 'new') void refresh(id);
   }, [id, refresh]));
 

@@ -1,5 +1,6 @@
-import { and, asc, desc, eq, isNotNull, or } from 'drizzle-orm';
+import { and, asc, desc, eq, isNotNull } from 'drizzle-orm';
 import { db, initializeDatabase } from '../../db/client';
+import { cachedUntilWrite } from '../../db/cache';
 import { exerciseEntries, exercises, trainingSets, workouts } from '../../db/schema';
 import { buildExerciseCycle, buildExerciseWeek, buildMobilityCycles, buildMobilityWeek, mobilitySecondsForWorkout, type ExerciseCycle, type ExerciseWeek, type MobilityWeek } from './mobility';
 import { buildExerciseEstimate, type ExerciseEstimate } from './estimates';
@@ -112,7 +113,9 @@ export async function getExploreData(): Promise<ExploreData> {
   return { rows, workouts: finished };
 }
 
-async function loadCompletedSetRows(): Promise<CompletedSetRow[]> {
+const loadCompletedSetRows = cachedUntilWrite(readCompletedSetRows);
+
+async function readCompletedSetRows(): Promise<CompletedSetRow[]> {
   await initializeDatabase();
   return db
     .select({
@@ -149,9 +152,23 @@ async function loadCompletedSetRows(): Promise<CompletedSetRow[]> {
  * Completed working sets in chronological order, from finished workouts plus `includeWorkoutId`
  * (the one in progress). Rest before a set is the rest set on the previous completed working set of the exercise.
  */
+const loadFinishedRecordRows = cachedUntilWrite(() => readRecordRows());
+
+/**
+ * Record rows of finished workouts (cached), plus those of the workout in progress when asked. Only
+ * the workout in progress is read again; it started after every finished one, so it goes last.
+ */
 async function loadRecordRows(includeWorkoutId?: string): Promise<RecordRow[]> {
+  const finished = await loadFinishedRecordRows();
+  if (!includeWorkoutId) return finished;
+  const [workout] = await db.select({ endedAt: workouts.endedAt }).from(workouts).where(eq(workouts.id, includeWorkoutId));
+  if (!workout || workout.endedAt) return finished;
+  return [...finished, ...await readRecordRows(includeWorkoutId)];
+}
+
+async function readRecordRows(onlyWorkoutId?: string): Promise<RecordRow[]> {
   await initializeDatabase();
-  const workoutFilter = includeWorkoutId ? or(isNotNull(workouts.endedAt), eq(workouts.id, includeWorkoutId)) : isNotNull(workouts.endedAt);
+  const workoutFilter = onlyWorkoutId ? eq(workouts.id, onlyWorkoutId) : isNotNull(workouts.endedAt);
   const rows = await db
     .select({
       setId: trainingSets.id,
