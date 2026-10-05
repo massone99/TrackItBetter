@@ -1194,7 +1194,7 @@ function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, previous
                       accessibilityState={{ checked: true, disabled: emomLocked }}
                       accessibilityHint={emomLocked ? t('emom.editHint') : undefined}
                       disabled={emomLocked}
-                      hitSlop={4}
+                      hitSlop={{ top: 4, bottom: 4, left: 4, right: 0 }}
                       onPress={() => onUncomplete(set)}
                       onLongPress={openMenu}
                       delayLongPress={450}
@@ -1210,7 +1210,7 @@ function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, previous
                     accessibilityHint={holding ? undefined : t('logger.holdLongPressHint')}
                     accessibilityActions={holding ? undefined : [{ name: 'longpress', label: t('logger.markDoneNoTimer') }]}
                     onAccessibilityAction={(event) => { if (event.nativeEvent.actionName === 'longpress') onComplete(set); }}
-                    hitSlop={4}
+                    hitSlop={{ top: 4, bottom: 4, left: 4, right: 0 }}
                     onPress={() => holding ? onFinishHold() : onStartHold(set)}
                     onLongPress={holding ? undefined : () => { tapFeedback(); onComplete(set); }}
                     delayLongPress={400}
@@ -1222,7 +1222,7 @@ function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, previous
                   <Pressable
                     accessibilityRole="button"
                     accessibilityLabel={`${t('workout.completeSet')} ${sideLabel}`}
-                    hitSlop={4}
+                    hitSlop={{ top: 4, bottom: 4, left: 4, right: 0 }}
                     onPress={() => onComplete(set)}
                     onLongPress={openMenu}
                     delayLongPress={450}
@@ -1233,7 +1233,16 @@ function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, previous
                 )}
               </View>
               <View style={styles.colMenu}>
-                <IconButton icon="ellipsis-vertical" label={t('logger.setOptions', { number: set.index })} tone="plain" size={36} onPress={() => onSetOptions(set)} />
+                {/* The touch area grows only towards the screen edge, never over the done button beside it. */}
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={t('logger.setOptions', { number: set.index })}
+                  hitSlop={{ top: 0, bottom: 0, left: 0, right: 12 }}
+                  onPress={() => { tapFeedback(); onSetOptions(set); }}
+                  style={({ pressed }) => [styles.menuButton, pressed && { opacity: 0.6 }]}
+                >
+                  <Icon name="ellipsis-vertical" size={18} color={palette.textMuted} />
+                </Pressable>
               </View>
             </Pressable>
             </SwipeableSetRow>
@@ -1600,7 +1609,8 @@ const baseStyles = StyleSheet.create({
   loadField: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   lastChip: { flexDirection: 'row', alignItems: 'center', gap: 4, minHeight: 32, paddingHorizontal: 10, borderRadius: 999, borderWidth: 1 },
   lastChipText: { fontFamily: fonts.semibold, fontSize: 13 },
-  colMenu: { width: 32, alignItems: 'center' },
+  colMenu: { width: 36, alignItems: 'center' },
+  menuButton: { width: 36, minHeight: 48, alignItems: 'center', justifyContent: 'center' },
   swipeHint: { flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: 14, paddingHorizontal: 14, paddingVertical: 10 },
   swipeHintText: { flex: 1, fontFamily: fonts.medium, fontSize: 14 },
   recordChip: { flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-start', borderRadius: 10, paddingHorizontal: 8, paddingVertical: 3, marginTop: 4 },
@@ -1612,9 +1622,9 @@ const baseStyles = StyleSheet.create({
   setBadge: { width: 36, height: 36, borderRadius: 9, alignItems: 'center', justifyContent: 'center' },
   setBadgeText: { fontFamily: fonts.display, fontSize: 16 },
   setBadgeSide: { fontFamily: fonts.semibold, fontSize: 10, lineHeight: 11, marginTop: -2 },
-  stepper: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
-  setValue: { fontFamily: fonts.display, fontSize: 24, lineHeight: 30, minWidth: 36, textAlign: 'center', fontVariant: ['tabular-nums'] },
-  loadValue: { fontFamily: fonts.display, fontSize: 20, lineHeight: 26, minWidth: 44, textAlign: 'center', fontVariant: ['tabular-nums'] },
+  stepper: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4 },
+  setValue: { fontFamily: fonts.display, fontSize: 24, lineHeight: 30, minWidth: 34, textAlign: 'center', fontVariant: ['tabular-nums'] },
+  loadValue: { fontFamily: fonts.display, fontSize: 20, lineHeight: 26, minWidth: 34, textAlign: 'center', fontVariant: ['tabular-nums'] },
   loadInput: { width: 76, minHeight: 48, borderRadius: 10, textAlign: 'center', textAlignVertical: 'center', fontFamily: fonts.display, fontSize: 20, lineHeight: 26, paddingVertical: 0, paddingHorizontal: 6, includeFontPadding: false },
   rowActions: { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 2 },
   checkButton: { width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },

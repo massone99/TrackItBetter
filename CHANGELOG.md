@@ -2,6 +2,10 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.14.3 - 2026-10-05
+
+- Set rows: the ✓ and ⋮ buttons no longer share touch area (⋮ used to catch taps meant for ✓); the row is slightly tighter so the steppers fit on narrow phones.
+
 ## 0.14.2 - 2026-10-05
 
 - Workout tracker touch fixes: completing, reopening, RPE and form ratings respond at once; a double tap on ✓ no longer undoes the set; reopening the last set also stops its rest; a finished exercise folds after a short pause instead of under your finger; swipes need a clearer sideways drag, so taps on steppers are not taken as swipes; ✓ buttons show press feedback.

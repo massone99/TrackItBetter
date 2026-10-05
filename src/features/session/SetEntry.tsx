@@ -27,8 +27,8 @@ export function StepButton({ icon, label, onPress }: { icon: 'add' | 'remove'; l
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={label}
-      // 30 dp button + 9 dp on each side = the 48 dp touch target.
-      hitSlop={9}
+      // 28 dp button + 10 dp on each side = the 48 dp touch target.
+      hitSlop={10}
       {...handlers}
       style={({ pressed }) => [styles.stepButton, { backgroundColor: palette.surfaceMuted, opacity: pressed ? 0.6 : 1 }]}
     >
@@ -52,9 +52,9 @@ export const setEntryStyles = StyleSheet.create({
   colMenu: { width: 32, alignItems: 'center' },
   badge: { width: 36, height: 36, borderRadius: 9, alignItems: 'center', justifyContent: 'center' },
   badgeText: { fontFamily: fonts.display, fontSize: 16 },
-  stepper: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
+  stepper: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4 },
   value: { fontFamily: fonts.display, fontSize: 24, lineHeight: 30, minWidth: 36, textAlign: 'center', fontVariant: ['tabular-nums'] },
   loadValue: { fontFamily: fonts.display, fontSize: 20, lineHeight: 26, minWidth: 44, textAlign: 'center', fontVariant: ['tabular-nums'] },
-  stepButton: { width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center' },
+  stepButton: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
   checkButton: { width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
 });
