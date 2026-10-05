@@ -42,7 +42,10 @@ export function RpePicker({ value, onChange, inline = false, compact = false, on
   if (compact) {
     return (
       <View style={styles.compactRow}>
-        <Text style={[styles.stripLabel, { color: palette.textMuted }]}>{t('logger.rpe')}</Text>
+        {/* Same width as the set number column, so "RPE" sits right under the set number. */}
+        <View style={styles.compactLabel}>
+          <Text style={[styles.stripLabel, { color: palette.textMuted }]}>{t('logger.rpe')}</Text>
+        </View>
         {/* The nine values share the width, so all of them are visible without scrolling. */}
         <View style={styles.compactChips}>{chips}</View>
       </View>
@@ -85,7 +88,8 @@ const baseStyles = StyleSheet.create({
   stripChip: { minWidth: 44, minHeight: 48, paddingHorizontal: 8, paddingVertical: 8, borderRadius: 12, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
   chip: { minWidth: 48, minHeight: 48, paddingHorizontal: 10, paddingVertical: 8, borderRadius: 12, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
   chipText: { fontFamily: fonts.display, fontSize: 20 },
-  compactRow: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingLeft: 40, paddingBottom: 8 },
+  compactRow: { flexDirection: 'row', alignItems: 'center', paddingLeft: 2, paddingTop: 4, paddingBottom: 12 },
+  compactLabel: { width: 40, alignItems: 'center' },
   compactChips: { flex: 1, flexDirection: 'row', gap: 3 },
   compactChip: { flex: 1, minHeight: 32, paddingHorizontal: 0, borderRadius: 8, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
   compactChipText: { fontFamily: fonts.semibold, fontSize: 13 },
