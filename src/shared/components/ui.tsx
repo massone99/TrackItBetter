@@ -35,12 +35,19 @@ export const useScrollControl = () => useContext(ScrollControlContext);
  * pins the page's main actions to the bottom, so they never need a scroll to the end; it steps
  * aside while the keyboard is open so it never covers the field being typed in.
  */
-export function Screen({ children, contentContainerStyle, overlay, footer, scrollRef }: PropsWithChildren<{ contentContainerStyle?: ViewProps["style"]; overlay?: ReactNode; footer?: ReactNode; scrollRef?: Ref<ScrollHandle> }>) {
+export function Screen({ children, contentContainerStyle, overlay, footer, footerAccessory, scrollRef }: PropsWithChildren<{
+  contentContainerStyle?: ViewProps["style"];
+  overlay?: ReactNode;
+  footer?: ReactNode;
+  /** Live status stacked above the footer actions (e.g. a rest timer), so it never covers them. */
+  footerAccessory?: ReactNode;
+  scrollRef?: Ref<ScrollHandle>;
+}>) {
   const styles = useScaledStyles(baseStyles);
   const { palette } = useTheme();
   const insets = useAppInsets();
   const keyboardVisible = useKeyboardVisible();
-  const showFooter = Boolean(footer) && !keyboardVisible;
+  const showFooter = Boolean(footer || footerAccessory) && !keyboardVisible;
   const inner = useRef<ScrollHandle | null>(null);
   const offset = useRef(0);
   const [control] = useState<ScrollControl>(() => ({
@@ -63,7 +70,8 @@ export function Screen({ children, contentContainerStyle, overlay, footer, scrol
       </KeyboardScroll>
       {showFooter ? (
         <View style={[styles.footer, { backgroundColor: palette.background, borderTopColor: palette.border, paddingBottom: insets.bottom + spacing.md }]}>
-          <View style={styles.footerColumn}>{footer}</View>
+          {footerAccessory ? <View style={styles.footerAccessory}>{footerAccessory}</View> : null}
+          {footer ? <View style={styles.footerColumn}>{footer}</View> : null}
         </View>
       ) : null}
       {/* The status bar is transparent: this strip keeps scrolled content from showing under its icons. */}
@@ -726,6 +734,7 @@ const baseStyles = StyleSheet.create({
   footer: { borderTopWidth: StyleSheet.hairlineWidth, paddingTop: spacing.md, paddingHorizontal: spacing.page, alignItems: "center" },
   footerColumn: { width: "100%", maxWidth: 640, flexDirection: "row", gap: spacing.md },
   footerCell: { flex: 1 },
+  footerAccessory: { width: "100%", maxWidth: 640, marginBottom: spacing.md },
   stepper: { gap: 4, alignItems: "center" },
   stepperLabel: { fontFamily: fonts.medium, fontSize: 12 },
   stepperRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12, minHeight: 40 },

@@ -5,7 +5,6 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import { eq } from 'drizzle-orm';
 import { ActivityIndicator, Alert, Pressable, StyleSheet, View } from 'react-native';
 import { groupSets, completedSetCount } from '../../src/domain/setPairs';
-import { useAppInsets } from '../../src/shared/layout/useAppInsets';
 import { ExercisePicker, type ExerciseChoice } from '../../src/features/exercises/ExercisePicker';
 import { openExercisePage } from '../../src/features/exercises/openExercise';
 import { openReferenceVideo, ReferenceLinkSheet } from '../../src/features/exercises/ReferenceLinkSheet';
@@ -80,7 +79,6 @@ import {
   useRepeatPress,
 } from '../../src/shared/components/ui';
 import { ReorderableList } from '../../src/shared/components/ReorderableList';
-import { useKeyboardVisible } from '../../src/shared/components/keyboard';
 import { RpePicker } from '../../src/features/session/RpePicker';
 import { SaveToProgramSheet } from '../../src/features/programs/SaveToProgramSheet';
 import { ExerciseNoteField } from '../../src/features/session/ExerciseNoteField';
@@ -540,14 +538,33 @@ export default function WorkoutScreen() {
   const finishedExercises = workout.exercises.filter((exercise) => exercise.sets.length > 0 && exercise.sets.every((set) => set.completedAt)).length;
   const volumeKg = allSets.reduce((sum, set) => (set.completedAt && set.kind === 'working' && set.reps && set.addedLoadKg > 0 ? sum + set.reps * set.addedLoadKg : sum), 0);
   const readinessCount = [workout.sleep, workout.energy, workout.soreness].filter((value) => value !== null).length;
+  const timerRunning = hold.active !== null || restSeconds !== null || Boolean(emom.plan && emom.phase);
   const lowReadiness = (workout.sleep !== null && workout.sleep <= 2) || (workout.energy !== null && workout.energy <= 2) || (workout.soreness !== null && workout.soreness >= 4);
 
   return (
     <View style={[styles.root, { backgroundColor: palette.background }]}>
       <Screen
         scrollRef={scrollRef}
-        contentContainerStyle={{ paddingBottom: emom.plan ? 220 : 190 }}
-        // Add and Finish stay in reach however long the workout gets; the timer bar covers them while it runs.
+        // The running clock sits right above Add and Finish, so both stay in reach during rest.
+        footerAccessory={timerRunning ? (
+          <TimerBar
+            emom={emom.plan && emom.phase ? {
+              label: emomBarLabel(emom.phase, emom.plan, t),
+              display: emom.phase.phase === 'done' ? '0:00' : emom.phase.phase === 'countdown' ? String(emom.phase.secondsLeft) : formatClock(emom.phase.secondsLeft),
+              value: emom.plan.field === 'durationSec' ? formatClock(emom.plan.value) : t('emom.reps', { count: emom.plan.value }),
+              valueLabel: t('emom.thisRound'),
+              onChange: (delta: number) => emom.setValue((emom.plan?.value ?? 0) + delta * (emom.plan?.field === 'durationSec' ? 5 : 1)),
+              onStop: () => void emom.stop(),
+            } : null}
+            hold={hold.active}
+            restSeconds={restSeconds}
+            onFinishHold={() => void finishCurrentHold()}
+            onExtend={() => adjustRest(REST_STEP_SEC)}
+            onReduce={() => adjustRest(-REST_STEP_SEC)}
+            onSkip={skipRest}
+          />
+        ) : undefined}
+        // Add and Finish stay in reach however long the workout gets.
         footer={workout.exercises.length > 0 ? (
           <>
             <FooterAction icon="add" label={t('workout.addExercise')} secondary onPress={() => setPickerOpen(true)} />
@@ -557,7 +574,12 @@ export default function WorkoutScreen() {
       >
         <PageHeading
           title={workout.name}
-          subtitle={t('workout.inProgress', { elapsed })}
+          subtitle={[
+            t('workout.inProgress', { elapsed }),
+            totalSets > 0 ? t('logger.setsProgress', { done: completedCount, total: totalSets }) : null,
+            totalSets > 0 ? t('logger.exercisesProgress', { done: finishedExercises, total: workout.exercises.length }) : null,
+            volumeKg > 0 ? `${formatNumber(Math.round(volumeKg))} kg` : null,
+          ].filter(Boolean).join(' · ')}
           action={
             <Chip
               icon={voiceCues ? 'volume-high' : 'volume-mute-outline'}
@@ -571,11 +593,6 @@ export default function WorkoutScreen() {
 
         {totalSets > 0 ? (
           <View style={styles.summary}>
-            <View style={styles.summaryTop}>
-              <Text style={styles.summaryText}>{t('logger.setsProgress', { done: completedCount, total: totalSets })}</Text>
-              <Text style={[styles.summaryMuted, { color: palette.textMuted }]}>{t('logger.exercisesProgress', { done: finishedExercises, total: workout.exercises.length })}</Text>
-              {volumeKg > 0 ? <Text style={[styles.summaryMuted, { color: palette.textMuted }]}>{formatNumber(Math.round(volumeKg))} kg</Text> : null}
-            </View>
             <ProgressMeter value={completedCount} total={totalSets} label={t('logger.setsProgress', { done: completedCount, total: totalSets })} tone={completedCount === totalSets ? 'success' : 'accent'} />
           </View>
         ) : null}
@@ -689,22 +706,6 @@ export default function WorkoutScreen() {
         ) : null}
       </Screen>
 
-      <TimerBar
-        emom={emom.plan && emom.phase ? {
-          label: emomBarLabel(emom.phase, emom.plan, t),
-          display: emom.phase.phase === 'done' ? '0:00' : emom.phase.phase === 'countdown' ? String(emom.phase.secondsLeft) : formatClock(emom.phase.secondsLeft),
-          value: emom.plan.field === 'durationSec' ? formatClock(emom.plan.value) : t('emom.reps', { count: emom.plan.value }),
-          valueLabel: t('emom.thisRound'),
-          onChange: (delta: number) => emom.setValue((emom.plan?.value ?? 0) + delta * (emom.plan?.field === 'durationSec' ? 5 : 1)),
-          onStop: () => void emom.stop(),
-        } : null}
-        hold={hold.active}
-        restSeconds={restSeconds}
-        onFinishHold={() => void finishCurrentHold()}
-        onExtend={() => adjustRest(REST_STEP_SEC)}
-        onReduce={() => adjustRest(-REST_STEP_SEC)}
-        onSkip={skipRest}
-      />
 
       <Toast
         message={undo?.message ?? null}
@@ -942,14 +943,17 @@ function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, previous
   const doneSets = completedSetCount(exercise.sets);
   const totalSets = groupSets(exercise.sets).length;
   const allDone = totalSets > 0 && doneSets === totalSets;
-  // Folded summary of what was done, with units: "W 5 · 8 · 8 reps", "0:30 · 0:35", "8 +10 kg".
+  // Folded summary of what was done, with units: "W 5 · 8 · 8 reps", "L 8 · R 8 reps", "0:30 · 0:35", "8 +10 kg".
   const doneValues = exercise.sets.filter((set) => set.completedAt).map((set) => {
     const base = timed ? formatClock(set.durationSec ?? 0) : distance ? `${formatNumber(set.distanceM ?? 0)} m` : String(set.reps ?? 0);
-    const label = set.kind === 'warmup' ? `W ${base}` : base;
+    const side = set.side === 'left' ? 'L ' : set.side === 'right' ? 'R ' : '';
+    const label = set.kind === 'warmup' ? `W ${side}${base}` : `${side}${base}`;
     return set.addedLoadKg !== 0 ? `${label} ${formatLoad(set.addedLoadKg)}` : label;
   }).join(' · ');
   const results = doneValues && !timed && !distance ? t('logger.resultsReps', { values: doneValues }) : doneValues;
   const previousText = previous ? describeSets(previous.sets, exercise.metric) : null;
+  // The set to do next carries the filled button, so the eye lands on it; later sets stay quiet.
+  const nextSetId = exercise.sets.find((set) => !set.completedAt)?.id ?? null;
 
   return (
     <View style={[styles.exerciseSection, { borderTopColor: palette.border }]}>
@@ -1110,9 +1114,9 @@ function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, previous
                     onPress={() => holding ? onFinishHold() : onStartHold(set)}
                     onLongPress={holding ? undefined : () => { tapFeedback(); onComplete(set); }}
                     delayLongPress={400}
-                    style={[styles.checkButton, { backgroundColor: holding ? palette.accent : palette.surfaceMuted }]}
+                    style={[styles.checkButton, holding || set.id === nextSetId ? { backgroundColor: palette.accent } : { backgroundColor: palette.surfaceMuted }]}
                   >
-                    <Icon name={holding ? 'stop' : 'play'} size={18} color={holding ? palette.accentText : palette.text} />
+                    <Icon name={holding ? 'stop' : 'play'} size={18} color={holding || set.id === nextSetId ? palette.accentText : palette.text} />
                   </Pressable>
                 ) : (
                   <Pressable
@@ -1122,9 +1126,9 @@ function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, previous
                     onPress={() => onComplete(set)}
                     onLongPress={openMenu}
                     delayLongPress={450}
-                    style={[styles.checkButton, { backgroundColor: palette.surfaceMuted, borderColor: palette.border, borderWidth: 1 }]}
+                    style={[styles.checkButton, set.id === nextSetId ? { backgroundColor: palette.accent } : { backgroundColor: palette.surfaceMuted, borderColor: palette.border, borderWidth: 1 }]}
                   >
-                    <Icon name="checkmark" size={20} color={palette.textMuted} />
+                    <Icon name="checkmark" size={20} color={set.id === nextSetId ? palette.accentText : palette.textMuted} />
                   </Pressable>
                 )}
               </View>
@@ -1362,13 +1366,10 @@ function TimerBar({ emom, hold, restSeconds, onFinishHold, onExtend, onReduce, o
   const styles = useScaledStyles(baseStyles);
   const { t } = useTranslation();
   const { palette } = useTheme();
-  const insets = useAppInsets();
-  // The bar floats over the list; while typing it would sit on top of the focused input.
-  const keyboardVisible = useKeyboardVisible();
-  if (keyboardVisible || (hold === null && restSeconds === null && emom === null)) return null;
+  if (hold === null && restSeconds === null && emom === null) return null;
   if (emom) {
     return (
-      <View style={[styles.timerBar, { backgroundColor: palette.hero, paddingBottom: insets.bottom + 14 }]}>
+      <View style={[styles.timerBar, { backgroundColor: palette.hero }]}>
         <View style={[styles.timerInner, styles.emomInner]}>
         <View style={styles.emomRow}>
           <View style={styles.flex}>
@@ -1397,7 +1398,7 @@ function TimerBar({ emom, hold, restSeconds, onFinishHold, onExtend, onReduce, o
         ? t('logger.holdingTarget', { time: formatClock(hold.targetSec) })
         : t('logger.holding');
   return (
-    <View style={[styles.timerBar, { backgroundColor: palette.hero, paddingBottom: insets.bottom + 14 }]}>
+    <View style={[styles.timerBar, { backgroundColor: palette.hero }]}>
       <View style={styles.timerInner}>
       <View style={styles.timerReadout}>
         <Text style={[styles.timerLabel, { color: palette.heroText }]}>{label}</Text>
@@ -1497,10 +1498,7 @@ const baseStyles = StyleSheet.create({
   foldAll: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 44, paddingHorizontal: 8 },
   foldAllText: { fontFamily: fonts.semibold, fontSize: 14 },
   exerciseHeader: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, paddingHorizontal: 4, marginBottom: 4 },
-  summary: { gap: 8 },
-  summaryTop: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'baseline', gap: 12 },
-  summaryText: { flex: 1, fontFamily: fonts.semibold, fontSize: 15 },
-  summaryMuted: { fontFamily: fonts.medium, fontSize: 13 },
+  summary: { marginTop: -8 },
   results: { fontFamily: fonts.semibold, fontSize: 15, marginTop: 2 },
   footerRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   // Long labels: side by side only when each gets room for one line.
@@ -1544,10 +1542,10 @@ const baseStyles = StyleSheet.create({
   addRow: { flexDirection: 'row', flexWrap: 'wrap', columnGap: 20 },
   addSetText: { fontFamily: fonts.semibold, fontSize: 15 },
   footerActions: { gap: 10, marginTop: 4 },
-  timerBar: { position: 'absolute', left: 0, right: 0, bottom: 0, alignItems: 'center', paddingHorizontal: 22, paddingTop: 14, borderTopLeftRadius: 24, borderTopRightRadius: 24 },
+  timerBar: { borderRadius: 16, paddingHorizontal: 16, paddingVertical: 12 },
   timerInner: { width: '100%', maxWidth: 640, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
   timerLabel: { fontFamily: fonts.medium, fontSize: 14, opacity: 0.85 },
-  timerValue: { fontFamily: fonts.display, fontSize: 46, lineHeight: 50, fontVariant: ['tabular-nums'] },
+  timerValue: { fontFamily: fonts.display, fontSize: 38, lineHeight: 42, fontVariant: ['tabular-nums'] },
   timerReadout: { flexGrow: 1, minWidth: 110 },
   timerActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   emomInner: { flexDirection: 'column', alignItems: 'stretch', gap: 8 },
