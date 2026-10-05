@@ -205,6 +205,14 @@ ALTER TABLE exercise_entry ADD COLUMN form_rating INTEGER CHECK (form_rating BET
 PRAGMA user_version = 14;
 `;
 
+/** Form is rated set by set; ratings given per exercise in 0.13.0 move onto its completed working sets. */
+const setFormSchema = `
+ALTER TABLE training_set ADD COLUMN form_rating INTEGER CHECK (form_rating BETWEEN 1 AND 5);
+UPDATE training_set SET form_rating = (SELECT form_rating FROM exercise_entry WHERE exercise_entry.id = training_set.entry_id)
+  WHERE form_rating IS NULL AND kind = 'working' AND completed_at IS NOT NULL;
+PRAGMA user_version = 15;
+`;
+
 /** Applies numbered, local-first SQLite schema migrations once per database. */
 export async function migrateDatabase(database: SQLiteDatabase): Promise<void> {
   await database.execAsync('PRAGMA foreign_keys = ON;');
@@ -303,6 +311,12 @@ export async function migrateDatabase(database: SQLiteDatabase): Promise<void> {
   if (version < 14) {
     await database.withTransactionAsync(async () => {
       await database.execAsync(targetsAndFormSchema);
+    });
+  }
+
+  if (version < 15) {
+    await database.withTransactionAsync(async () => {
+      await database.execAsync(setFormSchema);
     });
   }
 }

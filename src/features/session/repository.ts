@@ -26,6 +26,8 @@ export interface SessionSet {
   rpe: number | null;
   /** RPE the program planned for this set, if any. */
   targetRpe: number | null;
+  /** How clean the form of this set was, 1–5; null when not rated. */
+  formRating: number | null;
   note: string | null;
   /** Number of form-check clips the user attached to this set. */
   clipCount: number;
@@ -46,8 +48,6 @@ export interface SessionExercise {
   demoUrl: string | null;
   /** Free-text note for this exercise within the workout. */
   notes: string | null;
-  /** How clean the form was this time, 1–5; null when not rated. */
-  formRating: number | null;
   /** Exercises sharing a group id form a superset; the type holds its rest mode (see superset.ts). */
   groupId: string | null;
   groupType: string | null;
@@ -251,7 +251,6 @@ async function loadSessionExercises(workoutId: string): Promise<SessionExercise[
       unilateralRestOverride: entry.unilateralRestMode,
       demoUrl: exercise.demoUrl,
       notes: entry.notes,
-      formRating: entry.formRating,
       block: blockOf(entry.block),
       groupId: entry.groupId,
       groupType: entry.groupType,
@@ -268,6 +267,7 @@ async function loadSessionExercises(workoutId: string): Promise<SessionExercise[
         restSec: set.restSec,
         rpe: set.rpe,
         targetRpe: set.targetRpe,
+        formRating: set.formRating,
         note: set.note,
         clipCount: clipsBySet.get(set.id) ?? 0,
         completedAt: set.completedAt,
@@ -696,11 +696,11 @@ export async function enableExerciseLoad(exerciseId: string): Promise<boolean> {
   return true;
 }
 
-/** Rates the form of one exercise in a workout, 1–5; null clears it. */
-export async function setEntryFormRating(entryId: string, rating: number | null): Promise<void> {
+/** Rates the form of one set, 1–5; null clears it. */
+export async function setSetFormRating(setId: string, rating: number | null): Promise<void> {
   await initializeDatabase();
   if (rating !== null && (!Number.isInteger(rating) || rating < 1 || rating > 5)) throw new RangeError('Form ratings are integers from 1 to 5');
-  await db.update(exerciseEntries).set({ formRating: rating }).where(eq(exerciseEntries.id, entryId));
+  await db.update(trainingSets).set({ formRating: rating }).where(eq(trainingSets.id, setId));
 }
 
 /** Sets the RPE the program planned for a set; null clears it. */
@@ -858,11 +858,9 @@ export async function restoreRemoved(removed: RemovedRows): Promise<void> {
 export interface PreviousPerformance {
   workoutStartedAt: Date;
   sets: PreviousSetValues[];
-  /** The form rating given last time, if any. */
-  formRating: number | null;
 }
 
-export type PreviousSetValues = Pick<SessionSet, 'reps' | 'durationSec' | 'distanceM' | 'addedLoadKg' | 'rpe' | 'note' | 'side' | 'pairId'> & { restSec?: number | null };
+export type PreviousSetValues = Pick<SessionSet, 'reps' | 'durationSec' | 'distanceM' | 'addedLoadKg' | 'rpe' | 'note' | 'side' | 'pairId'> & { restSec?: number | null; formRating?: number | null };
 
 /** Fills an open set with the values of a set from last time, note included. */
 export async function copyValuesToSet(setId: string, values: PreviousSetValues): Promise<void> {
@@ -924,7 +922,7 @@ export async function getPreviousPerformance(exerciseIds: string[], excludeWorko
       rpe: trainingSets.rpe,
       note: trainingSets.note,
       restSec: trainingSets.restSec,
-      formRating: exerciseEntries.formRating,
+      formRating: trainingSets.formRating,
     })
     .from(trainingSets)
     .innerJoin(exerciseEntries, eq(trainingSets.entryId, exerciseEntries.id))
@@ -937,9 +935,8 @@ export async function getPreviousPerformance(exerciseIds: string[], excludeWorko
     const chosen = latestWorkout.get(row.exerciseId);
     if (chosen && chosen !== row.workoutId) continue;
     latestWorkout.set(row.exerciseId, row.workoutId);
-    const entry: PreviousPerformance = result.get(row.exerciseId) ?? { workoutStartedAt: row.startedAt, sets: [], formRating: null };
-    entry.formRating ??= row.formRating;
-    entry.sets.push({ side: row.side, pairId: row.pairId, reps: row.reps, durationSec: row.durationSec, distanceM: row.distanceM, addedLoadKg: row.addedLoadKg, rpe: row.rpe, note: row.note, restSec: row.restSec });
+    const entry: PreviousPerformance = result.get(row.exerciseId) ?? { workoutStartedAt: row.startedAt, sets: [] };
+    entry.sets.push({ side: row.side, pairId: row.pairId, reps: row.reps, durationSec: row.durationSec, distanceM: row.distanceM, addedLoadKg: row.addedLoadKg, rpe: row.rpe, note: row.note, restSec: row.restSec, formRating: row.formRating });
     result.set(row.exerciseId, entry);
   }
   return result;

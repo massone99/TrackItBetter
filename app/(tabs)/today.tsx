@@ -12,7 +12,6 @@ import { getGoalSnapshot, GoalSnapshot } from "../../src/features/goals/reposito
 import { ActiveWorkout, getActiveWorkout, listRecentWorkoutNames, listRecentWorkouts, repeatWorkout, WorkoutHistoryItem } from "../../src/features/session/repository";
 import { readDefaultRest } from "../../src/features/session/restDefaults";
 import { ActionButton, Card, EmptyState, Icon, Label, ListGroup, ListRow, Screen, SectionTitle, Text, Title } from "../../src/shared/components/ui";
-import { Arrive } from "../../src/shared/components/Arrive";
 import { poseDetectionAvailable } from "../../src/features/pose/detectPose";
 import { useTheme } from "../../src/shared/theme/ThemeProvider";
 import { fonts } from "../../src/shared/theme/typography";
@@ -142,55 +141,53 @@ export default function TodayScreen() {
       {header}
 
       {/* One primary action: resume, the next planned workout, or a new one. */}
-      <Arrive>
-        <View style={[styles.hero, { backgroundColor: palette.hero }]}>
-          <View style={styles.heroCopy}>
-            {active ? (
-              <>
-                <Text style={[styles.heroEyebrow, { color: palette.heroText }]}>{t("home.inProgress")}</Text>
-                <Text style={[styles.heroTitle, { color: palette.heroText }]}>{active.name}</Text>
-                <Text style={[styles.heroBody, { color: palette.heroText }]}>{t("home.startedAgo", { minutes: activeMinutes, count: active.exercises.length })}</Text>
-              </>
-            ) : featured ? (
-              <>
-                <Text style={[styles.heroEyebrow, { color: palette.heroText }]}>{t("home.upNext", { program: featured.program.name })}</Text>
-                <Text style={[styles.heroTitle, { color: palette.heroText }]}>{featured.session.name}</Text>
-                <Text style={[styles.heroBody, { color: palette.heroText }]}>
-                  {t("home.sessionMeta", { count: featured.session.exercises.length, sets: sessionSetCount(featured.session), minutes: formatMinutes(featured.seconds) })}
-                </Text>
-              </>
-            ) : (
-              <>
-                <Text style={[styles.heroTitle, { color: palette.heroText }]}>{t("home.startTitle")}</Text>
-                <Text style={[styles.heroBody, { color: palette.heroText }]}>{t("home.startBody")}</Text>
-              </>
-            )}
-          </View>
+      <View style={[styles.hero, { backgroundColor: palette.hero }]}>
+        <View style={styles.heroCopy}>
           {active ? (
-            <ActionButton variant="inverse" icon="play" label={t("home.resume")} onPress={startEmpty} />
+            <>
+              <Text style={[styles.heroEyebrow, { color: palette.heroText }]}>{t("home.inProgress")}</Text>
+              <Text style={[styles.heroTitle, { color: palette.heroText }]}>{active.name}</Text>
+              <Text style={[styles.heroBody, { color: palette.heroText }]}>{t("home.startedAgo", { minutes: activeMinutes, count: active.exercises.length })}</Text>
+            </>
           ) : featured ? (
-            <ActionButton
-              variant="inverse"
-              icon="play"
-              label={starting === featured.session.id ? t("programBuilder.starting") : t("userProgram.start")}
-              disabled={starting !== null}
-              onPress={() => void startPlanned(featured)}
-            />
+            <>
+              <Text style={[styles.heroEyebrow, { color: palette.heroText }]}>{t("home.upNext", { program: featured.program.name })}</Text>
+              <Text style={[styles.heroTitle, { color: palette.heroText }]}>{featured.session.name}</Text>
+              <Text style={[styles.heroBody, { color: palette.heroText }]}>
+                {t("home.sessionMeta", { count: featured.session.exercises.length, sets: sessionSetCount(featured.session), minutes: formatMinutes(featured.seconds) })}
+              </Text>
+            </>
           ) : (
-            <ActionButton variant="inverse" icon="add" label={t("home.startEmpty")} onPress={startEmpty} />
-          )}
-          {active ? null : (
-            <Pressable
-              accessibilityRole="button"
-              onPress={featured ? startEmpty : () => router.push("/programs")}
-              style={styles.heroLinkRow}
-            >
-              <Text style={[styles.heroLink, { color: palette.heroText }]}>{featured ? t("home.emptyWorkout") : t("home.choosePlan")}</Text>
-              <Icon name={featured ? "add" : "arrow-forward"} size={18} color={palette.heroText} />
-            </Pressable>
+            <>
+              <Text style={[styles.heroTitle, { color: palette.heroText }]}>{t("home.startTitle")}</Text>
+              <Text style={[styles.heroBody, { color: palette.heroText }]}>{t("home.startBody")}</Text>
+            </>
           )}
         </View>
-      </Arrive>
+        {active ? (
+          <ActionButton variant="inverse" icon="play" label={t("home.resume")} onPress={startEmpty} />
+        ) : featured ? (
+          <ActionButton
+            variant="inverse"
+            icon="play"
+            label={starting === featured.session.id ? t("programBuilder.starting") : t("userProgram.start")}
+            disabled={starting !== null}
+            onPress={() => void startPlanned(featured)}
+          />
+        ) : (
+          <ActionButton variant="inverse" icon="add" label={t("home.startEmpty")} onPress={startEmpty} />
+        )}
+        {active ? null : (
+          <Pressable
+            accessibilityRole="button"
+            onPress={featured ? startEmpty : () => router.push("/programs")}
+            style={styles.heroLinkRow}
+          >
+            <Text style={[styles.heroLink, { color: palette.heroText }]}>{featured ? t("home.emptyWorkout") : t("home.choosePlan")}</Text>
+            <Icon name={featured ? "add" : "arrow-forward"} size={18} color={palette.heroText} />
+          </Pressable>
+        )}
+      </View>
 
       {others.length > 0 ? (
         <ListGroup>

@@ -2,6 +2,13 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.13.1 - 2026-10-05
+
+- Form is rated set by set: a "Form 1–5" row appears under each set once it is done (also in the set menu and in past workouts). Ratings given per exercise in 0.13.0 are moved onto its sets.
+- An exercise folds only after the form of its last set is rated.
+- The comparison with last time is explicit: "Vs last time · date" with a "Show sets" button, and cells that read "8 today / last time 26" for total, average rest and average form. Better is green with ↑; a lower average form is red with ↓.
+- Today's blue card no longer animates in.
+
 ## 0.13.0 - 2026-10-05
 
 - Programs can set a target RPE for each movement: the same for every set, or set by set. The program shows it as "4 × 8 @ RPE 8".

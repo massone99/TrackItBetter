@@ -51,9 +51,11 @@ wants short answers. Product context: `PRODUCT.md`, `DESIGN.md`.
   destructive one), so they are reachable without scrolling to the end.
 - Editing screens save on the way out with `useSaveOnLeave` (`src/shared/forms`); invalid edits ask
   or are dropped. `NumberEdit` saves after a short pause in typing, and at once on blur or unmount.
-- Sets carry `target_rpe` (from programs: `rpe` or `rpePerSet`, see `targetRpeFor`) and entries a
-  `form_rating` 1–5 (schema v14). "Vs last time" (total, rest, form) is `compareWithLast` in
-  `src/domain/lastTime.ts`, shown by `LastTimeStrip` in the workout and in the summary.
+- Sets carry `target_rpe` (from programs: `rpe` or `rpePerSet`, see `targetRpeFor`) and a
+  `form_rating` 1–5 (schema v15; `exercise_entry.form_rating` from v14 is legacy and unused). An
+  exercise folds only when every set is done and every working set is rated (`exerciseFinished`).
+  "Vs last time" (total, average rest, average form) is `compareWithLast` in `src/domain/lastTime.ts`,
+  shown by `LastTimeStrip` in the workout and in the summary; only a lower form shows red ↓.
 - Analytics read the set history through `cachedUntilWrite` (`src/db/cache.ts`), which reloads only
   after a write. The React Compiler is on (`experiments.reactCompiler`).
 - i18n: en and it in `src/shared/i18n/resources.ts`. A string with `{{count}}` needs `_one` and

@@ -23,7 +23,7 @@ import {
   updateEntryNote,
   addExerciseToWorkout,
   enableExerciseLoad,
-  setEntryFormRating,
+  setSetFormRating,
   addSet,
   completeSet,
   copyValuesToSet,
@@ -47,7 +47,7 @@ import {
 } from '../../src/features/session/repository';
 import type { ActiveWorkout, PreviousPerformance, PreviousSetValues, RemovedRows, SessionExercise, SessionSet } from '../../src/features/session/repository';
 import { defaultHoldMode, rememberHoldMode, useHoldTimer, type ActiveHold } from '../../src/features/session/useHoldTimer';
-import { nextFolded } from '../../src/domain/folding';
+import { exerciseFinished, nextFolded } from '../../src/domain/folding';
 import { adjustedRest, REST_STEP_SEC } from '../../src/domain/restTimer';
 import { ExerciseBlockField } from '../../src/features/session/ExerciseBlockField';
 import { blockOf, usesBlocks, type Block } from '../../src/domain/blocks';
@@ -181,7 +181,7 @@ export default function WorkoutScreen() {
     setWorkout(next);
     if (!next) return;
     const before = completionState.current;
-    const completed = new Map(next.exercises.map((exercise) => [exercise.entryId, exercise.sets.length > 0 && exercise.sets.every((set) => Boolean(set.completedAt))] as const));
+    const completed = new Map(next.exercises.map((exercise) => [exercise.entryId, exerciseFinished(exercise.sets)] as const));
     const initial = !loadedOnce.current;
     loadedOnce.current = true;
     // Exercises start folded; see nextFolded for what keeps or changes that.
@@ -535,7 +535,7 @@ export default function WorkoutScreen() {
   if (!workout) return <Screen><PageHeading title={t('workout.unavailable')} subtitle={t('workout.finished')} /><ActionButton label={t('workout.backToToday')} onPress={() => router.replace('/(tabs)/today')} /></Screen>;
 
   const allSets = workout.exercises.flatMap((exercise) => exercise.sets);
-  const allCollapsed = workout.exercises.every((exercise) => collapsedEntries.get(exercise.entryId) ?? (exercise.sets.length > 0 && exercise.sets.every((set) => Boolean(set.completedAt))));
+  const allCollapsed = workout.exercises.every((exercise) => collapsedEntries.get(exercise.entryId) ?? exerciseFinished(exercise.sets));
   const totalSets = groupSets(allSets).length;
   const showBlocks = usesBlocks(workout.exercises);
   const finishedExercises = workout.exercises.filter((exercise) => exercise.sets.length > 0 && exercise.sets.every((set) => set.completedAt)).length;
@@ -691,7 +691,7 @@ export default function WorkoutScreen() {
             onSwiped={markSwiped}
             showRpe={showRpe}
             defaultRest={restForSet(exercise.exerciseId, { kind: 'working', restSec: null })}
-            onFormRating={(rating) => void setEntryFormRating(exercise.entryId, rating).then(() => refresh(workout.id))}
+            onFormRating={(set, rating) => { tapFeedback(); void setSetFormRating(set.id, rating).then(() => refresh(workout.id)); }}
             onRpe={(set, rpe) => void saveRpe(set, rpe)}
             onOptions={() => setOptionsFor(exercise)}
           />
@@ -933,7 +933,7 @@ function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, previous
   emomLabel?: string | null;
   /** Rest the app applies to a working set without its own, for the rest comparison. */
   defaultRest: number;
-  onFormRating: (rating: number | null) => void;
+  onFormRating: (set: SessionSet, rating: number | null) => void;
 }) {
   const styles = useScaledStyles(baseStyles);
   const { t, i18n } = useTranslation();
@@ -960,8 +960,11 @@ function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, previous
   }).join(' · ');
   const results = doneValues && !timed && !distance ? t('logger.resultsReps', { values: doneValues }) : doneValues;
   const previousText = previous ? describeSets(previous.sets, exercise.metric) : null;
-  const comparison = compareWithLast(exercise.sets, previous?.sets ?? null, exercise.metric, { formNow: exercise.formRating, formLast: previous?.formRating ?? null, defaultRest });
+  const comparison = compareWithLast(exercise.sets, previous?.sets ?? null, exercise.metric, { defaultRest });
   const hasComparison = Boolean(comparison.total || comparison.rest || comparison.form);
+  // Average form of today's rated sets (also when there is nothing to compare it with).
+  const ratedForms = exercise.sets.filter((set) => set.completedAt && set.kind === 'working' && set.formRating !== null).map((set) => set.formRating as number);
+  const comparisonFormNow = ratedForms.length ? Math.round((ratedForms.reduce((sum, value) => sum + value, 0) / ratedForms.length) * 10) / 10 : null;
   // Mini PRs against last time, for the folded results line.
   const prNotes = [
     comparison.improved.total && comparison.total ? `↑ ${t('lastTime.totalShort', { delta: formatNumber(Math.round(((comparison.total.now ?? 0) - comparison.total.last) * 10) / 10) })}` : null,
@@ -973,7 +976,6 @@ function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, previous
   const targetText = targets.some((value) => value !== null)
     ? (targets.every((value) => value === targets[0]) ? formatRpe(targets[0]!) : targets.map((value) => (value === null ? '–' : formatRpe(value))).join(' · '))
     : null;
-  const totalUnit = timed ? 's' : distance ? 'm' : t('lastTime.repsUnit');
   // The set to do next carries the filled button, so the eye lands on it; later sets stay quiet.
   const nextSetId = exercise.sets.find((set) => !set.completedAt)?.id ?? null;
 
@@ -1009,6 +1011,7 @@ function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, previous
             ) : null}
           </View>
           {collapsed && results ? <Text numberOfLines={2} style={[styles.results, { color: palette.text }]}>{results}</Text> : null}
+          {collapsed && comparisonFormNow !== null ? <Label>{t('lastTime.formAverage', { value: formatNumber(comparisonFormNow) })}</Label> : null}
           {collapsed && prNotes.length ? <Text numberOfLines={2} style={[styles.prNotes, { color: palette.success }]}>{prNotes.join(' · ')}</Text> : null}
           {collapsed || hasComparison ? null : <Label>{previousText ? t('logger.lastTime', { value: previousText }) : t('logger.firstTime')}</Label>}
           {exercise.notes ? <Text numberOfLines={3} style={[styles.exerciseNote, { color: palette.textMuted }]}>{exercise.notes}</Text> : null}
@@ -1021,8 +1024,9 @@ function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, previous
       {!collapsed && hasComparison && previous ? (
         <LastTimeStrip
           comparison={comparison}
-          unit={totalUnit}
-          detail={t('lastTime.detail', { date: previous.workoutStartedAt.toLocaleDateString(i18n.language, { day: 'numeric', month: 'short' }), sets: previousText })}
+          metric={exercise.metric}
+          date={previous.workoutStartedAt.toLocaleDateString(i18n.language, { weekday: 'short', day: 'numeric', month: 'short' })}
+          detail={previousText ?? ''}
         />
       ) : null}
 
@@ -1170,6 +1174,8 @@ function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, previous
             </SwipeableSetRow>
             {/* Row 2: how hard it was. */}
             {rpeRow ? <RpePicker compact sideLabel={sideLabel} value={set.rpe} target={set.targetRpe} onChange={(rpe) => onRpe(set, rpe)} /> : null}
+            {/* Row 3, once the set is done: how clean the form was. The exercise folds only after the last rating. */}
+            {done && set.kind === 'working' && !emomBadgeLabel ? <FormRating value={set.formRating} sideLabel={sideLabel} onChange={(rating) => onFormRating(set, rating)} /> : null}
             {/* Only when there is something to show: PR, clips, note (and RPE when its row is hidden). */}
             {set.note || set.clipCount > 0 || (!rpeRow && set.rpe !== null) || setRecords.has(set.id) ? (
               <Pressable accessibilityRole="button" onPress={() => onSetOptions(set)} style={styles.setMeta}>
@@ -1212,8 +1218,7 @@ function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, previous
           <Text style={[styles.addSetText, { color: palette.textMuted }]}>{t('logger.addWarmup')}</Text>
         </Pressable>
       </View>}
-      {/* Form is judged after the sets, so its rating sits at the end and appears once a set is done. */}
-      {!collapsed && doneSets > 0 ? <FormRating value={exercise.formRating} onChange={onFormRating} /> : null}
+
     </View>
   );
 }
@@ -1237,6 +1242,7 @@ function SetSheet({ exercise, set, holdMode, onHoldMode, onClose, onChanged, onR
   const { t } = useTranslation();
   const [note, setNote] = useState(set.note ?? '');
   const [rpe, setRpe] = useState(set.rpe);
+  const [form, setForm] = useState(set.formRating);
   const [confirming, setConfirming] = useState(false);
   // Clips cannot be restored, so only a set with clips asks first; any other removal can be undone.
   const needsConfirm = set.clipCount > 0;
@@ -1297,6 +1303,7 @@ function SetSheet({ exercise, set, holdMode, onHoldMode, onClose, onChanged, onR
             <ActionButton icon="arrow-undo-outline" label={t('logger.copyPrevious', { value: describeSet(lastTime, exercise.metric) })} secondary onPress={() => onCopyLast(lastTime)} />
           ) : null}
           <RpePicker value={rpe} onChange={(next) => { setRpe(next); void updateSetRpe(set.id, next).then(onChanged); }} />
+          {set.kind === 'working' ? <FormRating value={form} onChange={(next) => { setForm(next); void setSetFormRating(set.id, next).then(onChanged); }} /> : null}
           <TextField
             label={t('logger.noteLabel')}
             value={note}

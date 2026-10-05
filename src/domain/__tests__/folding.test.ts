@@ -1,4 +1,4 @@
-import { nextFolded } from '../folding';
+import { exerciseFinished, nextFolded } from '../folding';
 
 const map = (entries: [string, boolean][]) => new Map(entries);
 
@@ -19,5 +19,18 @@ describe('nextFolded', () => {
     const current = map([['a', false], ['b', true]]);
     const folded = nextFolded(map([['a', true], ['b', false]]), map([['a', false], ['b', true]]), current, false);
     expect([...folded]).toEqual([['a', true], ['b', false]]);
+  });
+});
+
+describe('exerciseFinished', () => {
+  const set = (done: boolean, formRating: number | null, kind = 'working') => ({ kind, completedAt: done ? new Date() : null, formRating });
+  it('waits for the form rating of every working set', () => {
+    expect(exerciseFinished([set(true, 4), set(true, null)])).toBe(false);
+    expect(exerciseFinished([set(true, 4), set(true, 3)])).toBe(true);
+  });
+  it('does not need a rating on warm-ups, and needs every set done', () => {
+    expect(exerciseFinished([set(true, null, 'warmup'), set(true, 4)])).toBe(true);
+    expect(exerciseFinished([set(true, 4), set(false, null)])).toBe(false);
+    expect(exerciseFinished([])).toBe(false);
   });
 });

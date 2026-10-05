@@ -7,7 +7,7 @@ import { listExercises } from '../features/exercises/repository';
 import { listUserPrograms, saveUserProgram } from '../features/programs/userPrograms';
 import { startUserProgramSession } from '../features/programs/startUserSession';
 import { programSessionWorkoutName } from '../domain/userProgram';
-import { addExerciseToWorkout, logCompletedWorkout, startWorkout } from '../features/session/repository';
+import { addExerciseToWorkout, getCompletedWorkout, logCompletedWorkout, setSetFormRating, startWorkout } from '../features/session/repository';
 
 async function seed(count = 40, active = false, from = 0, total = count): Promise<void> {
   const library = (await listExercises()).filter((exercise) => exercise.metric === 'reps');
@@ -29,7 +29,7 @@ async function seed(count = 40, active = false, from = 0, total = count): Promis
   const now = Date.now();
   for (let index = from; index < from + count; index += 1) {
     const startedAt = new Date(now - (total - index) * 2 * 86_400_000 + 3_600_000);
-    await logCompletedWorkout({
+    const loggedId = await logCompletedWorkout({
       name: names[index % names.length],
       startedAt,
       endedAt: new Date(startedAt.getTime() + 3_000_000),
@@ -38,6 +38,10 @@ async function seed(count = 40, active = false, from = 0, total = count): Promis
         sets: Array.from({ length: 4 }, (_, set) => ({ reps: 6 + Math.floor(index / 4) + (set % 2), completedAt: new Date(startedAt.getTime() + (order * 4 + set) * 120_000) })),
       })),
     });
+    // Every set rated 3 for form, so today's ratings have something to compare with.
+    for (const entry of (await getCompletedWorkout(loggedId))?.exercises ?? []) {
+      for (const set of entry.sets) await setSetFormRating(set.id, 3);
+    }
   }
   if (active) {
     // The active workout starts from the program, so it carries the RPE targets.

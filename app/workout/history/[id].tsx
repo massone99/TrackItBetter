@@ -11,7 +11,7 @@ import { describeSets } from "../../../src/features/exercises/describeSets";
 import {
   addExerciseToCompletedWorkout,
   addSetToCompletedWorkout,
-  setEntryFormRating,
+  setSetFormRating,
   deleteWorkout,
   getCompletedWorkout,
   moveExerciseEntry,
@@ -584,9 +584,6 @@ export default function PastWorkoutScreen() {
                   </Text>
                 </Pressable>
               )}
-              {folded ? null : (
-                <FormRating value={exercise.formRating} onChange={(rating) => void edit(() => setEntryFormRating(exercise.entryId, rating))} />
-              )}
             </Card>
           );
         }}
@@ -605,6 +602,7 @@ export default function PastWorkoutScreen() {
           title={`${setFor.exercise.name} · ${t("logger.setTitle", { number: liveSet.index })}`}
           set={liveSet}
           onRpe={(rpe) => edit(() => updateSetRpe(liveSet.id, rpe))}
+          onForm={(rating) => edit(() => setSetFormRating(liveSet.id, rating))}
           onSaveNote={(note) => edit(() => updateSetNote(liveSet.id, note))}
           onVideo={() => {
             setSetFor(null);
@@ -735,6 +733,7 @@ function SetSheet({
   title,
   set,
   onRpe,
+  onForm,
   onSaveNote,
   onVideo,
   onRemove,
@@ -743,6 +742,7 @@ function SetSheet({
   title: string;
   set: SessionSet;
   onRpe: (rpe: number | null) => Promise<void>;
+  onForm: (rating: number | null) => Promise<void>;
   onSaveNote: (note: string) => Promise<void>;
   onVideo: () => void;
   onRemove: () => void;
@@ -751,6 +751,7 @@ function SetSheet({
   const { t } = useTranslation();
   const [note, setNote] = useState(set.note ?? "");
   const [rpe, setRpe] = useState(set.rpe);
+  const [form, setForm] = useState(set.formRating);
   const [confirming, setConfirming] = useState(false);
   const close = () => {
     onClose();
@@ -782,6 +783,15 @@ function SetSheet({
               void onRpe(next);
             }}
           />
+          {set.kind === "working" ? (
+            <FormRating
+              value={form}
+              onChange={(next) => {
+                setForm(next);
+                void onForm(next);
+              }}
+            />
+          ) : null}
           <TextField
             label={t("logger.noteLabel")}
             value={note}

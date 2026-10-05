@@ -10,6 +10,7 @@ export interface ComparableSet {
   durationSec: number | null;
   distanceM: number | null;
   restSec?: number | null;
+  formRating?: number | null;
 }
 
 /** This session against last time; `now` is null until there is something to compare (no set done, no rating). */
@@ -20,10 +21,12 @@ export interface LastTimeComparison {
   total: Pairing | null;
   /** Average rest set on the working sets, in seconds. */
   rest: Pairing | null;
-  /** Form rating, 1–5. */
+  /** Average form rating of the sets, 1–5. */
   form: Pairing | null;
   /** The mini PRs: more in total, less rest, better form. */
   improved: { total: boolean; rest: boolean; form: boolean };
+  /** Regressions worth flagging. Only form: total and rest fill up during the workout, so "less so far" is not one. */
+  worse: { form: boolean };
 }
 
 const amountOf = (set: ComparableSet, metric: string) =>
@@ -41,7 +44,7 @@ const sum = (values: number[]) => values.reduce((total, value) => total + value,
 const mean = (values: number[]) => (values.length ? sum(values) / values.length : null);
 
 /**
- * How this session of an exercise compares with the last one. "Now" counts only completed sets, so it
+ * How this session of an exercise compares with the last one. Form is the average rating of the sets. "Now" counts only completed sets, so it
  * fills up during the workout; total passes last time once it is beaten. A set without a rest of its
  * own uses `defaultRest` (the rest the app applies to it).
  */
@@ -49,7 +52,7 @@ export function compareWithLast(
   current: readonly ComparableSet[],
   previous: readonly ComparableSet[] | null,
   metric: string,
-  options: { formNow: number | null; formLast: number | null; defaultRest: number },
+  options: { defaultRest: number },
 ): LastTimeComparison {
   const done = current.filter((set) => set.completedAt);
   const restOf = (set: ComparableSet) => set.restSec ?? options.defaultRest;
@@ -60,7 +63,9 @@ export function compareWithLast(
   const restLast = previous ? mean(perSet(previous, restOf)) : null;
   // A comparison exists as soon as last time has a value, so the strip keeps its shape while sets get done.
   const rest = restLast !== null ? { now: restNow === null ? null : Math.round(restNow), last: Math.round(restLast) } : null;
-  const form = options.formLast !== null ? { now: options.formNow, last: options.formLast } : null;
+  const formNow = mean(perSet(done, (set) => set.formRating));
+  const formLast = previous ? mean(perSet(previous, (set) => set.formRating)) : null;
+  const form = formLast !== null ? { now: formNow === null ? null : round(formNow), last: round(formLast) } : null;
   return {
     total,
     rest,
@@ -70,6 +75,7 @@ export function compareWithLast(
       rest: rest !== null && rest.now !== null && rest.now < rest.last,
       form: form !== null && form.now !== null && form.now > form.last,
     },
+    worse: { form: form !== null && form.now !== null && form.now < form.last },
   };
 }
 

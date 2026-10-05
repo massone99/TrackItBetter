@@ -1,7 +1,7 @@
 import { migrateDatabase } from '../../../db/migrations';
 import { seedCatalogIfEmpty } from '../../../db/seed/import';
 import { createCustomExercise } from '../../exercises/customRepository';
-import { completeSet, finishWorkout, getActiveWorkout, getCompletedWorkout, getPreviousPerformance, setEntryFormRating } from '../../session/repository';
+import { completeSet, finishWorkout, getActiveWorkout, getCompletedWorkout, getPreviousPerformance, setSetFormRating } from '../../session/repository';
 import { logPastUserProgramSession, startUserProgramSession } from '../startUserSession';
 import { getUserProgram, saveUserProgram } from '../userPrograms';
 
@@ -117,12 +117,11 @@ describe('RPE targets and form', () => {
     expect(workout.exercises[0].sets.map((set) => set.targetRpe)).toEqual([8, 8]);
     expect(workout.exercises[1].sets.map((set) => set.targetRpe)).toEqual([7, 8, 9]);
 
-    await setEntryFormRating(workout.exercises[1].entryId, 4);
-    for (const set of workout.exercises[1].sets) await completeSet(set.id);
+    for (const set of workout.exercises[1].sets) { await completeSet(set.id); await setSetFormRating(set.id, 4); }
     await finishWorkout(workoutId);
     const previous = await getPreviousPerformance(['pull-up'], 'none');
-    expect(previous.get('pull-up')?.formRating).toBe(4);
-    expect((await getCompletedWorkout(workoutId))?.exercises[1].formRating).toBe(4);
-    await expect(setEntryFormRating(workout.exercises[1].entryId, 6)).rejects.toThrow();
+    expect(previous.get('pull-up')?.sets.map((set) => set.formRating)).toEqual([4, 4, 4]);
+    expect((await getCompletedWorkout(workoutId))?.exercises[1].sets[0].formRating).toBe(4);
+    await expect(setSetFormRating(workout.exercises[1].sets[0].id, 6)).rejects.toThrow();
   });
 });

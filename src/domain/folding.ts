@@ -17,3 +17,11 @@ export function nextFolded(
     return [entryId, known.get(entryId) !== allDone ? allDone : current.get(entryId) ?? allDone] as const;
   }));
 }
+
+/**
+ * An exercise counts as finished (and folds) once every set is done and every working set has its
+ * form rated: the last thing logged is the rating, so folding never hides the form row too early.
+ */
+export function exerciseFinished(sets: readonly { kind: string; completedAt: Date | null; formRating: number | null }[]): boolean {
+  return sets.length > 0 && sets.every((set) => Boolean(set.completedAt) && (set.kind !== 'working' || set.formRating !== null));
+}

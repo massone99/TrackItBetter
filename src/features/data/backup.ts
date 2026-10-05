@@ -133,6 +133,8 @@ const setSchema = z.object({
   pairId: z.string().min(1).nullable().default(null),
   // Added in schema v14.
   targetRpe: nullableNumber.default(null),
+  // Added in schema v15.
+  formRating: z.number().int().min(1).max(5).nullable().default(null),
 }).strict();
 
 const measurementSchema = z.object({
