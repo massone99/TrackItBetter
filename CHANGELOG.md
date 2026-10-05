@@ -2,6 +2,10 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.13.2 - 2026-10-05
+
+- A folded exercise shows its average form with the trend on one line: "Average form 4 ↑" in green when better, "↓" in red when lower.
+
 ## 0.13.1 - 2026-10-05
 
 - Form is rated set by set: a "Form 1–5" row appears under each set once it is done (also in the set menu and in past workouts). Ratings given per exercise in 0.13.0 are moved onto its sets.

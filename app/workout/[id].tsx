@@ -969,7 +969,6 @@ function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, previous
   const prNotes = [
     comparison.improved.total && comparison.total ? `↑ ${t('lastTime.totalShort', { delta: formatNumber(Math.round(((comparison.total.now ?? 0) - comparison.total.last) * 10) / 10) })}` : null,
     comparison.improved.rest && comparison.rest ? `↑ ${t('lastTime.restShort', { delta: comparison.rest.last - (comparison.rest.now ?? comparison.rest.last) })}` : null,
-    comparison.improved.form ? `↑ ${t('lastTime.formShort')}` : null,
   ].filter(Boolean);
   // The program's target RPE: one value when the sets agree, else set by set.
   const targets = groupSets(exercise.sets.filter((set) => set.kind === 'working')).map((group) => group[0].targetRpe);
@@ -1011,7 +1010,12 @@ function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, previous
             ) : null}
           </View>
           {collapsed && results ? <Text numberOfLines={2} style={[styles.results, { color: palette.text }]}>{results}</Text> : null}
-          {collapsed && comparisonFormNow !== null ? <Label>{t('lastTime.formAverage', { value: formatNumber(comparisonFormNow) })}</Label> : null}
+          {collapsed && comparisonFormNow !== null ? (
+            // Average form with its trend against last time in one line: green ↑ better, red ↓ worse.
+            <Label style={comparison.improved.form ? { color: palette.success } : comparison.worse.form ? { color: palette.warning } : undefined}>
+              {`${t('lastTime.formAverage', { value: formatNumber(comparisonFormNow) })}${comparison.improved.form ? ' ↑' : comparison.worse.form ? ' ↓' : ''}`}
+            </Label>
+          ) : null}
           {collapsed && prNotes.length ? <Text numberOfLines={2} style={[styles.prNotes, { color: palette.success }]}>{prNotes.join(' · ')}</Text> : null}
           {collapsed || hasComparison ? null : <Label>{previousText ? t('logger.lastTime', { value: previousText }) : t('logger.firstTime')}</Label>}
           {exercise.notes ? <Text numberOfLines={3} style={[styles.exerciseNote, { color: palette.textMuted }]}>{exercise.notes}</Text> : null}
