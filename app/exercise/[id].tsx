@@ -20,7 +20,7 @@ import type { ExerciseEstimate } from '../../src/features/analytics/estimates';
 import type { ExerciseCycle, ExerciseWeek } from '../../src/features/analytics/mobility';
 import { formatMinutes, formatNumber } from '../../src/shared/utils/format';
 import { formatRpe } from '../../src/domain';
-import { ActionButton, Body, Icon, IconButton, ListGroup, ListRow, PageHeading, Screen, SectionTitle, SegmentedControl, Sheet, SwitchRow, Text, Toast } from '../../src/shared/components/ui';
+import { ActionButton, Body, FooterAction, Icon, IconButton, ListGroup, ListRow, PageHeading, Screen, SectionTitle, SegmentedControl, Sheet, SwitchRow, Text, Toast } from '../../src/shared/components/ui';
 import { aggregatePairs, type PairScope } from '../../src/domain/setPairs';
 import { useTheme } from '../../src/shared/theme/ThemeProvider';
 import { fonts } from '../../src/shared/theme/typography';
@@ -156,7 +156,14 @@ export default function ExerciseRoute() {
   const compareTitle = t('exerciseAnalytics.compareSides', { defaultValue: i18n.language.startsWith('it') ? 'Confronto L/R' : 'Compare L/R' });
   const compareBody = t('exerciseAnalytics.compareSidesBody', { defaultValue: i18n.language.startsWith('it') ? 'Confronta le due serie sulla stessa scala.' : 'Compare both sides on the same scale.' });
   return (
-    <Screen>
+    <Screen
+      footer={(
+        <>
+          <FooterAction icon="create-outline" label={t('exercise.edit')} secondary onPress={() => router.push({ pathname: '/exercise/new', params: { edit: exercise.id } })} />
+          <FooterAction icon="add" label={t('exercise.addToWorkout')} onPress={() => void beginWithExercise()} />
+        </>
+      )}
+    >
       <PageHeading
         title={exercise.name}
         subtitle={[[exercise.category, ...extraCategories].map((category) => t(`library.category.${category}`)).join(' + '), t(`metric.${exercise.metric}`), kind].join(' · ')}
@@ -336,9 +343,6 @@ export default function ExerciseRoute() {
           </ListGroup>
         ) : null}
       </View>
-
-      <ActionButton icon="add" label={t('exercise.addToWorkout')} onPress={() => void beginWithExercise()} />
-      <ActionButton icon="create-outline" label={t('exercise.edit')} secondary onPress={() => router.push({ pathname: '/exercise/new', params: { edit: exercise.id } })} />
 
       <View style={styles.section}>
         <SectionTitle title={t('exerciseManage.manage')} />

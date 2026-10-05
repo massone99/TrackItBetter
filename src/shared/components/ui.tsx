@@ -2,7 +2,7 @@ import * as Haptics from "expo-haptics";
 import { router, useSegments } from "expo-router";
 import { Children, PropsWithChildren, ReactNode, Ref, createContext, useContext, useEffect, useImperativeHandle, useRef, useState } from "react";
 import { Modal, Platform, Pressable, ScrollView, StyleSheet, Switch, TextInput, TextInputProps, TextProps, View, ViewProps } from "react-native";
-import { KeyboardLift, KeyboardScroll, type ScrollHandle } from "./keyboard";
+import { KeyboardLift, KeyboardScroll, useKeyboardVisible, type ScrollHandle } from "./keyboard";
 import { useAppInsets } from "../layout/useAppInsets";
 import { useTranslation } from "react-i18next";
 import { useTheme } from "../theme/ThemeProvider";
@@ -30,11 +30,17 @@ export interface ScrollControl { getOffset: () => number; scrollTo: (y: number) 
 const ScrollControlContext = createContext<ScrollControl | null>(null);
 export const useScrollControl = () => useContext(ScrollControlContext);
 
-/** Scrolling page. `overlay` is drawn above the scroll view (e.g. a toast), not inside it. */
-export function Screen({ children, contentContainerStyle, overlay, scrollRef }: PropsWithChildren<{ contentContainerStyle?: ViewProps["style"]; overlay?: ReactNode; scrollRef?: Ref<ScrollHandle> }>) {
+/**
+ * Scrolling page. `overlay` is drawn above the scroll view (e.g. a toast), not inside it. `footer`
+ * pins the page's main actions to the bottom, so they never need a scroll to the end; it steps
+ * aside while the keyboard is open so it never covers the field being typed in.
+ */
+export function Screen({ children, contentContainerStyle, overlay, footer, scrollRef }: PropsWithChildren<{ contentContainerStyle?: ViewProps["style"]; overlay?: ReactNode; footer?: ReactNode; scrollRef?: Ref<ScrollHandle> }>) {
   const styles = useScaledStyles(baseStyles);
   const { palette } = useTheme();
   const insets = useAppInsets();
+  const keyboardVisible = useKeyboardVisible();
+  const showFooter = Boolean(footer) && !keyboardVisible;
   const inner = useRef<ScrollHandle | null>(null);
   const offset = useRef(0);
   const [control] = useState<ScrollControl>(() => ({
@@ -50,16 +56,27 @@ export function Screen({ children, contentContainerStyle, overlay, scrollRef }: 
         scrollEventThrottle={16}
         onScroll={(event) => { offset.current = event.nativeEvent.contentOffset.y; }}
         style={{ backgroundColor: palette.background }}
-        contentContainerStyle={[styles.screen, { paddingTop: Math.max(insets.top, 14) + 10, paddingBottom: insets.bottom + 36 }, contentContainerStyle]}
+        contentContainerStyle={[styles.screen, { paddingTop: Math.max(insets.top, 14) + 10, paddingBottom: footer ? spacing.xl : insets.bottom + 36 }, contentContainerStyle]}
         showsVerticalScrollIndicator={false}
       >
         <ScrollControlContext.Provider value={control}><View style={styles.column}>{children}</View></ScrollControlContext.Provider>
       </KeyboardScroll>
+      {showFooter ? (
+        <View style={[styles.footer, { backgroundColor: palette.background, borderTopColor: palette.border, paddingBottom: insets.bottom + spacing.md }]}>
+          <View style={styles.footerColumn}>{footer}</View>
+        </View>
+      ) : null}
       {/* The status bar is transparent: this strip keeps scrolled content from showing under its icons. */}
       <View pointerEvents="none" style={[styles.statusScrim, { height: insets.top, backgroundColor: palette.background }]} />
       {overlay}
     </View>
   );
+}
+
+/** One action in a `Screen` footer; cells share the row equally. */
+export function FooterAction(props: Parameters<typeof ActionButton>[0]) {
+  const styles = useScaledStyles(baseStyles);
+  return <View style={styles.footerCell}><ActionButton {...props} /></View>;
 }
 
 /** Small supporting label in sentence case. */
@@ -679,6 +696,9 @@ const baseStyles = StyleSheet.create({
   toastActionText: { fontFamily: fonts.semibold, fontSize: 15 },
   numberInput: { minWidth: 64, minHeight: 40, borderRadius: 10, borderWidth: 2, textAlign: "center", fontFamily: fonts.display, fontSize: 22, paddingHorizontal: 6, paddingVertical: 0 },
   statusScrim: { position: "absolute", top: 0, left: 0, right: 0 },
+  footer: { borderTopWidth: StyleSheet.hairlineWidth, paddingTop: spacing.md, paddingHorizontal: spacing.page, alignItems: "center" },
+  footerColumn: { width: "100%", maxWidth: 640, flexDirection: "row", gap: spacing.md },
+  footerCell: { flex: 1 },
   stepper: { gap: 4, alignItems: "center" },
   stepperLabel: { fontFamily: fonts.medium, fontSize: 12 },
   stepperRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12, minHeight: 40 },

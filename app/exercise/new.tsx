@@ -19,7 +19,7 @@ import {
   type ExerciseFormValues,
 } from '../../src/features/exercises/exerciseForm';
 import { MOBILITY_MODES } from '../../src/features/exercises/mobilityMode';
-import { ActionButton, Body, Chip, Icon, Label, PageHeading, Screen, TextField } from '../../src/shared/components/ui';
+import { Body, Chip, FooterAction, Icon, Label, PageHeading, Screen, TextField } from '../../src/shared/components/ui';
 import { addExerciseToCompletedWorkout, addExerciseToWorkout, replaceEntryExercise } from '../../src/features/session/repository';
 import { getExerciseById } from '../../src/features/exercises/repository';
 import { setPendingExercise } from '../../src/features/programs/pendingExercise';
@@ -116,7 +116,7 @@ export default function NewExerciseRoute() {
   };
 
   return (
-    <Screen>
+    <Screen footer={<FooterAction icon="checkmark" label={saving ? t('customExercise.saving') : t('common.save')} disabled={saving} onPress={submit} />}>
       <PageHeading title={edit ? t('customExercise.editTitle') : t('customExercise.title')} subtitle={edit ? t('customExercise.editSubtitle') : undefined} />
 
       <Controller control={control} name="name" render={({ field: { onChange, onBlur, value } }) => (
@@ -243,7 +243,6 @@ export default function NewExerciseRoute() {
       ) : null}
 
       {saveError !== null ? <Body style={{ color: palette.warning }}>{`${t('customExercise.errors.save')} (${saveError})`}</Body> : null}
-      <ActionButton label={saving ? t('customExercise.saving') : t('common.save')} disabled={saving} onPress={submit} />
     </Screen>
   );
 }

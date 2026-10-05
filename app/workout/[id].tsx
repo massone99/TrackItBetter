@@ -60,6 +60,7 @@ import {
   Body,
   Card,
   EmptyState,
+  FooterAction,
   Heading,
   Icon,
   IconButton,
@@ -535,7 +536,17 @@ export default function WorkoutScreen() {
 
   return (
     <View style={[styles.root, { backgroundColor: palette.background }]}>
-      <Screen scrollRef={scrollRef} contentContainerStyle={{ paddingBottom: emom.plan ? 220 : 190 }}>
+      <Screen
+        scrollRef={scrollRef}
+        contentContainerStyle={{ paddingBottom: emom.plan ? 220 : 190 }}
+        // Add and Finish stay in reach however long the workout gets; the timer bar covers them while it runs.
+        footer={workout.exercises.length > 0 ? (
+          <>
+            <FooterAction icon="add" label={t('workout.addExercise')} secondary onPress={() => setPickerOpen(true)} />
+            <FooterAction icon="flag-outline" label={t('workout.finish')} onPress={() => setFinishOpen(true)} />
+          </>
+        ) : undefined}
+      >
         <PageHeading
           title={workout.name}
           subtitle={t('workout.inProgress', { elapsed })}
@@ -664,10 +675,6 @@ export default function WorkoutScreen() {
 
         {workout.exercises.length > 0 ? (
           <Animated.View layout={rowLayout} style={styles.footerActions}>
-            <View style={styles.footerRow}>
-              <View style={styles.footerCell}><ActionButton icon="add" label={t('workout.addExercise')} secondary onPress={() => setPickerOpen(true)} /></View>
-              <View style={styles.footerCell}><ActionButton icon="flag-outline" label={t('workout.finish')} onPress={() => setFinishOpen(true)} /></View>
-            </View>
             <View style={styles.footerRow}>
               <View style={styles.footerCellWide}><ActionButton icon="bookmark-outline" label={t('saveToProgram.action')} variant="ghost" onPress={() => setSaveOpen(true)} /></View>
               <View style={styles.footerCellWide}><ActionButton icon="close-circle-outline" label={t('workout.discard')} variant="ghost" onPress={() => setDiscardOpen(true)} /></View>
@@ -1469,7 +1476,6 @@ const baseStyles = StyleSheet.create({
   summaryMuted: { fontFamily: fonts.medium, fontSize: 13 },
   results: { fontFamily: fonts.semibold, fontSize: 15, marginTop: 2 },
   footerRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-  footerCell: { flex: 1, minWidth: 140 },
   // Long labels: side by side only when each gets room for one line.
   footerCellWide: { flex: 1, minWidth: 220 },
   nameRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },

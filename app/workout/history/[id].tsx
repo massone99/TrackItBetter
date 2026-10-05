@@ -44,6 +44,7 @@ import {
   ActionButton,
   Body,
   Card,
+  FooterAction,
   Heading,
   Icon,
   IconButton,
@@ -203,6 +204,7 @@ export default function PastWorkoutScreen() {
 
   return (
     <Screen
+      footer={<FooterAction icon="add" label={t("workout.addExercise")} secondary onPress={() => setPickerOpen(true)} />}
       overlay={
         <Toast
           message={undo?.message ?? null}
@@ -585,12 +587,6 @@ export default function PastWorkoutScreen() {
         }}
       />
 
-      <ActionButton
-        icon="add"
-        label={t("workout.addExercise")}
-        secondary
-        onPress={() => setPickerOpen(true)}
-      />
       <ActionButton
         icon="trash-outline"
         label={t("history.delete")}

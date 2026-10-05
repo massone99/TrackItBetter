@@ -29,6 +29,7 @@ import { listExercises } from '../src/features/exercises/repository';
 import { getUserProgram, saveUserProgram } from '../src/features/programs/userPrograms';
 import {
   ActionButton,
+  FooterAction,
   Card,
   Chip,
   EmptyState,
@@ -180,7 +181,10 @@ export default function ProgramEditorScreen() {
   const replacingName = replacingPrescription ? exerciseInfo.get(replacingPrescription.exerciseId)?.name : undefined;
 
   return (
-    <Screen overlay={<Toast message={undo?.message ?? null} actionLabel={t('userProgram.undo')} onAction={() => { if (undo) setSessions(undo.previous); }} onHide={() => setUndo(null)} />}>
+    <Screen
+      overlay={<Toast message={undo?.message ?? null} actionLabel={t('userProgram.undo')} onAction={() => { if (undo) setSessions(undo.previous); }} onHide={() => setUndo(null)} />}
+      footer={<FooterAction icon="checkmark" label={saving ? t('programBuilder.saving') : t('programBuilder.save')} disabled={saving} onPress={() => void save()} />}
+    >
       <PageHeading title={id ? name || t('programBuilder.editTitle') : t('userProgram.newTitle')} subtitle={t('programBuilder.subtitle')} />
       <TextField
         label={t('programBuilder.name')}
@@ -341,7 +345,6 @@ export default function ProgramEditorScreen() {
       }} />
 
       {errors.length > 0 ? <Text style={[styles.error, { color: palette.warning }]}>{t('userProgram.errors.fix')}</Text> : null}
-      <ActionButton icon="checkmark" label={saving ? t('programBuilder.saving') : t('programBuilder.save')} disabled={saving} onPress={() => void save()} />
 
       <ExercisePicker
         visible={pickerFor !== null || replacing !== null}

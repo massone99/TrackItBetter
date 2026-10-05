@@ -13,7 +13,7 @@ import { readDefaultRest } from '../../../src/features/session/restDefaults';
 import { WorkoutInProgressSheet } from '../../../src/features/session/WorkoutInProgressSheet';
 import { getActiveWorkout, listRecentWorkoutNames } from '../../../src/features/session/repository';
 import { ReorderableList } from '../../../src/shared/components/ReorderableList';
-import { ActionButton, Body, Card, EmptyState, Icon, IconButton, Label, PageHeading, Screen, SectionTitle, Sheet, tapFeedback, Text } from '../../../src/shared/components/ui';
+import { ActionButton, Body, FooterAction, Card, EmptyState, Icon, IconButton, Label, PageHeading, Screen, SectionTitle, Sheet, tapFeedback, Text } from '../../../src/shared/components/ui';
 import { readPreference, writePreference } from '../../../src/shared/settings/preferences';
 import { goBack } from '../../../src/shared/navigation/goBack';
 import { useTheme } from '../../../src/shared/theme/ThemeProvider';
@@ -135,8 +135,20 @@ export default function UserProgramScreen() {
     if (copy) router.replace({ pathname: '/program/user/[id]', params: { id: copy.id } });
   };
 
+  const nextSession = program.sessions.find((session) => session.id === nextId) ?? null;
+
   return (
-    <Screen>
+    <Screen
+      // The next workout in the rotation starts from the bottom of the screen, wherever the list is scrolled.
+      footer={nextSession ? (
+        <FooterAction
+          icon="play"
+          label={starting === nextSession.id ? t('programBuilder.starting') : `${t('userProgram.start')} · ${nextSession.name}`}
+          disabled={starting !== null}
+          onPress={() => void start(nextSession)}
+        />
+      ) : undefined}
+    >
       <PageHeading
         title={program.name}
         subtitle={program.sessions.length > 0 ? t('userProgram.daysPerWeek', { count: program.sessions.length }) : t('userProgram.noWorkoutsYet')}
