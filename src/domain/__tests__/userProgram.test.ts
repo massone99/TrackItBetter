@@ -6,6 +6,7 @@ import {
   newPrescription,
   nextSessionInRotation,
   plannedLoads,
+  programsByRecentUse,
   replaceExercise,
   programSessionWorkoutName,
   sessionFromWorkout,
@@ -213,5 +214,20 @@ describe('sessionFromWorkout', () => {
       { exerciseId: 'c', metric: 'reps', notes: null, sets: [] },
     ], newId);
     expect(result.exercises.map((item) => [item.sets, item.target])).toEqual([[1, null], [1, 10], [1, null]]);
+  });
+});
+
+describe('programsByRecentUse', () => {
+  const skills = program({ id: 'skills', name: 'Skills', sessions: [session({ id: 'p', name: 'Planche' }), session({ id: 'f', name: 'Lever' })] });
+  const ppl = program({ id: 'ppl', name: 'PPL', sessions: [session({ id: 'push', name: 'Push' }), session({ id: 'pull', name: 'Pull' })] });
+  const empty = program({ id: 'empty', name: 'Empty', sessions: [] });
+
+  it('puts the program trained most recently first, with its next workout', () => {
+    const result = programsByRecentUse([skills, ppl, empty], ['Free session', 'PPL · Push', 'Skills · Planche']);
+    expect(result.map(({ program: item, session: next }) => [item.id, next.id])).toEqual([['ppl', 'pull'], ['skills', 'f']]);
+  });
+
+  it('keeps the saved order when nothing was trained', () => {
+    expect(programsByRecentUse([skills, ppl], []).map(({ program: item }) => item.id)).toEqual(['skills', 'ppl']);
   });
 });

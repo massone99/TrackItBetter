@@ -5,6 +5,7 @@
 import * as Crypto from 'expo-crypto';
 import { listExercises } from '../features/exercises/repository';
 import { saveUserProgram } from '../features/programs/userPrograms';
+import { programSessionWorkoutName } from '../domain/userProgram';
 import { logCompletedWorkout, startWorkout } from '../features/session/repository';
 
 async function seed(count = 40, active = false, from = 0, total = count): Promise<void> {
@@ -22,7 +23,7 @@ async function seed(count = 40, active = false, from = 0, total = count): Promis
   await program('Push Pull Legs', ['Push', 'Pull', 'Legs']);
   await program('Skills', ['Planche day', 'Front lever day']);
   }
-  const names = ['Push', 'Pull', 'Legs', 'Planche day'];
+  const names = ['Push', 'Pull', 'Legs'].map((name) => programSessionWorkoutName({ name: 'Push Pull Legs' }, { name }));
   const now = Date.now();
   for (let index = from; index < from + count; index += 1) {
     const startedAt = new Date(now - (total - index) * 2 * 86_400_000 + 3_600_000);
@@ -36,7 +37,7 @@ async function seed(count = 40, active = false, from = 0, total = count): Promis
       })),
     });
   }
-  if (active) await startWorkout('Push');
+  if (active) await startWorkout(names[0]);
 }
 
 (globalThis as { __seed?: typeof seed }).__seed = seed;

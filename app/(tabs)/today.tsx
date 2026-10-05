@@ -2,63 +2,87 @@ import { router, useFocusEffect } from "expo-router";
 import { useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Pressable, StyleSheet, View } from "react-native";
-import { getMobilityWeek, getProgressSnapshot } from "../../src/features/analytics/repository";
-import { nextSessionInRotation, sessionSetCount, type UserProgram, type UserProgramSession } from "../../src/domain/userProgram";
+import { getProgressSnapshot } from "../../src/features/analytics/repository";
+import { estimateSessionSeconds, programsByRecentUse, sessionSetCount, type UserProgram, type UserProgramSession } from "../../src/domain/userProgram";
 import { startUserProgramSession } from "../../src/features/programs/startUserSession";
 import { listUserPrograms } from "../../src/features/programs/userPrograms";
+import { listExercises } from "../../src/features/exercises/repository";
 import type { PersonalBest } from "../../src/features/analytics/summary";
 import { getGoalSnapshot, GoalSnapshot } from "../../src/features/goals/repository";
 import { ActiveWorkout, getActiveWorkout, listRecentWorkoutNames, listRecentWorkouts, repeatWorkout, WorkoutHistoryItem } from "../../src/features/session/repository";
-import { ActionButton, Body, Card, Icon, Label, ListGroup, ListRow, Numeral, ProgressMeter, Screen, SectionTitle, tapFeedback, Text, Title } from "../../src/shared/components/ui";
-import type { IconName } from "../../src/shared/components/ui";
+import { readDefaultRest } from "../../src/features/session/restDefaults";
+import { ActionButton, Card, EmptyState, Icon, Label, ListGroup, ListRow, Screen, SectionTitle, Text, Title } from "../../src/shared/components/ui";
+import { Arrive } from "../../src/shared/components/Arrive";
 import { poseDetectionAvailable } from "../../src/features/pose/detectPose";
 import { useTheme } from "../../src/shared/theme/ThemeProvider";
 import { fonts } from "../../src/shared/theme/typography";
 import { radii } from "../../src/shared/theme/tokens";
-import { formatBestValue } from "../../src/shared/utils/format";
+import { formatBestValue, formatMinutes } from "../../src/shared/utils/format";
 import { useScaledStyles } from "../../src/shared/theme/useScaledStyles";
-import { openExercisePage } from '../../src/features/exercises/openExercise';
+import { openExercisePage } from "../../src/features/exercises/openExercise";
+
+type Planned = { program: UserProgram; session: UserProgramSession; seconds: number };
 
 type HomeData = {
   active: ActiveWorkout | null;
   goals: GoalSnapshot | null;
-  weekSets: number;
-  bests: PersonalBest[];
+  /** The newest personal best, only when it was set this week. */
+  weekBest: PersonalBest | null;
   last: WorkoutHistoryItem | null;
-  mobilityMinutes: number;
-  planned: { program: UserProgram; session: UserProgramSession }[];
+  /** Next workout of each program, the one trained most recently first. */
+  planned: Planned[];
 };
+
+/** Midnight of this week's Monday. */
+function startOfWeek(now: Date): Date {
+  const start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  start.setDate(start.getDate() - ((start.getDay() + 6) % 7));
+  return start;
+}
+
+async function loadHome(): Promise<HomeData> {
+  const [active, goals, progress, recent, programs, names, exercises] = await Promise.all([
+    getActiveWorkout(), getGoalSnapshot(), getProgressSnapshot(), listRecentWorkouts(1), listUserPrograms(), listRecentWorkoutNames(), listExercises(),
+  ]);
+  const metricById = new Map(exercises.map((exercise) => [exercise.id, exercise.metric]));
+  const rest = readDefaultRest("working");
+  const weekStart = startOfWeek(new Date()).getTime();
+  const newest = [...progress.personalBests].sort((a, b) => b.achievedAt.getTime() - a.achievedAt.getTime())[0];
+  return {
+    active,
+    goals,
+    weekBest: newest && newest.achievedAt.getTime() >= weekStart ? newest : null,
+    last: recent[0] ?? null,
+    planned: programsByRecentUse(programs, names).map((item) => ({ ...item, seconds: estimateSessionSeconds(item.session, metricById, rest) })),
+  };
+}
 
 export default function TodayScreen() {
   const styles = useScaledStyles(baseStyles);
   const { t, i18n } = useTranslation();
   const { palette } = useTheme();
-  const [data, setData] = useState<HomeData>({ active: null, goals: null, weekSets: 0, bests: [], last: null, mobilityMinutes: 0, planned: [] });
+  const [data, setData] = useState<HomeData | null>(null);
+  const [failed, setFailed] = useState(false);
   const [starting, setStarting] = useState<string | null>(null);
 
+  // Refocusing keeps the previous data on screen while the new one loads, so nothing flashes.
   useFocusEffect(useCallback(() => {
     let mounted = true;
-    void Promise.all([getActiveWorkout(), getGoalSnapshot(), getProgressSnapshot(), listRecentWorkouts(1), getMobilityWeek(), listUserPrograms(), listRecentWorkoutNames()]).then(([active, goals, progress, recent, mobility, programs, names]) => {
-      if (!mounted) return;
-      const bests = [...progress.personalBests].sort((a, b) => b.achievedAt.getTime() - a.achievedAt.getTime()).slice(0, 3);
-      setData({
-        active, goals, weekSets: progress.weekSets, bests, last: recent[0] ?? null,
-        mobilityMinutes: Math.round(mobility.seconds / 60),
-        planned: programs.flatMap((program) => { const session = nextSessionInRotation(program, names); return session ? [{ program, session }] : []; }),
-      });
-    }).catch(() => undefined);
+    loadHome().then(
+      (next) => { if (mounted) { setData(next); setFailed(false); } },
+      () => { if (mounted) setFailed(true); },
+    );
     return () => { mounted = false; };
   }, []));
+  const retry = () => loadHome().then((next) => { setData(next); setFailed(false); }, () => setFailed(true));
 
   const now = new Date();
   const hour = now.getHours();
   const greeting = t(hour < 12 ? "home.morning" : hour < 18 ? "home.afternoon" : "home.evening");
   const dateText = now.toLocaleDateString(i18n.language, { weekday: "long", day: "numeric", month: "long" });
   const dateLabel = dateText.charAt(0).toUpperCase() + dateText.slice(1);
-  const week = data.goals?.activeDays.slice(-7) ?? [];
-  const todayIndex = (now.getDay() + 6) % 7;
-  const { active, goals } = data;
-  const startPlanned = async (program: UserProgram, session: UserProgramSession) => {
+
+  const startPlanned = async ({ program, session }: Planned) => {
     if (starting) return;
     setStarting(session.id);
     try {
@@ -70,213 +94,205 @@ export default function TodayScreen() {
       setStarting(null);
     }
   };
-  const activeMinutes = active ? Math.max(0, Math.round((now.getTime() - active.startedAt.getTime()) / 60000)) : 0;
-  const weeklyTarget = goals?.weeklyTarget ?? 3;
-  const weeklySessions = goals?.thisWeekSessions ?? 0;
-  const goalReached = weeklySessions >= weeklyTarget;
+  const startEmpty = () => router.push({ pathname: "/workout/[id]", params: { id: data?.active?.id ?? "new" } });
 
-  return (
-    <Screen>
+  const header = (
+    <>
       <View style={styles.topline}>
         <Label style={styles.date}>{dateLabel}</Label>
-        {goals && goals.currentStreak > 0 ? (
-          <View style={[styles.streakPill, { backgroundColor: palette.recordSoft }]}>
+        {data?.goals && data.goals.currentStreak > 0 ? (
+          <View accessible accessibilityLabel={t("home.streakLabel", { count: data.goals.currentStreak })} style={[styles.streakPill, { backgroundColor: palette.recordSoft }]}>
             <Icon name="flame" size={15} color={palette.record} />
-            <Text style={[styles.streakText, { color: palette.record }]}>{goals.currentStreak}</Text>
+            <Text style={[styles.streakText, { color: palette.record }]}>{data.goals.currentStreak}</Text>
           </View>
         ) : null}
       </View>
       <Title style={styles.greeting}>{greeting}</Title>
+    </>
+  );
 
-      <View style={[styles.hero, { backgroundColor: palette.hero }]}>
-        <View style={styles.heroCopy}>
-          <Text style={[styles.heroTitle, { color: palette.heroText }]}>{active ? t("home.inProgress") : t("home.startTitle")}</Text>
-          <Text style={[styles.heroBody, { color: palette.heroText }]}>
-            {active ? `${active.name} · ${t("home.startedAgo", { minutes: activeMinutes, count: active.exercises.length })}` : t("home.startBody")}
-          </Text>
+  if (failed && !data) {
+    return (
+      <Screen>
+        {header}
+        <EmptyState icon="alert-circle-outline" title={t("home.loadError")} body={t("home.loadErrorBody")} action={<ActionButton icon="refresh" label={t("home.retry")} onPress={() => void retry()} />} />
+      </Screen>
+    );
+  }
+  if (!data) {
+    return (
+      <Screen>
+        {header}
+        <View accessible accessibilityLabel={t("home.loading")} style={[styles.hero, styles.heroPlaceholder, { backgroundColor: palette.surfaceMuted }]} />
+      </Screen>
+    );
+  }
+
+  const { active, goals, planned, last, weekBest } = data;
+  const [featured, ...others] = active ? [] : planned;
+  const activeMinutes = active ? Math.max(0, Math.round((now.getTime() - active.startedAt.getTime()) / 60000)) : 0;
+  const weeklyTarget = goals?.weeklyTarget ?? 3;
+  const weeklySessions = goals?.thisWeekSessions ?? 0;
+  const goalReached = weeklySessions >= weeklyTarget;
+  const week = goals?.activeDays.slice(-7) ?? [];
+  const todayIndex = (now.getDay() + 6) % 7;
+
+  return (
+    <Screen>
+      {header}
+
+      {/* One primary action: resume, the next planned workout, or a new one. */}
+      <Arrive>
+        <View style={[styles.hero, { backgroundColor: palette.hero }]}>
+          <View style={styles.heroCopy}>
+            {active ? (
+              <>
+                <Text style={[styles.heroEyebrow, { color: palette.heroText }]}>{t("home.inProgress")}</Text>
+                <Text style={[styles.heroTitle, { color: palette.heroText }]}>{active.name}</Text>
+                <Text style={[styles.heroBody, { color: palette.heroText }]}>{t("home.startedAgo", { minutes: activeMinutes, count: active.exercises.length })}</Text>
+              </>
+            ) : featured ? (
+              <>
+                <Text style={[styles.heroEyebrow, { color: palette.heroText }]}>{t("home.upNext", { program: featured.program.name })}</Text>
+                <Text style={[styles.heroTitle, { color: palette.heroText }]}>{featured.session.name}</Text>
+                <Text style={[styles.heroBody, { color: palette.heroText }]}>
+                  {t("home.sessionMeta", { count: featured.session.exercises.length, sets: sessionSetCount(featured.session), minutes: formatMinutes(featured.seconds) })}
+                </Text>
+              </>
+            ) : (
+              <>
+                <Text style={[styles.heroTitle, { color: palette.heroText }]}>{t("home.startTitle")}</Text>
+                <Text style={[styles.heroBody, { color: palette.heroText }]}>{t("home.startBody")}</Text>
+              </>
+            )}
+          </View>
+          {active ? (
+            <ActionButton variant="inverse" icon="play" label={t("home.resume")} onPress={startEmpty} />
+          ) : featured ? (
+            <ActionButton
+              variant="inverse"
+              icon="play"
+              label={starting === featured.session.id ? t("programBuilder.starting") : t("userProgram.start")}
+              disabled={starting !== null}
+              onPress={() => void startPlanned(featured)}
+            />
+          ) : (
+            <ActionButton variant="inverse" icon="add" label={t("home.startEmpty")} onPress={startEmpty} />
+          )}
+          {active ? null : (
+            <Pressable
+              accessibilityRole="button"
+              onPress={featured ? startEmpty : () => router.push("/programs")}
+              style={styles.heroLinkRow}
+            >
+              <Text style={[styles.heroLink, { color: palette.heroText }]}>{featured ? t("home.emptyWorkout") : t("home.choosePlan")}</Text>
+              <Icon name={featured ? "add" : "arrow-forward"} size={18} color={palette.heroText} />
+            </Pressable>
+          )}
         </View>
-        <ActionButton
-          variant="inverse"
-          label={active ? t("home.resume") : t("home.startEmpty")}
-          icon={active ? "play" : "add"}
-          onPress={() => router.push({ pathname: "/workout/[id]", params: { id: active?.id ?? "new" } })}
-        />
-        {active ? null : (
-          <Pressable accessibilityRole="button" onPress={() => router.push("/programs")} style={styles.heroLinkRow}>
-            <Text style={[styles.heroLink, { color: palette.heroText }]}>{t("home.choosePlan")}</Text>
-            <Icon name="arrow-forward" size={18} color={palette.heroText} />
-          </Pressable>
-        )}
-      </View>
+      </Arrive>
 
-      {active ? null : data.planned.map(({ program, session }) => (
-        <Card key={session.id} style={styles.planCard}>
-          <Pressable accessibilityRole="button" onPress={() => router.push({ pathname: "/program/user/[id]", params: { id: program.id } })} style={styles.planCopy}>
-            <Label style={{ color: palette.accentStrong }}>{t("userProgram.todayPlan")}</Label>
-            <Text style={[styles.planName, { color: palette.text }]}>{session.name}</Text>
-            <Body>{program.name} · {t("userProgram.todayMeta", { count: session.exercises.length, sets: sessionSetCount(session) })}</Body>
-          </Pressable>
-          <ActionButton
-            icon="play"
-            label={starting === session.id ? t("programBuilder.starting") : t("userProgram.start")}
-            disabled={starting !== null}
-            onPress={() => void startPlanned(program, session)}
-          />
-        </Card>
-      ))}
+      {others.length > 0 ? (
+        <ListGroup>
+          {others.map((item) => (
+            <ListRow
+              key={item.program.id}
+              icon="barbell-outline"
+              title={t("userProgram.nextShort", { name: item.session.name })}
+              subtitle={item.program.name}
+              onPress={() => router.push({ pathname: "/program/user/[id]", params: { id: item.program.id } })}
+            />
+          ))}
+        </ListGroup>
+      ) : null}
 
       <Card style={styles.weekCard}>
         <View style={styles.weekHeader}>
-          <View>
-            <Label>{t("home.weekTitle")}</Label>
-            <View style={styles.weekCount}>
-              <Numeral style={goalReached ? { color: palette.success } : undefined}>{weeklySessions}</Numeral>
-              <Body>{t("home.ofTarget", { target: weeklyTarget })}</Body>
-            </View>
+          <Label style={styles.weekTitle}>{t("home.weekTitle")}</Label>
+          <View style={styles.weekCount}>
+            {goalReached ? <Icon name="checkmark-circle" size={18} color={palette.success} /> : null}
+            <Text style={[styles.weekCountText, { color: goalReached ? palette.success : palette.text }]}>{t("home.weekCount", { count: weeklySessions, target: weeklyTarget })}</Text>
           </View>
-          <Icon name={goalReached ? "checkmark-circle" : "calendar-outline"} size={24} color={goalReached ? palette.success : palette.textMuted} />
         </View>
-        <ProgressMeter value={weeklySessions} total={weeklyTarget} label={t("home.weekTitle")} tone={goalReached ? "success" : "accent"} />
         <View style={styles.days}>
           {week.map((day, index) => {
             const trained = day.count > 0;
             const isToday = index === todayIndex;
-            const initial = new Date(`${day.date}T12:00:00`).toLocaleDateString(i18n.language, { weekday: "narrow" });
+            const date = new Date(`${day.date}T12:00:00`);
             return (
-              <View key={day.date} style={styles.day}>
-                <View style={[
-                  styles.dayDot,
-                  { backgroundColor: trained ? palette.accent : palette.surfaceMuted, borderColor: isToday ? palette.accentStrong : "transparent" },
-                ]}>
+              <View
+                key={day.date}
+                accessible
+                accessibilityLabel={`${date.toLocaleDateString(i18n.language, { weekday: "long" })}: ${trained ? t("home.dayTrained") : t("home.dayRest")}`}
+                style={styles.day}
+              >
+                <View style={[styles.dayDot, { backgroundColor: trained ? palette.accent : palette.surfaceMuted, borderColor: isToday ? palette.accentStrong : "transparent" }]}>
                   {trained ? <Icon name="checkmark" size={16} color={palette.accentText} /> : null}
                 </View>
-                <Text style={[styles.dayLabel, { color: isToday ? palette.text : palette.textMuted }]}>{initial}</Text>
+                <Text style={[styles.dayLabel, { color: isToday ? palette.text : palette.textMuted }]}>{date.toLocaleDateString(i18n.language, { weekday: "narrow" })}</Text>
               </View>
             );
           })}
         </View>
       </Card>
 
-      <View style={[styles.stats, { backgroundColor: palette.surface, borderColor: palette.border }]}>
-        <Stat value={data.weekSets} label={t("home.setsWeek")} />
-        <Stat value={goals?.currentStreak ?? 0} label={t("home.streak")} />
-        <Stat value={goals?.totalSessions ?? 0} label={t("home.total")} />
-        <Stat value={data.mobilityMinutes} label={t("mobilityStats.todayTile")} />
-      </View>
-
-      <View style={styles.tiles}>
-        {poseDetectionAvailable ? (
-          <Tile icon="scan-outline" title={t("home.pose")} body={t("home.poseBody")} onPress={() => router.push("/pose")} />
-        ) : null}
-        <Tile icon="body-outline" title={t("home.mobility")} body={t("home.mobilityBody")} onPress={() => router.push("/mobility")} />
-      </View>
-
-      {data.bests.length > 0 ? (
-        <>
-          <SectionTitle title={t("home.recentBests")} action={<Text onPress={() => router.push("/(tabs)/progress")} style={[styles.link, { color: palette.accentStrong }]}>{t("home.seeProgress")}</Text>} />
-          <ListGroup>
-            {data.bests.map((best) => (
-              <ListRow
-                key={`${best.exerciseId}-${best.kind}`}
-                icon="trophy"
-                tint={palette.record}
-                title={best.exerciseName}
-                onLongPress={() => openExercisePage(best.exerciseId)}
-                longPressLabel={t("logger.openExercise")}
-                subtitle={best.achievedAt.toLocaleDateString(i18n.language, { day: "numeric", month: "short" })}
-                trailing={<Text style={[styles.bestValue, { color: palette.text }]}>{formatBestValue(best)}</Text>}
-              />
-            ))}
-          </ListGroup>
-        </>
+      {weekBest ? (
+        <ListGroup>
+          <ListRow
+            icon="trophy"
+            tint={palette.record}
+            title={weekBest.exerciseName}
+            subtitle={t("home.weekBest")}
+            onLongPress={() => openExercisePage(weekBest.exerciseId)}
+            longPressLabel={t("logger.openExercise")}
+            trailing={<Text style={[styles.bestValue, { color: palette.text }]}>{formatBestValue(weekBest)}</Text>}
+          />
+        </ListGroup>
       ) : null}
 
       <SectionTitle title={t("home.quick")} />
       <ListGroup>
-        <ListRow icon="flash-outline" title={t("home.micro")} subtitle={t("home.microBody")} onPress={() => router.push("/micro-session")} />
-        <ListRow icon="scale-outline" title={t("home.bodyweight")} subtitle={t("home.bodyweightBody")} onPress={() => router.push("/bodyweight")} />
-        {data.last ? (
-          <ListRow
-            icon="time-outline"
-            title={t("home.lastWorkout")}
-            subtitle={t("home.lastWorkoutBody", { date: data.last.startedAt.toLocaleDateString(i18n.language, { weekday: "short", day: "numeric", month: "short" }), count: data.last.setCount })}
-            onPress={() => router.push({ pathname: "/workout/history/[id]", params: { id: data.last!.id } })}
-          />
-        ) : null}
-        {data.last && !active ? (
+        {last && !active ? (
           <ListRow
             icon="repeat"
             title={t("home.repeatLast")}
-            subtitle={data.last.name}
-            onPress={() => void repeatWorkout(data.last!.id).then((workoutId) => router.push({ pathname: "/workout/[id]", params: { id: workoutId } })).catch(() => undefined)}
+            subtitle={t("home.repeatLastBody", { name: last.name, date: last.startedAt.toLocaleDateString(i18n.language, { weekday: "short", day: "numeric", month: "short" }) })}
+            onPress={() => void repeatWorkout(last.id).then((workoutId) => router.push({ pathname: "/workout/[id]", params: { id: workoutId } })).catch(() => undefined)}
           />
+        ) : null}
+        <ListRow icon="flash-outline" title={t("home.micro")} subtitle={t("home.microBody")} onPress={() => router.push("/micro-session")} />
+        <ListRow icon="scale-outline" title={t("home.bodyweight")} subtitle={t("home.bodyweightBody")} onPress={() => router.push("/bodyweight")} />
+        <ListRow icon="body-outline" title={t("home.mobility")} subtitle={t("home.mobilityBody")} onPress={() => router.push("/mobility")} />
+        {poseDetectionAvailable ? (
+          <ListRow icon="scan-outline" title={t("home.pose")} subtitle={t("home.poseBody")} onPress={() => router.push("/pose")} />
         ) : null}
       </ListGroup>
     </Screen>
   );
 }
 
-/** A large shortcut to one of the guided tools. */
-function Tile({ icon, title, body, onPress }: { icon: IconName; title: string; body: string; onPress: () => void }) {
-  const styles = useScaledStyles(baseStyles);
-  const { palette } = useTheme();
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={`${title}. ${body}`}
-      onPress={() => { tapFeedback(); onPress(); }}
-      style={({ pressed }) => [styles.tile, { backgroundColor: palette.surface, borderColor: palette.border, opacity: pressed ? 0.85 : 1, transform: [{ scale: pressed ? 0.985 : 1 }] }]}
-    >
-      <View style={[styles.tileIcon, { backgroundColor: palette.accentSoft }]}>
-        <Icon name={icon} size={22} color={palette.accentStrong} />
-      </View>
-      <Text style={[styles.tileTitle, { color: palette.text }]}>{title}</Text>
-      <Text style={[styles.tileBody, { color: palette.textMuted }]} numberOfLines={3}>{body}</Text>
-    </Pressable>
-  );
-}
-
-function Stat({ value, label }: { value: number; label: string }) {
-  const styles = useScaledStyles(baseStyles);
-  return (
-    <View style={styles.stat}>
-      <Numeral style={styles.statValue}>{value}</Numeral>
-      <Label style={styles.statLabel}>{label}</Label>
-    </View>
-  );
-}
-
 const baseStyles = StyleSheet.create({
   topline: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 12 },
   date: { flex: 1, fontSize: 14 },
-  streakPill: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, minHeight: 30, paddingVertical: 2, borderRadius: 999 },
+  streakPill: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 12, minHeight: 32, paddingVertical: 4, borderRadius: radii.pill },
   streakText: { fontFamily: fonts.display, fontSize: 17 },
-  greeting: { marginTop: -10, fontSize: 40, lineHeight: 44 },
+  greeting: { marginTop: -8, fontSize: 32, lineHeight: 36 },
   hero: { borderRadius: radii.surface, padding: 20, gap: 16 },
-  heroCopy: { gap: 8 },
-  heroTitle: { fontFamily: fonts.display, fontSize: 30, lineHeight: 32 },
+  heroPlaceholder: { minHeight: 220 },
+  heroCopy: { gap: 4 },
+  heroEyebrow: { fontFamily: fonts.semibold, fontSize: 14, lineHeight: 20, opacity: 0.88 },
+  heroTitle: { fontFamily: fonts.display, fontSize: 32, lineHeight: 36 },
   heroBody: { fontFamily: fonts.body, fontSize: 15, lineHeight: 22, opacity: 0.88 },
   heroLinkRow: { flexDirection: "row", justifyContent: "center", alignItems: "center", gap: 8, minHeight: 48 },
   heroLink: { flexShrink: 1, fontFamily: fonts.semibold, fontSize: 15, lineHeight: 22, textAlign: "center" },
   weekCard: { gap: 16 },
-  planCard: { gap: 14 },
-  planCopy: { gap: 4 },
-  planName: { fontFamily: fonts.display, fontSize: 24, lineHeight: 28 },
-  tiles: { flexDirection: "row", gap: 10 },
-  tile: { flex: 1, borderRadius: radii.surface, borderWidth: 1, padding: 16, gap: 8, minHeight: 144 },
-  tileIcon: { width: 36, height: 36, borderRadius: 12, alignItems: "center", justifyContent: "center" },
-  tileTitle: { fontFamily: fonts.display, fontSize: 21, lineHeight: 24 },
-  tileBody: { fontFamily: fonts.body, fontSize: 13, lineHeight: 18 },
-  weekHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" },
-  weekCount: { flexDirection: "row", flexWrap: "wrap", alignItems: "baseline", gap: 8, marginTop: 2 },
+  weekHeader: { flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between", alignItems: "center", gap: 8 },
+  weekTitle: { fontSize: 14 },
+  weekCount: { flexDirection: "row", alignItems: "center", gap: 4 },
+  weekCountText: { fontFamily: fonts.semibold, fontSize: 15 },
   days: { flexDirection: "row", justifyContent: "space-between" },
   day: { alignItems: "center", gap: 6 },
   dayDot: { width: 36, height: 36, borderRadius: 18, borderWidth: 2, alignItems: "center", justifyContent: "center" },
   dayLabel: { fontFamily: fonts.semibold, fontSize: 12, textTransform: "capitalize" },
-  stats: { flexDirection: "row", flexWrap: "wrap", borderRadius: radii.surface, borderWidth: 1, padding: 16, rowGap: 20 },
-  stat: { width: "50%", paddingRight: 12, gap: 3, alignItems: "flex-start" },
-  statLabel: { fontSize: 14, lineHeight: 20 },
-  statValue: { fontSize: 32, lineHeight: 36 },
-  link: { fontFamily: fonts.semibold, fontSize: 14 },
   bestValue: { fontFamily: fonts.display, fontSize: 22 },
 });

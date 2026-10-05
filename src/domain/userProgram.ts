@@ -140,6 +140,21 @@ export function nextSessionInRotation(program: UserProgram, recentWorkoutNames: 
   return program.sessions[0];
 }
 
+/**
+ * Programs with a next workout, the one trained most recently first (the one Today puts forward);
+ * the others keep their order. Programs never trained follow those that were.
+ */
+export function programsByRecentUse(programs: readonly UserProgram[], recentWorkoutNames: readonly string[]): { program: UserProgram; session: UserProgramSession }[] {
+  const lastUse = (program: UserProgram) => {
+    const index = recentWorkoutNames.findIndex((name) => program.sessions.some((session) => programSessionWorkoutName(program, session) === name));
+    return index < 0 ? Number.POSITIVE_INFINITY : index;
+  };
+  return programs
+    .flatMap((program) => { const session = nextSessionInRotation(program, recentWorkoutNames); return session ? [{ program, session, used: lastUse(program) }] : []; })
+    .sort((a, b) => a.used - b.used)
+    .map(({ program, session }) => ({ program, session }));
+}
+
 export function sessionSetCount(session: Pick<UserProgramSession, 'exercises'>): number {
   return session.exercises.reduce((sum, exercise) => sum + exercise.sets, 0);
 }
