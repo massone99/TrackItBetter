@@ -11,6 +11,7 @@ import { PoseCanvas } from '../../src/features/pose/PoseCanvas';
 import { getSetLink, savePoseCapture, type PoseLink } from '../../src/features/pose/repository';
 import { describeLink, PoseLinkSheet } from '../../src/features/pose/PoseLink';
 import { ActionButton, Body, Card, Chip, Icon, IconButton, Label, ListGroup, ListRow, Numeral, PageHeading, Screen, SegmentedControl, tapFeedback, Text, TextField } from '../../src/shared/components/ui';
+import { DateField } from '../../src/shared/components/DateTimePickers';
 import { useAppInsets } from '../../src/shared/layout/useAppInsets';
 import { OverlayLegend, useOverlaySettings } from '../../src/features/pose/OverlayLegend';
 import { PositionPicker } from '../../src/features/pose/PositionPicker';
@@ -39,11 +40,21 @@ export default function NewPoseCheckScreen() {
   const { positionId: initial, videoUri, durationMs, setId } = useLocalSearchParams<{ positionId?: string; videoUri?: string; durationMs?: string; setId?: string }>();
   const { t, i18n } = useTranslation();
   const [link, setLink] = useState<PoseLink | null>(null);
+  // The day the photo or video was taken: today unless set, or the day of the linked set's workout.
+  const [day, setDay] = useState(() => new Date());
+  const chooseLink = (next: PoseLink | null) => {
+    setLink(next);
+    if (next?.set) setDay(next.set.workoutStartedAt);
+  };
   const [linkOpen, setLinkOpen] = useState(false);
   useEffect(() => {
     if (!setId) return;
     let mounted = true;
-    void getSetLink(setId).then((found) => { if (mounted && found) setLink(found); });
+    void getSetLink(setId).then((found) => {
+      if (!mounted || !found) return;
+      setLink(found);
+      if (found.set) setDay(found.set.workoutStartedAt);
+    });
     return () => { mounted = false; };
   }, [setId]);
   const { palette } = useTheme();
@@ -179,6 +190,7 @@ export default function NewPoseCheckScreen() {
         note,
         exerciseId: position.generic ? link?.exerciseId ?? null : null,
         setId: position.generic ? link?.set?.id ?? null : null,
+        capturedAt: atDay(day),
       });
       // Started from a set, saving returns to it; otherwise to the position's history.
       if (setId && router.canGoBack()) router.back();
@@ -349,6 +361,7 @@ export default function NewPoseCheckScreen() {
               {measurement.warning ? <Text style={[styles.warning, { color: palette.warning }]}>{t(`pose.warnings.${measurement.warning}`)}</Text> : null}
             </Card>
           )}
+          <DateField label={t('pose.date')} value={day} locale={i18n.language} maxDate={new Date()} onChange={setDay} />
           {/* A free analysis can belong to an exercise and one of its sets. */}
           {position.generic ? <ListGroup>
             <ListRow
@@ -361,9 +374,17 @@ export default function NewPoseCheckScreen() {
           <TextField value={note} onChangeText={setNote} placeholder={t('pose.notePlaceholder')} maxLength={200} />
         </>
       ) : null}
-      <PoseLinkSheet visible={linkOpen} value={link} onChange={setLink} onClose={() => setLinkOpen(false)} />
+      <PoseLinkSheet visible={linkOpen} value={link} onChange={chooseLink} onClose={() => setLinkOpen(false)} />
     </Screen>
   );
+}
+
+/** The chosen day at the current time of day, so analyses of one day keep the order they were made in. */
+function atDay(day: Date): Date {
+  const now = new Date();
+  const at = new Date(day);
+  at.setHours(now.getHours(), now.getMinutes(), now.getSeconds(), now.getMilliseconds());
+  return at > now ? now : at;
 }
 
 function SourceButton({ icon, label, onPress }: { icon: 'camera-outline' | 'image-outline' | 'film-outline'; label: string; onPress: () => void }) {

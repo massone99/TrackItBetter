@@ -2,6 +2,11 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.15.1 - 2026-10-05
+
+- Today: "New pose analysis" opens a free analysis directly, ready to link to an exercise.
+- A pose analysis has a date (today by default, or the day of the linked set's workout), so older photos and videos land on the right day.
+
 ## 0.15.0 - 2026-10-05
 
 - Free pose analyses can be linked to an exercise and to one of its sets (from the current or recent workouts), when saving or later from the analysis history.

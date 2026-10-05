@@ -57,6 +57,8 @@ export async function savePoseCapture(input: {
   note?: string;
   exerciseId?: string | null;
   setId?: string | null;
+  /** When the photo or video was taken; now by default. */
+  capturedAt?: Date;
 }): Promise<string> {
   await initializeDatabase();
   preparePoseCaptureDirectory();
@@ -77,7 +79,7 @@ export async function savePoseCapture(input: {
       height: input.height,
       mediaKind: input.mediaKind,
       note: input.note?.trim() ?? '',
-      capturedAt: new Date(),
+      capturedAt: input.capturedAt ?? new Date(),
       exerciseId: input.exerciseId ?? null,
       setId: input.exerciseId ? input.setId ?? null : null,
     });
