@@ -39,7 +39,9 @@ async function seed(count = 40, active = false, from = 0, total = count): Promis
   }
   if (active) {
     const workoutId = await startWorkout(names[0]);
-    for (const exercise of pick(0)) await addExerciseToWorkout(workoutId, exercise.id);
+    for (const exercise of pick(0).slice(0, 3)) await addExerciseToWorkout(workoutId, exercise.id);
+    const weighted = (await listExercises()).find((exercise) => exercise.metric === 'reps_load');
+    if (weighted) await addExerciseToWorkout(workoutId, weighted.id);
   }
 }
 
