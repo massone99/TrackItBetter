@@ -32,10 +32,12 @@ import { useScaledStyles } from '../../src/shared/theme/useScaledStyles';
 
 export default function PoseHistoryScreen() {
   const styles = useScaledStyles(baseStyles);
-  // From an exercise or a set, the list starts filtered to its analyses; `captureId` opens one of them.
+  // The page shows one exercise's analyses at a time (unlinked ones together). From an exercise it opens
+  // on that exercise; from a set, on the set's latest analysis; `captureId` opens one analysis.
   const params = useLocalSearchParams<{ positionId: string; exerciseId?: string; setId?: string; captureId?: string }>();
   const { positionId } = params;
-  const [filter, setFilter] = useState<{ exerciseId?: string; setId?: string }>(() => ({ exerciseId: params.exerciseId, setId: params.setId }));
+  const [group, setGroup] = useState<string | null>(params.exerciseId ?? null);
+  const [groupsOpen, setGroupsOpen] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(params.captureId ?? null);
   const [linking, setLinking] = useState<PoseCapture | null>(null);
   // In the comparison: the analysis set against the one on show (the oldest unless one is tapped).
@@ -43,7 +45,7 @@ export default function PoseHistoryScreen() {
   const { t, i18n } = useTranslation();
   const { palette } = useTheme();
   const { width: windowWidth } = useWindowDimensions();
-  const [captures, setCaptures] = useState<PoseCapture[] | null>(null);
+  const [all, setAll] = useState<PoseCapture[] | null>(null);
   const [view, setView] = useState<'latest' | 'compare'>('latest');
   const [deleting, setDeleting] = useState<PoseCapture | null>(null);
   const position = findPosition(positionId);
@@ -51,14 +53,23 @@ export default function PoseHistoryScreen() {
   const [overlay, setOverlay] = useOverlaySettings();
   const [focused, setFocused] = useState<JointAngleId | null>(null);
 
-  const reload = useCallback(async () => setCaptures(await listPoseCaptures(positionId, filter)), [positionId, filter]);
+  const reload = useCallback(async () => setAll(await listPoseCaptures(positionId)), [positionId]);
   useFocusEffect(useCallback(() => { void reload(); }, [reload]));
 
   if (!position) return <Screen><PageHeading title={t('pose.title')} subtitle={t('pose.noCaptures')} /></Screen>;
   const name = t(`pose.positions.${position.id}.name`);
-  // The one on show: the analysis tapped in the list, else the latest.
-  const latest = captures?.find((capture) => capture.id === selectedId) ?? captures?.[0];
-  const filteredBy = filter.exerciseId || filter.setId ? captures?.[0]?.link : null;
+  const keyOf = (capture: PoseCapture) => capture.link?.exerciseId ?? '';
+  // Groups by exercise, most recent first; the unlinked ones form their own group.
+  const groups = [...new Map((all ?? []).map((capture) => [keyOf(capture), capture.link?.exerciseName ?? null] as const))]
+    .map(([key, exerciseName]) => ({ key, name: exerciseName ?? t('poseLink.unlinked'), count: (all ?? []).filter((capture) => keyOf(capture) === key).length }));
+  const fromSet = params.setId ? all?.find((capture) => capture.link?.set?.id === params.setId) : undefined;
+  const wanted = group ?? (fromSet ? keyOf(fromSet) : null) ?? (selectedId ? all?.find((capture) => capture.id === selectedId)?.link?.exerciseId ?? '' : null);
+  // A group emptied by a relink or a delete falls back to the most recent one.
+  const groupKey = groups.some((item) => item.key === wanted) ? wanted! : groups[0]?.key ?? '';
+  const captures = all?.filter((capture) => keyOf(capture) === groupKey) ?? null;
+  const current = groups.find((item) => item.key === groupKey);
+  // The one on show: the analysis tapped in the list (or the set's), else the latest.
+  const latest = captures?.find((capture) => capture.id === (selectedId ?? fromSet?.id)) ?? captures?.[0];
   const first = captures && captures.length > 1 ? captures[captures.length - 1] : null;
   // An analysis is compared only with others of the same exercise (unlinked ones with each other).
   const sameExercise = (capture: PoseCapture) => latest !== undefined && capture.id !== latest.id && (capture.link?.exerciseId ?? null) === (latest.link?.exerciseId ?? null);
@@ -104,13 +115,14 @@ export default function PoseHistoryScreen() {
         action={<IconButton icon="add" tone="accent" label={t('pose.newCheck')} onPress={() => router.push({ pathname: '/pose/new', params: { positionId: position.id } })} />}
       />
 
-      {filter.exerciseId || filter.setId ? (
+      {/* Analyses are only ever compared within one exercise, so the page shows one exercise at a time. */}
+      {groups.length > 1 && current ? (
         <ListGroup>
           <ListRow
-            icon="funnel-outline"
-            title={filteredBy ? t('poseLink.filtered', { name: filter.setId ? describeLink(filteredBy, t, i18n.language) : filteredBy.exerciseName }) : t('poseLink.title')}
-            subtitle={t('poseLink.showAll')}
-            onPress={() => { setFilter({}); setSelectedId(null); }}
+            icon="barbell-outline"
+            title={current.name}
+            subtitle={t('poseLink.exerciseSwitch', { count: current.count })}
+            onPress={() => setGroupsOpen(true)}
           />
         </ListGroup>
       ) : null}
@@ -191,6 +203,20 @@ export default function PoseHistoryScreen() {
           </ListGroup>
         </>
       ) : null}
+
+      <Sheet visible={groupsOpen} onClose={() => setGroupsOpen(false)} title={t('poseLink.exercisePick')}>
+        <ListGroup>
+          {groups.map((item) => (
+            <ListRow
+              key={item.key}
+              title={item.name}
+              subtitle={t('poseLink.exerciseOpen', { count: item.count })}
+              selected={item.key === groupKey}
+              onPress={() => { setGroup(item.key); setSelectedId(null); setCompareId(null); setView('latest'); setGroupsOpen(false); }}
+            />
+          ))}
+        </ListGroup>
+      </Sheet>
 
       <PoseLinkSheet
         visible={linking !== null}

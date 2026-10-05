@@ -2,6 +2,10 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.17.1 - 2026-10-05
+
+- Free pose analyses: the page shows one exercise's analyses at a time, with a row to switch exercise (unlinked analyses form their own group). The confusing "Only … / Show all" filter is gone, so the analysis on show, the comparison and the list always belong to the same exercise.
+
 ## 0.17.0 - 2026-10-05
 
 - A finished workout's page now looks and works like the workout in progress: the same flat exercise sections and set rows (steppers for reps and kg, RPE and form chips, ✓ to mark done, ⋮ or a held press for the set menu, swipe to complete or remove, tap the number to make it a warm-up). Exercises open folded to their results. Done sets stay editable in place.
