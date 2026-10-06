@@ -11,6 +11,7 @@ import { ActionButton, Body, Card, EmptyState, Heading, IconButton, Label, PageH
 import { useTheme } from '../../src/shared/theme/ThemeProvider';
 import { useScaledStyles } from '../../src/shared/theme/useScaledStyles';
 import { fonts } from '../../src/shared/theme/typography';
+import { dateKey } from '../../src/shared/utils/date';
 
 /** Workouts read from the database per page, so years of training load as fast as a week. */
 const PAGE_SIZE = 30;
@@ -30,11 +31,11 @@ export default function LogScreen() {
   const [dayWorkouts, setDayWorkouts] = useState<WorkoutHistoryItem[] | null>(null);
   const [counts, setCounts] = useState<ReadonlyMap<string, number>>(new Map());
   const [pastOpen, setPastOpen] = useState(false);
-  const [todayKey] = useState(() => localDateKey(new Date()));
+  const [todayKey] = useState(() => dateKey(new Date()));
   // Date keys are YYYY-MM-DD, so they compare as strings.
   const selectedIsFuture = selectedDate !== null && selectedDate > todayKey;
 
-  const rangeStart = localDateKey(monthOpen ? monthGrid(anchor)[0] : weekOf(anchor)[0]);
+  const rangeStart = dateKey(monthOpen ? monthGrid(anchor)[0] : weekOf(anchor)[0]);
   const rangeLength = monthOpen ? 42 : 7;
   // How many workouts are loaded, so a reload on focus keeps the pages already opened.
   const loaded = useRef(0);
@@ -53,7 +54,7 @@ export default function LogScreen() {
     setHasMore(page.length === size);
     setActiveWorkoutId(active?.id ?? null);
     const next = new Map<string, number>();
-    for (const started of starts) next.set(localDateKey(started), (next.get(localDateKey(started)) ?? 0) + 1);
+    for (const started of starts) next.set(dateKey(started), (next.get(dateKey(started)) ?? 0) + 1);
     setCounts(next);
     setDayWorkouts(onDay);
     setLoading(false);
@@ -115,7 +116,7 @@ export default function LogScreen() {
             <View style={styles.calendarGrid}>
               {weekdayLabels.map((day) => <Text key={day} style={[styles.weekday, { color: palette.textMuted }]}>{t(`log.weekdays.${day}`)}</Text>)}
               {calendarDays.map((date) => {
-                const key = localDateKey(date);
+                const key = dateKey(date);
                 const count = counts.get(key) ?? 0;
                 const selected = selectedDate === key;
                 const inMonth = !monthOpen || date.getMonth() === anchor.getMonth();
@@ -190,9 +191,6 @@ function groupByMonth(items: readonly WorkoutHistoryItem[], locale: string): { l
   return groups;
 }
 
-function localDateKey(date: Date): string {
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
-}
 
 /** Local midnight of a YYYY-MM-DD day, moved by `days`. */
 function dayStart(key: string, days = 0): Date {

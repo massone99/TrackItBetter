@@ -7,7 +7,7 @@ import { getActiveWorkout } from "../../src/features/session/repository";
 import { startPrescribedWorkout } from "../../src/features/programs/startUserSession";
 import { findProgram, ProgramExercise } from "../../src/features/programs/catalog";
 import { ActionButton, Body, Card, Heading, Label, PageHeading, Screen, SectionTitle } from "../../src/shared/components/ui";
-import i18n from "../../src/shared/i18n";
+import { useTranslation } from "react-i18next";
 import { useTheme } from "../../src/shared/theme/ThemeProvider";
 import { useScaledStyles } from "../../src/shared/theme/useScaledStyles";
 
@@ -18,10 +18,11 @@ export default function ProgramRoute() {
   const { palette } = useTheme();
   const [startingSession, setStartingSession] = useState<string | null>(null);
   const [blockedBy, setBlockedBy] = useState<{ id: string; name: string } | null>(null);
+  const { t, i18n } = useTranslation();
   const language = i18n.language.startsWith("it") ? "it" : "en";
 
   if (!program) {
-    return <Screen><PageHeading title={language === "it" ? "Routine non trovata" : "Routine not found"} subtitle={language === "it" ? "Scegli una routine dalla raccolta." : "Choose a routine from the collection."} /><ActionButton label={language === "it" ? "Tutte le routine" : "All routines"} onPress={() => router.replace("/programs")} /></Screen>;
+    return <Screen><PageHeading title={t("templateProgram.notFound")} subtitle={t("templateProgram.notFoundBody")} /><ActionButton label={t("templateProgram.all")} onPress={() => router.replace("/programs")} /></Screen>;
   }
 
   const startSession = async (sessionId: string, sessionName: string, exercises: ProgramExercise[]) => {
@@ -41,8 +42,8 @@ export default function ProgramRoute() {
       router.replace({ pathname: "/workout/[id]", params: { id: workoutId } });
     } catch (error) {
       Alert.alert(
-        language === "it" ? "Impossibile avviare la sessione" : "Could not start session",
-        error instanceof Error ? error.message : language === "it" ? "Riprova." : "Please try again.",
+        t("templateProgram.startError"),
+        error instanceof Error ? error.message : t("common.tryAgain"),
       );
     } finally {
       setStartingSession(null);
@@ -54,15 +55,15 @@ export default function ProgramRoute() {
       <WorkoutInProgressSheet active={blockedBy} onClose={() => setBlockedBy(null)} />
       <PageHeading title={program.name[language]} subtitle={program.frequency[language]} />
       <Card style={[styles.intro, { backgroundColor: palette.surfaceMuted, borderColor: palette.surfaceMuted }]}>
-        <Label style={{ color: palette.accentStrong }}>{language === "it" ? "Panoramica" : "Overview"}</Label>
+        <Label style={{ color: palette.accentStrong }}>{t("templateProgram.overview")}</Label>
         <Body style={{ color: palette.text }}>{program.details[language]}</Body>
       </Card>
-      <SectionTitle title={language === "it" ? "La tua settimana" : "Your week"} />
+      <SectionTitle title={t("templateProgram.week")} />
       {program.sessions.map((session) => (
         <Card key={session.id} style={styles.session}>
           <View style={styles.sessionHead}>
             <View style={styles.sessionTitle}><Label>{session.day[language]}</Label><Heading>{session.name[language]}</Heading></View>
-            <Label>{session.exercises.length} {language === "it" ? "esercizi" : "exercises"}</Label>
+            <Label>{t("templateProgram.exercises", { count: session.exercises.length })}</Label>
           </View>
           {session.exercises.map((prescription) => {
             const exercise = catalogExerciseName(prescription.exerciseId, language);
@@ -73,16 +74,14 @@ export default function ProgramRoute() {
           })}
           <ActionButton
             label={startingSession === session.id
-              ? language === "it" ? "Preparazione…" : "Preparing…"
-              : language === "it" ? "Avvia sessione" : "Start session"}
+              ? t("templateProgram.preparing")
+              : t("templateProgram.start")}
             onPress={() => void startSession(session.id, session.name[language], session.exercises)}
           />
           {startingSession === session.id && <ActivityIndicator color={palette.accentStrong} />}
         </Card>
       ))}
-      <Body style={styles.footnote}>{language === "it"
-        ? "Le serie e le ripetizioni sono obiettivi iniziali: puoi modificarli nel registro. Lascia i giorni di recupero secondo le tue esigenze."
-        : "Sets and reps are starting targets you can edit in the logger. Place rest days where they suit your recovery."}</Body>
+      <Body style={styles.footnote}>{t("templateProgram.footnote")}</Body>
     </Screen>
   );
 }

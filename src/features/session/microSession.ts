@@ -1,5 +1,6 @@
 import { and, count, desc, eq, isNotNull, like, or } from 'drizzle-orm';
 import { db, initializeDatabase } from '../../db/client';
+import { groupSets } from '../../domain/setPairs';
 import { exerciseEntries, settings, workouts } from '../../db/schema';
 import { getExerciseById, listExercises } from '../exercises/repository';
 import { addExerciseToWorkout, addSet, completeSet, enableExerciseLoad, finishWorkout, getActiveWorkout, removeSet, setSetFormRating, setSetKind, startWorkout, updateSet, updateSetRpe } from './repository';
@@ -82,20 +83,22 @@ export async function logMicroSessionItems(items: readonly MicroSessionItem[]): 
     const field = exercise.metric === 'time' || exercise.metric === 'time_load'
       ? 'durationSec'
       : exercise.metric === 'distance' ? 'distanceM' : 'reps';
-    // The entry starts with its default sets: add or drop sets to match, then fill them in order.
-    let sets = (await getActiveWorkout(workoutId))?.exercises.find((entry) => entry.entryId === entryId)?.sets ?? [];
-    for (let missing = item.sets.length - sets.length; missing > 0; missing -= 1) await addSet(entryId);
-    for (const extra of sets.slice(item.sets.length)) await removeSet(extra.id);
-    sets = (await getActiveWorkout(workoutId))?.exercises.find((entry) => entry.entryId === entryId)?.sets ?? [];
+    // The entry starts with its default sets: add or drop sets to match, then fill them in order. A
+    // one-sided exercise has an L/R pair per set, both sides getting the same values.
+    const groupsOf = async () => groupSets((await getActiveWorkout(workoutId))?.exercises.find((entry) => entry.entryId === entryId)?.sets ?? []);
+    let groups = await groupsOf();
+    for (let missing = item.sets.length - groups.length; missing > 0; missing -= 1) await addSet(entryId);
+    for (const extra of groups.slice(item.sets.length)) await removeSet(extra[0].id);
+    groups = await groupsOf();
     for (const [setIndex, values] of item.sets.entries()) {
-      const set = sets[setIndex];
-      if (!set) continue;
-      await setSetKind(set.id, values.kind ?? 'working');
-      await updateSet(set.id, field, values.value);
-      if ((values.loadKg ?? 0) !== 0 && field !== 'distanceM') await updateSet(set.id, 'addedLoadKg', values.loadKg!);
-      if (values.rpe != null) await updateSetRpe(set.id, values.rpe);
-      if (values.formRating != null && values.kind !== 'warmup') await setSetFormRating(set.id, values.formRating);
-      await completeSet(set.id);
+      for (const set of groups[setIndex] ?? []) {
+        await setSetKind(set.id, values.kind ?? 'working');
+        await updateSet(set.id, field, values.value);
+        if ((values.loadKg ?? 0) !== 0 && field !== 'distanceM') await updateSet(set.id, 'addedLoadKg', values.loadKg!);
+        if (values.rpe != null) await updateSetRpe(set.id, values.rpe);
+        if (values.formRating != null && values.kind !== 'warmup') await setSetFormRating(set.id, values.formRating);
+        await completeSet(set.id);
+      }
     }
   }
   await finishWorkout(workoutId);

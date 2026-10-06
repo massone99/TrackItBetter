@@ -7,7 +7,7 @@ import { estimateSessionSeconds, programsByRecentUse, sessionSetCount, type User
 import { startUserProgramSession } from "../../src/features/programs/startUserSession";
 import { listUserPrograms } from "../../src/features/programs/userPrograms";
 import { listExercises } from "../../src/features/exercises/repository";
-import type { PersonalBest } from "../../src/features/analytics/summary";
+import { personalBestName, type PersonalBest } from "../../src/features/analytics/summary";
 import { getGoalSnapshot, GoalSnapshot } from "../../src/features/goals/repository";
 import { ActiveWorkout, getActiveWorkout, listRecentWorkoutNames, listRecentWorkouts, repeatWorkout, WorkoutHistoryItem } from "../../src/features/session/repository";
 import { readDefaultRest } from "../../src/features/session/restDefaults";
@@ -263,7 +263,7 @@ export default function TodayScreen() {
           <ListRow
             icon="trophy"
             tint={palette.record}
-            title={weekBest.exerciseName}
+            title={personalBestName(weekBest, t)}
             subtitle={t("home.weekBest")}
             onLongPress={() => openExercisePage(weekBest.exerciseId)}
             longPressLabel={t("logger.openExercise")}

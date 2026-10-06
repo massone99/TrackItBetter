@@ -33,6 +33,7 @@ import {
   removeExerciseEntry,
   removeExerciseEntryWithUndo,
   removeSetWithUndo,
+  discardRemoved,
   restoreRemoved,
   uncompleteSet,
   setSetKind,
@@ -126,7 +127,11 @@ export default function WorkoutScreen() {
   const holdModeFor = (setId: string) => holdModes.get(setId) ?? defaultHoldMode();
   // The last removal, offered for a few seconds as "Restore".
   const [undo, setUndo] = useState<{ message: string; removed: RemovedRows } | null>(null);
-  const hideUndo = useCallback(() => setUndo(null), []);
+  // Once the Restore offer is gone, clip files kept for it are deleted (files restored meanwhile stay).
+  const hideUndo = useCallback(() => setUndo((current) => {
+    if (current) void discardRemoved(current.removed).catch(() => undefined);
+    return null;
+  }), []);
   const [clockNow, setClockNow] = useState<number | null>(null);
   const [voiceCues, setVoiceCues] = useState(() => readBooleanPreference(VOICE_CUES_KEY, false));
   const [readinessOpen, setReadinessOpen] = useState(false);

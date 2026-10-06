@@ -2,6 +2,16 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.19.0 - 2026-10-06
+
+- Micro-session: the same exercise card as a workout (set numbers, steppers, ✓, RPE, form, add set or warm-up, swipe, set menu). Exercises come from the picker or the recent chips; "Log N sets" saves only the checked sets; leaving with checked sets logs them.
+- One set menu for the workout in progress and a finished workout.
+- Workout: the rest countdown no longer re-renders the whole screen every second; screen readers hear "10 seconds left" and the end instead of every tick; a one-set workout under three minutes offers "Discard" when finishing; a failed load or discard shows a message with retry.
+- Faster: live set edits no longer re-read the whole history for records and statistics; starting a program writes all sets in one go; "last time" reads only the latest session; the exercise page loads only what it shows.
+- Safer: repeating a workout and starting a template program never leave a half-built workout; clip files of removed sets are deleted once undo is no longer possible, and leftovers are swept at start.
+- Error states with retry on programs, workout summary and pose history; errors shown for exercise hide/delete/transfer, "Add to workout", "Repeat last" and program starts.
+- Goals, progress, training statistics, measurements and template programs are fully translated (correct singular/plural); hard-coded colours moved to palette tokens; swipe labels readable in dark mode; progress photos are stored at up to 1600 px.
+
 ## 0.18.0 - 2026-10-06
 
 - Profile → About shows the installed version and build.

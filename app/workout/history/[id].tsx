@@ -18,6 +18,7 @@ import {
   removeExerciseEntry,
   removeExerciseEntryWithUndo,
   removeSetWithUndo,
+  discardRemoved,
   restoreRemoved,
   setCompletedWorkoutSetDone,
   updateCompletedWorkoutDetails,
@@ -97,7 +98,11 @@ export default function PastWorkoutScreen() {
   // The last removal, offered for a few seconds as "Restore".
   const [undo, setUndo] = useState<{ message: string; removed: RemovedRows } | null>(null);
   const [showRpe] = useState(() => readBooleanPreference(RPE_PROMPT_KEY, true));
-  const hideUndo = useCallback(() => setUndo(null), []);
+  // Once the Restore offer is gone, clip files kept for it are deleted (files restored meanwhile stay).
+  const hideUndo = useCallback(() => setUndo((current) => {
+    if (current) void discardRemoved(current.removed).catch(() => undefined);
+    return null;
+  }), []);
 
   const refresh = useCallback(async () => {
     try {
