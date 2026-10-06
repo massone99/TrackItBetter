@@ -87,7 +87,7 @@ describe('unilateral session persistence', () => {
     await updateSet(left.id as string, 'addedLoadKg', 20);
     await updateSet(right.id as string, 'addedLoadKg', 15);
     await completeSet(left.id as string);
-    await expect(finishWorkout(workoutId)).rejects.toThrow(/Serie 1.*Destro/i);
+    await expect(finishWorkout(workoutId)).rejects.toThrow(/set 1: right side missing/);
     expect(await getActiveWorkout(workoutId)).not.toBeNull();
 
     await completeSet(right.id as string);

@@ -2,10 +2,6 @@ import type { TFunction } from 'i18next';
 import { formatClock, formatDuration, formatNumber } from '../../shared/utils/format';
 import type { RecordKind } from './records';
 
-export function recordKindLabel(kind: RecordKind | 'volume', t: TFunction): string {
-  return t(`records.kinds.${kind}`);
-}
-
 export function formatRecordValue(kind: RecordKind | 'volume', value: number, metric: string, t: TFunction): string {
   switch (kind) {
     case 'loadAtReps':

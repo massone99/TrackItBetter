@@ -1,16 +1,18 @@
 import { router, useFocusEffect } from 'expo-router';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { Text } from '../../src/shared/components/Text';
 import { PastWorkoutFlow } from '../../src/features/session/PastWorkoutFlow';
-import { getActiveWorkout, listRecentWorkouts } from '../../src/features/session/repository';
+import { getActiveWorkout, listWorkoutsBetween, listWorkoutsPage, listWorkoutStarts } from '../../src/features/session/repository';
 import type { WorkoutHistoryItem } from '../../src/features/session/repository';
-import { ActionButton, Body, Card, EmptyState, Heading, Icon, IconButton, PageHeading, Screen } from '../../src/shared/components/ui';
+import { WorkoutLogRow } from '../../src/features/session/WorkoutLogRow';
+import { ActionButton, Body, Card, EmptyState, Heading, IconButton, Label, PageHeading, Screen } from '../../src/shared/components/ui';
 import { useTheme } from '../../src/shared/theme/ThemeProvider';
 import { useScaledStyles } from '../../src/shared/theme/useScaledStyles';
 import { fonts } from '../../src/shared/theme/typography';
 
+/** Workouts read from the database per page, so years of training load as fast as a week. */
 const PAGE_SIZE = 30;
 
 export default function LogScreen() {
@@ -18,62 +20,78 @@ export default function LogScreen() {
   const { t, i18n } = useTranslation();
   const { palette } = useTheme();
   const [workouts, setWorkouts] = useState<WorkoutHistoryItem[]>([]);
+  const [hasMore, setHasMore] = useState(false);
   const [activeWorkoutId, setActiveWorkoutId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [calendarMonth, setCalendarMonth] = useState(() => new Date());
+  // The calendar shows one week until opened to the whole month; `anchor` is a day in the shown range.
+  const [anchor, setAnchor] = useState(() => new Date());
+  const [monthOpen, setMonthOpen] = useState(false);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
-
-  const refresh = useCallback(async () => {
-    const [history, active] = await Promise.all([listRecentWorkouts(), getActiveWorkout()]);
-    setWorkouts(history);
-    setActiveWorkoutId(active?.id ?? null);
-    if (history[0]) setCalendarMonth(new Date(history[0].startedAt.getFullYear(), history[0].startedAt.getMonth(), 1));
-    setLoading(false);
-  }, []);
-
-  useFocusEffect(useCallback(() => { void refresh(); }, [refresh]));
-
+  const [dayWorkouts, setDayWorkouts] = useState<WorkoutHistoryItem[] | null>(null);
+  const [counts, setCounts] = useState<ReadonlyMap<string, number>>(new Map());
   const [pastOpen, setPastOpen] = useState(false);
-  // A long history renders in pages so the screen stays light after years of training.
-  const [shownCount, setShownCount] = useState(PAGE_SIZE);
   const [todayKey] = useState(() => localDateKey(new Date()));
   // Date keys are YYYY-MM-DD, so they compare as strings.
   const selectedIsFuture = selectedDate !== null && selectedDate > todayKey;
 
-  const workoutCounts = useMemo(() => {
-    const counts = new Map<string, number>();
-    for (const workout of workouts) {
-      const key = localDateKey(workout.startedAt);
-      counts.set(key, (counts.get(key) ?? 0) + 1);
-    }
-    return counts;
-  }, [workouts]);
-  const calendarDays = useMemo(() => {
-    const first = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth(), 1);
-    const offset = (first.getDay() + 6) % 7;
-    return Array.from({ length: 42 }, (_, index) => {
-      const date = new Date(first.getFullYear(), first.getMonth(), index - offset + 1);
-      return { date, inMonth: date.getMonth() === first.getMonth(), key: localDateKey(date) };
-    });
-  }, [calendarMonth]);
-  const visibleWorkouts = selectedDate
-    ? workouts.filter((workout) => localDateKey(workout.startedAt) === selectedDate)
-    : workouts;
+  const rangeStart = localDateKey(monthOpen ? monthGrid(anchor)[0] : weekOf(anchor)[0]);
+  const rangeLength = monthOpen ? 42 : 7;
+  // How many workouts are loaded, so a reload on focus keeps the pages already opened.
+  const loaded = useRef(0);
+
+  /** Reloads what is on screen: the loaded workouts, the calendar's dots and the picked day. */
+  const refresh = useCallback(async (start: string, length: number, day: string | null) => {
+    const size = Math.max(PAGE_SIZE, loaded.current);
+    const [page, active, starts, onDay] = await Promise.all([
+      listWorkoutsPage(size),
+      getActiveWorkout(),
+      listWorkoutStarts(dayStart(start), dayStart(start, length)),
+      day ? listWorkoutsBetween(dayStart(day), dayStart(day, 1)) : Promise.resolve(null),
+    ]);
+    loaded.current = page.length;
+    setWorkouts(page);
+    setHasMore(page.length === size);
+    setActiveWorkoutId(active?.id ?? null);
+    const next = new Map<string, number>();
+    for (const started of starts) next.set(localDateKey(started), (next.get(localDateKey(started)) ?? 0) + 1);
+    setCounts(next);
+    setDayWorkouts(onDay);
+    setLoading(false);
+  }, []);
+
+  useFocusEffect(useCallback(() => { void refresh(rangeStart, rangeLength, selectedDate); }, [refresh, rangeStart, rangeLength, selectedDate]));
+
+  const loadMore = async () => {
+    const last = workouts[workouts.length - 1];
+    if (!last) return;
+    const page = await listWorkoutsPage(PAGE_SIZE, { startedAt: last.startedAt, id: last.id });
+    loaded.current += page.length;
+    setWorkouts((current) => [...current, ...page]);
+    setHasMore(page.length === PAGE_SIZE);
+  };
+
+  const calendarDays = monthOpen ? monthGrid(anchor) : weekOf(anchor);
   const locale = i18n.language.startsWith('it') ? 'it-IT' : 'en-US';
-  const monthLabel = calendarMonth.toLocaleDateString(locale, { month: 'long', year: 'numeric' });
+  const monthLabel = anchor.toLocaleDateString(locale, { month: 'long', year: 'numeric' });
   const weekdayLabels = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
+  const step = (direction: 1 | -1) => setAnchor((current) => monthOpen
+    ? new Date(current.getFullYear(), current.getMonth() + direction, 1)
+    : new Date(current.getFullYear(), current.getMonth(), current.getDate() + 7 * direction));
+  const shown = selectedDate ? dayWorkouts ?? [] : workouts;
+  // Month headers over the rows, like the exercise history.
+  const months = groupByMonth(shown, locale);
 
   return (
     <Screen>
       <PageHeading title={t('log.title')} subtitle={t('log.subtitle')} />
       <View style={styles.actions}>
         <ActionButton icon={activeWorkoutId ? 'play' : 'add'} label={t(activeWorkoutId ? 'common.resumeWorkout' : 'common.startWorkout')} onPress={() => router.push({ pathname: '/workout/[id]', params: { id: activeWorkoutId ?? 'new' } })} />
-      <ActionButton
-        icon="time-outline"
-        label={selectedDate && !selectedIsFuture ? t('log.addPastOnDate', { date: new Date(`${selectedDate}T12:00:00`).toLocaleDateString(locale, { day: 'numeric', month: 'short' }) }) : t('log.addPast')}
-        secondary
-        onPress={() => setPastOpen(true)}
-      />
+        <ActionButton
+          icon="time-outline"
+          label={selectedDate && !selectedIsFuture ? t('log.addPastOnDate', { date: new Date(`${selectedDate}T12:00:00`).toLocaleDateString(locale, { day: 'numeric', month: 'short' }) }) : t('log.addPast')}
+          secondary
+          onPress={() => setPastOpen(true)}
+        />
       </View>
       {workouts.length === 0 && !loading ? (
         <EmptyState icon="calendar-clear-outline" title={t('log.empty')} body={t('log.emptyBody')} />
@@ -81,15 +99,26 @@ export default function LogScreen() {
         <>
           <Card style={styles.calendar}>
             <View style={styles.calendarHeader}>
-              <IconButton icon="chevron-back" label={t('log.previousMonth')} onPress={() => setCalendarMonth((month) => new Date(month.getFullYear(), month.getMonth() - 1, 1))} />
-              <Heading style={styles.monthTitle}>{monthLabel}</Heading>
-              <IconButton icon="chevron-forward" label={t('log.nextMonth')} onPress={() => setCalendarMonth((month) => new Date(month.getFullYear(), month.getMonth() + 1, 1))} />
+              <IconButton icon="chevron-back" label={monthOpen ? t('log.previousMonth') : t('log.previousWeek')} onPress={() => step(-1)} />
+              <Pressable
+                accessibilityRole="button"
+                accessibilityState={{ expanded: monthOpen }}
+                accessibilityLabel={`${monthLabel}, ${monthOpen ? t('log.hideMonth') : t('log.showMonth')}`}
+                onPress={() => setMonthOpen((open) => !open)}
+                style={styles.monthToggle}
+              >
+                <Heading style={styles.monthTitle}>{monthLabel}</Heading>
+                <Text style={[styles.monthHint, { color: palette.accentStrong }]}>{monthOpen ? t('log.hideMonth') : t('log.showMonth')}</Text>
+              </Pressable>
+              <IconButton icon="chevron-forward" label={monthOpen ? t('log.nextMonth') : t('log.nextWeek')} onPress={() => step(1)} />
             </View>
             <View style={styles.calendarGrid}>
               {weekdayLabels.map((day) => <Text key={day} style={[styles.weekday, { color: palette.textMuted }]}>{t(`log.weekdays.${day}`)}</Text>)}
-              {calendarDays.map(({ date, inMonth, key }) => {
-                const count = workoutCounts.get(key) ?? 0;
+              {calendarDays.map((date) => {
+                const key = localDateKey(date);
+                const count = counts.get(key) ?? 0;
                 const selected = selectedDate === key;
+                const inMonth = !monthOpen || date.getMonth() === anchor.getMonth();
                 return (
                   <Pressable
                     key={key}
@@ -97,41 +126,31 @@ export default function LogScreen() {
                     accessibilityLabel={t('log.calendarDayLabel', { date: date.toLocaleDateString(locale), count })}
                     accessibilityState={{ selected }}
                     onPress={() => setSelectedDate(selected ? null : key)}
-                    style={[styles.day, selected && { backgroundColor: palette.accent }]}
+                    style={[styles.day, selected && { backgroundColor: palette.accent }, key === todayKey && !selected && { borderWidth: 1, borderColor: palette.border }]}
                   >
-                    <Text style={{ color: selected ? palette.accentText : inMonth ? palette.text : palette.textMuted, fontWeight: selected ? '800' : '500' }}>{date.getDate()}</Text>
-                    {count > 0 ? <View style={[styles.dayDot, { backgroundColor: selected ? palette.accentText : palette.accentStrong }]} /> : <View style={styles.dayDotPlaceholder} />}
+                    <Text style={[styles.dayNumber, { color: selected ? palette.accentText : inMonth ? palette.text : palette.textMuted }]}>{date.getDate()}</Text>
+                    <View style={[styles.dayDot, { backgroundColor: count > 0 ? (selected ? palette.accentText : palette.accentStrong) : 'transparent' }]} />
                   </Pressable>
                 );
               })}
             </View>
-            <View style={styles.calendarFooter}>
-              <Body>{selectedDate ? new Date(`${selectedDate}T12:00:00`).toLocaleDateString(locale) : t('log.allDates')}</Body>
-              {selectedDate ? <Pressable accessibilityRole="button" onPress={() => setSelectedDate(null)}><Text style={{ color: palette.accentStrong, fontWeight: '700' }}>{t('log.clearDate')}</Text></Pressable> : null}
-            </View>
+            {selectedDate ? (
+              <View style={styles.calendarFooter}>
+                <Body>{new Date(`${selectedDate}T12:00:00`).toLocaleDateString(locale, { weekday: 'long', day: 'numeric', month: 'long' })}</Body>
+                <Pressable accessibilityRole="button" hitSlop={12} onPress={() => setSelectedDate(null)}><Text style={[styles.clear, { color: palette.accentStrong }]}>{t('log.clearDate')}</Text></Pressable>
+              </View>
+            ) : null}
           </Card>
-          {visibleWorkouts.length === 0 ? (
-            <Card style={styles.emptyDate}>
-              <Body style={styles.center}>{t('log.noWorkoutsOnDate')}</Body>
-            </Card>
-          ) : visibleWorkouts.slice(0, shownCount).map((workout) => {
-        const duration = Math.max(0, Math.round((workout.endedAt.getTime() - workout.startedAt.getTime()) / 60_000));
-        return (
-          <Pressable key={workout.id} accessibilityRole="button" accessibilityLabel={t('log.openWorkout', { name: workout.name })} onPress={() => router.push({ pathname: '/workout/history/[id]', params: { id: workout.id } })} style={({ pressed }) => ({ opacity: pressed ? 0.75 : 1 })}>
-          <Card style={styles.workout}>
-            <View style={styles.workoutTop}>
-              <Heading style={styles.workoutName}>{workout.name}</Heading>
-              <Icon name="chevron-forward" size={18} color={palette.textMuted} />
+          {selectedDate && dayWorkouts && dayWorkouts.length === 0 ? <Body style={styles.center}>{t('log.noWorkoutsOnDate')}</Body> : null}
+          {months.map((month) => (
+            <View key={month.label} style={styles.month}>
+              <Label style={styles.monthLabel}>{month.label}</Label>
+              <View style={[styles.rows, { borderTopColor: palette.border }]}>
+                {month.items.map((workout, index) => <WorkoutLogRow key={workout.id} workout={workout} locale={locale} first={index === 0} />)}
+              </View>
             </View>
-            <View style={styles.workoutMeta}>
-              <Body style={styles.workoutDate}>{workout.startedAt.toLocaleDateString(locale, { day: 'numeric', month: 'short', year: 'numeric' })} · {duration} min</Body>
-              <Text style={[styles.setCount, { color: palette.accentStrong, backgroundColor: palette.accentSoft }]}>{t('log.setCount', { count: workout.setCount })}</Text>
-            </View>
-          </Card>
-          </Pressable>
-        );
-          })}
-          {visibleWorkouts.length > shownCount ? <ActionButton variant="ghost" label={t('common.showMore')} onPress={() => setShownCount((count) => count + PAGE_SIZE)} /> : null}
+          ))}
+          {selectedDate || !hasMore ? null : <ActionButton variant="ghost" icon="chevron-down" label={t('common.showMore')} onPress={() => void loadMore()} />}
         </>
       ) : null}
       <PastWorkoutFlow visible={pastOpen} dateKey={selectedIsFuture ? null : selectedDate} onClose={() => setPastOpen(false)} />
@@ -141,28 +160,55 @@ export default function LogScreen() {
 
 const baseStyles = StyleSheet.create({
   actions: { gap: 8 },
-  empty: { minHeight: 235, alignItems: 'center', justifyContent: 'center', padding: 26 },
-  icon: { width: 62, height: 62, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
   center: { textAlign: 'center' },
-  workout: { gap: 8 },
-  workoutTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 12 },
-  workoutName: { flex: 1 },
-  workoutMeta: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 10 },
-  workoutDate: { flexGrow: 1 },
-  setCount: { fontFamily: fonts.semibold, fontSize: 13, lineHeight: 20, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
-  calendar: { gap: 12 },
+  calendar: { gap: 8, paddingVertical: 12 },
   calendarHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  monthButton: { width: 38, height: 38, alignItems: 'center', justifyContent: 'center' },
-  monthTitle: { flex: 1, textAlign: 'center', textTransform: 'capitalize' },
+  monthToggle: { flex: 1, alignItems: 'center', minHeight: 48, justifyContent: 'center' },
+  monthTitle: { textAlign: 'center', textTransform: 'capitalize', fontSize: 18 },
+  monthHint: { fontFamily: fonts.semibold, fontSize: 12 },
   calendarGrid: { flexDirection: 'row', flexWrap: 'wrap' },
-  weekday: { width: '14.2857%', minHeight: 32, textAlign: 'center', textAlignVertical: 'center', fontSize: 12, fontWeight: '700' },
-  day: { width: '14.2857%', minHeight: 48, paddingVertical: 6, alignItems: 'center', justifyContent: 'center', borderRadius: 12 },
-  dayDot: { width: 4, height: 4, borderRadius: 2, marginTop: 2 },
-  dayDotPlaceholder: { width: 4, height: 4, marginTop: 2 },
-  calendarFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', minHeight: 28 },
-  emptyDate: { minHeight: 90, alignItems: 'center', justifyContent: 'center' },
+  weekday: { width: '14.2857%', minHeight: 24, textAlign: 'center', textAlignVertical: 'center', fontSize: 12, fontFamily: fonts.semibold },
+  day: { width: '14.2857%', minHeight: 48, alignItems: 'center', justifyContent: 'center', borderRadius: 12 },
+  dayNumber: { fontFamily: fonts.medium, fontSize: 15 },
+  dayDot: { width: 5, height: 5, borderRadius: 3, marginTop: 3 },
+  calendarFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', minHeight: 32, paddingHorizontal: 4 },
+  clear: { fontFamily: fonts.semibold, fontSize: 14 },
+  month: { gap: 6 },
+  monthLabel: { textTransform: 'capitalize', paddingHorizontal: 4 },
+  rows: { borderTopWidth: StyleSheet.hairlineWidth },
 });
+
+/** Consecutive workouts of the same month under one label, newest month first. */
+function groupByMonth(items: readonly WorkoutHistoryItem[], locale: string): { label: string; items: WorkoutHistoryItem[] }[] {
+  const groups: { label: string; items: WorkoutHistoryItem[] }[] = [];
+  for (const workout of items) {
+    const label = workout.startedAt.toLocaleDateString(locale, { month: 'long', year: 'numeric' });
+    const last = groups[groups.length - 1];
+    if (last?.label === label) last.items.push(workout);
+    else groups.push({ label, items: [workout] });
+  }
+  return groups;
+}
 
 function localDateKey(date: Date): string {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+}
+
+/** Local midnight of a YYYY-MM-DD day, moved by `days`. */
+function dayStart(key: string, days = 0): Date {
+  const [year, month, day] = key.split('-').map(Number);
+  return new Date(year, month - 1, day + days);
+}
+
+/** Monday to Sunday of the week holding `date`. */
+function weekOf(date: Date): Date[] {
+  const monday = new Date(date.getFullYear(), date.getMonth(), date.getDate() - ((date.getDay() + 6) % 7));
+  return Array.from({ length: 7 }, (_, index) => new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + index));
+}
+
+/** The six weeks shown for the month holding `date`, Monday first. */
+function monthGrid(date: Date): Date[] {
+  const first = new Date(date.getFullYear(), date.getMonth(), 1);
+  const offset = (first.getDay() + 6) % 7;
+  return Array.from({ length: 42 }, (_, index) => new Date(first.getFullYear(), first.getMonth(), index - offset + 1));
 }

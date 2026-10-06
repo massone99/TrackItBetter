@@ -2,6 +2,16 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.18.0 - 2026-10-06
+
+- Profile → About shows the installed version and build.
+- Log: compact rows (name, then day · minutes · sets) under month headers instead of cards; the calendar shows one week until "Show month"; workouts are read from the database page by page, so older workouts (beyond the latest 365) appear again in the list and on the calendar.
+- Micro-session: add several exercises, each with its own set and RPE, and log them together in one micro-session.
+- Long lists render in pages with "Show more": exercise library and picker, pose analyses, progress photos, statistics drill-down and training statistics.
+- Workout fixes: holding + or − no longer loses steps; "Repeat workout" no longer copies last time's RPE and form; an unfinished L/R pair and one-sided rest options are translated; stepper buttons say what they change; readiness and fold controls reach 48 dp.
+- Other fixes: progress photos keep the day they were taken; a failed save at the end of a mobility session can be retried; default workout names follow the app language; "Delete workout" is red again.
+- `AUDIT.md` lists the remaining improvements by impact.
+
 ## 0.17.1 - 2026-10-05
 
 - Free pose analyses: the page shows one exercise's analyses at a time, with a row to switch exercise (unlinked analyses form their own group). The confusing "Only … / Show all" filter is gone, so the analysis on show, the comparison and the list always belong to the same exercise.

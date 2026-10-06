@@ -51,35 +51,48 @@ export async function getLastMicroSessionExercise(): Promise<string | null> {
   return value?.value ?? null;
 }
 
-/**
- * Saves one finished micro-session: the set's value and, like any workout set, its added load and
- * RPE. A load on a bodyweight-only exercise makes it track load (see enableExerciseLoad).
- */
+export type MicroSessionItem = { exerciseId: string; value: number; loadKg?: number; rpe?: number | null };
+
+/** Saves a micro-session of one exercise; see logMicroSessionItems. */
 export async function logMicroSession(exerciseId: string, value: number, extra: { loadKg?: number; rpe?: number | null } = {}): Promise<void> {
-  if (!Number.isFinite(value) || value <= 0 || value > 3600) throw new RangeError('Enter a positive practice target.');
+  await logMicroSessionItems([{ exerciseId, value, ...extra }]);
+}
+
+/**
+ * Saves one finished micro-session with one set per exercise, in the order given: each set's value
+ * and, like any workout set, its added load and RPE. A load on a bodyweight-only exercise makes it
+ * track load (see enableExerciseLoad). Everything is checked before anything is written.
+ */
+export async function logMicroSessionItems(items: readonly MicroSessionItem[]): Promise<void> {
+  if (items.length === 0) throw new RangeError('Add at least one exercise.');
+  for (const item of items) {
+    if (!Number.isFinite(item.value) || item.value <= 0 || item.value > 3600) throw new RangeError('Enter a positive practice target.');
+    if (!Number.isFinite(item.loadKg ?? 0)) throw new RangeError('Invalid load.');
+  }
   if (await getActiveWorkout()) throw new Error('Finish the active workout before logging a micro-session.');
-  const exercise = await getExerciseById(exerciseId);
-  if (!exercise) throw new Error('Exercise not found.');
-  const loadKg = extra.loadKg ?? 0;
-  if (!Number.isFinite(loadKg)) throw new RangeError('Invalid load.');
-  if (loadKg !== 0) await enableExerciseLoad(exerciseId);
+  const found = await Promise.all(items.map((item) => getExerciseById(item.exerciseId)));
+  if (found.some((exercise) => !exercise)) throw new Error('Exercise not found.');
 
   const workoutId = await startWorkout(await nextMicroSessionName());
-  {
-    const entryId = await addExerciseToWorkout(workoutId, exerciseId);
+  for (const [index, item] of items.entries()) {
+    const exercise = found[index]!;
+    const loadKg = item.loadKg ?? 0;
+    if (loadKg !== 0) await enableExerciseLoad(item.exerciseId);
+    const entryId = await addExerciseToWorkout(workoutId, item.exerciseId);
     const field = exercise.metric === 'time' || exercise.metric === 'time_load'
       ? 'durationSec'
       : exercise.metric === 'distance' ? 'distanceM' : 'reps';
-    const sets = (await getActiveWorkout(workoutId))?.exercises.find((item) => item.entryId === entryId)?.sets ?? [];
+    const sets = (await getActiveWorkout(workoutId))?.exercises.find((entry) => entry.entryId === entryId)?.sets ?? [];
     for (const set of sets) {
-      await updateSet(set.id, field, value);
+      await updateSet(set.id, field, item.value);
       if (loadKg !== 0 && field !== 'distanceM') await updateSet(set.id, 'addedLoadKg', loadKg);
-      if (extra.rpe != null) await updateSetRpe(set.id, extra.rpe);
+      if (item.rpe != null) await updateSetRpe(set.id, item.rpe);
       await completeSet(set.id);
     }
-    await finishWorkout(workoutId);
-    await initializeDatabase();
-    await db.insert(settings).values({ key: LAST_EXERCISE_KEY, value: exerciseId })
-      .onConflictDoUpdate({ target: settings.key, set: { value: exerciseId } });
   }
+  await finishWorkout(workoutId);
+  const last = items[items.length - 1].exerciseId;
+  await initializeDatabase();
+  await db.insert(settings).values({ key: LAST_EXERCISE_KEY, value: last })
+    .onConflictDoUpdate({ target: settings.key, set: { value: last } });
 }

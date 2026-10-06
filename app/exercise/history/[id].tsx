@@ -1,3 +1,4 @@
+import { ShowMore, usePaged } from '../../../src/shared/components/paging';
 import { useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -5,7 +6,7 @@ import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import type { Exercise } from '../../../src/db/schema';
 import { getExerciseHistory, type ExerciseHistorySession } from '../../../src/features/analytics/repository';
 import { getExerciseById } from '../../../src/features/exercises/repository';
-import { ActionButton, Body, PageHeading, Screen, SectionTitle } from '../../../src/shared/components/ui';
+import { Body, PageHeading, Screen, SectionTitle } from '../../../src/shared/components/ui';
 import { useTheme } from '../../../src/shared/theme/ThemeProvider';
 import { useScaledStyles } from '../../../src/shared/theme/useScaledStyles';
 import { HistoryRow } from '../../../src/features/exercises/HistoryRow';
@@ -18,8 +19,6 @@ export default function ExerciseHistoryRoute() {
   const { palette } = useTheme();
   const [exercise, setExercise] = useState<Exercise | null>(null);
   const [sessions, setSessions] = useState<ExerciseHistorySession[] | null>(null);
-  // Long histories render in pages of 40 sessions.
-  const [shown, setShown] = useState(40);
 
   useFocusEffect(useCallback(() => {
     let mounted = true;
@@ -31,10 +30,12 @@ export default function ExerciseHistoryRoute() {
     return () => { mounted = false; };
   }, [id]));
 
+  // Long histories render in pages of 40 sessions.
+  const page = usePaged(sessions ?? [], 40);
   if (!sessions || !exercise) return <Screen><ActivityIndicator color={palette.accentStrong} /></Screen>;
 
   const months = new Map<string, ExerciseHistorySession[]>();
-  for (const session of sessions.slice(0, shown)) {
+  for (const session of page.shown) {
     const key = session.startedAt.toLocaleDateString(i18n.language, { month: 'long', year: 'numeric' });
     months.set(key, [...(months.get(key) ?? []), session]);
   }
@@ -52,7 +53,7 @@ export default function ExerciseHistoryRoute() {
           </View>
         </View>
       ))}
-      {sessions.length > shown ? <ActionButton variant="ghost" label={t('common.showMore')} onPress={() => setShown((count) => count + 40)} /> : null}
+      <ShowMore remaining={page.remaining} onPress={page.more} />
     </Screen>
   );
 }

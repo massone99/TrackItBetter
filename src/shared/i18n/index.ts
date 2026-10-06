@@ -1,4 +1,4 @@
-import i18n from "i18next";
+import i18n, { changeLanguage } from "i18next";
 import { initReactI18next } from "react-i18next";
 import { getLocales } from "expo-localization";
 import { readPreference, writePreference } from "../settings/preferences";
@@ -11,6 +11,8 @@ const initialLanguage = storedLanguage === "it" || storedLanguage === "en"
   ? storedLanguage
   : deviceLanguage === "it" ? "it" : "en";
 
+// `use` is the i18next plugin method, not React's hook, so it is called on the instance.
+// eslint-disable-next-line import/no-named-as-default-member
 void i18n.use(initReactI18next).init({
   resources,
   lng: initialLanguage,
@@ -21,7 +23,7 @@ void i18n.use(initReactI18next).init({
 
 export function setAppLanguage(language: "en" | "it") {
   writePreference(LANGUAGE_KEY, language);
-  return i18n.changeLanguage(language);
+  return changeLanguage(language);
 }
 
 export default i18n;

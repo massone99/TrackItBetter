@@ -1,3 +1,5 @@
+import { displayWorkoutName } from '../src/features/session/workoutName';
+import { Paged } from '../src/shared/components/paging';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useTranslation } from 'react-i18next';
@@ -392,15 +394,15 @@ export default function StatsScreen() {
 
             <SectionTitle title={t('stats.workouts')} />
             <ListGroup>
-              {bucketWorkouts.map((workout) => (
+              <Paged items={bucketWorkouts} pageSize={20} resetKey={bucketWorkouts[0]?.id}>{(shownWorkouts) => shownWorkouts.map((workout) => (
                 <ListRow
                   key={workout.id}
                   icon="barbell-outline"
-                  title={workout.name}
+                  title={displayWorkoutName(workout.name, t('log.pastName'))}
                   subtitle={dateFormat({ weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }, workout.startedAt)}
                   onPress={() => router.push({ pathname: '/workout/history/[id]', params: { id: workout.id } })}
                 />
-              ))}
+              ))}</Paged>
             </ListGroup>
           </Card>
         ) : buckets.some((item) => item.workoutIds.length) ? <Body>{t('stats.selectHint')}</Body> : null}

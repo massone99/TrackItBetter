@@ -2,7 +2,9 @@ import { router } from "expo-router";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { StyleSheet, View } from "react-native";
-import { Body, Card, Icon, Label, ListGroup, ListRow, PageHeading, Screen, SectionTitle, SegmentedControl, SwitchRow } from "../../src/shared/components/ui";
+import Constants from "expo-constants";
+import { Body, Card, Icon, Label, ListGroup, ListRow, PageHeading, Screen, SectionTitle, SegmentedControl, SwitchRow, Text } from "../../src/shared/components/ui";
+import { fonts } from "../../src/shared/theme/typography";
 import { DurationField } from "../../src/shared/components/DateTimePickers";
 import { readDefaultRest, writeDefaultRest } from "../../src/features/session/restDefaults";
 import { readBooleanPreference, RPE_PROMPT_KEY, writePreference } from "../../src/shared/settings/preferences";
@@ -91,14 +93,19 @@ export default function ProfileScreen() {
         <View style={styles.aboutCopy}>
           <Label>{t("profile.about")}</Label>
           <Body>{t("profile.aboutBody")}</Body>
+          {/* The installed version, to tell which release is on the phone. */}
+          {config?.version ? <Text selectable style={[styles.version, { color: palette.textMuted }]}>{config.android?.versionCode ? t("profile.version", { version: config.version, build: config.android.versionCode }) : t("profile.versionShort", { version: config.version })}</Text> : null}
         </View>
       </Card>
     </Screen>
   );
 }
 
+const config = Constants.expoConfig;
+
 const baseStyles = StyleSheet.create({
   spaced: { marginTop: 6 },
   about: { flexDirection: "row", alignItems: "flex-start", gap: 12 },
   aboutCopy: { flex: 1, gap: 4 },
+  version: { fontFamily: fonts.medium, fontSize: 13, marginTop: 4 },
 });

@@ -138,7 +138,7 @@ export function OverlayLegend({ angles, settings, focused, onSettings, onFocus, 
 const baseStyles = StyleSheet.create({
   root: { gap: 8 },
   angles: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  angle: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 38, paddingHorizontal: 12, borderRadius: 999, borderWidth: 2 },
+  angle: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 40, paddingHorizontal: 12, borderRadius: 999, borderWidth: 2 },
   dot: { width: 10, height: 10, borderRadius: 5 },
   angleName: { fontFamily: fonts.medium, fontSize: 14 },
   angleValue: { fontFamily: fonts.display, fontSize: 17 },

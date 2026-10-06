@@ -1,3 +1,4 @@
+import { displayWorkoutName } from '../../../src/features/session/workoutName';
 import { aggregatePairs } from '../../../src/domain/setPairs';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
@@ -99,7 +100,7 @@ export default function WorkoutSummaryScreen() {
           </View>
         </Arrive>
         <Title>{hasRecords ? t('summary.titleRecords') : t('summary.title')}</Title>
-        <Body style={styles.subtitle}>{workout.name}</Body>
+        <Body style={styles.subtitle}>{displayWorkoutName(workout.name, t('log.pastName'))}</Body>
       </View>
 
       <View style={[styles.stats, { borderColor: palette.border }]}>

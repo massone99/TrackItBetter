@@ -1,3 +1,4 @@
+import { displayWorkoutName } from "../../../src/features/session/workoutName";
 import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import { useCallback, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -143,6 +144,34 @@ export default function PastWorkoutScreen() {
     value: number,
   ) => edit(() => updateCompletedWorkoutSet(id, setId, field, value));
 
+  // A held stepper repeats faster than a save and reload: each step builds on the last value shown,
+  // saves in order, and the screen reloads once the steps stop.
+  const stepped = useRef(new Map<string, number>());
+  const writes = useRef<Promise<unknown>>(Promise.resolve());
+  const reloadTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const step = (set: SessionSet, field: "reps" | "durationSec" | "distanceM" | "addedLoadKg", delta: number) => {
+    const key = `${set.id}:${field}`;
+    const stored = field === "addedLoadKg" ? set.addedLoadKg : (set[field] ?? 0);
+    const next = Math.round(((stepped.current.get(key) ?? stored) + delta) * 100) / 100;
+    const value = field === "addedLoadKg" ? next : Math.max(0, next);
+    stepped.current.set(key, value);
+    setWorkout((current) => current && {
+      ...current,
+      exercises: current.exercises.map((exercise) => ({
+        ...exercise,
+        sets: exercise.sets.map((item) => (item.id === set.id ? { ...item, [field]: value } : item)),
+      })),
+    });
+    writes.current = writes.current.then(() => updateCompletedWorkoutSet(id, set.id, field, value)).catch(() => setError(t("history.saveError")));
+    if (reloadTimer.current) clearTimeout(reloadTimer.current);
+    reloadTimer.current = setTimeout(() => {
+      void writes.current.then(async () => {
+        stepped.current.clear();
+        await refresh();
+      });
+    }, 350);
+  };
+
   const chooseExercise = (choice: ExerciseChoice) => {
     setPickerOpen(false);
     void edit(() => addExerciseToCompletedWorkout(id, choice.id));
@@ -244,7 +273,7 @@ export default function PastWorkoutScreen() {
       }
     >
       <PageHeading
-        title={workout.name}
+        title={displayWorkoutName(workout.name, t("log.pastName"))}
         subtitle={t("history.subtitle", {
           date: workout.startedAt.toLocaleString(locale, {
             weekday: "short",
@@ -328,11 +357,7 @@ export default function PastWorkoutScreen() {
             editDone
             compare={false}
             showRpe={showRpe}
-            onChange={async (set, field, delta) => {
-              const current = field === "addedLoadKg" ? set.addedLoadKg : (set[field] ?? 0);
-              const next = Math.round((current + delta) * 100) / 100;
-              await adjust(set.id, field, field === "addedLoadKg" ? next : Math.max(0, next));
-            }}
+            onChange={async (set, field, delta) => step(set, field, delta)}
             onSetValue={(set, field, value) => void adjust(set.id, field, value)}
             onComplete={(set) => {
               tapFeedback("success");
@@ -370,7 +395,7 @@ export default function PastWorkoutScreen() {
           <ActionButton icon="share-social-outline" label={t("shareCard.action")} variant="ghost" onPress={() => router.push({ pathname: "/workout/share/[id]", params: { id } })} />
         </View>
         <View style={styles.footerCellWide}>
-          <ActionButton icon="trash-outline" label={t("history.delete")} variant="ghost" onPress={() => setDeleteOpen(true)} />
+          <ActionButton icon="trash-outline" label={t("history.delete")} variant="danger" onPress={() => setDeleteOpen(true)} />
         </View>
       </View>
 

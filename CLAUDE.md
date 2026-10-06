@@ -46,7 +46,9 @@ wants short answers. Product context: `PRODUCT.md`, `DESIGN.md`.
 - Portrait only (`orientation: portrait` is a product decision; do not unlock it).
 - Colours from `src/shared/theme/palette.ts` only; touch targets at least 48 dp (hitSlop counts);
   text at least 12 sp; no fixed heights on text containers (users scale fonts).
-- Long lists render in pages ("Show more"), not all at once.
+- Long lists render in pages ("Show more"), not all at once: `usePaged`, `usePagedSections` or `<Paged>`
+  (`src/shared/components/paging.tsx`). The Log pages in the database (`listWorkoutsPage`, a cursor).
+- Open improvements and their status are in `AUDIT.md`.
 - Main actions of long screens go in `Screen`'s `footer` (`FooterAction`, at most two, never a
   destructive one), so they are reachable without scrolling to the end.
 - Editing screens save on the way out with `useSaveOnLeave` (`src/shared/forms`); invalid edits ask

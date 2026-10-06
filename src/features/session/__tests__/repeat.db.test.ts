@@ -53,14 +53,14 @@ describe('previous values', () => {
 });
 
 describe('repeatWorkout', () => {
-  it('starts a new workout with the completed sets, kinds, rest and notes, nothing completed', async () => {
+  it('starts a new workout with the completed sets, kinds, rest and notes, nothing completed or rated', async () => {
     const newId = await repeatWorkout(finishedId);
     const workout = await getActiveWorkout(newId);
     expect(workout?.name).toBe('Upper A');
     expect(workout?.exercises.map((exercise) => [exercise.exerciseId, exercise.notes])).toEqual([['pull-up', 'Scapole attive']]);
     expect(workout?.exercises[0].sets.map(({ index, kind, reps, addedLoadKg, rpe, note, restSec, completedAt }) => ({ index, kind, reps, addedLoadKg, rpe, note, restSec, completedAt }))).toEqual([
       { index: 1, kind: 'warmup', reps: 3, addedLoadKg: 0, rpe: null, note: null, restSec: null, completedAt: null },
-      { index: 2, kind: 'working', reps: 6, addedLoadKg: 15, rpe: 8.5, note: 'Presa stretta', restSec: 150, completedAt: null },
+      { index: 2, kind: 'working', reps: 6, addedLoadKg: 15, rpe: null, note: 'Presa stretta', restSec: 150, completedAt: null },
     ]);
   });
 });

@@ -413,7 +413,7 @@ const baseStyles = StyleSheet.create({
   setupChange: { fontFamily: fonts.semibold, fontSize: 14 },
   hintRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   hint: { flex: 1, fontFamily: fonts.body, fontSize: 14, lineHeight: 20 },
-  layersToggle: { flexDirection: 'row', alignItems: 'center', minHeight: 40 },
+  layersToggle: { flexDirection: 'row', alignItems: 'center', minHeight: 48 },
   frameCount: { fontFamily: fonts.medium, fontSize: 13 },
   saveBar: { position: 'absolute', left: 0, right: 0, bottom: 0, paddingTop: 12, paddingHorizontal: 20, borderTopWidth: StyleSheet.hairlineWidth },
   sources: { flexDirection: 'row', gap: 10 },

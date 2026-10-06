@@ -1,3 +1,4 @@
+import { displayWorkoutName } from '../../src/features/session/workoutName';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import * as Speech from 'expo-speech';
 import { useTranslation } from 'react-i18next';
@@ -29,6 +30,7 @@ import {
   replaceEntryExercise,
   deleteWorkout,
   finishWorkout,
+  IncompletePairError,
   moveExerciseEntry,
   getActiveWorkout,
   getPreviousPerformance,
@@ -83,6 +85,7 @@ import { describePreviousSet, ExerciseCard, holdDisplay } from '../../src/featur
 import Animated, { FadeInDown, FadeOutLeft, LayoutAnimationConfig, LinearTransition } from 'react-native-reanimated';
 import { readBooleanPreference, RPE_PROMPT_KEY, writePreference } from '../../src/shared/settings/preferences';
 
+import { MIN_TOUCH_TARGET } from '../../src/shared/theme/tokens';
 import { useTheme } from '../../src/shared/theme/ThemeProvider';
 import { fonts } from '../../src/shared/theme/typography';
 import { formatClock, formatNumber } from '../../src/shared/utils/format';
@@ -347,29 +350,44 @@ export default function WorkoutScreen() {
     void cancelRestFinishedNotification().catch(() => undefined);
   };
 
+  /** Shows a change to a set at once; the write and the reload follow. */
+  const patchSet = (setId: string, patch: Partial<SessionSet>) => setWorkout((current) => current && {
+    ...current,
+    exercises: current.exercises.map((exercise) => exercise.sets.some((set) => set.id === setId)
+      ? { ...exercise, sets: exercise.sets.map((set) => (set.id === setId ? { ...set, ...patch } : set)) }
+      : exercise),
+  });
+
+  // A held stepper repeats faster than a save and reload: each step builds on the last value shown,
+  // saves in order, and the screen reloads once the steps stop.
+  const stepped = useRef(new Map<string, number>());
+  const writes = useRef<Promise<unknown>>(Promise.resolve());
+  const reloadTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const changeSet = async (
     set: SessionSet,
     field: 'reps' | 'durationSec' | 'distanceM' | 'addedLoadKg',
     delta: number,
   ) => {
-    const current = field === 'reps'
-      ? set.reps ?? 0
-      : field === 'durationSec'
-        ? set.durationSec ?? 0
-        : field === 'distanceM'
-          ? set.distanceM ?? 0
-          : set.addedLoadKg;
-    const next = Number((current + delta).toFixed(2));
+    const key = `${set.id}:${field}`;
+    const stored = field === 'addedLoadKg' ? set.addedLoadKg : set[field] ?? 0;
+    const next = Number(((stepped.current.get(key) ?? stored) + delta).toFixed(2));
     const value = field === 'addedLoadKg' ? next : Math.max(0, next);
+    stepped.current.set(key, value);
+    patchSet(set.id, { [field]: value });
     if (field === 'addedLoadKg' && value !== 0) {
       const exercise = workout?.exercises.find((item) => item.sets.some((s) => s.id === set.id));
-      if (exercise) await allowLoad(exercise);
+      if (exercise && exercise.metric !== 'reps_load' && exercise.metric !== 'time_load') await allowLoad(exercise);
     }
-    await updateSet(set.id, field, value);
-    if (workout) await refresh(workout.id);
+    writes.current = writes.current.then(() => updateSet(set.id, field, value)).catch(() => undefined);
+    if (reloadTimer.current) clearTimeout(reloadTimer.current);
+    reloadTimer.current = setTimeout(() => {
+      void writes.current.then(async () => {
+        stepped.current.clear();
+        if (workout) await refresh(workout.id);
+      });
+    }, 350);
   };
 
-  /** First load on a bodyweight-only exercise: it starts tracking load (its reps and holds records stay). */
   const allowLoad = async (exercise: SessionExercise) => {
     if (await enableExerciseLoad(exercise.exerciseId)) setLoadNotice(t('logger.loadEnabled', { name: exercise.name }));
   };
@@ -426,13 +444,6 @@ export default function WorkoutScreen() {
     if (top !== undefined) scrollRef.current?.scrollTo({ y: Math.max(0, top - 16), animated: true });
   };
 
-  /** Shows a change to a set at once; the write and the reload follow. */
-  const patchSet = (setId: string, patch: Partial<SessionSet>) => setWorkout((current) => current && {
-    ...current,
-    exercises: current.exercises.map((exercise) => exercise.sets.some((set) => set.id === setId)
-      ? { ...exercise, sets: exercise.sets.map((set) => (set.id === setId ? { ...set, ...patch } : set)) }
-      : exercise),
-  });
 
   // Sets whose done state is being saved, and when each last changed: a second tap while saving, or a
   // double tap, would otherwise undo the first one.
@@ -542,7 +553,12 @@ export default function WorkoutScreen() {
     void cancelRestFinishedNotification().catch(() => undefined);
     if (emom.plan) await emom.stop();
     try { await finishWorkout(workout.id); }
-    catch (error) { Alert.alert('Completa la coppia L / R', error instanceof Error ? error.message : String(error)); return; }
+    catch (error) {
+      if (error instanceof IncompletePairError) {
+        Alert.alert(t('logger.pairIncompleteTitle'), t('logger.pairIncompleteBody', { name: error.exerciseName, number: error.setIndex, side: t(error.side === 'left' ? 'logger.sideLeft' : 'logger.sideRight') }));
+      } else Alert.alert(t('history.saveError'), error instanceof Error ? error.message : String(error));
+      return;
+    }
     router.replace({ pathname: '/workout/summary/[id]', params: { id: workout.id } });
   };
 
@@ -630,7 +646,7 @@ export default function WorkoutScreen() {
         ) : undefined}
       >
         <PageHeading
-          title={workout.name}
+          title={displayWorkoutName(workout.name, t('log.pastName'))}
           subtitle={[
             t('workout.inProgress', { elapsed }),
             totalSets > 0 ? t('logger.setsProgress', { done: completedCount, total: totalSets }) : null,
@@ -1193,6 +1209,7 @@ function ReadinessRow({ label, value, onChange }: { label: string; value: number
           accessibilityLabel={t('workout.readinessRating', { label, rating })}
           accessibilityState={{ selected }}
           onPress={() => { tapFeedback(); onChange(rating); }}
+          hitSlop={{ left: 2, right: 2 }}
           style={[styles.readinessOption, { backgroundColor: selected ? palette.accent : palette.surfaceMuted }]}
         ><Text style={[styles.readinessValue, { color: selected ? palette.accentText : palette.text }]}>{rating}</Text></Pressable>;
       })}
@@ -1204,7 +1221,7 @@ function ReadinessRow({ label, value, onChange }: { label: string; value: number
 const baseStyles = StyleSheet.create({
   root: { flex: 1 },
   flex: { flex: 1 },
-  readinessToggle: { flexShrink: 1, flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 44 },
+  readinessToggle: { flexShrink: 1, flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: MIN_TOUCH_TARGET },
   shrink: { flexShrink: 1 },
   readinessTitle: { fontFamily: fonts.medium, fontSize: 15 },
   readinessHint: { fontFamily: fonts.body, fontSize: 13, marginTop: 2 },
@@ -1212,14 +1229,14 @@ const baseStyles = StyleSheet.create({
   readinessRow: { minHeight: 40, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
   readinessLabel: { flex: 1, fontFamily: fonts.medium, fontSize: 14 },
   readinessOptions: { flexDirection: 'row', gap: 6 },
-  readinessOption: { width: 40, height: 44, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  readinessOption: { width: 44, height: MIN_TOUCH_TARGET, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
   readinessValue: { fontFamily: fonts.display, fontSize: 18 },
   emptyAction: { alignSelf: 'stretch', marginTop: 6, gap: 8 },
   blockHeader: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: 12, paddingBottom: 6, marginBottom: 10, borderBottomWidth: StyleSheet.hairlineWidth },
   blockTitle: { fontFamily: fonts.semibold, fontSize: 16 },
   blockCount: { fontFamily: fonts.medium, fontSize: 13 },
   toolbar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
-  foldAll: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 44, paddingHorizontal: 8 },
+  foldAll: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: MIN_TOUCH_TARGET, paddingHorizontal: 8 },
   foldAllText: { fontFamily: fonts.semibold, fontSize: 14 },
   summary: { marginTop: -8 },
   footerRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },

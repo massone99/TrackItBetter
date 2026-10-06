@@ -1,4 +1,4 @@
-import { and, asc, count, desc, eq, gt, gte, inArray, isNotNull, isNull, max, or } from 'drizzle-orm';
+import { and, asc, count, desc, eq, gt, gte, inArray, isNotNull, isNull, lt, max, or } from 'drizzle-orm';
 import * as Crypto from 'expo-crypto';
 import { db, initializeDatabase } from '../../db/client';
 import { bodyMeasurements, exerciseEntries, exercises, formCheckVideos, trainingSets, workouts } from '../../db/schema';
@@ -514,6 +514,14 @@ export async function recordEmomRound(entryId: string, field: 'reps' | 'duration
     .where(inArray(trainingSets.id, ids));
 }
 
+/** A workout cannot finish with one side of an L/R pair done and the other not; the UI words it. */
+export class IncompletePairError extends Error {
+  constructor(readonly exerciseName: string, readonly setIndex: number, readonly side: 'left' | 'right') {
+    super(`${exerciseName} · set ${setIndex}: ${side} side missing`);
+    this.name = 'IncompletePairError';
+  }
+}
+
 export async function finishWorkout(workoutId: string): Promise<void> {
   await initializeDatabase();
   const session = await loadSessionExercises(workoutId);
@@ -522,7 +530,7 @@ export async function finishWorkout(workoutId: string): Promise<void> {
     for (const pair of groupSets(exercise.sets)) {
       if (pair[0].pairId && pair.some((s) => s.completedAt) && !pair.every((s) => s.completedAt)) {
         const missing = pair.find((s) => !s.completedAt)!;
-        throw new Error(`${exercise.name} · Serie ${pair[0].index}: ${missing.side === 'left' ? 'Sinistro (L)' : 'Destro (R)'} mancante`);
+        throw new IncompletePairError(exercise.name, pair[0].index, missing.side === 'left' ? 'left' : 'right');
       }
     }
   }
@@ -650,41 +658,73 @@ export async function listRecentWorkoutNames(limit = 200): Promise<string[]> {
 export async function listRecentWorkouts(limit = 365): Promise<WorkoutHistoryItem[]> {
   await initializeDatabase();
   const rows = await db
-    .select({ id: workouts.id, name: workouts.name, startedAt: workouts.startedAt, endedAt: workouts.endedAt })
+    .select(historyColumns)
     .from(workouts)
     .where(isNotNull(workouts.endedAt))
     .orderBy(desc(workouts.startedAt))
     .limit(limit);
+  return withSetCounts(rows);
+}
 
+/**
+ * One page of finished workouts, newest first. `after` is the last workout of the previous page:
+ * the page continues strictly after it (start time, then id, so equal start times are not skipped).
+ */
+export async function listWorkoutsPage(limit: number, after?: { startedAt: Date; id: string }): Promise<WorkoutHistoryItem[]> {
+  await initializeDatabase();
+  const rows = await db
+    .select(historyColumns)
+    .from(workouts)
+    .where(and(
+      isNotNull(workouts.endedAt),
+      after ? or(lt(workouts.startedAt, after.startedAt), and(eq(workouts.startedAt, after.startedAt), lt(workouts.id, after.id))) : undefined,
+    ))
+    .orderBy(desc(workouts.startedAt), desc(workouts.id))
+    .limit(limit);
+  return withSetCounts(rows);
+}
+
+/** Finished workouts started in [from, to), newest first: one day of the Log, for instance. */
+export async function listWorkoutsBetween(from: Date, to: Date): Promise<WorkoutHistoryItem[]> {
+  await initializeDatabase();
+  const rows = await db
+    .select(historyColumns)
+    .from(workouts)
+    .where(and(isNotNull(workouts.endedAt), gte(workouts.startedAt, from), lt(workouts.startedAt, to)))
+    .orderBy(desc(workouts.startedAt), desc(workouts.id));
+  return withSetCounts(rows);
+}
+
+/** Start times of the finished workouts in [from, to), for the calendar's dots. */
+export async function listWorkoutStarts(from: Date, to: Date): Promise<Date[]> {
+  await initializeDatabase();
+  const rows = await db
+    .select({ startedAt: workouts.startedAt })
+    .from(workouts)
+    .where(and(isNotNull(workouts.endedAt), gte(workouts.startedAt, from), lt(workouts.startedAt, to)));
+  return rows.map((row) => row.startedAt);
+}
+
+const historyColumns = { id: workouts.id, name: workouts.name, startedAt: workouts.startedAt, endedAt: workouts.endedAt };
+
+/** Adds the completed set count (an L/R pair counts once) to each workout, in one query. */
+async function withSetCounts(rows: { id: string; name: string; startedAt: Date; endedAt: Date | null }[]): Promise<WorkoutHistoryItem[]> {
   const setCounts = rows.length === 0 ? [] : await db
     .select({ workoutId: exerciseEntries.workoutId, pairId: trainingSets.pairId, side: trainingSets.side, completedAt: trainingSets.completedAt })
     .from(trainingSets)
     .innerJoin(exerciseEntries, eq(trainingSets.entryId, exerciseEntries.id))
-    .where(and(inArray(exerciseEntries.workoutId, rows.map((workout) => workout.id)), isNotNull(trainingSets.completedAt)))
-    ;
+    .where(and(inArray(exerciseEntries.workoutId, rows.map((workout) => workout.id)), isNotNull(trainingSets.completedAt)));
   const setsOf = new Map<string, typeof setCounts>();
   for (const set of setCounts) {
     const list = setsOf.get(set.workoutId);
     if (list) list.push(set);
     else setsOf.set(set.workoutId, [set]);
   }
-  const setsByWorkout = new Map(rows.map((row) => [row.id, completedSetCount(setsOf.get(row.id) ?? [])]));
-
   return rows.map((workout) => ({
     ...workout,
     endedAt: workout.endedAt!,
-    setCount: setsByWorkout.get(workout.id) ?? 0,
+    setCount: completedSetCount(setsOf.get(workout.id) ?? []),
   }));
-}
-
-export async function getRecentWeekSummary(): Promise<{ sessions: number; sets: number }> {
-  const workoutsThisWeek = (await listRecentWorkouts(100)).filter(
-    (workout) => workout.endedAt.getTime() >= Date.now() - 7 * 24 * 60 * 60 * 1000,
-  );
-  return {
-    sessions: workoutsThisWeek.length,
-    sets: workoutsThisWeek.reduce((total, workout) => total + workout.setCount, 0),
-  };
 }
 
 /**
@@ -902,7 +942,8 @@ export async function repeatWorkout(sourceId: string): Promise<string> {
     const pairIds = new Map(sets.filter((s) => s.pairId).map((s) => [s.pairId, id()]));
     validatePairs(sets, true);
     await db.insert(trainingSets).values(sets.map((set) => ({
-      ...set, id: id(), pairId: set.pairId ? pairIds.get(set.pairId)! : null, entryId, completedAt: null,
+      // How hard and how clean it was belong to that day: the copy starts without them.
+      ...set, id: id(), pairId: set.pairId ? pairIds.get(set.pairId)! : null, entryId, completedAt: null, rpe: null, formRating: null,
     })));
   }
   return workoutId;

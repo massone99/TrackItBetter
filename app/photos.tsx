@@ -1,3 +1,4 @@
+import { Paged } from '../src/shared/components/paging';
 import * as ImagePicker from 'expo-image-picker';
 import { isPickerUnavailableError } from '../src/shared/media/pickerErrors';
 import { useFocusEffect } from 'expo-router';
@@ -54,8 +55,8 @@ export default function ProgressPhotosScreen() {
         return;
       }
       const result = source === 'camera'
-        ? await ImagePicker.launchCameraAsync({ mediaTypes: ['images'], quality: 0.82 })
-        : await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.82 });
+        ? await ImagePicker.launchCameraAsync({ mediaTypes: ['images'], quality: 0.82, exif: true })
+        : await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.82, exif: true });
       if (result.canceled) return;
       const asset = result.assets[0];
       if (!asset) return;
@@ -119,7 +120,7 @@ export default function ProgressPhotosScreen() {
           </View>
         </Card>
       ) : null}
-      {photos.length === 0 ? <Body>{t('photos.empty')}</Body> : photos.map((photo) => (
+      {photos.length === 0 ? <Body>{t('photos.empty')}</Body> : <Paged items={photos} pageSize={24}>{(shownPhotos) => shownPhotos.map((photo) => (
         <Card key={photo.id} style={styles.photoCard}>
           <Image source={{ uri: photo.uri }} accessibilityLabel={t('photos.imageLabel')} style={styles.image} resizeMode="cover" />
           <View style={styles.caption}>
@@ -139,7 +140,7 @@ export default function ProgressPhotosScreen() {
             style={[styles.compareButton, { backgroundColor: compareIds.includes(photo.id) ? palette.accent : palette.surfaceMuted }]}
           ><Text style={{ color: compareIds.includes(photo.id) ? palette.accentText : palette.text, fontWeight: '800' }}>{compareIds.includes(photo.id) ? compareCopy.selected : compareCopy.select}</Text></Pressable> : null}
         </Card>
-      ))}
+      ))}</Paged>}
       <Sheet visible={deleting !== null} onClose={() => setDeleting(null)} title={t('photos.deleteTitle')} body={t('photos.deleteBody')}>
         <ActionButton icon="trash-outline" label={t('photos.delete')} variant="danger" onPress={() => {
           const photo = deleting;

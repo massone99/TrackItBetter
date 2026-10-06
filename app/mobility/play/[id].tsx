@@ -109,7 +109,7 @@ export default function MobilityPlayerScreen() {
     const missing = [...records.values()].find((row) => row.side && ![...records.values()].some((other) => other.stepIndex === row.stepIndex && other.round === row.round && other.side && other.side !== row.side));
     if (missing) {
       const missingIndex = segments.findIndex((s) => s.kind === 'work' && s.stepIndex === missing.stepIndex && s.round === missing.round && s.side !== missing.side);
-      Alert.alert('Completa la coppia L / R', `${drills[missing.stepIndex]?.name ?? ''} · Serie ${missing.round}: ${missing.side === 'left' ? 'Destro' : 'Sinistro'} mancante`);
+      Alert.alert(t('logger.pairIncompleteTitle'), t('logger.pairIncompleteBody', { name: drills[missing.stepIndex]?.name ?? '', number: missing.round, side: t(missing.side === 'left' ? 'logger.sideRight' : 'logger.sideLeft') }));
       if (missingIndex >= 0) {
         const target = segments[missingIndex];
         setIndex(missingIndex); setEndsAt(null);
@@ -117,7 +117,6 @@ export default function MobilityPlayerScreen() {
       }
       return;
     }
-    finished.current = true;
     void Speech.stop();
     const byStep = new Map<number, LoggedSetInput[]>();
     for (const record of [...records.values()].sort((a, b) => a.completedAt.getTime() - b.completedAt.getTime())) {
@@ -126,15 +125,24 @@ export default function MobilityPlayerScreen() {
       byStep.set(record.stepIndex, sets);
     }
     if (byStep.size === 0) { goBack('/mobility'); return; }
-    const workoutId = await logCompletedWorkout({
-      name: routine.name,
-      startedAt: startedAt.current,
-      endedAt: new Date(),
-      entries: [...byStep.entries()].sort(([a], [b]) => a - b).map(([stepIndex, sets]) => ({ exerciseId: routine.steps[stepIndex].exerciseId, sets })),
-    });
+    // Marked finished only once saved, so a failed save can be retried instead of locking the session.
+    finished.current = true;
+    let workoutId: string;
+    try {
+      workoutId = await logCompletedWorkout({
+        name: routine.name,
+        startedAt: startedAt.current,
+        endedAt: new Date(),
+        entries: [...byStep.entries()].sort(([a], [b]) => a - b).map(([stepIndex, sets]) => ({ exerciseId: routine.steps[stepIndex].exerciseId, sets })),
+      });
+    } catch {
+      finished.current = false;
+      Alert.alert(t('history.saveError'));
+      return;
+    }
     writePreference(`mobility.draft.${id}`, 'null');
     router.replace({ pathname: '/workout/summary/[id]', params: { id: workoutId } });
-  }, [routine, segments, drills, id]);
+  }, [routine, segments, drills, id, t]);
 
   const goTo = useCallback((next: number, records: Map<number, Performed>) => {
     if (next >= segments.length) { void finish(records); return; }

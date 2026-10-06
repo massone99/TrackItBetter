@@ -133,6 +133,8 @@ export default function ProgramEditorScreen() {
       else if (created) addExercise(created.sessionId, created.exerciseId, created.metric);
     })();
     return () => { mounted = false; };
+    // Runs on focus and once the program is loaded; the helpers it calls only use state setters.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, loaded]));
 
   const updateSession = (sessionId: string, patch: Partial<UserProgramSession>) => {

@@ -8,11 +8,6 @@ export type Weekday = 0 | 1 | 2 | 3 | 4 | 5 | 6;
 /** Monday-first display order. */
 export const WEEK_ORDER: readonly Weekday[] = [1, 2, 3, 4, 5, 6, 0];
 
-/** i18n key suffix for `reminders.weekdays.*` and `reminders.weekdaysShort.*`. */
-export function weekdayKey(day: number): string {
-  return ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'][day] ?? 'mon';
-}
-
 export interface UserProgramExercise {
   id: string;
   exerciseId: string;

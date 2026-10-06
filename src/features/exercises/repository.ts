@@ -41,12 +41,6 @@ export async function setExerciseDemoUrl(id: string, demoUrl: string | null): Pr
   await db.update(exercises).set({ demoUrl }).where(eq(exercises.id, id));
 }
 
-/** Hides a custom exercise from the library; logged workouts that used it stay intact. */
-export async function archiveCustomExercise(id: string): Promise<void> {
-  await initializeDatabase();
-  await db.update(exercises).set({ archived: true }).where(and(eq(exercises.id, id), eq(exercises.isCustom, true)));
-}
-
 export async function getExerciseById(id: string) {
   await initializeDatabase();
   const [exercise] = await db.select().from(exercises).where(eq(exercises.id, id)).limit(1);

@@ -1,3 +1,4 @@
+import { ShowMore, usePagedSections } from '../../shared/components/paging';
 import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Modal, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
@@ -61,6 +62,8 @@ export function ExercisePicker({ visible, title, subtitle, initialCategory = nul
   const leave = (action: () => void) => () => { setQuery(''); setCategory(initialCategory); action(); };
   const filtered = useMemo(() => choices.filter((choice) => !include || include(choice)).filter((choice) => !category || choice.category === category || choice.extraCategories.includes(`"${category}"`)), [choices, include, category]);
   const sections = useMemo(() => groupExercises(filtered, grouping), [filtered, grouping]);
+  // 40 exercises at a time; a new search or category starts from the top.
+  const page = usePagedSections(sections, 40, `${query}:${category}:${JSON.stringify(grouping)}:${visible}`);
 
   return (
     <Modal visible={visible} animationType={reducedMotion || speed === 'off' ? 'none' : speed === 'fast' ? 'fade' : 'slide'} onRequestClose={leave(onClose)} statusBarTranslucent navigationBarTranslucent>
@@ -93,8 +96,8 @@ export function ExercisePicker({ visible, title, subtitle, initialCategory = nul
             <ExerciseGroupingControls />
             <Label>{t('library.results', { count: filtered.length })}</Label>
           </View>
-          {sections.map((section) => <View key={section.id} style={styles.group}>
-            {section.path.length ? <View style={styles.groupHeader}><ExerciseGroupingHeader path={section.path} count={section.items.length} /></View> : null}
+          {page.shown.map((section) => <View key={section.id} style={styles.group}>
+            {section.path.length ? <View style={styles.groupHeader}><ExerciseGroupingHeader path={section.path} count={section.total} /></View> : null}
             {section.items.map((exercise) => (
             <ListRow
               key={exercise.id}
@@ -119,6 +122,7 @@ export function ExercisePicker({ visible, title, subtitle, initialCategory = nul
             />
             ))}
           </View>)}
+          <ShowMore remaining={page.remaining} onPress={page.more} />
         </KeyboardScroll>
       </View>
     </Modal>

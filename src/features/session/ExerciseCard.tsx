@@ -79,6 +79,7 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
   // Every set can carry added load or assistance, except distance work.
   const withLoad = !distance;
   const field = timed ? 'durationSec' : distance ? 'distanceM' : 'reps';
+  const fieldLabel = timed ? t('logger.holdCol') : distance ? t('logger.distanceCol') : t('logger.repsCol');
   const doneSets = completedSetCount(exercise.sets);
   const totalSets = groupSets(exercise.sets).length;
   const allDone = totalSets > 0 && doneSets === totalSets;
@@ -219,7 +220,7 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
                 </PopOnActivate>
               </View>
               <View style={[styles.colValue, styles.stepper]}>
-                {showSteps ? <StepButton icon="remove" label={`− ${sideLabel}`} onPress={(multiplier) => void onChange(set, field, (distance ? -0.5 : timed ? -5 : -1) * multiplier)} /> : null}
+                {showSteps ? <StepButton icon="remove" label={t('logger.stepDown', { field: fieldLabel, number: workingNumber, side: sideLabel }).trim()} onPress={(multiplier) => void onChange(set, field, (distance ? -0.5 : timed ? -5 : -1) * multiplier)} /> : null}
                 {(done && !editDone) || holding ? (
                   <Text style={[styles.setValue, { color: holding ? palette.accentStrong : palette.text }]}>{value}</Text>
                 ) : timed ? (
@@ -234,11 +235,11 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
                     style={[styles.setValue, { color: palette.text }]}
                   />
                 )}
-                {showSteps ? <StepButton icon="add" label={`+ ${sideLabel}`} onPress={(multiplier) => void onChange(set, field, (distance ? 0.5 : timed ? 5 : 1) * multiplier)} /> : null}
+                {showSteps ? <StepButton icon="add" label={t('logger.stepUp', { field: fieldLabel, number: workingNumber, side: sideLabel }).trim()} onPress={(multiplier) => void onChange(set, field, (distance ? 0.5 : timed ? 5 : 1) * multiplier)} /> : null}
               </View>
               {withLoad ? (
                 <View style={[styles.colLoad, styles.stepper]}>
-                  {showSteps ? <StepButton icon="remove" label={`${t('history.addedLoad')} − ${sideLabel}`} onPress={(multiplier) => void onChange(set, 'addedLoadKg', -LOAD_STEP_KG * multiplier)} /> : null}
+                  {showSteps ? <StepButton icon="remove" label={t('logger.stepDown', { field: t('history.addedLoad'), number: workingNumber, side: sideLabel }).trim()} onPress={(multiplier) => void onChange(set, 'addedLoadKg', -LOAD_STEP_KG * multiplier)} /> : null}
                   {done && !editDone ? (
                     <Text style={[styles.loadValue, { color: set.addedLoadKg === 0 ? palette.textMuted : palette.text }]}>{loadText}</Text>
                   ) : (
@@ -252,7 +253,7 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
                       style={[styles.loadValue, { color: set.addedLoadKg === 0 ? palette.textMuted : palette.text }]}
                     />
                   )}
-                  {showSteps ? <StepButton icon="add" label={`${t('history.addedLoad')} + ${sideLabel}`} onPress={(multiplier) => void onChange(set, 'addedLoadKg', LOAD_STEP_KG * multiplier)} /> : null}
+                  {showSteps ? <StepButton icon="add" label={t('logger.stepUp', { field: t('history.addedLoad'), number: workingNumber, side: sideLabel }).trim()} onPress={(multiplier) => void onChange(set, 'addedLoadKg', LOAD_STEP_KG * multiplier)} /> : null}
                 </View>
               ) : null}
               <View style={styles.colAction}>

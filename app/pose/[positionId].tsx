@@ -1,3 +1,4 @@
+import { Paged } from '../../src/shared/components/paging';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -184,7 +185,9 @@ export default function PoseHistoryScreen() {
           <SectionTitle title={t('pose.history')} />
           <ListGroup>
             {/* While comparing, only the analyses of the same exercise are listed. */}
-            {(view === 'compare' && other ? (captures ?? []).filter((capture) => capture.id === latest.id || sameExercise(capture)) : captures ?? []).map((capture) => (
+            <Paged items={view === 'compare' && other ? (captures ?? []).filter((capture) => capture.id === latest.id || sameExercise(capture)) : captures ?? []} pageSize={20} resetKey={`${groupKey}:${view}`}>
+              {(shownCaptures) => <>
+            {shownCaptures.map((capture) => (
               <ListRow
                 key={capture.id}
                 title={position.generic ? freeSummary(capture) : `${t('pose.degrees', { value: Math.round(capture.value) })} · ${t('pose.level', { level: capture.level })}`}
@@ -200,6 +203,8 @@ export default function PoseHistoryScreen() {
                 )}
               />
             ))}
+              </>}
+            </Paged>
           </ListGroup>
         </>
       ) : null}

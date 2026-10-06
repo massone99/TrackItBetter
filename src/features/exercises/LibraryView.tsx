@@ -1,3 +1,4 @@
+import { ShowMore, usePagedSections } from '../../shared/components/paging';
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useDeferredValue, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -34,6 +35,8 @@ export function LibraryView() {
   // Typing stays responsive: the list follows the query once React has time, not on every keystroke.
   const search = useDeferredValue(query);
   const filterKey = JSON.stringify([search, category, favouritesOnly]);
+  // A big library renders 40 exercises at a time; a new search or filter starts from the top.
+  const page = usePagedSections(sections, 40, `${filterKey}:${JSON.stringify(grouping)}`);
 
   useFocusEffect(useCallback(() => {
     let current = true;
@@ -93,12 +96,13 @@ export function LibraryView() {
         <EmptyState icon="search-outline" title={t('library.empty')} body={t('library.emptyBody')} />
       ) : (
         <>
-          {sections.map((section) => (
+          {page.shown.map((section) => (
             <View key={section.id} style={styles.group}>
-              <ExerciseGroupingHeader path={section.path} count={section.items.length} />
+              <ExerciseGroupingHeader path={section.path} count={section.total} />
               <ListGroup>{section.items.map(exerciseRow)}</ListGroup>
             </View>
           ))}
+          <ShowMore remaining={page.remaining} onPress={page.more} />
         </>
       )}
     </>
