@@ -2,6 +2,10 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.19.1 - 2026-10-06
+
+- Micro-session: no exercise is chosen for you any more; the picker opens on arrival so you pick the exercises yourself.
+
 ## 0.19.0 - 2026-10-06
 
 - Micro-session: the same exercise card as a workout (set numbers, steppers, ✓, RPE, form, add set or warm-up, swipe, set menu). Exercises come from the picker or the recent chips; "Log N sets" saves only the checked sets; leaving with checked sets logs them.

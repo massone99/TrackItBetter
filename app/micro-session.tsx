@@ -6,7 +6,7 @@ import { ExerciseCard } from '../src/features/session/ExerciseCard';
 import { ExercisePicker, type ExerciseChoice } from '../src/features/exercises/ExercisePicker';
 import { WorkoutInProgressSheet } from '../src/features/session/WorkoutInProgressSheet';
 import { getActiveWorkout, type SessionSet } from '../src/features/session/repository';
-import { getLastMicroSessionExercise, listMicroSessionExercises, listRecentMicroSessionExerciseIds, logMicroSessionItems, pickRecent } from '../src/features/session/microSession';
+import { listMicroSessionExercises, listRecentMicroSessionExerciseIds, logMicroSessionItems, pickRecent } from '../src/features/session/microSession';
 import { addDraftSet, doneItems, freshRound, newDraftExercise, removeDraftSet, stepDraftSet, updateDraftSet, type DraftExercise } from '../src/features/session/microDraft';
 import { ActionButton, Chip, EmptyState, FooterAction, Label, PageHeading, Screen, Sheet, tapFeedback, Toast } from '../src/shared/components/ui';
 import { useSaveOnLeave } from '../src/shared/forms/useSaveOnLeave';
@@ -34,15 +34,19 @@ export default function MicroSessionScreen() {
   const [discardAsk, setDiscardAsk] = useState<(() => void) | null>(null);
   const [showRpe] = useState(() => readBooleanPreference(RPE_PROMPT_KEY, true));
   const working = useRef(false);
+  const askedToPick = useRef(false);
 
   useEffect(() => { draftRef.current = draft; }, [draft]);
 
   /** Recent exercises, and the last one used added on the first open. */
   const loadBase = useCallback(async () => {
-    const [all, recentIds, preferred] = await Promise.all([listMicroSessionExercises(''), listRecentMicroSessionExerciseIds(5), getLastMicroSessionExercise()]);
+    const [all, recentIds] = await Promise.all([listMicroSessionExercises(''), listRecentMicroSessionExerciseIds(5)]);
     setRecent(pickRecent(recentIds, all, 5));
-    const auto = all.find((item) => item.id === preferred);
-    if (draftRef.current.length === 0 && auto) setDraft([newDraftExercise(auto)]);
+    // Nothing is chosen for you: with an empty draft the picker opens once, so the first step is choosing.
+    if (draftRef.current.length === 0 && !askedToPick.current) {
+      askedToPick.current = true;
+      setPickerOpen(true);
+    }
   }, []);
   useFocusEffect(useCallback(() => { void loadBase(); }, [loadBase]));
 
