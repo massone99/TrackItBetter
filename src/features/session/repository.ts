@@ -1,8 +1,9 @@
-import { and, asc, count, desc, eq, gt, gte, inArray, isNotNull, isNull, lt, max, or } from 'drizzle-orm';
+import { and, asc, count, desc, eq, gt, gte, inArray, isNotNull, isNull, lt, max, ne, or } from 'drizzle-orm';
 import * as Crypto from 'expo-crypto';
 import { db, initializeDatabase } from '../../db/client';
+import { bumpFinishedVersion } from '../../db/cache';
 import { bodyMeasurements, exerciseEntries, exercises, formCheckVideos, trainingSets, workouts } from '../../db/schema';
-import { deleteFormCheckVideosForSets } from '../media/formVideos';
+import { deleteFormCheckVideosForSets, deleteClipFilesIfUnused, releaseClipFiles, retainClipFiles } from '../media/formVideos';
 import { countPoseCapturesBySet } from '../pose/repository';
 import { isValidRpe } from '../../domain/rpe';
 import { isLoadMetric, measureOf } from '../../domain/userProgram';
@@ -92,6 +93,33 @@ async function assertSetWorkout(setId: string, workoutId: string) {
   if (row?.workoutId !== workoutId) throw new Error('Set does not belong to workout');
 }
 
+type WriteTarget = { workoutId: string } | { entryId: string } | { setId: string };
+
+/** Whether the workout a row belongs to is finished; false when the row does not exist. */
+async function isFinished(target: WriteTarget): Promise<boolean> {
+  if ('workoutId' in target) {
+    const [row] = await db.select({ endedAt: workouts.endedAt }).from(workouts).where(eq(workouts.id, target.workoutId)).limit(1);
+    return Boolean(row?.endedAt);
+  }
+  if ('entryId' in target) {
+    const [row] = await db.select({ endedAt: workouts.endedAt }).from(exerciseEntries)
+      .innerJoin(workouts, eq(exerciseEntries.workoutId, workouts.id)).where(eq(exerciseEntries.id, target.entryId)).limit(1);
+    return Boolean(row?.endedAt);
+  }
+  const [row] = await db.select({ endedAt: workouts.endedAt }).from(trainingSets)
+    .innerJoin(exerciseEntries, eq(trainingSets.entryId, exerciseEntries.id))
+    .innerJoin(workouts, eq(exerciseEntries.workoutId, workouts.id)).where(eq(trainingSets.id, target.setId)).limit(1);
+  return Boolean(row?.endedAt);
+}
+
+/**
+ * Call after a write that may have changed a finished workout: history caches (records, analytics)
+ * reload only then, so logging sets in the workout in progress does not rescan the whole history.
+ */
+async function bumpIfFinished(target: WriteTarget): Promise<void> {
+  if (await isFinished(target)) bumpFinishedVersion();
+}
+
 async function requireActiveSet(setId: string) {
   const [row] = await db.select({ endedAt: workouts.endedAt }).from(trainingSets)
     .innerJoin(exerciseEntries, eq(trainingSets.entryId, exerciseEntries.id))
@@ -112,14 +140,27 @@ export async function setUnilateralRest(entryId: string, mode: 'side' | 'pair' |
 
 export type PairEditValues = Pick<SessionSet, 'reps' | 'durationSec' | 'distanceM' | 'addedLoadKg' | 'rpe'>;
 
+type SetValueField = 'reps' | 'durationSec' | 'distanceM' | 'addedLoadKg';
+const SET_VALUE_FIELDS = ['reps', 'durationSec', 'distanceM', 'addedLoadKg'] as const;
+
+/** Reps and seconds are whole and not negative, distance is not negative; load may be negative (assistance). */
+function isValidSetValue(field: SetValueField, value: number): boolean {
+  return Number.isFinite(value) && (field === 'addedLoadKg' || value >= 0) && ((field !== 'reps' && field !== 'durationSec') || Number.isInteger(value));
+}
+
 function validatePairValues(left: PairEditValues, right: PairEditValues) {
   for (const values of [left, right]) {
-    for (const field of ['reps', 'durationSec', 'distanceM', 'addedLoadKg'] as const) {
+    for (const field of SET_VALUE_FIELDS) {
       const v = values[field];
-      if (v !== null && (!Number.isFinite(v) || (field !== 'addedLoadKg' && v < 0) || ((field === 'reps' || field === 'durationSec') && !Number.isInteger(v)))) throw new Error('Invalid set value');
+      if (v !== null && !isValidSetValue(field, v)) throw new Error('Invalid set value');
     }
     if (values.rpe !== null && !isValidRpe(values.rpe)) throw new Error('Invalid RPE');
   }
+}
+
+/** Writes one value column of a set (already validated). */
+async function writeSetValue(setId: string, field: SetValueField | 'restSec', value: number): Promise<void> {
+  await db.update(trainingSets).set({ [field]: value }).where(eq(trainingSets.id, setId));
 }
 
 export async function addCompletedPair(workoutId: string, entryId: string, left: PairEditValues, right: PairEditValues): Promise<string> {
@@ -136,13 +177,7 @@ export async function saveCompletedPair(workoutId: string, setId: string, origin
   await initializeDatabase();
   const endedAt = await completedWorkoutEnd(workoutId);
   await assertSetWorkout(setId, workoutId);
-  for (const values of [left, right]) {
-    for (const field of ['reps', 'durationSec', 'distanceM', 'addedLoadKg'] as const) {
-      const v = values[field];
-      if (v !== null && (!Number.isFinite(v) || (field !== 'addedLoadKg' && v < 0) || ((field === 'reps' || field === 'durationSec') && !Number.isInteger(v)))) throw new Error('Invalid set value');
-    }
-    if (values.rpe !== null && !isValidRpe(values.rpe)) throw new Error('Invalid RPE');
-  }
+  validatePairValues(left, right);
   await db.transaction(async (tx) => {
     const [original] = await tx.select().from(trainingSets).where(eq(trainingSets.id, setId));
     const pairId = original.pairId ?? id();
@@ -161,25 +196,24 @@ export async function saveCompletedPair(workoutId: string, setId: string, origin
       }
     }
   });
+  bumpFinishedVersion();
 }
 
-export async function startWorkout(name = 'Workout'): Promise<string> {
-  await initializeDatabase();
-  const [latestBodyweight] = await db
+/** The latest logged bodyweight in kg, which a new workout keeps for bodyweight-relative loads. */
+async function latestBodyweightKg(): Promise<number | null> {
+  const [latest] = await db
     .select({ value: bodyMeasurements.value, unit: bodyMeasurements.unit })
     .from(bodyMeasurements)
     .where(eq(bodyMeasurements.kind, 'weight'))
     .orderBy(desc(bodyMeasurements.measuredAt))
     .limit(1);
+  return latest ? latest.unit === 'lb' ? latest.value * 0.45359237 : latest.value : null;
+}
+
+export async function startWorkout(name = 'Workout'): Promise<string> {
+  await initializeDatabase();
   const workoutId = id();
-  await db.insert(workouts).values({
-    id: workoutId,
-    name,
-    startedAt: new Date(),
-    bodyweightKg: latestBodyweight
-      ? latestBodyweight.unit === 'lb' ? latestBodyweight.value * 0.45359237 : latestBodyweight.value
-      : null,
-  });
+  await db.insert(workouts).values({ id: workoutId, name, startedAt: new Date(), bodyweightKg: await latestBodyweightKg() });
   return workoutId;
 }
 
@@ -310,10 +344,7 @@ export async function updateCompletedWorkoutSet(
   value: number,
 ): Promise<void> {
   await initializeDatabase();
-  if (!Number.isFinite(value) || (field !== 'addedLoadKg' && value < 0)
-    || ((field === 'reps' || field === 'durationSec') && !Number.isInteger(value))) {
-    throw new Error('Invalid workout set value');
-  }
+  if (!isValidSetValue(field, value)) throw new Error('Invalid workout set value');
   const [row] = await db.select({ workoutId: exerciseEntries.workoutId, endedAt: workouts.endedAt })
     .from(trainingSets)
     .innerJoin(exerciseEntries, eq(trainingSets.entryId, exerciseEntries.id))
@@ -322,16 +353,8 @@ export async function updateCompletedWorkoutSet(
   if (!row || row.workoutId !== workoutId || !row.endedAt) {
     throw new Error('Set does not belong to a completed workout');
   }
-  const normalized = field === 'distanceM' ? Math.round(value * 100) / 100 : value;
-  if (field === 'reps') {
-    await db.update(trainingSets).set({ reps: normalized }).where(eq(trainingSets.id, setId));
-  } else if (field === 'durationSec') {
-    await db.update(trainingSets).set({ durationSec: normalized }).where(eq(trainingSets.id, setId));
-  } else if (field === 'distanceM') {
-    await db.update(trainingSets).set({ distanceM: normalized }).where(eq(trainingSets.id, setId));
-  } else {
-    await db.update(trainingSets).set({ addedLoadKg: normalized }).where(eq(trainingSets.id, setId));
-  }
+  await writeSetValue(setId, field, field === 'distanceM' ? Math.round(value * 100) / 100 : value);
+  bumpFinishedVersion();
 }
 
 export async function addExerciseToWorkout(
@@ -383,6 +406,7 @@ export async function setEntryBlock(entryId: string, block: Block): Promise<void
   await db.update(exerciseEntries).set({ block: stored }).where(eq(exerciseEntries.id, entryId));
   await normalizeBlockOrder(entry.workoutId);
   await splitBrokenSuperset(entry.workoutId, entryId);
+  await bumpIfFinished({ workoutId: entry.workoutId });
 }
 
 /** A superset must stay contiguous: an exercise moved out of its run leaves the superset. */
@@ -447,6 +471,7 @@ export async function addSet(entryId: string, pairValues?: { left: PairEditValue
       }));
     } else await tx.insert(trainingSets).values(values);
   });
+  if (entryExercise?.endedAt) bumpFinishedVersion();
   return setId;
 }
 
@@ -459,18 +484,9 @@ export async function updateSet(
   if (field === 'restSec' && (!Number.isInteger(value) || value < 0 || value > 3600)) {
     throw new RangeError('Rest time must be an integer between 0 and 3600 seconds.');
   }
-  if (!Number.isFinite(value) || (field !== 'addedLoadKg' && value < 0) || ((field === 'reps' || field === 'durationSec') && !Number.isInteger(value))) throw new Error('Invalid workout set value');
-  if (field === 'reps') {
-    await db.update(trainingSets).set({ reps: value }).where(eq(trainingSets.id, setId));
-  } else if (field === 'durationSec') {
-    await db.update(trainingSets).set({ durationSec: value }).where(eq(trainingSets.id, setId));
-  } else if (field === 'distanceM') {
-    await db.update(trainingSets).set({ distanceM: value }).where(eq(trainingSets.id, setId));
-  } else if (field === 'restSec') {
-    await db.update(trainingSets).set({ restSec: value }).where(eq(trainingSets.id, setId));
-  } else {
-    await db.update(trainingSets).set({ addedLoadKg: value }).where(eq(trainingSets.id, setId));
-  }
+  if (field !== 'restSec' && !isValidSetValue(field, value)) throw new Error('Invalid workout set value');
+  await writeSetValue(setId, field, value);
+  await bumpIfFinished({ setId });
 }
 
 export async function completeSet(setId: string): Promise<void> {
@@ -538,6 +554,7 @@ export async function finishWorkout(workoutId: string): Promise<void> {
     .update(workouts)
     .set({ endedAt: new Date() })
     .where(and(eq(workouts.id, workoutId), isNull(workouts.endedAt)));
+  bumpFinishedVersion();
 }
 
 /**
@@ -557,6 +574,7 @@ export async function deleteWorkout(workoutId: string): Promise<void> {
     await tx.delete(exerciseEntries).where(eq(exerciseEntries.workoutId, workoutId));
     await tx.delete(workouts).where(eq(workouts.id, workoutId));
   });
+  bumpFinishedVersion();
 }
 
 export const WORKOUT_NAME_MAX = 60;
@@ -576,6 +594,7 @@ export async function updateCompletedWorkoutDetails(
   await db.update(workouts)
     .set({ name, startedAt: details.startedAt, endedAt: details.endedAt })
     .where(and(eq(workouts.id, workoutId), isNotNull(workouts.endedAt)));
+  bumpFinishedVersion();
 }
 
 /**
@@ -591,6 +610,7 @@ export async function createPastWorkout(input: { name: string; startedAt: Date; 
   await initializeDatabase();
   const workoutId = id();
   await db.insert(workouts).values({ id: workoutId, name, startedAt: input.startedAt, endedAt: new Date(start + minutes * 60_000) });
+  bumpFinishedVersion();
   return workoutId;
 }
 
@@ -612,6 +632,7 @@ export async function convertToPastWorkout(workoutId: string, startedAt: Date, m
     }
     await tx.update(workouts).set({ startedAt, endedAt }).where(eq(workouts.id, workoutId));
   });
+  bumpFinishedVersion();
 }
 
 async function completedWorkoutEnd(workoutId: string): Promise<Date> {
@@ -636,6 +657,7 @@ export async function addExerciseToCompletedWorkout(workoutId: string, exerciseI
   const endedAt = await completedWorkoutEnd(workoutId);
   const entryId = await addExerciseToWorkout(workoutId, exerciseId);
   await db.update(trainingSets).set({ completedAt: endedAt }).where(eq(trainingSets.entryId, entryId));
+  bumpFinishedVersion();
   return entryId;
 }
 
@@ -645,6 +667,7 @@ export async function setCompletedWorkoutSetDone(workoutId: string, setId: strin
   const endedAt = await completedWorkoutEnd(workoutId);
   await assertSetWorkout(setId, workoutId);
   await db.update(trainingSets).set({ completedAt: done ? endedAt : null }).where(await pairCondition(setId));
+  bumpFinishedVersion();
 }
 
 /** Names of finished workouts, newest first; programs use them to know which session comes next. */
@@ -738,6 +761,7 @@ export async function enableExerciseLoad(exerciseId: string): Promise<boolean> {
   const next = exercise?.metric === 'reps' ? 'reps_load' : exercise?.metric === 'time' ? 'time_load' : null;
   if (!next) return false;
   await db.update(exercises).set({ metric: next }).where(eq(exercises.id, exerciseId));
+  bumpFinishedVersion();
   return true;
 }
 
@@ -746,6 +770,7 @@ export async function setSetFormRating(setId: string, rating: number | null): Pr
   await initializeDatabase();
   if (rating !== null && (!Number.isInteger(rating) || rating < 1 || rating > 5)) throw new RangeError('Form ratings are integers from 1 to 5');
   await db.update(trainingSets).set({ formRating: rating }).where(eq(trainingSets.id, setId));
+  await bumpIfFinished({ setId });
 }
 
 /** Sets the RPE the program planned for a set; null clears it. */
@@ -773,6 +798,7 @@ export async function updateEntryNote(entryId: string, note: string): Promise<vo
 export async function setSetKind(setId: string, kind: SetKind): Promise<void> {
   await initializeDatabase();
   await db.update(trainingSets).set({ kind, restSec: null }).where(await pairCondition(setId));
+  await bumpIfFinished({ setId });
 }
 
 /**
@@ -798,6 +824,7 @@ export async function addWarmupSet(entryId: string): Promise<string> {
       }
     }
   });
+  await bumpIfFinished({ entryId });
   return created;
 }
 
@@ -813,6 +840,7 @@ export async function updateSetRpe(setId: string, rpe: number | null): Promise<v
   if (rpe !== null && !isValidRpe(rpe)) throw new RangeError('RPE must be between 6 and 10 in half steps');
   await initializeDatabase();
   await db.update(trainingSets).set({ rpe }).where(eq(trainingSets.id, setId));
+  await bumpIfFinished({ setId });
 }
 
 /** Removes a set with its clips, then renumbers the remaining sets of that exercise from 1. */
@@ -820,6 +848,7 @@ export async function removeSet(setId: string): Promise<void> {
   await initializeDatabase();
   const [set] = await db.select({ entryId: trainingSets.entryId }).from(trainingSets).where(eq(trainingSets.id, setId)).limit(1);
   if (!set) return;
+  const finished = await isFinished({ setId });
   const condition = await pairCondition(setId);
   const removed = await db.select({ id: trainingSets.id }).from(trainingSets).where(condition);
   await deleteFormCheckVideosForSets(removed.map((s) => s.id));
@@ -831,14 +860,17 @@ export async function removeSet(setId: string): Promise<void> {
     for (const row of group) await tx.update(trainingSets).set({ index: position + 1 }).where(eq(trainingSets.id, row.id));
   }
   });
+  if (finished) bumpFinishedVersion();
 }
 
 /** Removes an exercise from a workout together with its sets and their clips. */
 export async function removeExerciseEntry(entryId: string): Promise<void> {
   await initializeDatabase();
+  const finished = await isFinished({ entryId });
   const sets = await db.select({ id: trainingSets.id }).from(trainingSets).where(eq(trainingSets.entryId, entryId));
   await deleteFormCheckVideosForSets(sets.map((set) => set.id));
   await db.delete(exerciseEntries).where(eq(exerciseEntries.id, entryId));
+  if (finished) bumpFinishedVersion();
 }
 
 /** What a removal took away, kept briefly so it can be put back ("Restore" in the undo toast). */
@@ -848,30 +880,58 @@ export interface RemovedRows {
   sets: (typeof trainingSets.$inferSelect)[];
 }
 
-/** Removes a whole set group, retaining its clips on disk and their metadata for undo. */
+/**
+ * Removes a whole set group, retaining its clips on disk and their metadata for undo. Once the undo is
+ * no longer offered, `discardRemoved` deletes the kept files.
+ */
 export async function removeSetWithUndo(setId: string): Promise<RemovedRows | null> {
   await initializeDatabase();
   const [row] = await db.select().from(trainingSets).where(eq(trainingSets.id, setId)).limit(1);
   if (!row) return null;
+  const finished = await isFinished({ setId });
   const sets = await db.select().from(trainingSets).where(await pairCondition(setId));
   const videos = await db.select().from(formCheckVideos).where(inArray(formCheckVideos.setId, sets.map((s) => s.id)));
+  retainClipFiles(videos.map((video) => video.fileName));
   await db.transaction(async (tx) => {
     await tx.delete(formCheckVideos).where(inArray(formCheckVideos.setId, sets.map((s) => s.id)));
     await tx.delete(trainingSets).where(inArray(trainingSets.id, sets.map((s) => s.id)));
     const remaining = await tx.select().from(trainingSets).where(eq(trainingSets.entryId, row.entryId)).orderBy(asc(trainingSets.index));
     for (const [position, group] of groupSets(remaining).entries()) for (const s of group) await tx.update(trainingSets).set({ index: position + 1 }).where(eq(trainingSets.id, s.id));
   });
+  if (finished) bumpFinishedVersion();
   return { entry: null, sets, videos };
 }
 
-/** Removes an exercise with its sets and returns a snapshot that `restoreRemoved` can put back. */
+/**
+ * Removes an exercise with its sets and returns a snapshot that `restoreRemoved` can put back. Like
+ * `removeSetWithUndo`, its clips stay on disk until `discardRemoved`.
+ */
 export async function removeExerciseEntryWithUndo(entryId: string): Promise<RemovedRows | null> {
   await initializeDatabase();
   const [entry] = await db.select().from(exerciseEntries).where(eq(exerciseEntries.id, entryId)).limit(1);
   if (!entry) return null;
+  const finished = await isFinished({ entryId });
   const sets = await db.select().from(trainingSets).where(eq(trainingSets.entryId, entryId)).orderBy(asc(trainingSets.index));
-  await removeExerciseEntry(entryId);
-  return { entry, sets };
+  const videos = sets.length === 0 ? [] : await db.select().from(formCheckVideos).where(inArray(formCheckVideos.setId, sets.map((s) => s.id)));
+  retainClipFiles(videos.map((video) => video.fileName));
+  await db.transaction(async (tx) => {
+    if (videos.length > 0) await tx.delete(formCheckVideos).where(inArray(formCheckVideos.id, videos.map((video) => video.id)));
+    await tx.delete(trainingSets).where(eq(trainingSets.entryId, entryId));
+    await tx.delete(exerciseEntries).where(eq(exerciseEntries.id, entryId));
+  });
+  if (finished) bumpFinishedVersion();
+  return { entry, sets, videos };
+}
+
+/**
+ * Ends the undo of a removal: deletes the clip files it kept on disk. Files a restore put back in use
+ * are kept, so calling it after "Restore" (e.g. whenever the undo toast hides) is safe.
+ */
+export async function discardRemoved(removed: RemovedRows | null): Promise<void> {
+  const fileNames = removed?.videos?.map((video) => video.fileName) ?? [];
+  if (fileNames.length === 0) return;
+  releaseClipFiles(fileNames);
+  await deleteClipFilesIfUnused(fileNames);
 }
 
 /**
@@ -880,6 +940,7 @@ export async function removeExerciseEntryWithUndo(entryId: string): Promise<Remo
  */
 export async function restoreRemoved(removed: RemovedRows): Promise<void> {
   await initializeDatabase();
+  const entryId = removed.entry?.id ?? removed.sets[0]?.entryId;
   await db.transaction(async (tx) => {
     if (removed.entry) {
       await tx.insert(exerciseEntries).values(removed.entry);
@@ -898,6 +959,8 @@ export async function restoreRemoved(removed: RemovedRows): Promise<void> {
     }
     if (removed.videos?.length) await tx.insert(formCheckVideos).values(removed.videos);
   });
+  releaseClipFiles(removed.videos?.map((video) => video.fileName) ?? []);
+  if (entryId) await bumpIfFinished({ entryId });
 }
 
 export interface PreviousPerformance {
@@ -912,6 +975,7 @@ export async function copyValuesToSet(setId: string, values: PreviousSetValues):
   await initializeDatabase();
   const { reps, durationSec, distanceM, addedLoadKg, rpe, note } = values;
   await db.update(trainingSets).set({ reps, durationSec, distanceM, addedLoadKg, rpe, note }).where(eq(trainingSets.id, setId));
+  await bumpIfFinished({ setId });
 }
 
 /** Repeats a finished workout unless another one is in progress, whose name is returned instead. */
@@ -930,23 +994,110 @@ export async function repeatWorkout(sourceId: string): Promise<string> {
   const [source] = await db.select({ name: workouts.name }).from(workouts).where(eq(workouts.id, sourceId)).limit(1);
   if (!source) throw new Error('Workout not found');
   const entries = await db.select().from(exerciseEntries).where(eq(exerciseEntries.workoutId, sourceId)).orderBy(asc(exerciseEntries.order));
-  const workoutId = await startWorkout(source.name);
-  let order = 0;
+  const sourceSets = entries.length === 0 ? [] : await db.select().from(trainingSets)
+    .where(and(inArray(trainingSets.entryId, entries.map((entry) => entry.id)), isNotNull(trainingSets.completedAt))).orderBy(asc(trainingSets.index));
+  const workoutId = id();
+  const newEntries: (typeof exerciseEntries.$inferInsert)[] = [];
+  const newSets: (typeof trainingSets.$inferInsert)[] = [];
   for (const entry of entries) {
-    const sets = await db.select().from(trainingSets)
-      .where(and(eq(trainingSets.entryId, entry.id), isNotNull(trainingSets.completedAt))).orderBy(asc(trainingSets.index));
+    const sets = sourceSets.filter((set) => set.entryId === entry.id);
     if (sets.length === 0) continue;
-    order += 1;
-    const entryId = id();
-    await db.insert(exerciseEntries).values({ id: entryId, workoutId, exerciseId: entry.exerciseId, order, notes: entry.notes, groupId: entry.groupId, groupType: entry.groupType, unilateralRestMode: entry.unilateralRestMode, block: entry.block });
-    const pairIds = new Map(sets.filter((s) => s.pairId).map((s) => [s.pairId, id()]));
     validatePairs(sets, true);
-    await db.insert(trainingSets).values(sets.map((set) => ({
+    const entryId = id();
+    newEntries.push({ id: entryId, workoutId, exerciseId: entry.exerciseId, order: newEntries.length + 1, notes: entry.notes, groupId: entry.groupId, groupType: entry.groupType, unilateralRestMode: entry.unilateralRestMode, block: entry.block });
+    const pairIds = new Map(sets.filter((s) => s.pairId).map((s) => [s.pairId, id()]));
+    newSets.push(...sets.map((set) => ({
       // How hard and how clean it was belong to that day: the copy starts without them.
       ...set, id: id(), pairId: set.pairId ? pairIds.get(set.pairId)! : null, entryId, completedAt: null, rpe: null, formRating: null,
     })));
   }
+  const bodyweightKg = await latestBodyweightKg();
+  // One transaction: a failure part-way leaves no half-copied workout open.
+  await db.transaction(async (tx) => {
+    await tx.insert(workouts).values({ id: workoutId, name: source.name, startedAt: new Date(), bodyweightKg });
+    if (newEntries.length > 0) await tx.insert(exerciseEntries).values(newEntries);
+    for (let start = 0; start < newSets.length; start += INSERT_CHUNK) await tx.insert(trainingSets).values(newSets.slice(start, start + INSERT_CHUNK));
+  });
   return workoutId;
+}
+
+/** Rows per multi-row insert, well under SQLite's limit on bound parameters. */
+const INSERT_CHUNK = 100;
+
+/** One set (one row, or the two rows of an L/R pair) planned before the workout starts. */
+export type PlannedSet = {
+  side: 'both' | 'left' | 'right';
+  reps: number | null;
+  durationSec: number | null;
+  distanceM: number | null;
+  addedLoadKg: number;
+  restSec: number | null;
+  targetRpe: number | null;
+}[];
+
+export interface PlannedEntry {
+  exerciseId: string;
+  notes?: string | null;
+  sets: PlannedSet[];
+}
+
+/**
+ * Adds exercises with their planned sets to a workout in progress, in one transaction, in the same
+ * shape `addExerciseToWorkout` and `addSet` build one by one: a mobility exercise after other work
+ * goes to the mobility block, and an L/R pair shares its index and a pair id. Returns the entry ids.
+ */
+export async function addPlannedEntries(workoutId: string, planned: readonly PlannedEntry[]): Promise<string[]> {
+  await initializeDatabase();
+  if (planned.length === 0) return [];
+  for (const entry of planned) {
+    for (const set of entry.sets) {
+      if (set.length === 0 || set.length > 2 || (set.length === 2) !== set.every((row) => row.side !== 'both')) throw new Error('Invalid planned set');
+      for (const row of set) {
+        for (const field of SET_VALUE_FIELDS) {
+          const v = row[field];
+          if (v !== null && !isValidSetValue(field, v)) throw new Error('Invalid workout set value');
+        }
+        if (row.restSec !== null && (!Number.isInteger(row.restSec) || row.restSec < 0 || row.restSec > 3600)) throw new RangeError('Rest time must be an integer between 0 and 3600 seconds.');
+        if (row.targetRpe !== null && !isValidRpe(row.targetRpe)) throw new RangeError('Invalid target RPE');
+      }
+    }
+  }
+  const existing = await db.select({ id: exerciseEntries.id, order: exerciseEntries.order, block: exerciseEntries.block, category: exercises.category, extra: exercises.extraCategories })
+    .from(exerciseEntries).innerJoin(exercises, eq(exerciseEntries.exerciseId, exercises.id)).where(eq(exerciseEntries.workoutId, workoutId));
+  const added = await db.select({ id: exercises.id, category: exercises.category, extra: exercises.extraCategories }).from(exercises)
+    .where(inArray(exercises.id, [...new Set(planned.map((entry) => entry.exerciseId))]));
+  const kindOf = new Map(added.map((row) => [row.id, row]));
+  const isMobility = (row?: { category: string; extra: string }) => !!row && (row.category === 'mobility' || row.extra.includes('"mobility"'));
+  let anyOther = existing.some((row) => !isMobility(row));
+  let order = existing.reduce((last, row) => Math.max(last, row.order), 0);
+  const newEntries: (typeof exerciseEntries.$inferInsert & { order: number; block: string | null })[] = [];
+  const newSets: (typeof trainingSets.$inferInsert)[] = [];
+  for (const entry of planned) {
+    const exercise = kindOf.get(entry.exerciseId);
+    if (!exercise) throw new Error('Exercise not found');
+    const mobility = isMobility(exercise);
+    const entryId = id();
+    order += 1;
+    newEntries.push({ id: entryId, workoutId, exerciseId: entry.exerciseId, order, block: mobility && anyOther ? 'mobility' : null, notes: entry.notes?.trim().slice(0, 1000) || null });
+    if (!mobility) anyOther = true;
+    for (const [position, set] of entry.sets.entries()) {
+      const pairId = set.length === 2 ? id() : null;
+      for (const row of set) newSets.push({ ...row, id: id(), entryId, index: position + 1, kind: 'working', pairId, band: null, rpe: null, note: null, completedAt: null });
+    }
+  }
+  // Every block stays contiguous, as normalizeBlockOrder keeps it.
+  const ordered = sortByBlock([...existing, ...newEntries]);
+  await db.transaction(async (tx) => {
+    for (const [position, row] of ordered.entries()) {
+      const fresh = newEntries.find((entry) => entry.id === row.id);
+      if (fresh) fresh.order = position + 1;
+      else if (row.order !== position + 1) await tx.update(exerciseEntries).set({ order: position + 1 }).where(eq(exerciseEntries.id, row.id));
+    }
+    await tx.insert(exerciseEntries).values(newEntries);
+    for (let start = 0; start < newSets.length; start += INSERT_CHUNK) await tx.insert(trainingSets).values(newSets.slice(start, start + INSERT_CHUNK));
+  });
+  await bumpIfFinished({ workoutId });
+  return newEntries.map((entry) => entry.id!);
 }
 
 /** Completed sets from the most recent finished workout that included each exercise. */
@@ -954,6 +1105,18 @@ export async function getPreviousPerformance(exerciseIds: string[], excludeWorko
   await initializeDatabase();
   const result = new Map<string, PreviousPerformance>();
   if (exerciseIds.length === 0) return result;
+  const done = and(isNotNull(workouts.endedAt), isNotNull(trainingSets.completedAt), eq(trainingSets.kind, 'working'));
+  // First the latest finished workout of each exercise (SQLite takes the bare workout id from the
+  // row holding the max), then only the sets of those workouts.
+  const latest = await db
+    .select({ exerciseId: exerciseEntries.exerciseId, workoutId: workouts.id, startedAt: max(workouts.startedAt) })
+    .from(trainingSets)
+    .innerJoin(exerciseEntries, eq(trainingSets.entryId, exerciseEntries.id))
+    .innerJoin(workouts, eq(exerciseEntries.workoutId, workouts.id))
+    .where(and(inArray(exerciseEntries.exerciseId, exerciseIds), done, ne(workouts.id, excludeWorkoutId)))
+    .groupBy(exerciseEntries.exerciseId);
+  if (latest.length === 0) return result;
+  const latestWorkout = new Map(latest.map((row) => [row.exerciseId, row.workoutId]));
   const rows = await db
     .select({
       exerciseId: exerciseEntries.exerciseId,
@@ -973,14 +1136,10 @@ export async function getPreviousPerformance(exerciseIds: string[], excludeWorko
     .from(trainingSets)
     .innerJoin(exerciseEntries, eq(trainingSets.entryId, exerciseEntries.id))
     .innerJoin(workouts, eq(exerciseEntries.workoutId, workouts.id))
-    .where(and(inArray(exerciseEntries.exerciseId, exerciseIds), isNotNull(workouts.endedAt), isNotNull(trainingSets.completedAt), eq(trainingSets.kind, 'working')))
+    .where(and(inArray(exerciseEntries.exerciseId, [...latestWorkout.keys()]), inArray(workouts.id, [...new Set(latestWorkout.values())]), done))
     .orderBy(desc(workouts.startedAt), asc(trainingSets.index));
-  const latestWorkout = new Map<string, string>();
   for (const row of rows) {
-    if (row.workoutId === excludeWorkoutId) continue;
-    const chosen = latestWorkout.get(row.exerciseId);
-    if (chosen && chosen !== row.workoutId) continue;
-    latestWorkout.set(row.exerciseId, row.workoutId);
+    if (latestWorkout.get(row.exerciseId) !== row.workoutId) continue;
     const entry: PreviousPerformance = result.get(row.exerciseId) ?? { workoutStartedAt: row.startedAt, sets: [] };
     entry.sets.push({ side: row.side, pairId: row.pairId, reps: row.reps, durationSec: row.durationSec, distanceM: row.distanceM, addedLoadKg: row.addedLoadKg, rpe: row.rpe, note: row.note, restSec: row.restSec, formRating: row.formRating });
     result.set(row.exerciseId, entry);
@@ -1052,6 +1211,7 @@ export async function logCompletedWorkout(input: {
       }
     }
   });
+  bumpFinishedVersion();
   return workoutId;
 }
 
@@ -1076,6 +1236,7 @@ export async function replaceEntryExercise(entryId: string, exerciseId: string):
     }).where(eq(trainingSets.entryId, entryId));
   }
   if (!isLoadMetric(next.metric)) await db.update(trainingSets).set({ addedLoadKg: 0 }).where(eq(trainingSets.entryId, entryId));
+  await bumpIfFinished({ entryId });
 }
 
 /** Puts an exercise in a superset with the one after it, joining whichever superset either is in. */
@@ -1143,4 +1304,5 @@ export async function moveExerciseEntry(workoutId: string, entryId: string, toIn
     const rest = members.filter((entry) => entry.id !== moved.id);
     if (rest.length === 1) await tx.update(exerciseEntries).set({ groupId: null, groupType: null }).where(eq(exerciseEntries.id, rest[0].id));
   });
+  await bumpIfFinished({ workoutId });
 }

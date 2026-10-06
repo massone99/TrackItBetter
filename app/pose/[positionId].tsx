@@ -1,3 +1,4 @@
+import { LoadError } from '../../src/shared/components/LoadError';
 import { Paged } from '../../src/shared/components/paging';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useState } from 'react';
@@ -54,7 +55,15 @@ export default function PoseHistoryScreen() {
   const [overlay, setOverlay] = useOverlaySettings();
   const [focused, setFocused] = useState<JointAngleId | null>(null);
 
-  const reload = useCallback(async () => setAll(await listPoseCaptures(positionId)), [positionId]);
+  const [loadFailed, setLoadFailed] = useState(false);
+  const reload = useCallback(async () => {
+    try {
+      setAll(await listPoseCaptures(positionId));
+      setLoadFailed(false);
+    } catch {
+      setLoadFailed(true);
+    }
+  }, [positionId]);
   useFocusEffect(useCallback(() => { void reload(); }, [reload]));
 
   if (!position) return <Screen><PageHeading title={t('pose.title')} subtitle={t('pose.noCaptures')} /></Screen>;
@@ -128,6 +137,7 @@ export default function PoseHistoryScreen() {
         </ListGroup>
       ) : null}
 
+      {loadFailed ? <LoadError onRetry={() => void reload()} /> : null}
       {captures && captures.length === 0 ? (
         <EmptyState
           icon="scan-outline"

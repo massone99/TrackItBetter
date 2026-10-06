@@ -22,7 +22,6 @@ import {
   setCompletedWorkoutSetDone,
   updateCompletedWorkoutDetails,
   updateCompletedWorkoutSet,
-  updateSetNote,
   repeatWorkoutIfIdle,
   updateSetRpe,
   WORKOUT_NAME_MAX,
@@ -35,10 +34,9 @@ import type {
   SessionExercise,
   SessionSet,
 } from "../../../src/features/session/repository";
-import { RpePicker } from "../../../src/features/session/RpePicker";
-import { FormRating } from "../../../src/features/session/LastTime";
 import { ExerciseNoteField } from "../../../src/features/session/ExerciseNoteField";
 import { PairEditor } from "../../../src/features/session/PairEditor";
+import { SetSheet } from "../../../src/features/session/SetSheet";
 import { ExerciseCard } from "../../../src/features/session/ExerciseCard";
 import { readBooleanPreference, RPE_PROMPT_KEY } from "../../../src/shared/settings/preferences";
 import { getWorkoutMobilitySeconds } from "../../../src/features/analytics/repository";
@@ -402,11 +400,11 @@ export default function PastWorkoutScreen() {
       {setFor && liveSet ? (
         <SetSheet
           key={liveSet.id}
-          title={`${setFor.exercise.name} · ${t("logger.setTitle", { number: liveSet.index })}`}
+          exercise={setFor.exercise}
           set={liveSet}
-          onRpe={(rpe) => edit(() => updateSetRpe(liveSet.id, rpe))}
-          onForm={(rating) => edit(() => setSetFormRating(liveSet.id, rating))}
-          onSaveNote={(note) => edit(() => updateSetNote(liveSet.id, note))}
+          onClose={() => setSetFor(null)}
+          onChanged={refresh}
+          onRemoved={(removed) => { if (removed) setUndo({ message: t("logger.removedSet", { number: liveSet.index }), removed }); }}
           onPair={() => {
             const pairedSet = liveSet.pairId
               ? (setFor.exercise.sets.find((candidate) => candidate.pairId === liveSet.pairId && candidate.id !== liveSet.id) ?? null)
@@ -414,19 +412,6 @@ export default function PastWorkoutScreen() {
             setSetFor(null);
             setPairFor({ exercise: setFor.exercise, set: liveSet, pairedSet });
           }}
-          onVideo={() => {
-            setSetFor(null);
-            router.push({ pathname: "/form-check/[setId]", params: { setId: liveSet.id } });
-          }}
-          onRemove={() => {
-            setSetFor(null);
-            void edit(async () => {
-              const removed = await removeSetWithUndo(liveSet.id);
-              if (removed)
-                setUndo({ message: t("logger.removedSet", { number: liveSet.index }), removed });
-            });
-          }}
-          onClose={() => setSetFor(null)}
         />
       ) : null}
 
@@ -538,109 +523,6 @@ export default function PastWorkoutScreen() {
   );
 }
 
-/** Note, RPE, clip and removal for one set; removing a set with clips asks once more first. */
-function SetSheet({
-  title,
-  set,
-  onRpe,
-  onForm,
-  onSaveNote,
-  onVideo,
-  onPair,
-  onRemove,
-  onClose,
-}: {
-  title: string;
-  set: SessionSet;
-  /** Splits the set into left and right, or edits its pair. */
-  onPair: () => void;
-  onRpe: (rpe: number | null) => Promise<void>;
-  onForm: (rating: number | null) => Promise<void>;
-  onSaveNote: (note: string) => Promise<void>;
-  onVideo: () => void;
-  onRemove: () => void;
-  onClose: () => void;
-}) {
-  const { t } = useTranslation();
-  const [note, setNote] = useState(set.note ?? "");
-  const [rpe, setRpe] = useState(set.rpe);
-  const [form, setForm] = useState(set.formRating);
-  const [confirming, setConfirming] = useState(false);
-  const close = () => {
-    onClose();
-    if ((set.note ?? "") !== note.trim()) void onSaveNote(note);
-  };
-  return (
-    <Sheet
-      visible
-      onClose={close}
-      title={title}
-      body={confirming ? t("logger.removeCompletedWarning") : undefined}
-    >
-      {confirming ? (
-        <>
-          <ActionButton
-            icon="trash-outline"
-            label={t("logger.confirmRemove")}
-            variant="danger"
-            onPress={onRemove}
-          />
-          <ActionButton label={t("common.cancel")} secondary onPress={() => setConfirming(false)} />
-        </>
-      ) : (
-        <>
-          <RpePicker
-            value={rpe}
-            onChange={(next) => {
-              setRpe(next);
-              void onRpe(next);
-            }}
-          />
-          {set.kind === "working" ? (
-            <FormRating
-              value={form}
-              onChange={(next) => {
-                setForm(next);
-                void onForm(next);
-              }}
-            />
-          ) : null}
-          <TextField
-            label={t("logger.noteLabel")}
-            value={note}
-            onChangeText={setNote}
-            placeholder={t("logger.notePlaceholder")}
-            multiline
-            maxLength={500}
-          />
-          <ActionButton
-            icon={set.clipCount > 0 ? "play-circle-outline" : "videocam-outline"}
-            label={
-              set.clipCount > 0
-                ? t("logger.videoView", { count: set.clipCount })
-                : t("logger.videoAttach")
-            }
-            secondary
-            onPress={onVideo}
-          />
-          <ActionButton
-            icon="git-compare-outline"
-            label={set.pairId ? t("history.editPair") : t("history.convertPair")}
-            secondary
-            onPress={onPair}
-          />
-          <ActionButton
-            icon="trash-outline"
-            label={t("logger.removeSet")}
-            variant="danger"
-            onPress={() => (set.clipCount > 0 ? setConfirming(true) : onRemove())}
-          />
-          <ActionButton label={t("logger.done")} onPress={close} />
-        </>
-      )}
-    </Sheet>
-  );
-}
 
 function ExerciseSheet({
   exercise,

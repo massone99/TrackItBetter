@@ -46,10 +46,6 @@ const FAMILIES: MetricFamily[] = ['counts', 'volume', 'mobility', 'performance',
 type SheetKind = BreakdownLevel | 'metric' | 'secondary' | null;
 type ExercisePairScope = PairScope | 'compare';
 
-const PAIR_SCOPE_LABELS: Record<ExercisePairScope, string> = {
-  average: 'Media L/R', left: 'L', right: 'R', compare: 'Confronto L/R', legacy: 'Senza lato',
-};
-
 type PairRow = CompletedSetRow & {
   pairId?: string | null;
   side?: string | null;
@@ -273,12 +269,12 @@ export default function StatsScreen() {
         </View>
         {scope.exerciseId && pairOptions.length > 1 ? (
           <View style={styles.pairScope}>
-            <Label>{t('stats.pairScope.title', { defaultValue: 'Lato' })}</Label>
+            <Label>{t('stats.pairScope.title')}</Label>
             <View style={styles.chips}>
               {pairOptions.map((option) => (
                 <Chip
                   key={option}
-                  label={t(`stats.pairScope.${option}`, { defaultValue: PAIR_SCOPE_LABELS[option] })}
+                  label={t(`stats.pairScope.${option}`)}
                   selected={activePairScope === option}
                   onPress={() => { setPairScope(option); resetView(); }}
                 />

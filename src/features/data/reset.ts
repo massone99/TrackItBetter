@@ -2,6 +2,7 @@ import { count } from 'drizzle-orm';
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 import { db, initializeDatabase } from '../../db/client';
+import { bumpFinishedVersion } from '../../db/cache';
 import {
   bodyMeasurements,
   exerciseEntries,
@@ -77,6 +78,7 @@ export async function resetData(scopes: readonly ResetScope[]): Promise<void> {
     }
   });
   if (clear.has('everything')) await seedCatalogIfEmpty(db);
+  bumpFinishedVersion();
 
   for (const file of files) {
     try {

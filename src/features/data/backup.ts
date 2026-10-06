@@ -2,6 +2,7 @@ import { z } from 'zod';
 import * as Crypto from 'expo-crypto';
 import { Directory, File, Paths } from 'expo-file-system';
 import { db, initializeDatabase } from '../../db/client';
+import { bumpFinishedVersion } from '../../db/cache';
 import {
   bodyMeasurements,
   exerciseEntries,
@@ -544,12 +545,18 @@ export async function mergeBackup(input: string): Promise<void> {
       await tx.insert(bodyMeasurements).values(rows.map((row) => ({ ...row, measuredAt: date(row.measuredAt) }))).onConflictDoNothing();
     });
   });
+  bumpFinishedVersion();
 }
 
 /** Import a backup either by replacing all local data or by merging it in. */
 export async function importBackup(input: string, mode: ImportMode = 'replace'): Promise<void> {
-  if (mode === 'merge') return mergeBackup(input);
-  return replaceWithBackup(input);
+  try {
+    if (mode === 'merge') await mergeBackup(input);
+    else await replaceWithBackup(input);
+  } finally {
+    // Even a failed restore may have touched rows outside its transaction: reload history caches.
+    bumpFinishedVersion();
+  }
 }
 
 /** Replace all supported local data atomically with the validated backup. */

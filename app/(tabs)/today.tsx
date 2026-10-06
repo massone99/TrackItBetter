@@ -11,7 +11,7 @@ import type { PersonalBest } from "../../src/features/analytics/summary";
 import { getGoalSnapshot, GoalSnapshot } from "../../src/features/goals/repository";
 import { ActiveWorkout, getActiveWorkout, listRecentWorkoutNames, listRecentWorkouts, repeatWorkout, WorkoutHistoryItem } from "../../src/features/session/repository";
 import { readDefaultRest } from "../../src/features/session/restDefaults";
-import { ActionButton, Card, EmptyState, Icon, Label, ListGroup, ListRow, Screen, SectionTitle, Text, Title } from "../../src/shared/components/ui";
+import { ActionButton, Card, EmptyState, Icon, Label, ListGroup, ListRow, Screen, SectionTitle, Text, Title, Toast } from "../../src/shared/components/ui";
 import { poseDetectionAvailable } from "../../src/features/pose/detectPose";
 import { useTheme } from "../../src/shared/theme/ThemeProvider";
 import { fonts } from "../../src/shared/theme/typography";
@@ -63,6 +63,8 @@ export default function TodayScreen() {
   const [data, setData] = useState<HomeData | null>(null);
   const [failed, setFailed] = useState(false);
   const [starting, setStarting] = useState<string | null>(null);
+  const [repeating, setRepeating] = useState(false);
+  const [notice, setNotice] = useState<{ message: string; programId?: string } | null>(null);
 
   // Refocusing keeps the previous data on screen while the new one loads, so nothing flashes.
   useFocusEffect(useCallback(() => {
@@ -73,6 +75,7 @@ export default function TodayScreen() {
     );
     return () => { mounted = false; };
   }, []));
+  const hideNotice = useCallback(() => setNotice(null), []);
   const retry = () => loadHome().then((next) => { setData(next); setFailed(false); }, () => setFailed(true));
 
   const now = new Date();
@@ -87,10 +90,23 @@ export default function TodayScreen() {
     try {
       const workoutId = await startUserProgramSession(program, session);
       router.push({ pathname: "/workout/[id]", params: { id: workoutId } });
-    } catch {
-      router.push({ pathname: "/program/user/[id]", params: { id: program.id } });
+    } catch (reason) {
+      // Nothing was left half-started; the program page is one tap away to check its movements.
+      setNotice({ message: `${t("programBuilder.startError")} (${reason instanceof Error ? reason.message : String(reason)})`, programId: program.id });
     } finally {
       setStarting(null);
+    }
+  };
+  const repeatLast = async (sourceId: string) => {
+    if (repeating) return;
+    setRepeating(true);
+    try {
+      const workoutId = await repeatWorkout(sourceId);
+      router.push({ pathname: "/workout/[id]", params: { id: workoutId } });
+    } catch {
+      setNotice({ message: t("history.repeatError") });
+    } finally {
+      setRepeating(false);
     }
   };
   const startEmpty = () => router.push({ pathname: "/workout/[id]", params: { id: data?.active?.id ?? "new" } });
@@ -137,7 +153,16 @@ export default function TodayScreen() {
   const todayIndex = (now.getDay() + 6) % 7;
 
   return (
-    <Screen>
+    <Screen
+      overlay={(
+        <Toast
+          message={notice?.message ?? null}
+          actionLabel={notice?.programId ? t("home.openProgram") : undefined}
+          onAction={notice?.programId ? () => router.push({ pathname: "/program/user/[id]", params: { id: notice.programId! } }) : undefined}
+          onHide={hideNotice}
+        />
+      )}
+    >
       {header}
 
       {/* One primary action: resume, the next planned workout, or a new one. */}
@@ -253,8 +278,8 @@ export default function TodayScreen() {
           <ListRow
             icon="repeat"
             title={t("home.repeatLast")}
-            subtitle={t("home.repeatLastBody", { name: last.name, date: last.startedAt.toLocaleDateString(i18n.language, { weekday: "short", day: "numeric", month: "short" }) })}
-            onPress={() => void repeatWorkout(last.id).then((workoutId) => router.push({ pathname: "/workout/[id]", params: { id: workoutId } })).catch(() => undefined)}
+            subtitle={repeating ? t("programBuilder.starting") : t("home.repeatLastBody", { name: last.name, date: last.startedAt.toLocaleDateString(i18n.language, { weekday: "short", day: "numeric", month: "short" }) })}
+            onPress={() => void repeatLast(last.id)}
           />
         ) : null}
         <ListRow icon="flash-outline" title={t("home.micro")} subtitle={t("home.microBody")} onPress={() => router.push("/micro-session")} />

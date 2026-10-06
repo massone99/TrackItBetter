@@ -21,48 +21,13 @@ import { useTheme } from '../../shared/theme/ThemeProvider';
 import { useScaledStyles } from '../../shared/theme/useScaledStyles';
 
 type TrackerMode = 'measurements' | 'mobility';
-type Language = 'en' | 'it';
 
-const copy = {
-  en: {
-    measurementTitle: 'Body measurements', measurementSubtitle: 'Track circumference over time. Measure at the same point and under similar conditions.',
-    mobilityTitle: 'Mobility tests', mobilitySubtitle: 'Repeat these simple checks with the same setup to compare your range over time.',
-    chooseMeasurement: 'Measurement', chooseTest: 'Standardized test', value: 'Value', save: 'Save entry', history: 'Timeline',
-    empty: 'No entries yet. Add your first measurement above.', validation: 'Enter a valid value for this entry.',
-    cm: 'cm', inch: 'in', degree: '°', left: 'Left', right: 'Right', both: 'Both sides',
-    waist: 'Waist', hips: 'Hips', chest: 'Chest', upper_arm: 'Upper arm', thigh: 'Thigh', calf: 'Calf',
-    pike: 'Pike fold', pancake: 'Pancake fold', bridge: 'Bridge shoulder angle', shoulder_flexion: 'Shoulder flexion', splits: 'Front split',
-    pikeHelp: 'Measure the gap from your fingertips to the floor while folding forward. 0 means your fingertips touch the floor.',
-    pancakeHelp: 'Measure sternum to floor in a seated straddle fold. Use 0 when the sternum touches the floor.',
-    bridgeHelp: 'Record shoulder flexion angle in your bridge position using the same angle app or assessor each time.',
-    shoulder_flexionHelp: 'Stand tall and raise one straight arm overhead without arching your back. Record the arm angle from your side.',
-    splitsHelp: 'Measure the vertical gap from pelvis to floor in a front split. 0 means the pelvis reaches the floor; record each side separately.',
-    trend: 'Recent trend',
-  },
-  it: {
-    measurementTitle: 'Misure corporee', measurementSubtitle: 'Monitora le circonferenze. Misura sempre nello stesso punto e in condizioni simili.',
-    mobilityTitle: 'Test di mobilità', mobilitySubtitle: 'Ripeti questi controlli con la stessa posizione per confrontare i progressi nel tempo.',
-    chooseMeasurement: 'Misura', chooseTest: 'Test standardizzato', value: 'Valore', save: 'Salva misura', history: 'Cronologia',
-    empty: 'Ancora nessuna registrazione. Aggiungi la prima misura qui sopra.', validation: 'Inserisci un valore valido per questa registrazione.',
-    cm: 'cm', inch: 'pollici', degree: '°', left: 'Sinistra', right: 'Destra', both: 'Entrambi i lati',
-    waist: 'Vita', hips: 'Fianchi', chest: 'Torace', upper_arm: 'Braccio', thigh: 'Coscia', calf: 'Polpaccio',
-    pike: 'Piegamento pike', pancake: 'Piegamento pancake', bridge: 'Angolo spalle nel ponte', shoulder_flexion: 'Flessione spalle', splits: 'Spaccata frontale',
-    pikeHelp: 'Misura la distanza tra le dita e il pavimento durante il piegamento. 0 significa che le dita toccano terra.',
-    pancakeHelp: 'Misura la distanza dello sterno dal pavimento in spaccata laterale da seduti. Usa 0 quando lo sterno tocca terra.',
-    bridgeHelp: 'Registra l’angolo di flessione delle spalle nel ponte usando ogni volta la stessa app o lo stesso valutatore.',
-    shoulder_flexionHelp: 'In piedi, solleva un braccio disteso sopra la testa senza inarcare la schiena. Registra l’angolo del braccio rispetto al fianco.',
-    splitsHelp: 'Misura la distanza verticale tra bacino e pavimento nella spaccata frontale. 0 significa che il bacino tocca terra; registra separatamente i due lati.',
-    trend: 'Andamento recente',
-  },
-} as const;
 
 const sides: MeasurementSide[] = ['left', 'right', 'both'];
 
 export function MeasurementTracker({ mode }: { mode: TrackerMode }) {
   const styles = useScaledStyles(baseStyles);
-  const { i18n } = useTranslation();
-  const lang: Language = (i18n.resolvedLanguage ?? i18n.language).startsWith('it') ? 'it' : 'en';
-  const text = copy[lang];
+  const { t, i18n } = useTranslation();
   const { palette } = useTheme();
   const [measurement, setMeasurement] = useState<NamedMeasurementId>('waist');
   const [test, setTest] = useState<MobilityTestId>('pike');
@@ -93,13 +58,12 @@ export function MeasurementTracker({ mode }: { mode: TrackerMode }) {
   // A value typed but not saved is recorded on the way out; an invalid one is dropped.
   useSaveOnLeave({ dirty: value.trim() !== '', save });
 
-  const titleForKind = useCallback((kind: string) => {
+  const titleForKind = (kind: string) => {
     const parts = kind.split(':');
-    const key = parts[1] as keyof typeof text;
-    const label = text[key] ?? kind;
-    if (parts[0] === 'mobility' && parts[2] && parts[2] !== 'both') return `${label} · ${text[parts[2] as 'left' | 'right']}`;
+    const label = parts[1] && i18n.exists(`bodyTracker.items.${parts[1]}`) ? t(`bodyTracker.items.${parts[1]}`) : kind;
+    if (parts[0] === 'mobility' && (parts[2] === 'left' || parts[2] === 'right')) return `${label} · ${t(`bodyTracker.sides.${parts[2]}`)}`;
     return label;
-  }, [text]);
+  };
 
   const entriesByKind = useMemo(() => {
     const groups = new Map<string, MeasurementRow[]>();
@@ -109,25 +73,25 @@ export function MeasurementTracker({ mode }: { mode: TrackerMode }) {
 
   return (
     <Screen>
-      <PageHeading title={mode === 'measurements' ? text.measurementTitle : text.mobilityTitle} subtitle={mode === 'measurements' ? text.measurementSubtitle : text.mobilitySubtitle} />
+      <PageHeading title={mode === 'measurements' ? t('bodyTracker.measurementTitle') : t('bodyTracker.mobilityTitle')} subtitle={mode === 'measurements' ? t('bodyTracker.measurementSubtitle') : t('bodyTracker.mobilitySubtitle')} />
       <Card>
-        <Label>{mode === 'measurements' ? text.chooseMeasurement : text.chooseTest}</Label>
+        <Label>{mode === 'measurements' ? t('bodyTracker.chooseMeasurement') : t('bodyTracker.chooseTest')}</Label>
         <View style={styles.options}>
           {(mode === 'measurements' ? namedMeasurementOptions : mobilityTestOptions).map(({ id }) => {
             const selected = mode === 'measurements' ? measurement === id : test === id;
-            return <Chip key={id} label={text[id as keyof typeof text]} selected={selected} onPress={() => mode === 'measurements' ? setMeasurement(id as NamedMeasurementId) : setTest(id as MobilityTestId)} />;
+            return <Chip key={id} label={t(`bodyTracker.items.${id}`)} selected={selected} onPress={() => mode === 'measurements' ? setMeasurement(id as NamedMeasurementId) : setTest(id as MobilityTestId)} />;
           })}
         </View>
         {mode === 'measurements' ? (
-          <SegmentedControl value={unit} onChange={setUnit} options={[{ value: 'cm', label: text.cm }, { value: 'in', label: text.inch }]} />
+          <SegmentedControl value={unit} onChange={setUnit} options={[{ value: 'cm', label: t('bodyTracker.cm') }, { value: 'in', label: t('bodyTracker.inch') }]} />
         ) : (
           <>
-            <Body>{text[`${test}Help` as keyof typeof text]}</Body>
-            {selectedMobility.sideAware ? <SegmentedControl value={side} onChange={setSide} options={sides.map((item) => ({ value: item, label: text[item] }))} /> : null}
+            <Body>{t(`bodyTracker.help.${test}`)}</Body>
+            {selectedMobility.sideAware ? <SegmentedControl value={side} onChange={setSide} options={sides.map((item) => ({ value: item, label: t(`bodyTracker.sides.${item}`) }))} /> : null}
           </>
         )}
         <TextField
-          label={`${text.value} · ${mode === 'measurements' ? (unit === 'cm' ? text.cm : text.inch) : selectedMobility.unit === 'deg' ? text.degree : text.cm}`}
+          label={`${t('bodyTracker.value')} · ${mode === 'measurements' ? (unit === 'cm' ? t('bodyTracker.cm') : t('bodyTracker.inch')) : selectedMobility.unit === 'deg' ? t('bodyTracker.degree') : t('bodyTracker.cm')}`}
           value={value}
           onChangeText={setValue}
           keyboardType="numbers-and-punctuation"
@@ -136,18 +100,18 @@ export function MeasurementTracker({ mode }: { mode: TrackerMode }) {
           returnKeyType="done"
           onSubmitEditing={() => void save()}
           placeholder={mode === 'mobility' && (test === 'pike' || test === 'splits') ? '0' : '0.0'}
-          error={error ? text.validation : null}
+          error={error ? t('bodyTracker.validation') : null}
         />
-        <ActionButton label={text.save} onPress={() => void save()} />
+        <ActionButton label={t('bodyTracker.save')} onPress={() => void save()} />
       </Card>
-      <SectionTitle title={text.history} />
-      {rows.length === 0 ? <Body>{text.empty}</Body> : entriesByKind.map(([kind, entries]) => (
+      <SectionTitle title={t('bodyTracker.history')} />
+      {rows.length === 0 ? <Body>{t('bodyTracker.empty')}</Body> : entriesByKind.map(([kind, entries]) => (
         <View key={kind} style={styles.historyGroup}>
           <Heading>{titleForKind(kind)}</Heading>
-          <TrendChart entries={entries.slice(0, 8)} label={text.trend} palette={palette} />
+          <TrendChart entries={entries.slice(0, 8)} label={t('bodyTracker.trend')} palette={palette} />
           {entries.slice(0, 5).map((entry) => (
             <View key={entry.id} style={[styles.historyRow, { borderBottomColor: palette.border }]}>
-              <Text style={{ color: palette.text, fontWeight: '700' }}>{entry.value} {entry.unit === 'deg' ? text.degree : entry.unit === 'in' ? text.inch : text.cm}</Text>
+              <Text style={{ color: palette.text, fontWeight: '700' }}>{entry.value} {entry.unit === 'deg' ? t('bodyTracker.degree') : entry.unit === 'in' ? t('bodyTracker.inch') : t('bodyTracker.cm')}</Text>
               <Body>{entry.measuredAt.toLocaleDateString()}</Body>
             </View>
           ))}
@@ -203,5 +167,5 @@ const baseStyles = StyleSheet.create({
   chartColumn: { flex: 1, alignItems: 'center', justifyContent: 'flex-end', gap: 5 },
   chartBarTrack: { width: '65%', height: 58, borderRadius: 5, justifyContent: 'flex-end', overflow: 'hidden' },
   chartBar: { width: '100%', borderRadius: 5 },
-  chartDate: { fontSize: 11 },
+  chartDate: { fontSize: 12 },
 });

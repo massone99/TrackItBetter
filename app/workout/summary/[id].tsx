@@ -1,3 +1,4 @@
+import { LoadError } from '../../../src/shared/components/LoadError';
 import { displayWorkoutName } from '../../../src/features/session/workoutName';
 import { aggregatePairs } from '../../../src/domain/setPairs';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -29,6 +30,8 @@ export default function WorkoutSummaryScreen() {
   const [records, setRecords] = useState<WorkoutRecord[]>([]);
   const [prs, setPrs] = useState<{ sets: SetRecord[]; volume: VolumeRecord[] }>({ sets: [], volume: [] });
   const [loading, setLoading] = useState(true);
+  const [loadFailed, setLoadFailed] = useState(false);
+  const [attempt, setAttempt] = useState(0);
   const [mobilitySeconds, setMobilitySeconds] = useState(0);
   const [previous, setPrevious] = useState<Map<string, PreviousPerformance>>(new Map());
 
@@ -51,13 +54,14 @@ export default function WorkoutSummaryScreen() {
         return improved.total || improved.rest || improved.form || improved.rpe;
       });
       if (distance.length + session.sets.length + session.volume.length > 0 || beatLastTime) tapFeedback('success');
-    }).catch(() => { if (mounted) setLoading(false); });
+    }).catch(() => { if (mounted) { setLoadFailed(true); setLoading(false); } });
     return () => { mounted = false; };
-  }, [id]);
+  }, [id, attempt]);
 
   const done = () => router.replace('/(tabs)/today');
 
   if (loading) return <Screen><ActivityIndicator color={palette.accentStrong} /></Screen>;
+  if (loadFailed) return <Screen><LoadError onRetry={() => { setLoadFailed(false); setLoading(true); setAttempt((count) => count + 1); }} /></Screen>;
   if (!workout) return <Screen><Title>{t('summary.title')}</Title><ActionButton label={t('summary.done')} onPress={done} /></Screen>;
 
   const completedSets = aggregatePairs(workout.exercises.flatMap((exercise) => exercise.sets.filter((set) => set.completedAt)));

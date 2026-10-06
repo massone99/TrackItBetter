@@ -58,8 +58,11 @@ wants short answers. Product context: `PRODUCT.md`, `DESIGN.md`.
   exercise folds only when every set is done and every working set is rated (`exerciseFinished`).
   "Vs last time" (total, average rest, average form) is `compareWithLast` in `src/domain/lastTime.ts`,
   shown by `LastTimeStrip` in the workout and in the summary; only a lower form shows red ↓.
-- Analytics read the set history through `cachedUntilWrite` (`src/db/cache.ts`), which reloads only
-  after a write. The React Compiler is on (`experiments.reactCompiler`).
+- Analytics read the finished history through `cachedUntilHistoryChange` (`src/db/cache.ts`), which
+  reloads only after `bumpFinishedVersion()`. Any new write that can change a finished workout, its
+  sets or an exercise's name/measure/categories must call it after committing (session repository
+  helpers do it via `bumpIfFinished`); live-workout writes must not. The React Compiler is on
+  (`experiments.reactCompiler`).
 - i18n: en and it in `src/shared/i18n/resources.ts`. A string with `{{count}}` needs `_one` and
   `_other` keys (a test enforces it); do not put `{{count}}` in a non-plural key.
 - Lint uses the React Compiler rules: no ref reads or writes during render, no setState in effects,

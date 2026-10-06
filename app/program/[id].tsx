@@ -1,10 +1,10 @@
 import { router, useLocalSearchParams } from "expo-router";
 import { useState } from "react";
-import { groupSets } from '../../src/domain/setPairs';
 import { ActivityIndicator, Alert, StyleSheet, View } from "react-native";
 import { Text } from "../../src/shared/components/Text";
 import { WorkoutInProgressSheet } from "../../src/features/session/WorkoutInProgressSheet";
-import { addExerciseToWorkout, addSet, getActiveWorkout, startWorkout, updateSet } from "../../src/features/session/repository";
+import { getActiveWorkout } from "../../src/features/session/repository";
+import { startPrescribedWorkout } from "../../src/features/programs/startUserSession";
 import { findProgram, ProgramExercise } from "../../src/features/programs/catalog";
 import { ActionButton, Body, Card, Heading, Label, PageHeading, Screen, SectionTitle } from "../../src/shared/components/ui";
 import i18n from "../../src/shared/i18n";
@@ -30,26 +30,14 @@ export default function ProgramRoute() {
     try {
       const open = await getActiveWorkout();
       if (open) { setBlockedBy({ id: open.id, name: open.name }); return; }
-      const workoutId = await startWorkout(sessionName);
-      const entries = [] as { entryId: string; prescription: ProgramExercise }[];
-      for (const prescription of exercises) {
-        entries.push({ entryId: await addExerciseToWorkout(workoutId, prescription.exerciseId), prescription });
-      }
-      const active = await getActiveWorkout(workoutId);
-      for (const { entryId, prescription } of entries) {
-        const metric = active?.exercises.find((exercise) => exercise.entryId === entryId)?.metric;
-        const timed = metric === "time" || metric === "time_load";
-        let sets = active?.exercises.find((exercise) => exercise.entryId === entryId)?.sets ?? [];
-        while (groupSets(sets).length < prescription.sets) {
-          await addSet(entryId);
-          sets = (await getActiveWorkout(workoutId))?.exercises.find((exercise) => exercise.entryId === entryId)?.sets ?? [];
-        }
-        for (const { id: setId } of sets) {
-          await updateSet(setId, "restSec", prescription.restSeconds);
-          if (timed && prescription.target.seconds !== undefined) await updateSet(setId, "durationSec", prescription.target.seconds);
-          if (!timed && prescription.target.reps !== undefined) await updateSet(setId, "reps", prescription.target.reps);
-        }
-      }
+      // Shared with self-made programs: a failure part-way deletes the half-built workout.
+      const workoutId = await startPrescribedWorkout(sessionName, exercises.map((prescription, index) => ({
+        id: `${sessionId}-${index}`,
+        exerciseId: prescription.exerciseId,
+        sets: prescription.sets,
+        target: prescription.target.seconds ?? prescription.target.reps ?? null,
+        restSeconds: prescription.restSeconds,
+      })));
       router.replace({ pathname: "/workout/[id]", params: { id: workoutId } });
     } catch (error) {
       Alert.alert(

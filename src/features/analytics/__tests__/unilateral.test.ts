@@ -1,5 +1,5 @@
 import { aggregatePairs } from '../../../domain/setPairs';
-import { buildProgressSnapshot, type CompletedSetRow } from '../summary';
+import { buildProgressSnapshot, personalBestName, type CompletedSetRow } from '../summary';
 import { buildTrainingStats, type StatsSetRow } from '../trainingStats';
 import { computeMetric } from '../explore';
 import { mobilitySecondsForWorkout } from '../mobility';
@@ -49,8 +49,8 @@ it('excludes mixed-load average comparisons and preserves assistance in side com
 
 it('names a record with its side only for exercises done one side at a time', () => {
   const plain: CompletedSetRow = { ...base, exerciseId: 'sj', exerciseName: 'Squat Jump', metric: 'reps', pairId: null, side: 'both', setId: 'sj1', reps: 100, addedLoadKg: 0 };
-  const names = buildProgressSnapshot([plain, ...sides], date).personalBests.map((record) => record.exerciseName);
+  const names = buildProgressSnapshot([plain, ...sides], date).personalBests.map((record) => personalBestName(record, (key) => key));
   expect(names).toContain('Squat Jump');
-  expect(names.some((name) => name.startsWith('Split squat · '))).toBe(true);
+  expect(names).toContain('Split squat · exerciseAnalytics.average');
   expect(names.some((name) => name.startsWith('Squat Jump ·'))).toBe(false);
 });

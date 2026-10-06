@@ -1,5 +1,6 @@
 import * as Crypto from 'expo-crypto';
 import { db, initializeDatabase } from '../../db/client';
+import { bumpFinishedVersion } from '../../db/cache';
 import { eq } from 'drizzle-orm';
 import { exercises } from '../../db/schema';
 import type { ExerciseCategory } from './categories';
@@ -84,4 +85,6 @@ export async function updateExercise(id: string, input: CreateCustomExerciseInpu
     demoUrl: input.demoUrl ?? null,
     ...classification,
   }).where(eq(exercises.id, id));
+  // Name, measure and categories show up in records and statistics of finished workouts.
+  bumpFinishedVersion();
 }

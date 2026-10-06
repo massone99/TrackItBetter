@@ -1,216 +1,160 @@
 import { useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Keyboard, Pressable, StyleSheet, TextInput, View } from 'react-native';
-import { Text } from '../src/shared/components/Text';
-import { HoldDurationField } from '../src/shared/components/DateTimePickers';
+import { StyleSheet, View } from 'react-native';
+import { ExerciseCard } from '../src/features/session/ExerciseCard';
+import { ExercisePicker, type ExerciseChoice } from '../src/features/exercises/ExercisePicker';
 import { WorkoutInProgressSheet } from '../src/features/session/WorkoutInProgressSheet';
-import { getActiveWorkout } from '../src/features/session/repository';
-import { defaultMicroTarget, getLastMicroSessionExercise, listMicroSessionExercises, listRecentMicroSessionExerciseIds, logMicroSessionItems, pickRecent } from '../src/features/session/microSession';
-import { ActionButton, Body, Card, Chip, Icon, IconButton, Label, NumberEdit, PageHeading, Screen, tapFeedback } from '../src/shared/components/ui';
-import { LOAD_STEP_KG, loadCell, setEntryStyles, StepButton } from '../src/features/session/SetEntry';
-import { RpePicker } from '../src/features/session/RpePicker';
-import { useTheme } from '../src/shared/theme/ThemeProvider';
+import { getActiveWorkout, type SessionSet } from '../src/features/session/repository';
+import { getLastMicroSessionExercise, listMicroSessionExercises, listRecentMicroSessionExerciseIds, logMicroSessionItems, pickRecent } from '../src/features/session/microSession';
+import { addDraftSet, doneItems, freshRound, newDraftExercise, removeDraftSet, stepDraftSet, updateDraftSet, type DraftExercise } from '../src/features/session/microDraft';
+import { ActionButton, Chip, EmptyState, FooterAction, Label, PageHeading, Screen, Sheet, tapFeedback, Toast } from '../src/shared/components/ui';
+import { useSaveOnLeave } from '../src/shared/forms/useSaveOnLeave';
+import { readBooleanPreference, RPE_PROMPT_KEY } from '../src/shared/settings/preferences';
 import { useScaledStyles } from '../src/shared/theme/useScaledStyles';
-import { goBack } from '../src/shared/navigation/goBack';
-import { MAX_FONT_SCALE } from '../src/shared/theme/scale';
-import { openExercisePage } from '../src/features/exercises/openExercise';
 
 type Exercise = Awaited<ReturnType<typeof listMicroSessionExercises>>[number];
 
+/**
+ * A micro-session drafted with the workout's own exercise card (sets, ✓, steppers, RPE, form,
+ * swipe), kept in memory until "Log": nothing locks other workouts while it is filled in.
+ */
 export default function MicroSessionScreen() {
   const styles = useScaledStyles(baseStyles);
   const { t } = useTranslation();
-  const { palette } = useTheme();
-  const [all, setAll] = useState<Exercise[]>([]);
-  const [filtered, setFiltered] = useState<Exercise[]>([]);
-  // The exercises of this micro-session, each with its one set; the last used one is added on open.
-  const [items, setItems] = useState<MicroItem[]>([]);
-  const itemsRef = useRef<MicroItem[]>([]);
+  const [draft, setDraft] = useState<DraftExercise[]>([]);
+  const draftRef = useRef<DraftExercise[]>([]);
   const [recent, setRecent] = useState<Exercise[]>([]);
-  const [query, setQuery] = useState('');
-  const [working, setWorking] = useState(false);
-  const workingRef = useRef(false);
-  const requestRef = useRef(0);
-  const [message, setMessage] = useState<'done' | 'error' | null>(null);
+  const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(new Set());
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [setMenu, setSetMenu] = useState<SessionSet | null>(null);
+  const [exerciseMenu, setExerciseMenu] = useState<DraftExercise | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
   const [blockedBy, setBlockedBy] = useState<{ id: string; name: string } | null>(null);
+  const [discardAsk, setDiscardAsk] = useState<(() => void) | null>(null);
+  const [showRpe] = useState(() => readBooleanPreference(RPE_PROMPT_KEY, true));
+  const working = useRef(false);
 
-  useEffect(() => { itemsRef.current = items; }, [items]);
+  useEffect(() => { draftRef.current = draft; }, [draft]);
 
-  /** Loads the full exercise list, recent ids and the auto-added exercise. Run once per focus and after a successful log. */
+  /** Recent exercises, and the last one used added on the first open. */
   const loadBase = useCallback(async () => {
-    const [allItems, recentIds, preferred] = await Promise.all([
-      listMicroSessionExercises(''), listRecentMicroSessionExerciseIds(5), getLastMicroSessionExercise(),
-    ]);
-    setAll(allItems);
-    setRecent(pickRecent(recentIds, allItems, 5));
-    const auto = allItems.find((item) => item.id === preferred) ?? allItems[0] ?? null;
-    if (itemsRef.current.length === 0 && auto) setItems([newItem(auto)]);
+    const [all, recentIds, preferred] = await Promise.all([listMicroSessionExercises(''), listRecentMicroSessionExerciseIds(5), getLastMicroSessionExercise()]);
+    setRecent(pickRecent(recentIds, all, 5));
+    const auto = all.find((item) => item.id === preferred);
+    if (draftRef.current.length === 0 && auto) setDraft([newDraftExercise(auto)]);
   }, []);
   useFocusEffect(useCallback(() => { void loadBase(); }, [loadBase]));
 
-  // Query change re-runs only the filtered search; an empty query reuses the already-loaded `all` list.
-  useEffect(() => {
-    const trimmed = query.trim();
-    if (!trimmed) return;
-    let active = true;
-    const requestId = ++requestRef.current;
-    listMicroSessionExercises(query).then((found) => {
-      if (!active || requestId !== requestRef.current) return;
-      setFiltered(found.slice(0, 50));
-    });
-    return () => { active = false; };
-  }, [query]);
-  const exercises = query.trim() ? filtered : all.slice(0, 20);
-  const chosen = new Set(items.map((item) => item.exercise.id));
+  const doneCount = draft.reduce((sum, exercise) => sum + exercise.sets.filter((set) => set.completedAt).length, 0);
+  const included = new Set(draft.map((exercise) => exercise.exerciseId));
 
-  /** Adds an exercise to the session; tapping one already in it removes it. */
-  const toggleExercise = (exercise: Exercise) => {
+  const toggleExercise = (exercise: { id: string; name: string; metric: string }) => {
     tapFeedback();
-    setMessage(null);
-    setItems((current) => current.some((item) => item.exercise.id === exercise.id)
-      ? current.filter((item) => item.exercise.id !== exercise.id)
-      : [...current, newItem(exercise)]);
-    Keyboard.dismiss();
+    setDraft((current) => current.some((item) => item.exerciseId === exercise.id)
+      ? current.filter((item) => item.exerciseId !== exercise.id)
+      : [...current, newDraftExercise(exercise)]);
   };
-  const update = (id: string, patch: Partial<MicroItem>) =>
-    setItems((current) => current.map((item) => (item.exercise.id === id ? { ...item, ...patch } : item)));
+  const change = (next: (current: DraftExercise[]) => DraftExercise[]) => setDraft(next);
 
-  const log = async () => {
-    if (workingRef.current || items.length === 0) return;
-    const parsed = items.map((item) => ({ item, value: Number(item.value.trim().replace(',', '.')) }));
-    if (parsed.some(({ value }) => !Number.isFinite(value) || value <= 0)) return;
-    workingRef.current = true;
-    setWorking(true);
-    setMessage(null);
+  /** Logs the done sets as one micro-session; false when nothing could be saved. */
+  const log = async (): Promise<boolean> => {
+    const items = doneItems(draftRef.current);
+    if (working.current || items.length === 0) return items.length === 0;
+    working.current = true;
     try {
       const open = await getActiveWorkout();
-      if (open) { setBlockedBy({ id: open.id, name: open.name }); return; }
+      if (open) { setBlockedBy({ id: open.id, name: open.name }); return false; }
+      await logMicroSessionItems(items);
       tapFeedback('success');
-      await logMicroSessionItems(parsed.map(({ item, value }) => ({
-        exerciseId: item.exercise.id,
-        value,
-        loadKg: item.exercise.metric === 'distance' ? 0 : item.loadKg,
-        rpe: item.rpe,
-      })));
-      setMessage('done');
-      // The same exercises stay for the next round, without last round's RPE.
-      setItems((current) => current.map((item) => ({ ...item, rpe: null })));
+      setMessage(t('micro.done'));
+      setDraft((current) => freshRound(current));
       void loadBase();
+      return true;
     } catch {
-      setMessage('error');
+      setMessage(t('micro.error'));
+      return false;
     } finally {
-      workingRef.current = false;
-      setWorking(false);
+      working.current = false;
     }
   };
 
-  const unitFor = (metric: string) => metric === 'time' || metric === 'time_load' ? t('micro.seconds') : metric === 'distance' ? t('micro.meters') : t('micro.reps');
+  // Leaving with done sets logs them; if that fails, ask before dropping them.
+  useSaveOnLeave({ dirty: doneCount > 0, save: log, onInvalid: (resume) => setDiscardAsk(() => resume) });
 
   return (
-    <Screen>
+    <Screen
+      footer={
+        <>
+          <FooterAction icon="add" label={t('workout.addExercise')} secondary onPress={() => setPickerOpen(true)} />
+          <FooterAction icon="checkmark" label={t('micro.saveSets', { count: doneCount })} disabled={doneCount === 0} onPress={() => void log()} />
+        </>
+      }
+      overlay={<Toast message={message} onHide={() => setMessage(null)} />}
+    >
       <WorkoutInProgressSheet active={blockedBy} onClose={() => setBlockedBy(null)} />
       <PageHeading title={t('micro.title')} subtitle={t('micro.subtitle')} />
-      <Card style={styles.card}>
-        {items.length === 0 ? <Body>{t('micro.pickFirst')}</Body> : items.map((item, index) => (
-          <MicroItemRow
-            key={item.exercise.id}
-            item={item}
-            first={index === 0}
-            onChange={(patch) => { setMessage(null); update(item.exercise.id, patch); }}
-            onRemove={() => toggleExercise(item.exercise)}
-          />
-        ))}
-        {items.length > 0 ? (
-          <ActionButton
-            icon="checkmark"
-            label={working ? t('micro.working') : t('micro.saveCount', { count: items.length })}
-            disabled={working}
-            onPress={() => void log()}
-          />
-        ) : null}
-        {message === 'done' ? <Body style={{ color: palette.accentStrong }}>{t('micro.done')}</Body> : message === 'error' ? <Body style={{ color: palette.warning }}>{t('micro.error')}</Body> : null}
-      </Card>
-      {recent.length > 0 && <View style={styles.section}>
-        <Label>{t('micro.recent')}</Label>
-        <View style={styles.chips}>{recent.map((exercise) => <Chip key={exercise.id} label={exercise.name} selected={chosen.has(exercise.id)} onPress={() => toggleExercise(exercise)} />)}</View>
-      </View>}
-      <View style={styles.section}>
-        <Label>{t('micro.choose')}</Label>
-        <TextInput maxFontSizeMultiplier={MAX_FONT_SCALE} accessibilityLabel={t('micro.search')} placeholder={t('micro.search')} placeholderTextColor={palette.textMuted} value={query} onChangeText={setQuery} style={[styles.search, { backgroundColor: palette.surfaceMuted, color: palette.text, borderColor: palette.border }]} />
-        {exercises.length === 0 ? <Body>{t('micro.empty')}</Body> : exercises.map((exercise, index) => {
-          const active = chosen.has(exercise.id);
-          return <Pressable key={exercise.id} accessibilityRole="button" accessibilityState={{ selected: active }} onPress={() => toggleExercise(exercise)} onLongPress={() => openExercisePage(exercise.id)} style={[styles.item, index > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: palette.border }]}>
-            <Text numberOfLines={1} style={[styles.itemName, { color: active ? palette.accentStrong : palette.text }]}>{exercise.name}</Text>
-            <Text style={[styles.itemUnit, { color: palette.textMuted }]}>{unitFor(exercise.metric)}</Text>
-            <View style={styles.check}><Icon name={active ? 'checkmark-circle' : 'add-circle-outline'} size={20} color={active ? palette.accentStrong : palette.textMuted} /></View>
-          </Pressable>;
-        })}
-      </View>
-      <ActionButton label={t('micro.back')} secondary onPress={() => goBack()} />
+      {recent.length > 0 ? (
+        <View style={styles.recent}>
+          <Label>{t('micro.recent')}</Label>
+          <View style={styles.chips}>{recent.map((exercise) => <Chip key={exercise.id} label={exercise.name} selected={included.has(exercise.id)} onPress={() => toggleExercise(exercise)} />)}</View>
+        </View>
+      ) : null}
+      {draft.length === 0 ? (
+        <EmptyState icon="flash-outline" title={t('micro.emptyTitle')} body={t('micro.pickFirst')} action={<ActionButton icon="add" label={t('workout.addExercise')} onPress={() => setPickerOpen(true)} />} />
+      ) : null}
+      {draft.map((exercise) => (
+        <ExerciseCard
+          key={exercise.entryId}
+          exercise={exercise}
+          collapsed={collapsed.has(exercise.entryId)}
+          onToggleCollapsed={() => setCollapsed((current) => {
+            const next = new Set(current);
+            if (!next.delete(exercise.entryId)) next.add(exercise.entryId);
+            return next;
+          })}
+          compare={false}
+          showRpe={showRpe}
+          onChange={async (set, field, delta) => change((current) => stepDraftSet(current, set.id, field, delta))}
+          onSetValue={(set, field, value) => change((current) => updateDraftSet(current, set.id, { [field]: value }))}
+          onComplete={(set) => { tapFeedback('success'); change((current) => updateDraftSet(current, set.id, { completedAt: new Date() })); }}
+          onUncomplete={(set) => { tapFeedback(); change((current) => updateDraftSet(current, set.id, { completedAt: null })); }}
+          onToggleWarmup={(set) => { tapFeedback(); change((current) => updateDraftSet(current, set.id, { kind: set.kind === 'warmup' ? 'working' : 'warmup' })); }}
+          onRpe={(set, rpe) => change((current) => updateDraftSet(current, set.id, { rpe }))}
+          onFormRating={(set, rating) => { tapFeedback(); change((current) => updateDraftSet(current, set.id, { formRating: rating })); }}
+          onAddSet={() => change((current) => addDraftSet(current, exercise.entryId))}
+          onAddWarmup={() => change((current) => addDraftSet(current, exercise.entryId, 'warmup'))}
+          onRemoveSet={(set) => change((current) => removeDraftSet(current, set.id))}
+          onSetOptions={setSetMenu}
+          onOptions={() => setExerciseMenu(exercise)}
+        />
+      ))}
+
+      <Sheet visible={setMenu !== null} onClose={() => setSetMenu(null)} title={setMenu ? t('logger.setTitle', { number: setMenu.index }) : ''}>
+        <ActionButton icon="trash-outline" label={t('logger.removeSet')} variant="danger" onPress={() => { const target = setMenu; setSetMenu(null); if (target) change((current) => removeDraftSet(current, target.id)); }} />
+        <ActionButton label={t('logger.done')} secondary onPress={() => setSetMenu(null)} />
+      </Sheet>
+      <Sheet visible={exerciseMenu !== null} onClose={() => setExerciseMenu(null)} title={exerciseMenu?.name ?? ''}>
+        <ActionButton icon="trash-outline" label={t('logger.removeExercise')} variant="danger" onPress={() => { const target = exerciseMenu; setExerciseMenu(null); if (target) change((current) => current.filter((item) => item.entryId !== target.entryId)); }} />
+        <ActionButton label={t('logger.done')} secondary onPress={() => setExerciseMenu(null)} />
+      </Sheet>
+      <Sheet visible={discardAsk !== null} onClose={() => setDiscardAsk(null)} title={t('micro.discardTitle')} body={t('micro.discardBody', { count: doneCount })}>
+        <ActionButton icon="trash-outline" label={t('micro.discard')} variant="danger" onPress={() => { const resume = discardAsk; setDiscardAsk(null); resume?.(); }} />
+        <ActionButton label={t('logger.keepGoing')} secondary onPress={() => setDiscardAsk(null)} />
+      </Sheet>
+      <ExercisePicker
+        visible={pickerOpen}
+        title={t('workout.addExercise')}
+        subtitle={t('micro.subtitle')}
+        include={(choice: ExerciseChoice) => !included.has(choice.id)}
+        onChoose={(choice) => { setPickerOpen(false); toggleExercise(choice); }}
+        onClose={() => setPickerOpen(false)}
+      />
     </Screen>
   );
 }
 
-type MicroItem = { exercise: Exercise; value: string; loadKg: number; rpe: number | null };
-
-const newItem = (exercise: Exercise): MicroItem => ({ exercise, value: defaultMicroTarget(exercise.metric), loadKg: 0, rpe: null });
-
-/** One exercise of the micro-session: its name and remove button, then the workout's set row and RPE. */
-function MicroItemRow({ item, first, onChange, onRemove }: { item: MicroItem; first: boolean; onChange: (patch: Partial<MicroItem>) => void; onRemove: () => void }) {
-  const styles = useScaledStyles(baseStyles);
-  const sets = useScaledStyles(setEntryStyles);
-  const { t } = useTranslation();
-  const { palette } = useTheme();
-  const { exercise, value, loadKg, rpe } = item;
-  const timed = exercise.metric === 'time' || exercise.metric === 'time_load';
-  const distance = exercise.metric === 'distance';
-  const unit = timed ? t('micro.seconds') : distance ? t('micro.meters') : t('micro.reps');
-  const increment = distance ? 1 : timed ? 5 : 1;
-  return (
-    <View style={[styles.itemBlock, !first && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: palette.border, paddingTop: 12 }]}>
-      <View style={styles.itemHead}>
-        <Text numberOfLines={1} style={[styles.selectedName, { color: palette.text }]}>{exercise.name}</Text>
-        <IconButton icon="close" tone="plain" label={t('micro.remove', { name: exercise.name })} onPress={onRemove} />
-      </View>
-      {/* The same set row as a workout: value · kg, then RPE. */}
-      <View style={sets.columns}>
-        <Label style={[sets.colValue, sets.colHeader]}>{timed ? t('logger.holdCol') : distance ? t('logger.distanceCol') : t('logger.repsCol')}</Label>
-        {distance ? null : <Label style={[sets.colLoad, sets.colHeader]}>{t('logger.kgCol')}</Label>}
-      </View>
-      <View style={sets.row}>
-        <View style={[sets.colValue, sets.stepper]}>
-          <StepButton icon="remove" label={`${t('micro.decrease')} · ${exercise.name}`} onPress={(multiplier) => onChange({ value: String(Math.max(increment, Number(value) - increment * multiplier)) })} />
-          {timed ? (
-            <HoldDurationField compact label={`${t('micro.value')} · ${exercise.name}`} value={Number(value) || 0} min={1} onChange={(seconds) => onChange({ value: String(seconds) })} />
-          ) : (
-            <NumberEdit value={Number(value) || 0} display={value} label={`${t('micro.value')} ${unit} · ${exercise.name}`} onCommit={(next) => onChange({ value: String(distance ? next : Math.round(next)) })} style={[sets.value, { color: palette.text }]} />
-          )}
-          <StepButton icon="add" label={`${t('micro.increase')} · ${exercise.name}`} onPress={(multiplier) => onChange({ value: String(Number(value || 0) + increment * multiplier) })} />
-        </View>
-        {distance ? null : (
-          <View style={[sets.colLoad, sets.stepper]}>
-            <StepButton icon="remove" label={`${t('history.addedLoad')} − · ${exercise.name}`} onPress={(multiplier) => onChange({ loadKg: Number((loadKg - LOAD_STEP_KG * multiplier).toFixed(2)) })} />
-            <NumberEdit value={loadKg} display={loadCell(loadKg)} allowNegative label={`${t('history.addedLoad')} · ${exercise.name}`} onCommit={(next) => onChange({ loadKg: next })} style={[sets.loadValue, { color: loadKg === 0 ? palette.textMuted : palette.text }]} />
-            <StepButton icon="add" label={`${t('history.addedLoad')} + · ${exercise.name}`} onPress={(multiplier) => onChange({ loadKg: Number((loadKg + LOAD_STEP_KG * multiplier).toFixed(2)) })} />
-          </View>
-        )}
-      </View>
-      <RpePicker compact value={rpe} onChange={(next) => onChange({ rpe: next })} />
-    </View>
-  );
-}
-
 const baseStyles = StyleSheet.create({
-  card: { gap: 12 },
-  itemBlock: { gap: 4 },
-  itemHead: { flexDirection: 'row', alignItems: 'center', gap: 8, justifyContent: 'space-between' },
-  selectedName: { flex: 1, fontSize: 18, fontFamily: 'Barlow_600SemiBold' },
-  section: { gap: 8, marginVertical: 8 },
-  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
-  search: { minHeight: 52, borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, fontSize: 16, fontFamily: 'Barlow_400Regular' },
-  item: { minHeight: 56, flexDirection: 'row', alignItems: 'center', gap: 12 },
-  itemName: { flex: 1, fontSize: 15 },
-  itemUnit: { fontSize: 13 },
-  check: { width: 18 },
+  recent: { gap: 8 },
+  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
 });

@@ -136,3 +136,59 @@ export async function deleteFormCheckVideosForSets(setIds: string[]): Promise<vo
 export function getFormCheckVideoFile(fileName: string): File {
   return fileFor(fileName);
 }
+
+/** Clip files of removed rows that an undo may still put back; the sweep leaves them alone. */
+const retainedClipFiles = new Set<string>();
+
+export function retainClipFiles(fileNames: readonly string[]): void {
+  for (const fileName of fileNames) retainedClipFiles.add(fileName);
+}
+
+export function releaseClipFiles(fileNames: readonly string[]): void {
+  for (const fileName of fileNames) retainedClipFiles.delete(fileName);
+}
+
+function deleteClipFile(file: File): boolean {
+  try {
+    if (!file.exists) return false;
+    file.delete();
+    return true;
+  } catch {
+    // A locked or already removed file is left for the next sweep.
+    return false;
+  }
+}
+
+/** Deletes the given clip files unless a form-check row still points to them (e.g. after a restore). */
+export async function deleteClipFilesIfUnused(fileNames: readonly string[]): Promise<void> {
+  if (fileNames.length === 0) return;
+  await initializeDatabase();
+  const used = new Set((await db.select({ fileName: formCheckVideos.fileName }).from(formCheckVideos)
+    .where(inArray(formCheckVideos.fileName, [...fileNames]))).map((row) => row.fileName));
+  for (const fileName of fileNames) {
+    if (!used.has(fileName) && !retainedClipFiles.has(fileName)) deleteClipFile(fileFor(fileName));
+  }
+}
+
+/** Files this recent may belong to a clip whose row is still being written. */
+const SWEEP_GRACE_MS = 60 * 60_000;
+
+/**
+ * Deletes clip files that no form-check row points to: left behind when the app closed while a
+ * removal could still be undone, or by a failed save. Files kept for an undo in progress and very
+ * recent files are skipped. Returns how many files were deleted.
+ */
+export async function sweepOrphanClipFiles(now = Date.now()): Promise<number> {
+  await initializeDatabase();
+  const directory = getVideoDirectory();
+  if (!directory.exists) return 0;
+  const used = new Set((await db.select({ fileName: formCheckVideos.fileName }).from(formCheckVideos)).map((row) => row.fileName));
+  let deleted = 0;
+  for (const item of directory.list()) {
+    if (!(item instanceof File) || used.has(item.name) || retainedClipFiles.has(item.name)) continue;
+    const modified = item.lastModified ?? item.creationTime;
+    if (modified == null || now - modified < SWEEP_GRACE_MS) continue;
+    if (deleteClipFile(item)) deleted += 1;
+  }
+  return deleted;
+}

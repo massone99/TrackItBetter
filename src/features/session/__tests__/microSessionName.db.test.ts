@@ -40,21 +40,22 @@ describe('micro-session set details', () => {
 });
 
 describe('micro-session with several exercises', () => {
-  it('saves one workout with one completed set per exercise, in order', async () => {
-    await logMicroSessionItems([{ exerciseId: 'pull-up', value: 3 }, { exerciseId: 'push-up', value: 8, rpe: 6 }]);
+  it('saves one workout with each exercise\'s sets, kinds, RPE and form, in order', async () => {
+    await logMicroSessionItems([{ exerciseId: 'pull-up', sets: [{ value: 3 }] }, { exerciseId: 'push-up', sets: [{ value: 5, kind: 'warmup' }, { value: 8, rpe: 6, formRating: 4 }] }]);
     const [latest] = await listRecentWorkouts(1);
     const rows = real.sqlite.prepare(`
-      SELECT en.exercise_id AS exercise, s.reps, s.rpe, s.completed_at IS NOT NULL AS done FROM exercise_entry en
-      JOIN training_set s ON s.entry_id = en.id WHERE en.workout_id = ? ORDER BY en."order"`).all(latest.id);
+      SELECT en.exercise_id AS exercise, s.kind, s.reps, s.rpe, s.form_rating AS form, s.completed_at IS NOT NULL AS done FROM exercise_entry en
+      JOIN training_set s ON s.entry_id = en.id WHERE en.workout_id = ? ORDER BY en."order", s.set_index`).all(latest.id);
     expect(rows).toEqual([
-      { exercise: 'pull-up', reps: 3, rpe: null, done: 1 },
-      { exercise: 'push-up', reps: 8, rpe: 6, done: 1 },
+      { exercise: 'pull-up', kind: 'working', reps: 3, rpe: null, form: null, done: 1 },
+      { exercise: 'push-up', kind: 'warmup', reps: 5, rpe: null, form: null, done: 1 },
+      { exercise: 'push-up', kind: 'working', reps: 8, rpe: 6, form: 4, done: 1 },
     ]);
   });
 
   it('writes nothing when one of the values is invalid', async () => {
     const before = (await listRecentWorkouts()).length;
-    await expect(logMicroSessionItems([{ exerciseId: 'pull-up', value: 3 }, { exerciseId: 'push-up', value: 0 }])).rejects.toThrow(RangeError);
+    await expect(logMicroSessionItems([{ exerciseId: 'pull-up', sets: [{ value: 3 }] }, { exerciseId: 'push-up', sets: [{ value: 0 }] }])).rejects.toThrow(RangeError);
     expect((await listRecentWorkouts()).length).toBe(before);
   });
 });

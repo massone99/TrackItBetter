@@ -1,21 +1,17 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { DurationField } from '../../shared/components/DateTimePickers';
 import { readExerciseRest, writeExerciseRest, type SetKind } from './restDefaults';
-import { getActiveWorkout, setEntryRest, setUnilateralRest } from './repository';
+import { setEntryRest, setUnilateralRest, type SessionExercise } from './repository';
 import { Chip, Label } from '../../shared/components/ui';
 
 /** Rest after working sets and after warm-ups for one exercise; remembered for next workouts too. */
-export function ExerciseRestFields({ entryId, exerciseId, onSaved }: { entryId: string; exerciseId: string; onSaved: () => void }) {
+export function ExerciseRestFields({ exercise, onSaved }: { exercise: SessionExercise; onSaved: () => void }) {
   const { t } = useTranslation();
-  const [mode, setMode] = useState<'side' | 'pair'>('pair');
+  const { entryId, exerciseId } = exercise;
+  const unilateral = Boolean(exercise.unilateral) || exercise.sets.some((set) => set.pairId);
+  const [mode, setMode] = useState<'side' | 'pair'>(exercise.unilateralRestMode ?? 'pair');
   const [defaultSaved, setDefaultSaved] = useState(false);
-  const [unilateral, setUnilateral] = useState(false);
-  useEffect(() => { void getActiveWorkout().then((workout) => {
-    const exercise = workout?.exercises.find((e) => e.entryId === entryId);
-    setUnilateral(!!exercise?.unilateral || !!exercise?.sets.some((s) => s.pairId));
-    setMode(exercise?.unilateralRestMode ?? 'pair');
-  }); }, [entryId]);
   const [rest, setRest] = useState(() => ({ working: readExerciseRest(exerciseId, 'working'), warmup: readExerciseRest(exerciseId, 'warmup') }));
   const change = (kind: SetKind, seconds: number) => {
     setRest((current) => ({ ...current, [kind]: seconds }));

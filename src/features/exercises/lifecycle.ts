@@ -1,6 +1,7 @@
 import { aggregatePairs } from '../../domain/setPairs';
 import { and, eq, inArray, isNotNull, ne } from 'drizzle-orm';
 import { db, initializeDatabase } from '../../db/client';
+import { bumpFinishedVersion } from '../../db/cache';
 import { exerciseEntries, exercises, formCheckVideos, settings, trainingSets, workouts } from '../../db/schema';
 import { isLoadMetric, measureOf } from '../../domain/userProgram';
 import { deleteFormCheckVideosForSets } from '../media/formVideos';
@@ -73,6 +74,7 @@ export async function transferExerciseHistory(fromId: string, toId: string, opti
     await rewriteSettingsJson(tx, (id) => (id === fromId ? toId : id));
     if (options.deleteSource) await tx.delete(exercises).where(eq(exercises.id, fromId));
   });
+  bumpFinishedVersion();
   moveLocalPreferences(fromId, toId);
 }
 
@@ -105,6 +107,7 @@ export async function deleteExerciseWithHistory(exerciseId: string): Promise<voi
     await rewriteSettingsJson(tx, (id) => (id === exerciseId ? null : id));
     await tx.delete(exercises).where(eq(exercises.id, exerciseId));
   });
+  bumpFinishedVersion();
   moveLocalPreferences(exerciseId, null);
 }
 

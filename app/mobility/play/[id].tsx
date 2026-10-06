@@ -259,7 +259,7 @@ export default function MobilityPlayerScreen() {
   const progress = totalMs > 0 && remainingMs !== null ? 1 - remainingMs / totalMs : 0;
   const background = isWork ? palette.hero : palette.background;
   const ink = isWork ? palette.heroText : palette.text;
-  const soft = isWork ? 'rgba(255,255,255,0.72)' : palette.textMuted;
+  const soft = isWork ? palette.heroTextMuted : palette.textMuted;
   const sideLabel = segment.kind === 'work' && segment.side ? (segment.side === 'left' ? t('mobility.left') : t('mobility.right')) : null;
 
   return (
@@ -272,7 +272,7 @@ export default function MobilityPlayerScreen() {
 
       <View style={styles.segmentsBar}>
         {workSegments.map(({ position }) => (
-          <View key={position} style={[styles.segmentTrack, { backgroundColor: isWork ? 'rgba(255,255,255,0.22)' : palette.surfaceMuted }]}>
+          <View key={position} style={[styles.segmentTrack, { backgroundColor: isWork ? palette.heroOverlay : palette.surfaceMuted }]}>
             <View style={[styles.segmentFill, {
               backgroundColor: isWork ? palette.heroText : palette.accent,
               width: position < index ? '100%' : position === index ? `${Math.round(progress * 100)}%` : '0%',
@@ -341,7 +341,7 @@ function Badge({ text, dark }: { text: string; dark: boolean }) {
   const styles = useScaledStyles(baseStyles);
   const { palette } = useTheme();
   return (
-    <View style={[styles.badge, { backgroundColor: dark ? 'rgba(255,255,255,0.18)' : palette.accentSoft }]}>
+    <View style={[styles.badge, { backgroundColor: dark ? palette.heroOverlay : palette.accentSoft }]}>
       <Text style={[styles.badgeText, { color: dark ? palette.heroText : palette.accentStrong }]}>{text}</Text>
     </View>
   );
@@ -355,7 +355,7 @@ function ControlButton({ icon, label, onPress, dark }: { icon: 'play-skip-back' 
       accessibilityRole="button"
       accessibilityLabel={label}
       onPress={() => { tapFeedback(); onPress(); }}
-      style={({ pressed }) => [styles.sideButton, { backgroundColor: dark ? 'rgba(255,255,255,0.16)' : palette.surfaceMuted, opacity: pressed ? 0.7 : 1 }]}
+      style={({ pressed }) => [styles.sideButton, { backgroundColor: dark ? palette.heroOverlay : palette.surfaceMuted, opacity: pressed ? 0.7 : 1 }]}
     >
       <Icon name={icon} size={22} color={dark ? palette.heroText : palette.text} />
     </Pressable>

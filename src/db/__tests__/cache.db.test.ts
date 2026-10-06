@@ -1,4 +1,4 @@
-import { cachedUntilWrite } from '../cache';
+import { bumpFinishedVersion, cachedUntilHistoryChange, cachedUntilWrite } from '../cache';
 
 jest.mock('../client', () => {
   const { createRealDatabase } = jest.requireActual('../../test/realDatabase');
@@ -26,5 +26,19 @@ describe('cachedUntilWrite', () => {
     const read = cachedUntilWrite(load);
     await expect(read()).rejects.toThrow('busy');
     expect(await read()).toBe('ok');
+  });
+});
+
+describe('cachedUntilHistoryChange', () => {
+  it('ignores other writes and reloads after bumpFinishedVersion', async () => {
+    const load = jest.fn(async () => (real.sqlite.prepare('SELECT count(*) AS n FROM item').get() as { n: number }).n);
+    const read = cachedUntilHistoryChange(load);
+    const before = await read();
+    real.sqlite.exec('INSERT INTO item VALUES (2)');
+    expect(await read()).toBe(before);
+    expect(load).toHaveBeenCalledTimes(1);
+    bumpFinishedVersion();
+    expect(await read()).toBe(before + 1);
+    expect(load).toHaveBeenCalledTimes(2);
   });
 });

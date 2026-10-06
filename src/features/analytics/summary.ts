@@ -49,12 +49,26 @@ export interface CompletedSetRow {
   formRating?: number | null;
 }
 
+/** Which side a record belongs to; only exercises done one side at a time carry one. */
+export type RecordSide = 'left' | 'right' | 'average' | 'legacy';
+
 export interface PersonalBest {
   exerciseId: string;
   exerciseName: string;
+  /** Set for exercises done one side at a time; shown next to the name by `personalBestName`. */
+  side?: RecordSide;
   kind: 'reps' | 'hold' | 'load' | 'estimated1rm' | 'distance';
   value: number;
   achievedAt: Date;
+}
+
+function recordSide(scope: string): RecordSide {
+  return scope === 'left' || scope === 'right' || scope === 'legacy' ? scope : 'average';
+}
+
+/** The record's display name: the exercise, plus its side when it has one ("Split squat · L"). */
+export function personalBestName(best: Pick<PersonalBest, 'exerciseName' | 'side'>, t: (key: string) => string): string {
+  return best.side ? `${best.exerciseName} · ${t(`exerciseAnalytics.${best.side}`)}` : best.exerciseName;
 }
 
 export type TrendKind = 'reps' | 'hold' | 'effective_load' | 'added_load' | 'estimated1rm' | 'distance';
@@ -128,7 +142,7 @@ export function buildProgressSnapshot(
   };
   const candidates: { exerciseId: string; type: 'max_reps' | 'max_hold' | 'max_load' | 'e1rm' | 'volume'; value: number; setId: string; achievedAt: string }[] = [];
   const distances = new Map<string, PersonalBest>();
-  const exerciseNames = new Map<string, string>();
+  const exerciseNames = new Map<string, { exerciseName: string; side?: RecordSide }>();
   const trendPoints = new Map<string, { exerciseId: string; exerciseName: string; kind: TrendKind; date: Date; value: number }>();
   const estimatePoints = new Map<string, { trendKey: string; date: Date; value: number }>();
   const volumeSets: { reps?: number; durationSec?: number; effectiveLoadKg?: number }[] = [];
@@ -141,8 +155,8 @@ export function buildProgressSnapshot(
     const candidateId = `${row.exerciseId}\u0000${recordScope(row)}`;
     allWorkouts.add(row.workoutId);
     exerciseNames.set(candidateId, lateralExercises.has(row.exerciseId)
-      ? `${row.exerciseName} · ${recordScope(row) === 'legacy' ? 'senza lato' : recordScope(row) === 'average' ? 'Media L/R' : row.side === 'left' ? 'L' : 'R'}`
-      : row.exerciseName);
+      ? { exerciseName: row.exerciseName, side: recordSide(recordScope(row)) }
+      : { exerciseName: row.exerciseName });
     const metric = row.metric as ProgressMetric;
     const inWeek = row.workoutStartedAt.getTime() >= weekStart && row.workoutStartedAt.getTime() <= now.getTime();
     if (inWeek) {
@@ -195,7 +209,7 @@ export function buildProgressSnapshot(
       trendValues.push({ kind: 'distance', value: distanceM });
       const current = distances.get(candidateId);
       if (!current || distanceM > current.value) {
-        distances.set(candidateId, { exerciseId: row.exerciseId, exerciseName: exerciseNames.get(candidateId)!, kind: 'distance', value: distanceM, achievedAt: row.completedAt });
+        distances.set(candidateId, { exerciseId: row.exerciseId, ...exerciseNames.get(candidateId)!, kind: 'distance', value: distanceM, achievedAt: row.completedAt });
       }
       distanceMeters += distanceM;
     }
@@ -233,7 +247,7 @@ export function buildProgressSnapshot(
 
   const bests: PersonalBest[] = detectPersonalRecords(candidates).map((record) => ({
     exerciseId: record.exerciseId.split('\u0000')[0],
-    exerciseName: exerciseNames.get(record.exerciseId) ?? record.exerciseId,
+    ...(exerciseNames.get(record.exerciseId) ?? { exerciseName: record.exerciseId }),
     kind: record.type === 'max_reps' ? 'reps' : record.type === 'max_hold' ? 'hold' : record.type === 'max_load' ? 'load' : record.type === 'e1rm' ? 'estimated1rm' : 'load',
     value: record.value,
     achievedAt: new Date(record.achievedAt!),

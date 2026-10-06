@@ -1,7 +1,8 @@
+import { LoadError } from '../../src/shared/components/LoadError';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { StyleSheet, View } from 'react-native';
+import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { nextSessionInRotation } from '../../src/domain/userProgram';
 import { listRecentWorkoutNames } from '../../src/features/session/repository';
 import { LibraryView } from '../../src/features/exercises/LibraryView';
@@ -25,22 +26,25 @@ export default function ProgramsTab() {
   // The view lives in the URL, so a link (e.g. back from an exercise) can open either one.
   const view: ProgramsView = params.view === 'exercises' ? 'exercises' : 'programs';
   const [mine, setMine] = useState<UserProgram[] | null>(null);
+  const [loadFailed, setLoadFailed] = useState(false);
   const [hidden, setHidden] = useState<string[]>([]);
   const [recentNames, setRecentNames] = useState<string[]>([]);
   const [undo, setUndo] = useState<{ message: string; previous: string[] } | null>(null);
   const hideUndo = useCallback(() => setUndo(null), []);
   const language = i18n.language.startsWith('it') ? 'it' : 'en';
 
-  useFocusEffect(useCallback(() => {
-    let mounted = true;
-    void Promise.all([listUserPrograms(), listHiddenTemplates(), listRecentWorkoutNames()]).then(([programs, hiddenIds, names]) => {
-      if (!mounted) return;
+  const load = useCallback(async () => {
+    try {
+      const [programs, hiddenIds, names] = await Promise.all([listUserPrograms(), listHiddenTemplates(), listRecentWorkoutNames()]);
       setMine(programs);
       setRecentNames(names);
       setHidden(hiddenIds);
-    });
-    return () => { mounted = false; };
-  }, []));
+      setLoadFailed(false);
+    } catch {
+      setLoadFailed(true);
+    }
+  }, []);
+  useFocusEffect(useCallback(() => { void load(); }, [load]));
 
   const updateHidden = (next: string[], message?: string) => {
     if (message) setUndo({ message, previous: hidden });
@@ -78,6 +82,8 @@ export default function ProgramsTab() {
       {view === 'exercises' ? <LibraryView /> : (
         <>
           <SectionTitle title={t('userProgram.myPrograms')} />
+          {loadFailed ? <LoadError onRetry={() => void load()} /> : null}
+          {mine === null && !loadFailed ? <ActivityIndicator color={palette.accentStrong} /> : null}
           {mine && mine.length === 0 ? (
             <EmptyState
               icon="calendar-outline"

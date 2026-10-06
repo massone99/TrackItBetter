@@ -1,6 +1,6 @@
-import { and, asc, desc, eq, isNotNull } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNotNull, sql } from 'drizzle-orm';
 import { db, initializeDatabase } from '../../db/client';
-import { cachedUntilWrite } from '../../db/cache';
+import { cachedUntilHistoryChange } from '../../db/cache';
 import { exerciseEntries, exercises, trainingSets, workouts } from '../../db/schema';
 import { buildExerciseCycle, buildExerciseWeek, buildMobilityCycles, buildMobilityWeek, mobilitySecondsForWorkout, type ExerciseCycle, type ExerciseWeek, type MobilityWeek } from './mobility';
 import { buildExerciseEstimate, type ExerciseEstimate } from './estimates';
@@ -10,6 +10,7 @@ import type { StatsSetRow } from './trainingStats';
 import { detectSetRecords, detectVolumeRecords, exerciseRecordSummary, type ExerciseRecordSummary, type RecordRow, type SetRecord, type VolumeRecord } from './records';
 import { getEffectiveLoad } from './summary';
 import { aggregatePairs, groupSets, type PairScope } from '../../domain/setPairs';
+import { repsAtLoadFromRows, type RepsAtLoadGroup } from './repsAtLoad';
 
 /** Scope raw rows once here; the domain builders still accept legacy unscoped rows. */
 function rowsForScope<T extends { pairId?: string | null; exerciseId: string }>(rows: readonly T[], scope: PairScope, exerciseId: string): T[] {
@@ -113,7 +114,7 @@ export async function getExploreData(): Promise<ExploreData> {
   return { rows, workouts: finished };
 }
 
-const loadCompletedSetRows = cachedUntilWrite(readCompletedSetRows);
+const loadCompletedSetRows = cachedUntilHistoryChange(readCompletedSetRows);
 
 async function readCompletedSetRows(): Promise<CompletedSetRow[]> {
   await initializeDatabase();
@@ -153,7 +154,7 @@ async function readCompletedSetRows(): Promise<CompletedSetRow[]> {
  * Completed working sets in chronological order, from finished workouts plus `includeWorkoutId`
  * (the one in progress). Rest before a set is the rest set on the previous completed working set of the exercise.
  */
-const loadFinishedRecordRows = cachedUntilWrite(() => readRecordRows());
+const loadFinishedRecordRows = cachedUntilHistoryChange(() => readRecordRows());
 
 /**
  * Record rows of finished workouts (cached), plus those of the workout in progress when asked. Only
@@ -219,6 +220,16 @@ export async function getSessionRecords(workoutId: string): Promise<{ sets: SetR
   return { sets: detectSetRecords(rows, workoutId), volume: detectVolumeRecords(rows, workoutId) };
 }
 
+/** Reps at each logged load across finished sessions of one exercise, in a side view. */
+export async function getExerciseRepsAtLoad(exerciseId: string, scope: PairScope = 'average'): Promise<RepsAtLoadGroup[]> {
+  const rows = rowsForScope(await loadCompletedSetRows(), scope, exerciseId);
+  if (rows.length === 0) return [];
+  const names = await db.selectDistinct({ id: workouts.id, name: workouts.name }).from(workouts)
+    .innerJoin(exerciseEntries, eq(exerciseEntries.workoutId, workouts.id))
+    .where(and(eq(exerciseEntries.exerciseId, exerciseId), isNotNull(workouts.endedAt)));
+  return repsAtLoadFromRows(rows, new Map(names.map((row) => [row.id, row.name])));
+}
+
 export async function getExerciseRecordSummary(exerciseId: string, scope: PairScope = 'average'): Promise<ExerciseRecordSummary> {
   return exerciseRecordSummary(await loadRecordRows(), exerciseId, scope);
 }
@@ -244,9 +255,39 @@ export interface ExerciseHistorySession {
   sets: ExerciseHistorySet[];
 }
 
+export interface ExerciseHistoryOverview {
+  /** Finished sessions with at least one completed set of the exercise. */
+  sessions: number;
+  /** Some sets were logged per side (L/R pairs or a side). */
+  sided: boolean;
+  /** Some sets were logged without a side. */
+  sideless: boolean;
+}
+
+/** Counts behind the exercise page's history, without loading every set. */
+export async function getExerciseHistoryOverview(exerciseId: string): Promise<ExerciseHistoryOverview> {
+  await initializeDatabase();
+  const [row] = await db.select({
+    sessions: sql<number>`count(distinct ${workouts.id})`,
+    sided: sql<number>`coalesce(max(${trainingSets.pairId} is not null or ${trainingSets.side} in ('left', 'right')), 0)`,
+    sideless: sql<number>`coalesce(max(${trainingSets.pairId} is null and (${trainingSets.side} is null or ${trainingSets.side} = 'both')), 0)`,
+  }).from(exerciseEntries)
+    .innerJoin(workouts, eq(workouts.id, exerciseEntries.workoutId))
+    .innerJoin(trainingSets, eq(trainingSets.entryId, exerciseEntries.id))
+    .where(and(eq(exerciseEntries.exerciseId, exerciseId), isNotNull(workouts.endedAt), isNotNull(trainingSets.completedAt)));
+  return { sessions: Number(row?.sessions ?? 0), sided: Number(row?.sided ?? 0) > 0, sideless: Number(row?.sideless ?? 0) > 0 };
+}
+
 /** Every finished session that included an exercise, newest first, with its completed sets in order. */
 export async function getExerciseHistory(exerciseId: string, limit?: number): Promise<ExerciseHistorySession[]> {
   await initializeDatabase();
+  const done = and(eq(exerciseEntries.exerciseId, exerciseId), isNotNull(workouts.endedAt), isNotNull(trainingSets.completedAt));
+  // With a limit, pick the latest sessions first so only their sets are read.
+  const latest = limit === undefined ? null : (await db.selectDistinct({ id: workouts.id, startedAt: workouts.startedAt }).from(exerciseEntries)
+    .innerJoin(workouts, eq(workouts.id, exerciseEntries.workoutId))
+    .innerJoin(trainingSets, eq(trainingSets.entryId, exerciseEntries.id))
+    .where(done).orderBy(desc(workouts.startedAt)).limit(limit)).map((row) => row.id);
+  if (latest?.length === 0) return [];
   const rows = await db.select({
     entryId: exerciseEntries.id,
     notes: exerciseEntries.notes,
@@ -266,7 +307,7 @@ export async function getExerciseHistory(exerciseId: string, limit?: number): Pr
   }).from(exerciseEntries)
     .innerJoin(workouts, eq(workouts.id, exerciseEntries.workoutId))
     .innerJoin(trainingSets, eq(trainingSets.entryId, exerciseEntries.id))
-    .where(and(eq(exerciseEntries.exerciseId, exerciseId), isNotNull(workouts.endedAt), isNotNull(trainingSets.completedAt)))
+    .where(latest ? and(done, inArray(workouts.id, latest)) : done)
     .orderBy(desc(workouts.startedAt), asc(exerciseEntries.order), asc(trainingSets.index));
   const sessions = new Map<string, ExerciseHistorySession>();
   for (const row of rows) {

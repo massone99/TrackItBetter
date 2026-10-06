@@ -154,7 +154,7 @@ function Tile({ icon, title, body, chips, featured = false, disabled = false, on
       onPress={onPress}
       style={({ pressed }) => [styles.tile, { backgroundColor: featured ? palette.accent : palette.surface, borderColor: featured ? palette.accent : palette.border, opacity: disabled ? 0.5 : pressed ? 0.85 : 1 }]}
     >
-      <View style={[styles.tileIcon, { backgroundColor: featured ? 'rgba(255,255,255,0.18)' : palette.accentSoft }]}>
+      <View style={[styles.tileIcon, { backgroundColor: featured ? palette.accentOverlay : palette.accentSoft }]}>
         <Icon name={icon} size={26} color={featured ? palette.accentText : palette.accentStrong} />
       </View>
       <View style={styles.tileText}>

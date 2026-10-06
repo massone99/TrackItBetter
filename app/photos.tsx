@@ -22,7 +22,7 @@ function photoDateFromExif(value?: string): Date {
 
 export default function ProgressPhotosScreen() {
   const styles = useScaledStyles(baseStyles);
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const { palette } = useTheme();
   const [photos, setPhotos] = useState<ProgressPhoto[]>([]);
   const [note, setNote] = useState('');
@@ -31,12 +31,9 @@ export default function ProgressPhotosScreen() {
   const [compareIds, setCompareIds] = useState<string[]>([]);
   const [comparePercent, setComparePercent] = useState(50);
   const [compareWidth, setCompareWidth] = useState(0);
+  const tagColors = { color: palette.onMedia, backgroundColor: palette.mediaScrim };
 
   const comparePhotos = useMemo(() => photos.filter((photo) => compareIds.includes(photo.id)).sort((a, b) => a.takenAt.getTime() - b.takenAt.getTime()), [photos, compareIds]);
-  const compareCopy = i18n.language.startsWith('it')
-    ? { select: 'Confronta', selected: 'Selezionata', before: 'Prima', after: 'Dopo', title: 'Confronto foto', earlier: 'Foto precedente', later: 'Foto successiva', less: 'Mostra più la foto precedente', more: 'Mostra più la foto successiva', clear: 'Chiudi confronto', help: 'Seleziona due foto. Il dispositivo le mostra insieme e conserva gli originali.' }
-    : { select: 'Compare', selected: 'Selected', before: 'Before', after: 'After', title: 'Photo comparison', earlier: 'Earlier photo', later: 'Later photo', less: 'Show more of earlier photo', more: 'Show more of later photo', clear: 'Close comparison', help: 'Select two photos to see them together. Originals stay unchanged on this device.' };
-
   const refresh = useCallback(async () => {
     const nextPhotos = await listProgressPhotos();
     setPhotos(nextPhotos);
@@ -55,8 +52,8 @@ export default function ProgressPhotosScreen() {
         return;
       }
       const result = source === 'camera'
-        ? await ImagePicker.launchCameraAsync({ mediaTypes: ['images'], quality: 0.82, exif: true })
-        : await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.82, exif: true });
+        ? await ImagePicker.launchCameraAsync({ mediaTypes: ['images'], quality: 1, exif: true })
+        : await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 1, exif: true });
       if (result.canceled) return;
       const asset = result.assets[0];
       if (!asset) return;
@@ -95,50 +92,50 @@ export default function ProgressPhotosScreen() {
         <ActionButton label={t('photos.choose')} secondary onPress={() => void addPhoto('library')} />
       </Card>
       <Heading>{t('photos.timeline')}</Heading>
-      {photos.length >= 2 ? <Body>{compareCopy.help}</Body> : null}
+      {photos.length >= 2 ? <Body>{t('photos.compare.help')}</Body> : null}
       {comparePhotos.length === 2 ? (
         <Card>
           <View style={styles.compareHeader}>
-            <Heading>{compareCopy.title}</Heading>
-            <Pressable accessibilityRole="button" onPress={() => { setCompareIds([]); setComparePercent(50); }}><Text style={{ color: palette.accentStrong, fontWeight: '800' }}>{compareCopy.clear}</Text></Pressable>
+            <Heading>{t('photos.compare.title')}</Heading>
+            <Pressable accessibilityRole="button" onPress={() => { setCompareIds([]); setComparePercent(50); }} style={styles.textButton}><Text style={{ color: palette.accentStrong, fontWeight: '800' }}>{t('photos.compare.clear')}</Text></Pressable>
           </View>
-          <View onLayout={(event) => setCompareWidth(event.nativeEvent.layout.width)} style={styles.comparison}>
-            <Image source={{ uri: comparePhotos[0].uri }} accessibilityLabel={compareCopy.earlier} style={[styles.comparisonImage, { width: compareWidth || '100%' }]} resizeMode="cover" />
+          <View onLayout={(event) => setCompareWidth(event.nativeEvent.layout.width)} style={[styles.comparison, { backgroundColor: palette.mediaBackdrop }]}>
+            <Image source={{ uri: comparePhotos[0].uri }} accessibilityLabel={t('photos.compare.earlier')} style={[styles.comparisonImage, { width: compareWidth || '100%' }]} resizeMode="cover" />
             {compareWidth > 0 ? <View style={[styles.comparisonMask, { width: compareWidth * comparePercent / 100 }]}>
-              <Image source={{ uri: comparePhotos[1].uri }} accessibilityLabel={compareCopy.later} style={[styles.comparisonImage, { width: compareWidth }]} resizeMode="cover" />
+              <Image source={{ uri: comparePhotos[1].uri }} accessibilityLabel={t('photos.compare.later')} style={[styles.comparisonImage, { width: compareWidth }]} resizeMode="cover" />
             </View> : null}
-            <View style={styles.comparisonLabels} pointerEvents="none"><Text style={styles.comparisonTag}>{compareCopy.before}</Text><Text style={styles.comparisonTag}>{compareCopy.after}</Text></View>
+            <View style={styles.comparisonLabels} pointerEvents="none"><Text style={[styles.comparisonTag, tagColors]}>{t('photos.compare.before')}</Text><Text style={[styles.comparisonTag, tagColors]}>{t('photos.compare.after')}</Text></View>
           </View>
           <View style={styles.compareDates}>
             <Body>{comparePhotos[0].takenAt.toLocaleDateString()}</Body>
             <Body>{comparePhotos[1].takenAt.toLocaleDateString()}</Body>
           </View>
           <View style={[styles.sliderTrack, { backgroundColor: palette.surfaceMuted }]} onLayout={(event) => setCompareWidth((width) => width || event.nativeEvent.layout.width)}>
-            <Pressable accessibilityRole="button" accessibilityLabel={compareCopy.less} onPress={() => setComparePercent((percent) => Math.max(5, percent - 5))} style={[styles.sliderButton, { backgroundColor: palette.surface }]}><Text style={{ color: palette.text }}>−</Text></Pressable>
+            <Pressable accessibilityRole="button" accessibilityLabel={t('photos.compare.less')} onPress={() => setComparePercent((percent) => Math.max(5, percent - 5))} style={[styles.sliderButton, { backgroundColor: palette.surface }]}><Text style={{ color: palette.text }}>−</Text></Pressable>
             <View style={[styles.sliderFill, { width: `${comparePercent}%`, backgroundColor: palette.accentStrong }]} />
-            <Pressable accessibilityRole="button" accessibilityLabel={compareCopy.more} onPress={() => setComparePercent((percent) => Math.min(95, percent + 5))} style={[styles.sliderButton, { backgroundColor: palette.surface }]}><Text style={{ color: palette.text }}>＋</Text></Pressable>
+            <Pressable accessibilityRole="button" accessibilityLabel={t('photos.compare.more')} onPress={() => setComparePercent((percent) => Math.min(95, percent + 5))} style={[styles.sliderButton, { backgroundColor: palette.surface }]}><Text style={{ color: palette.text }}>＋</Text></Pressable>
           </View>
         </Card>
       ) : null}
       {photos.length === 0 ? <Body>{t('photos.empty')}</Body> : <Paged items={photos} pageSize={24}>{(shownPhotos) => shownPhotos.map((photo) => (
         <Card key={photo.id} style={styles.photoCard}>
-          <Image source={{ uri: photo.uri }} accessibilityLabel={t('photos.imageLabel')} style={styles.image} resizeMode="cover" />
+          <Image source={{ uri: photo.uri }} accessibilityLabel={t('photos.imageLabel')} style={[styles.image, { backgroundColor: palette.mediaBackdrop }]} resizeMode="cover" />
           <View style={styles.caption}>
             <View style={styles.captionText}>
               <Text style={[styles.date, { color: palette.text }]}>{photo.takenAt.toLocaleDateString()}</Text>
               {photo.note ? <Body>{photo.note}</Body> : null}
             </View>
-            <Pressable accessibilityRole="button" accessibilityLabel={t('photos.delete')} onPress={() => confirmDelete(photo)} hitSlop={10}>
+            <Pressable accessibilityRole="button" accessibilityLabel={t('photos.delete')} onPress={() => confirmDelete(photo)} style={styles.textButton}>
               <Text style={{ color: palette.warning, fontWeight: '700' }}>{t('photos.delete')}</Text>
             </Pressable>
           </View>
           {photos.length >= 2 ? <Pressable
             accessibilityRole="button"
-            accessibilityLabel={`${compareCopy.select}: ${photo.takenAt.toLocaleDateString()}`}
+            accessibilityLabel={`${t('photos.compare.select')}: ${photo.takenAt.toLocaleDateString()}`}
             accessibilityState={{ selected: compareIds.includes(photo.id) }}
             onPress={() => setCompareIds((ids) => ids.includes(photo.id) ? ids.filter((id) => id !== photo.id) : ids.length >= 2 ? [ids[1], photo.id] : [...ids, photo.id])}
             style={[styles.compareButton, { backgroundColor: compareIds.includes(photo.id) ? palette.accent : palette.surfaceMuted }]}
-          ><Text style={{ color: compareIds.includes(photo.id) ? palette.accentText : palette.text, fontWeight: '800' }}>{compareIds.includes(photo.id) ? compareCopy.selected : compareCopy.select}</Text></Pressable> : null}
+          ><Text style={{ color: compareIds.includes(photo.id) ? palette.accentText : palette.text, fontWeight: '800' }}>{compareIds.includes(photo.id) ? t('photos.compare.selected') : t('photos.compare.select')}</Text></Pressable> : null}
         </Card>
       ))}</Paged>}
       <Sheet visible={deleting !== null} onClose={() => setDeleting(null)} title={t('photos.deleteTitle')} body={t('photos.deleteBody')}>
@@ -155,17 +152,18 @@ export default function ProgressPhotosScreen() {
 
 const baseStyles = StyleSheet.create({
   photoCard: { padding: 10, overflow: 'hidden' },
-  image: { width: '100%', aspectRatio: 0.85, borderRadius: 15, backgroundColor: '#222' },
+  image: { width: '100%', aspectRatio: 0.85, borderRadius: 15 },
   caption: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, paddingHorizontal: 5 },
   captionText: { flex: 1, gap: 4 },
   date: { fontSize: 15, fontWeight: '800' },
   compareButton: { minHeight: 48, borderRadius: 13, alignItems: 'center', justifyContent: 'center', marginTop: 2 },
   compareHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
-  comparison: { width: '100%', aspectRatio: 0.9, overflow: 'hidden', borderRadius: 15, backgroundColor: '#222' },
+  comparison: { width: '100%', aspectRatio: 0.9, overflow: 'hidden', borderRadius: 15 },
   comparisonImage: { height: '100%' },
   comparisonMask: { position: 'absolute', top: 0, bottom: 0, left: 0, overflow: 'hidden' },
   comparisonLabels: { ...StyleSheet.absoluteFill, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', padding: 10 },
-  comparisonTag: { color: '#fff', backgroundColor: '#0009', paddingHorizontal: 8, paddingVertical: 5, borderRadius: 9, fontWeight: '800', overflow: 'hidden' },
+  comparisonTag: { paddingHorizontal: 8, paddingVertical: 5, borderRadius: 9, fontWeight: '800', overflow: 'hidden' },
+  textButton: { minHeight: 48, justifyContent: 'center', paddingHorizontal: 8 },
   compareDates: { flexDirection: 'row', justifyContent: 'space-between' },
   sliderTrack: { minHeight: 48, borderRadius: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 3, overflow: 'hidden' },
   sliderFill: { position: 'absolute', height: 4, left: 0 },

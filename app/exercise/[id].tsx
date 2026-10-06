@@ -1,5 +1,5 @@
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
 import type { Exercise } from '../../src/db/schema';
@@ -11,9 +11,9 @@ import { canTransfer, deleteExerciseWithHistory, getExerciseUsage, hideExercise,
 import { ExercisePicker, type ExerciseChoice } from '../../src/features/exercises/ExercisePicker';
 import { HistoryRow } from '../../src/features/exercises/HistoryRow';
 import { addExerciseToWorkout, getActiveWorkout, startWorkout } from '../../src/features/session/repository';
-import { getExerciseCycle, getExerciseEstimate, getExerciseHistory, getExerciseRecordSummary, getExerciseWeekStats, type ExerciseHistorySession } from '../../src/features/analytics/repository';
+import { getExerciseCycle, getExerciseEstimate, getExerciseHistory, getExerciseHistoryOverview, getExerciseRecordSummary, getExerciseRepsAtLoad, getExerciseWeekStats, type ExerciseHistoryOverview, type ExerciseHistorySession } from '../../src/features/analytics/repository';
 import type { ExerciseRecordSummary } from '../../src/features/analytics/records';
-import { repsAtLoadFromHistory } from '../../src/features/analytics/repsAtLoad';
+import type { RepsAtLoadGroup } from '../../src/features/analytics/repsAtLoad';
 import { RepsAtLoadCard } from '../../src/features/analytics/components/RepsAtLoadCard';
 import { formatRecordValue } from '../../src/features/analytics/recordLabels';
 import type { ExerciseEstimate } from '../../src/features/analytics/estimates';
@@ -23,7 +23,7 @@ import { formatRpe } from '../../src/domain';
 import { poseDetectionAvailable } from '../../src/features/pose/detectPose';
 import { countPoseCapturesForExercise } from '../../src/features/pose/repository';
 import { ActionButton, Body, FooterAction, Icon, IconButton, ListGroup, ListRow, PageHeading, Screen, SectionTitle, SegmentedControl, Sheet, SwitchRow, Text, Toast } from '../../src/shared/components/ui';
-import { aggregatePairs, type PairScope } from '../../src/domain/setPairs';
+import type { PairScope } from '../../src/domain/setPairs';
 import { useTheme } from '../../src/shared/theme/ThemeProvider';
 import { fonts } from '../../src/shared/theme/typography';
 import { linkHost } from '../../src/shared/utils/url';
@@ -39,12 +39,8 @@ function readList(value: string): string[] {
   }
 }
 
-function historyForScope(history: readonly ExerciseHistorySession[], scope: PairScope): ExerciseHistorySession[] {
-  const hasPairs = history.some((session) => session.sets.some((s) => s.pairId));
-  return history.map((session) => {
-    return { ...session, sets: aggregatePairs(scope === 'average' && hasPairs ? session.sets.filter((s) => s.pairId) : session.sets, scope) };
-  });
-}
+/** Sessions listed on the page; the rest are one tap away in the full history. */
+const HISTORY_SHOWN = 5;
 
 export default function ExerciseRoute() {
   const styles = useScaledStyles(baseStyles);
@@ -59,10 +55,13 @@ export default function ExerciseRoute() {
   const [records, setRecords] = useState<ExerciseRecordSummary | null>(null);
   const [editingReference, setEditingReference] = useState(false);
   const [history, setHistory] = useState<ExerciseHistorySession[]>([]);
+  const [overview, setOverview] = useState<ExerciseHistoryOverview | null>(null);
   const [poseCount, setPoseCount] = useState(0);
   const [pairScope, setPairScope] = useState<PairScope>('average');
-  const scopedHistory = useMemo(() => historyForScope(history, pairScope), [history, pairScope]);
-  const loadProgress = useMemo(() => repsAtLoadFromHistory(scopedHistory), [scopedHistory]);
+  // Read by the loaders (never during render), so a refocus reloads with the side view on screen.
+  const scopeRef = useRef<PairScope>('average');
+  const scopedRequest = useRef(0);
+  const [loadProgress, setLoadProgress] = useState<RepsAtLoadGroup[]>([]);
   const [usage, setUsage] = useState<ExerciseUsage | null>(null);
   // Removal: 'choose' offers hide or delete, 'delete' asks once more before deleting history.
   const [removal, setRemoval] = useState<'choose' | 'delete' | null>(null);
@@ -72,45 +71,80 @@ export default function ExerciseRoute() {
   const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState<string | null>(notice ?? null);
 
-  const reload = useCallback(async () => {
-    const found = await getExerciseById(id);
-    setExercise(found);
-    setLoading(false);
-    if (!found) return;
+  /** Loads that depend on the side view (L/R average, one side, sets without side). */
+  const loadScoped = useCallback(async (found: Exercise, scope: PairScope) => {
+    const request = ++scopedRequest.current;
     // Mobility and stretching count their own week from the first day trained; the rest the last 7 days.
     const mobility = [found.category, ...readList(found.extraCategories)].includes('mobility');
-    const [cycle, week, estimate, records, history, usage, poses] = await Promise.all([
-      mobility ? getExerciseCycle(found.id, undefined, pairScope).catch(() => null) : null,
-      mobility ? null : getExerciseWeekStats(found.id, found.metric, undefined, pairScope).catch(() => null),
-      getExerciseEstimate(found.id, undefined, pairScope).catch(() => null),
-      getExerciseRecordSummary(found.id, pairScope).catch(() => null),
-      getExerciseHistory(found.id).catch(() => []),
-      getExerciseUsage(found.id).catch(() => null),
-      countPoseCapturesForExercise(found.id).catch(() => 0),
+    const [cycle, week, estimate, records, progress] = await Promise.all([
+      mobility ? getExerciseCycle(found.id, undefined, scope).catch(() => null) : null,
+      mobility ? null : getExerciseWeekStats(found.id, found.metric, undefined, scope).catch(() => null),
+      getExerciseEstimate(found.id, undefined, scope).catch(() => null),
+      getExerciseRecordSummary(found.id, scope).catch(() => null),
+      found.metric === 'reps' || found.metric === 'reps_load' ? getExerciseRepsAtLoad(found.id, scope).catch(() => []) : [],
     ]);
+    // A newer side view was chosen while this one loaded: its results win.
+    if (request !== scopedRequest.current) return;
     if (mobility) setCycle(cycle); else setWeek(week);
     setEstimate(estimate);
     setRecords(records);
+    setLoadProgress(progress);
+  }, []);
+
+  const reload = useCallback(async () => {
+    const found = await getExerciseById(id).catch(() => null);
+    setExercise(found);
+    setLoading(false);
+    if (!found) return;
+    const [, history, overview, usage, poses] = await Promise.all([
+      loadScoped(found, scopeRef.current),
+      getExerciseHistory(found.id, HISTORY_SHOWN).catch(() => []),
+      getExerciseHistoryOverview(found.id).catch(() => null),
+      getExerciseUsage(found.id).catch(() => null),
+      countPoseCapturesForExercise(found.id).catch(() => 0),
+    ]);
     setHistory(history);
+    setOverview(overview);
     setUsage(usage);
     setPoseCount(poses);
-  }, [id, pairScope]);
+  }, [id, loadScoped]);
 
   useFocusEffect(useCallback(() => { void reload(); }, [reload]));
 
+  const changeScope = (scope: PairScope) => {
+    scopeRef.current = scope;
+    setPairScope(scope);
+    if (exercise) void loadScoped(exercise, scope);
+  };
+
   const beginWithExercise = async () => {
-    if (!exercise) return;
-    const active = await getActiveWorkout();
-    const workoutId = active?.id ?? await startWorkout();
-    await addExerciseToWorkout(workoutId, exercise.id);
-    router.push({ pathname: '/workout/[id]', params: { id: workoutId } });
+    if (!exercise || busy) return;
+    setBusy(true);
+    try {
+      const active = await getActiveWorkout();
+      const workoutId = active?.id ?? await startWorkout();
+      await addExerciseToWorkout(workoutId, exercise.id);
+      router.push({ pathname: '/workout/[id]', params: { id: workoutId } });
+    } catch {
+      setToast(t('exerciseManage.addError'));
+    } finally {
+      setBusy(false);
+    }
   };
 
   const hide = async () => {
-    if (!exercise) return;
-    setRemoval(null);
-    await hideExercise(exercise.id);
-    goBack({ pathname: '/programs', params: { view: 'exercises' } });
+    if (!exercise || busy) return;
+    setBusy(true);
+    try {
+      await hideExercise(exercise.id);
+      setRemoval(null);
+      goBack({ pathname: '/programs', params: { view: 'exercises' } });
+    } catch {
+      setRemoval(null);
+      setToast(t('exerciseManage.hideError'));
+    } finally {
+      setBusy(false);
+    }
   };
 
   const deleteAll = async () => {
@@ -120,6 +154,10 @@ export default function ExerciseRoute() {
       await deleteExerciseWithHistory(exercise.id);
       setRemoval(null);
       goBack({ pathname: '/programs', params: { view: 'exercises' } });
+    } catch {
+      setRemoval(null);
+      setToast(t('exerciseManage.deleteError'));
+      void reload();
     } finally {
       setBusy(false);
     }
@@ -133,6 +171,10 @@ export default function ExerciseRoute() {
       const target = transferTo;
       setTransferTo(null);
       router.replace({ pathname: '/exercise/[id]', params: { id: target.id, notice: t('exerciseManage.transferred', { name: target.name }) } });
+    } catch {
+      setTransferTo(null);
+      setToast(t('exerciseManage.transferError'));
+      void reload();
     } finally {
       setBusy(false);
     }
@@ -155,8 +197,9 @@ export default function ExerciseRoute() {
     legacy: t('exerciseAnalytics.legacy', { defaultValue: i18n.language.startsWith('it') ? 'Senza lato' : 'Without side' }),
   };
   // Side views only mean something for an exercise done one side at a time (or logged that way before).
-  const lateral = exercise.unilateral === true || history.some((session) => session.sets.some((set) => Boolean(set.pairId) || set.side === 'left' || set.side === 'right'));
-  const hasSidelessSets = history.some((session) => session.sets.some((set) => !set.pairId && (!set.side || set.side === 'both')));
+  const lateral = exercise.unilateral === true || overview?.sided === true;
+  const hasSidelessSets = overview?.sideless === true;
+  const sessionCount = Math.max(overview?.sessions ?? 0, history.length);
   const scopeOptions = (['average', 'left', 'right', ...(hasSidelessSets ? ['legacy' as const] : [])] as PairScope[]);
   const compareTitle = t('exerciseAnalytics.compareSides', { defaultValue: i18n.language.startsWith('it') ? 'Confronto L/R' : 'Compare L/R' });
   const compareBody = t('exerciseAnalytics.compareSidesBody', { defaultValue: i18n.language.startsWith('it') ? 'Confronta le due serie sulla stessa scala.' : 'Compare both sides on the same scale.' });
@@ -165,9 +208,10 @@ export default function ExerciseRoute() {
       footer={(
         <>
           <FooterAction icon="create-outline" label={t('exercise.edit')} secondary onPress={() => router.push({ pathname: '/exercise/new', params: { edit: exercise.id } })} />
-          <FooterAction icon="add" label={t('exercise.addToWorkout')} onPress={() => void beginWithExercise()} />
+          <FooterAction icon="add" label={t('exercise.addToWorkout')} disabled={busy} onPress={() => void beginWithExercise()} />
         </>
       )}
+      overlay={<Toast message={toast} onHide={() => setToast(null)} />}
     >
       <PageHeading
         title={exercise.name}
@@ -209,7 +253,7 @@ export default function ExerciseRoute() {
         <SegmentedControl<PairScope>
           value={scopeOptions.includes(pairScope) ? pairScope : 'average'}
           options={scopeOptions.map((value) => ({ value, label: scopeLabels[value] }))}
-          onChange={setPairScope}
+          onChange={changeScope}
         />
       </View> : null}
 
@@ -341,16 +385,16 @@ export default function ExerciseRoute() {
         <SectionTitle title={t('exerciseManage.history')} />
         {history.length > 0 ? (
           <View style={[styles.history, { backgroundColor: palette.surface, borderColor: palette.border }]}>
-            {history.slice(0, 5).map((session, index) => (
+            {history.slice(0, HISTORY_SHOWN).map((session, index) => (
               <HistoryRow key={session.workoutId} session={session} metric={exercise.metric} locale={i18n.language} first={index === 0} />
             ))}
-            {history.length > 5 ? (
+            {sessionCount > HISTORY_SHOWN ? (
               <Pressable
                 accessibilityRole="button"
                 onPress={() => router.push({ pathname: '/exercise/history/[id]', params: { id: exercise.id } })}
                 style={({ pressed }) => [styles.historyMore, { borderTopColor: palette.border, opacity: pressed ? 0.6 : 1 }]}
               >
-                <Text style={[styles.historyMoreText, { color: palette.accentStrong }]}>{t('exerciseManage.allHistory', { count: history.length })}</Text>
+                <Text style={[styles.historyMoreText, { color: palette.accentStrong }]}>{t('exerciseManage.allHistory', { count: sessionCount })}</Text>
                 <Icon name="chevron-forward" size={16} color={palette.accentStrong} />
               </Pressable>
             ) : null}
@@ -392,12 +436,12 @@ export default function ExerciseRoute() {
       >
         {usage && usage.sets > 0 ? (
           <>
-            <ActionButton icon="eye-off-outline" label={t('exerciseManage.hide')} secondary onPress={() => void hide()} />
+            <ActionButton icon="eye-off-outline" label={t('exerciseManage.hide')} secondary disabled={busy} onPress={() => void hide()} />
             <Body style={styles.choiceHint}>{t('exerciseManage.hideBody')}</Body>
             <ActionButton icon="trash-outline" label={t('exerciseManage.deleteAll')} variant="danger" onPress={() => setRemoval('delete')} />
           </>
         ) : (
-          <ActionButton icon="trash-outline" label={t('exerciseManage.deleteNow')} variant="danger" onPress={() => void deleteAll()} />
+          <ActionButton icon="trash-outline" label={t('exerciseManage.deleteNow')} variant="danger" disabled={busy} onPress={() => void deleteAll()} />
         )}
         <ActionButton label={t('common.cancel')} variant="ghost" onPress={() => setRemoval(null)} />
       </Sheet>
@@ -442,7 +486,6 @@ export default function ExerciseRoute() {
         </Sheet>
       ) : null}
 
-      <Toast message={toast} onHide={() => setToast(null)} />
     </Screen>
   );
 }

@@ -1,56 +1,28 @@
 import { useCallback, useRef, useState } from 'react';
 import { router, useFocusEffect } from 'expo-router';
 import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 import { ActivityIndicator, Platform, Pressable, StyleSheet, View } from 'react-native';
 import { Text } from '../../src/shared/components/Text';
 import { captureRef } from 'react-native-view-shot';
 import * as Sharing from 'expo-sharing';
-import { Body, Card, Heading, Icon, Label, ListGroup, ListRow, Metric, PageHeading, Screen, SectionTitle } from '../../src/shared/components/ui';
+import { ActionButton, Body, Card, Heading, Icon, Label, ListGroup, ListRow, Metric, PageHeading, Screen, SectionTitle } from '../../src/shared/components/ui';
 import { getProgressSnapshot } from '../../src/features/analytics/repository';
 import { readTrendChoice, selectTrends, writeTrendChoice, type TrendChoice } from '../../src/features/analytics/trendChoice';
 import { TrendSettings } from '../../src/features/analytics/TrendSettings';
 import { listExercises } from '../../src/features/exercises/repository';
-import type { ExerciseTrend, PersonalBest, ProgressSnapshot, TrendKind } from '../../src/features/analytics/summary';
+import { personalBestName, type ExerciseTrend, type PersonalBest, type ProgressSnapshot, type TrendKind } from '../../src/features/analytics/summary';
 import { useTheme } from '../../src/shared/theme/ThemeProvider';
 import { fonts } from '../../src/shared/theme/typography';
 import { formatBestValue, formatDuration, formatNumber } from '../../src/shared/utils/format';
 import { useScaledStyles } from '../../src/shared/theme/useScaledStyles';
 import { openExercisePage } from '../../src/features/exercises/openExercise';
 
-const copy = {
-  en: {
-    week: 'Last 7 days', sessions: 'Sessions', sets: 'Completed sets', volume: 'Training volume',
-    balance: 'Weekly movement balance', pushPull: 'Push : pull', horizontal: 'Horizontal push : pull', vertical: 'Vertical push : pull',
-    balanceNote: 'Counts use completed working sets from the last 7 days.', legsNudge: 'Few leg sets logged this week. Consider adding leg work if it fits your plan.',
-    reps: 'Repetitions', holds: 'Hold time', distance: 'Distance', loadReps: 'Loaded reps', loadTime: 'Loaded hold time',
-    bests: 'Personal bests', emptyTitle: 'Your first best is waiting', emptyBody: 'Complete a few sets to see your strongest efforts and training volume here.',
-    trends: 'Exercise trends', trendEmpty: 'Complete an exercise in at least two workouts to see its trend.',
-    trendKind: { reps: 'Max reps', hold: 'Longest hold', effective_load: 'Effective load', added_load: 'Added load', estimated1rm: 'Estimated 1RM', distance: 'Distance' },
-    loading: 'Gathering your training history…', error: 'Your progress could not be loaded. Try again in a moment.',
-    bestKind: { reps: 'Most reps', hold: 'Longest hold', load: 'Heaviest load', estimated1rm: 'Estimated 1RM', distance: 'Farthest distance' },
-    dateFirst: 'Earlier', dateLatest: 'Latest', shareBest: 'Share record', shareError: 'Could not create or share the record image.', shareUnavailable: 'Image sharing is unavailable here.',
-    stats: 'Training totals',
-  },
-  it: {
-    week: 'Ultimi 7 giorni', sessions: 'Sessioni', sets: 'Serie completate', volume: 'Volume di allenamento',
-    balance: 'Equilibrio settimanale', pushPull: 'Spinta : tirata', horizontal: 'Spinta : tirata orizzontale', vertical: 'Spinta : tirata verticale',
-    balanceNote: 'Conteggio delle serie completate negli ultimi 7 giorni.', legsNudge: 'Questa settimana hai registrato poche serie per le gambe. Valuta di aggiungerne se rientra nel tuo programma.',
-    reps: 'Ripetizioni', holds: 'Tenuta', distance: 'Distanza', loadReps: 'Ripetizioni con carico', loadTime: 'Tenuta con carico',
-    bests: 'Record personali', emptyTitle: 'Il primo record ti aspetta', emptyBody: 'Completa alcune serie per vedere qui i tuoi risultati migliori e il volume di allenamento.',
-    trends: 'Andamento per esercizio', trendEmpty: 'Completa un esercizio in almeno due allenamenti per vederne l’andamento.',
-    trendKind: { reps: 'Ripetizioni massime', hold: 'Tenuta più lunga', effective_load: 'Carico effettivo', added_load: 'Carico aggiunto', estimated1rm: '1RM stimato', distance: 'Distanza' },
-    loading: 'Caricamento dello storico…', error: 'Impossibile caricare i progressi. Riprova tra poco.',
-    bestKind: { reps: 'Più ripetizioni', hold: 'Tenuta più lunga', load: 'Carico maggiore', estimated1rm: '1RM stimato', distance: 'Distanza maggiore' },
-    dateFirst: 'Prima', dateLatest: 'Ultima', shareBest: 'Condividi record', shareError: 'Impossibile creare o condividere l’immagine del record.', shareUnavailable: 'La condivisione di immagini non è disponibile qui.',
-    stats: 'Totali allenamento',
-  },
-} as const;
 
 export default function ProgressScreen() {
   const styles = useScaledStyles(baseStyles);
   const { t, i18n } = useTranslation();
   const { palette } = useTheme();
-  const strings = i18n.language.toLowerCase().startsWith('it') ? copy.it : copy.en;
   const [snapshot, setSnapshot] = useState<ProgressSnapshot | null>(null);
   const [failed, setFailed] = useState(false);
   const [trendChoice, setTrendChoice] = useState(readTrendChoice);
@@ -77,70 +49,70 @@ export default function ProgressScreen() {
     <Screen>
       <PageHeading title={t('progress.title')} subtitle={t('progress.subtitle')} />
       {snapshot ? <Card>
-        <SectionTitle title={strings.week} />
+        <SectionTitle title={t('progress.week')} />
         <View style={styles.metrics}>
-          <Metric label={strings.sessions} value={snapshot.weekSessions} />
+          <Metric label={t('progress.sessions')} value={snapshot.weekSessions} />
           <View style={[styles.metricDivider, { backgroundColor: palette.border }]} />
-          <Metric label={strings.sets} value={snapshot.weekSets} />
+          <Metric label={t('progress.sets')} value={snapshot.weekSets} />
         </View>
       </Card> : null}
       <ListGroup>
         <ListRow icon="stats-chart-outline" title={t('stats.open')} subtitle={t('stats.openBody')} onPress={() => router.push('/stats')} />
-        <ListRow icon="bar-chart-outline" title={strings.stats} onPress={() => router.push('/training-stats')} />
+        <ListRow icon="bar-chart-outline" title={t('progress.stats')} onPress={() => router.push('/training-stats')} />
       </ListGroup>
       {snapshot ? <>
         {snapshot.weeklyBalance.totalSets > 0 && <Card>
-          <SectionTitle title={strings.balance} />
-          <BalanceMetric label={strings.pushPull} first={snapshot.weeklyBalance.pushSets} second={snapshot.weeklyBalance.pullSets} palette={palette} />
-          {(snapshot.weeklyBalance.horizontalPushSets + snapshot.weeklyBalance.horizontalPullSets) > 0 && <BalanceMetric label={strings.horizontal} first={snapshot.weeklyBalance.horizontalPushSets} second={snapshot.weeklyBalance.horizontalPullSets} palette={palette} />}
-          {(snapshot.weeklyBalance.verticalPushSets + snapshot.weeklyBalance.verticalPullSets) > 0 && <BalanceMetric label={strings.vertical} first={snapshot.weeklyBalance.verticalPushSets} second={snapshot.weeklyBalance.verticalPullSets} palette={palette} />}
-          <Body>{strings.balanceNote}</Body>
-          {snapshot.weeklyBalance.showLegsNudge && <Text style={[styles.legsNudge, { color: palette.text }]}>{strings.legsNudge}</Text>}
+          <SectionTitle title={t('progress.balance')} />
+          <BalanceMetric label={t('progress.pushPull')} first={snapshot.weeklyBalance.pushSets} second={snapshot.weeklyBalance.pullSets} palette={palette} />
+          {(snapshot.weeklyBalance.horizontalPushSets + snapshot.weeklyBalance.horizontalPullSets) > 0 && <BalanceMetric label={t('progress.horizontal')} first={snapshot.weeklyBalance.horizontalPushSets} second={snapshot.weeklyBalance.horizontalPullSets} palette={palette} />}
+          {(snapshot.weeklyBalance.verticalPushSets + snapshot.weeklyBalance.verticalPullSets) > 0 && <BalanceMetric label={t('progress.vertical')} first={snapshot.weeklyBalance.verticalPushSets} second={snapshot.weeklyBalance.verticalPullSets} palette={palette} />}
+          <Body>{t('progress.balanceNote')}</Body>
+          {snapshot.weeklyBalance.showLegsNudge && <Text style={[styles.legsNudge, { color: palette.text }]}>{t('progress.legsNudge')}</Text>}
         </Card>}
         <Card>
-          <Label>{strings.volume}</Label>
+          <Label>{t('progress.volume')}</Label>
           {snapshot.volume.reps + snapshot.volume.holdSeconds + snapshot.volume.distanceMeters + snapshot.volume.loadRepsKg + snapshot.volume.loadSecondsKg > 0 ? <View style={styles.volumeGrid}>
             {/* Only what was trained: a calisthenics log has no distance, a runner no loaded reps. */}
-            {snapshot.volume.reps > 0 ? <VolumeMetric label={strings.reps} value={`${snapshot.volume.reps}`} palette={palette} /> : null}
-            {snapshot.volume.holdSeconds > 0 ? <VolumeMetric label={strings.holds} value={formatDuration(snapshot.volume.holdSeconds)} palette={palette} /> : null}
-            {snapshot.volume.distanceMeters > 0 ? <VolumeMetric label={strings.distance} value={`${formatNumber(snapshot.volume.distanceMeters)} m`} palette={palette} /> : null}
-            {snapshot.volume.loadRepsKg > 0 ? <VolumeMetric label={strings.loadReps} value={`${formatNumber(snapshot.volume.loadRepsKg)} kg·rep`} palette={palette} /> : null}
-            {snapshot.volume.loadSecondsKg > 0 ? <VolumeMetric label={strings.loadTime} value={`${formatNumber(snapshot.volume.loadSecondsKg)} kg·s`} palette={palette} /> : null}
+            {snapshot.volume.reps > 0 ? <VolumeMetric label={t('progress.reps')} value={`${snapshot.volume.reps}`} palette={palette} /> : null}
+            {snapshot.volume.holdSeconds > 0 ? <VolumeMetric label={t('progress.holds')} value={formatDuration(snapshot.volume.holdSeconds)} palette={palette} /> : null}
+            {snapshot.volume.distanceMeters > 0 ? <VolumeMetric label={t('progress.distance')} value={`${formatNumber(snapshot.volume.distanceMeters)} m`} palette={palette} /> : null}
+            {snapshot.volume.loadRepsKg > 0 ? <VolumeMetric label={t('progress.loadReps')} value={`${formatNumber(snapshot.volume.loadRepsKg)} kg·rep`} palette={palette} /> : null}
+            {snapshot.volume.loadSecondsKg > 0 ? <VolumeMetric label={t('progress.loadTime')} value={`${formatNumber(snapshot.volume.loadSecondsKg)} kg·s`} palette={palette} /> : null}
           </View> : null}
-          <Body>{snapshot.sessions} {i18n.language.toLowerCase().startsWith('it') ? 'sessioni registrate' : 'sessions logged'} · {snapshot.completedSets} {i18n.language.toLowerCase().startsWith('it') ? 'serie completate' : 'completed sets'}</Body>
+          <Body>{t('progress.sessionsLogged', { count: snapshot.sessions })} · {t('progress.completedSets', { count: snapshot.completedSets })}</Body>
         </Card>
         <Card>
           <SectionTitle
-            title={strings.trends}
+            title={t('progress.trends')}
             action={<Pressable accessibilityRole="button" hitSlop={10} onPress={() => setTrendSettingsOpen(true)} style={styles.customize}>
               <Icon name="options-outline" size={16} color={palette.accentStrong} />
               <Text style={[styles.customizeText, { color: palette.accentStrong }]}>{t('trendSettings.customize')}</Text>
             </Pressable>}
           />
           {slots.length ? slots.map((slot) => slot.trend ? (
-            <TrendCard key={slot.exerciseId} trend={slot.trend} label={strings.trendKind[slot.trend.kind]} palette={palette} locale={i18n.language} />
+            <TrendCard key={slot.exerciseId} trend={slot.trend} label={t(`progress.trendKind.${slot.trend.kind}`)} palette={palette} locale={i18n.language} />
           ) : (
             <Pressable key={slot.exerciseId} accessibilityRole="button" onPress={() => router.push({ pathname: '/exercise/[id]', params: { id: slot.exerciseId } })} onLongPress={() => openExercisePage(slot.exerciseId)} style={[styles.pendingTrend, { borderTopColor: palette.border }]}>
               <Text numberOfLines={1} style={[styles.exerciseName, { color: palette.text }]}>{exerciseNames.get(slot.exerciseId) ?? ''}</Text>
               <Body>{t('trendSettings.notEnough')}</Body>
             </Pressable>
-          )) : <Body>{strings.trendEmpty}</Body>}
+          )) : <Body>{t('progress.trendEmpty')}</Body>}
         </Card>
         <TrendSettings visible={trendSettingsOpen} choice={trendChoice} onChange={changeTrendChoice} onClose={() => setTrendSettingsOpen(false)} />
         <Card>
-          <SectionTitle title={strings.bests} />
+          <SectionTitle title={t('progress.bests')} />
           {snapshot.personalBests.length ? snapshot.personalBests.map((best) => (
-            <BestRow key={`${best.exerciseId}-${best.kind}`} best={best} label={strings.bestKind[best.kind]} palette={palette} />
+            <BestRow key={`${best.exerciseId}-${best.side ?? ''}-${best.kind}`} best={best} label={t(`progress.bestKind.${best.kind}`)} palette={palette} />
           )) : <View style={styles.empty}>
-            <Heading>{strings.emptyTitle}</Heading>
-            <Body>{strings.emptyBody}</Body>
+            <Heading>{t('progress.emptyTitle')}</Heading>
+            <Body>{t('progress.emptyBody')}</Body>
           </View>}
         </Card>
       </> : <Card style={styles.loadingCard}>
         {failed ? <>
-          <Heading>{strings.error}</Heading>
-          <Text onPress={() => { setFailed(false); getProgressSnapshot().then(setSnapshot).catch(() => setFailed(true)); }} style={[styles.retry, { color: palette.accentStrong }]} accessibilityRole="button">{i18n.language.toLowerCase().startsWith('it') ? 'Riprova' : 'Retry'}</Text>
-        </> : <><ActivityIndicator color={palette.accentStrong} /><Body>{strings.loading}</Body></>}
+          <Heading>{t('progress.error')}</Heading>
+          <ActionButton label={t('progress.retry')} secondary onPress={() => { setFailed(false); getProgressSnapshot().then(setSnapshot).catch(() => setFailed(true)); }} />
+        </> : <><ActivityIndicator color={palette.accentStrong} /><Body>{t('progress.loading')}</Body></>}
       </Card>}
     </Screen>
   );
@@ -160,7 +132,7 @@ function TrendCard({ trend, label, palette, locale }: { trend: ExerciseTrend; la
   const first = values[0];
   const latest = values[values.length - 1];
   const delta = latest - first;
-  const deltaText = `${delta > 0 ? '+' : ''}${formatNumber(delta)}${trendUnit(trend.kind)}`;
+  const deltaText = `${delta > 0 ? '+' : ''}${formatNumber(delta)}${trendUnit(trend.kind, t)}`;
   const metric = latestEstimate != null ? (trend.kind === 'hold' ? 'estMaxHold' : 'estMaxReps') : TREND_METRIC[trend.kind];
   const open = () => router.push({ pathname: '/stats', params: { exerciseId: trend.exerciseId, metric } });
   return <Pressable accessibilityRole="button" accessibilityLabel={`${trend.exerciseName} · ${label}`} onPress={open} onLongPress={() => openExercisePage(trend.exerciseId)} style={[styles.trendCard, { borderTopColor: palette.border }]}>
@@ -170,11 +142,11 @@ function TrendCard({ trend, label, palette, locale }: { trend: ExerciseTrend; la
         <Body>{label}</Body>
       </View>
       <View style={styles.trendLatest}>
-        <Text style={[styles.bestValue, { color: palette.accentStrong }]}>{formatNumber(latest)}{trendUnit(trend.kind)}</Text>
+        <Text style={[styles.bestValue, { color: palette.accentStrong }]}>{formatNumber(latest)}{trendUnit(trend.kind, t)}</Text>
         <Text style={[styles.trendDelta, { color: delta > 0 ? palette.success : palette.textMuted }]}>{deltaText}</Text>
       </View>
     </View>
-    {latestEstimate != null ? <Text style={[styles.trendEstimate, { color: palette.record }]}>{t('estimate.trendLine', { value: `${formatNumber(Math.round(latestEstimate))}${trendUnit(trend.kind)}` })}</Text> : null}
+    {latestEstimate != null ? <Text style={[styles.trendEstimate, { color: palette.record }]}>{t('estimate.trendLine', { value: `${formatNumber(Math.round(latestEstimate))}${trendUnit(trend.kind, t)}` })}</Text> : null}
     <TrendLine values={values} estimate={estimate} color={palette.accentStrong} estimateColor={palette.record} muted={palette.border} />
     <View style={styles.trendDates}>
       <Body style={styles.trendDate}>{formatTrendDate(trend.points[0].date, locale)}</Body>
@@ -217,8 +189,8 @@ function TrendLine({ values, estimate, color, estimateColor, muted }: { values: 
   </View>;
 }
 
-function trendUnit(kind: TrendKind): string {
-  if (kind === 'reps') return ' reps';
+function trendUnit(kind: TrendKind, t: TFunction): string {
+  if (kind === 'reps') return ` ${t('progress.unitReps')}`;
   if (kind === 'hold') return ' s';
   if (kind === 'distance') return ' m';
   return ' kg';
@@ -248,17 +220,16 @@ function BalanceMetric({ label, first, second, palette }: { label: string; first
 
 function BestRow({ best, label, palette }: { best: PersonalBest; label: string; palette: ReturnType<typeof useTheme>['palette'] }) {
   const styles = useScaledStyles(baseStyles);
-  const { i18n } = useTranslation();
+  const { t } = useTranslation();
   const [error, setError] = useState(false);
   const cardRef = useRef<View>(null);
   const date = new Intl.DateTimeFormat(undefined, { day: 'numeric', month: 'short' }).format(best.achievedAt);
-  const strings = i18n.language.toLowerCase().startsWith('it') ? copy.it : copy.en;
   const share = async () => {
     if (Platform.OS === 'web') { setError(true); return; }
     try {
       if (!(await Sharing.isAvailableAsync()) || !cardRef.current) throw new Error('sharing unavailable');
       const uri = await captureRef(cardRef, { format: 'png', quality: 1, result: 'tmpfile' });
-      await Sharing.shareAsync(uri, { mimeType: 'image/png', UTI: 'public.png', dialogTitle: strings.shareBest });
+      await Sharing.shareAsync(uri, { mimeType: 'image/png', UTI: 'public.png', dialogTitle: t('progress.shareBest') });
       setError(false);
     } catch {
       setError(true);
@@ -267,13 +238,13 @@ function BestRow({ best, label, palette }: { best: PersonalBest; label: string; 
   return <View style={[styles.bestRow, { borderTopColor: palette.border }]}>
     <View ref={cardRef} collapsable={false} style={[styles.bestShareCard, { backgroundColor: palette.surfaceMuted }]}>
       <Text style={[styles.bestBrand, { color: palette.accentStrong }]}>TRACKITBETTER</Text>
-      <Text numberOfLines={1} style={[styles.exerciseName, { color: palette.text }]}>{best.exerciseName}</Text>
+      <Text numberOfLines={1} style={[styles.exerciseName, { color: palette.text }]}>{personalBestName(best, t)}</Text>
       <Body>{label} · {date}</Body>
       <Text style={[styles.bestValue, { color: palette.accentStrong }]}>{formatBestValue(best)}</Text>
     </View>
     <View style={styles.shareControl}>
-      <Pressable accessibilityRole="button" onPress={() => void share()} style={[styles.shareBestButton, { backgroundColor: palette.surfaceMuted }]}><Text style={{ color: palette.accentStrong, fontWeight: '800' }}>{strings.shareBest}</Text></Pressable>
-      {error ? <Body style={{ color: palette.warning }}>{Platform.OS === 'web' ? strings.shareUnavailable : strings.shareError}</Body> : null}
+      <Pressable accessibilityRole="button" onPress={() => void share()} style={[styles.shareBestButton, { backgroundColor: palette.surfaceMuted }]}><Text style={{ color: palette.accentStrong, fontWeight: '800' }}>{t('progress.shareBest')}</Text></Pressable>
+      {error ? <Body style={{ color: palette.warning }}>{Platform.OS === 'web' ? t('progress.shareUnavailable') : t('progress.shareError')}</Body> : null}
     </View>
   </View>;
 }
@@ -316,5 +287,4 @@ const baseStyles = StyleSheet.create({
   bestValue: { fontFamily: fonts.display, fontSize: 24, lineHeight: 30, fontVariant: ['tabular-nums'] },
   empty: { gap: 6, paddingVertical: 10 },
   loadingCard: { minHeight: 170, alignItems: 'center', justifyContent: 'center' },
-  retry: { fontWeight: '700', padding: 8 },
 });

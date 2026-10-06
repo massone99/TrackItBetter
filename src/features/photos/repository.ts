@@ -1,6 +1,7 @@
 import { eq, desc } from 'drizzle-orm';
 import * as Crypto from 'expo-crypto';
 import { Directory, File, Paths } from 'expo-file-system';
+import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
 import { db, initializeDatabase } from '../../db/client';
 import { progressPhotos } from '../../db/schema';
 
@@ -19,7 +20,30 @@ function getPhotoDirectory(): Directory {
   return new Directory(Paths.document, 'progress-photos');
 }
 
-/** Copy a picked or captured image into app-private storage before indexing it. */
+/** Longest edge of a stored progress photo: sharp on a phone screen, a fraction of a camera original. */
+const MAX_EDGE = 1600;
+
+interface StoredImage { uri: string; mimeType: string; width: number; height: number; temporary: boolean }
+
+/**
+ * Re-encodes the image as an upright JPEG no larger than MAX_EDGE on its long side. When the
+ * image cannot be decoded (an unusual format), the original is kept as it is.
+ */
+async function downscale(input: { sourceUri: string; mimeType: string; width: number; height: number }): Promise<StoredImage> {
+  try {
+    const context = ImageManipulator.manipulate(input.sourceUri);
+    if (Math.max(input.width, input.height) > MAX_EDGE) {
+      context.resize(input.width >= input.height ? { width: MAX_EDGE } : { height: MAX_EDGE });
+    }
+    const rendered = await context.renderAsync();
+    const saved = await rendered.saveAsync({ format: SaveFormat.JPEG, compress: 0.85 });
+    return { uri: saved.uri, mimeType: 'image/jpeg', width: saved.width, height: saved.height, temporary: true };
+  } catch {
+    return { uri: input.sourceUri, mimeType: input.mimeType, width: input.width, height: input.height, temporary: false };
+  }
+}
+
+/** Shrink a picked or captured image, then store it in app-private storage before indexing it. */
 export async function addProgressPhoto(input: {
   sourceUri: string;
   mimeType: string;
@@ -30,17 +54,20 @@ export async function addProgressPhoto(input: {
 }): Promise<void> {
   await initializeDatabase();
   await ensurePhotoDirectory();
-  const extension = input.mimeType === 'image/png' ? 'png' : input.mimeType === 'image/webp' ? 'webp' : input.mimeType === 'image/heic' ? 'heic' : input.mimeType === 'image/heif' ? 'heif' : 'jpg';
+  const image = await downscale(input);
+  const extension = image.mimeType === 'image/png' ? 'png' : image.mimeType === 'image/webp' ? 'webp' : image.mimeType === 'image/heic' ? 'heic' : image.mimeType === 'image/heif' ? 'heif' : 'jpg';
   const id = Crypto.randomUUID();
   const fileName = `${id}.${extension}`;
-  await new File(input.sourceUri).copy(fileFor(fileName));
+  // The re-encoded copy lives in the cache, so it is moved; a picked original is copied.
+  if (image.temporary) await new File(image.uri).move(fileFor(fileName));
+  else await new File(image.uri).copy(fileFor(fileName));
   try {
     await db.insert(progressPhotos).values({
       id,
       fileName,
-      mimeType: input.mimeType,
-      width: input.width,
-      height: input.height,
+      mimeType: image.mimeType,
+      width: image.width,
+      height: image.height,
       note: input.note?.trim() ?? '',
       takenAt: input.takenAt ?? new Date(),
     });

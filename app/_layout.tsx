@@ -11,6 +11,7 @@ import { initialWindowMetrics, SafeAreaProvider } from "react-native-safe-area-c
 import { KeyboardRoot } from "../src/shared/components/keyboard";
 import { ActionButton, Body, Card, Heading, Screen } from "../src/shared/components/ui";
 import { initializeDatabase } from "../src/db/client";
+import { sweepOrphanClipFiles } from "../src/features/media/formVideos";
 import { ThemeProvider, useTheme } from "../src/shared/theme/ThemeProvider";
 import { fontAssets } from "../src/shared/theme/typography";
 import { useTranslation } from "react-i18next";
@@ -20,6 +21,17 @@ import { AnimationProvider, useAnimationSettings } from "../src/shared/settings/
 if (__DEV__ && process.env.EXPO_OS === "web") require("../src/dev/webSeed");
 
 void SplashScreen.preventAutoHideAsync().catch(() => undefined);
+
+let clipSweepScheduled = false;
+
+/** Once per app start, after the first screen is up: deletes form-check clip files nothing refers to. */
+function scheduleClipSweep(): void {
+  if (clipSweepScheduled || process.env.EXPO_OS === "web") return;
+  clipSweepScheduled = true;
+  setTimeout(() => {
+    sweepOrphanClipFiles().catch((error: unknown) => console.warn("Clip sweep failed", error));
+  }, 3000);
+}
 
 function AppNavigator() {
   const { mode, palette } = useTheme();
@@ -32,7 +44,10 @@ function AppNavigator() {
   useEffect(() => {
     let isCurrentAttempt = true;
     void initializeDatabase().then(
-      () => { if (isCurrentAttempt) setDatabaseResult({ attempt: retry, status: "ready" }); },
+      () => {
+        if (isCurrentAttempt) setDatabaseResult({ attempt: retry, status: "ready" });
+        scheduleClipSweep();
+      },
       (error: unknown) => {
         console.error("Database initialization failed", error);
         if (isCurrentAttempt) setDatabaseResult({ attempt: retry, status: "error" });

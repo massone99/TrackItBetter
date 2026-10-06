@@ -1,6 +1,7 @@
 import { eq, isNotNull } from 'drizzle-orm';
 import { db, initializeDatabase } from '../../db/client';
 import { settings, workouts } from '../../db/schema';
+import { dateFromKey, dateKey } from '../../shared/utils/date';
 
 const WEEKLY_TARGET_KEY = 'weekly_session_target';
 const DEFAULT_WEEKLY_TARGET = 3;
@@ -44,7 +45,7 @@ export async function getGoalSnapshot(now = new Date()): Promise<GoalSnapshot> {
     : DEFAULT_WEEKLY_TARGET;
   const counts = new Map<string, number>();
   for (const workout of completed) {
-    const date = localDateKey(new Date(workout.startedAt));
+    const date = dateKey(new Date(workout.startedAt));
     counts.set(date, (counts.get(date) ?? 0) + 1);
   }
 
@@ -54,7 +55,7 @@ export async function getGoalSnapshot(now = new Date()): Promise<GoalSnapshot> {
   for (let offset = 0; offset < 7; offset += 1) {
     const day = new Date(monday);
     day.setDate(day.getDate() + offset);
-    thisWeekSessions += counts.get(localDateKey(day)) ?? 0;
+    thisWeekSessions += counts.get(dateKey(day)) ?? 0;
   }
 
   const heatmapStart = startOfWeek(today);
@@ -62,7 +63,7 @@ export async function getGoalSnapshot(now = new Date()): Promise<GoalSnapshot> {
   const activeDays = Array.from({ length: HEATMAP_DAYS }, (_, index) => {
     const day = new Date(heatmapStart);
     day.setDate(day.getDate() + index);
-    const date = localDateKey(day);
+    const date = dateKey(day);
     return { date, count: counts.get(date) ?? 0 };
   });
 
@@ -71,7 +72,7 @@ export async function getGoalSnapshot(now = new Date()): Promise<GoalSnapshot> {
   const totalSessions = completed.length;
   const year = now.getFullYear();
   const yearRows = completed.filter((workout) => new Date(workout.startedAt).getFullYear() === year);
-  const yearActiveDays = new Set(yearRows.map((workout) => localDateKey(new Date(workout.startedAt)))).size;
+  const yearActiveDays = new Set(yearRows.map((workout) => dateKey(new Date(workout.startedAt)))).size;
 
   return {
     weeklyTarget,
@@ -113,7 +114,7 @@ function measureStreaks(sortedDates: string[], today: Date): { current: number; 
   let run = 0;
   let previous: Date | undefined;
   for (const key of sortedDates) {
-    const date = parseDateKey(key);
+    const date = dateFromKey(key);
     const isNext = previous !== undefined && daysBetween(previous, date) === 1;
     run = isNext ? run + 1 : 1;
     longest = Math.max(longest, run);
@@ -123,8 +124,8 @@ function measureStreaks(sortedDates: string[], today: Date): { current: number; 
   const activeSet = new Set(sortedDates);
   let current = 0;
   const mostRecentAllowed = new Date(today);
-  if (!activeSet.has(localDateKey(mostRecentAllowed))) mostRecentAllowed.setDate(mostRecentAllowed.getDate() - 1);
-  while (activeSet.has(localDateKey(mostRecentAllowed))) {
+  if (!activeSet.has(dateKey(mostRecentAllowed))) mostRecentAllowed.setDate(mostRecentAllowed.getDate() - 1);
+  while (activeSet.has(dateKey(mostRecentAllowed))) {
     current += 1;
     mostRecentAllowed.setDate(mostRecentAllowed.getDate() - 1);
   }
@@ -139,15 +140,6 @@ function startOfWeek(value: Date): Date {
   const day = startOfLocalDay(value);
   day.setDate(day.getDate() - ((day.getDay() + 6) % 7));
   return day;
-}
-
-function localDateKey(value: Date): string {
-  return `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, '0')}-${String(value.getDate()).padStart(2, '0')}`;
-}
-
-function parseDateKey(value: string): Date {
-  const [year, month, day] = value.split('-').map(Number);
-  return new Date(year, month - 1, day);
 }
 
 function daysBetween(first: Date, second: Date): number {

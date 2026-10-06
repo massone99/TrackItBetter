@@ -73,3 +73,17 @@ describe('repeatWorkoutIfIdle', () => {
     real.sqlite.prepare('DELETE FROM workout WHERE id = ?').run(open);
   });
 });
+
+describe('repeatWorkout in one transaction', () => {
+  it('leaves no workout behind when copying the sets fails', async () => {
+    const count = () => (real.sqlite.prepare('SELECT COUNT(*) AS n FROM workout').get() as { n: number }).n;
+    const before = count();
+    real.sqlite.exec("CREATE TEMP TRIGGER fail_set_copy BEFORE INSERT ON training_set BEGIN SELECT RAISE(ABORT, 'disk full'); END");
+    try {
+      await expect(repeatWorkout(finishedId)).rejects.toThrow();
+    } finally {
+      real.sqlite.exec('DROP TRIGGER fail_set_copy');
+    }
+    expect(count()).toBe(before);
+  });
+});

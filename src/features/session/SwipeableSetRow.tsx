@@ -83,6 +83,8 @@ function SwipeAction({ progress, align, color, icon, label }: {
   label: string;
 }) {
   const styles = useScaledStyles(baseStyles);
+  // The ink made for the success colour reads on every swipe colour, in light and dark themes.
+  const ink = useTheme().palette.successText;
   // The icon grows as the row is dragged and "clicks" to full size once letting go would trigger.
   const iconStyle = useAnimatedStyle(() => ({
     opacity: interpolate(progress.value, [0, 0.35, 1], [0, 0.6, 1], Extrapolation.CLAMP),
@@ -91,8 +93,8 @@ function SwipeAction({ progress, align, color, icon, label }: {
   return (
     <View style={[styles.action, { backgroundColor: color, justifyContent: align === 'left' ? 'flex-start' : 'flex-end' }]}>
       <Animated.View style={[styles.actionContent, iconStyle]}>
-        <Icon name={icon} size={22} color="#FFFFFF" />
-        <Text style={[styles.actionText, { color: '#FFFFFF' }]} numberOfLines={1}>{label}</Text>
+        <Icon name={icon} size={22} color={ink} />
+        <Text style={[styles.actionText, { color: ink }]} numberOfLines={1}>{label}</Text>
       </Animated.View>
     </View>
   );

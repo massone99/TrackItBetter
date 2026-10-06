@@ -2,9 +2,10 @@ import { Paged } from '../src/shared/components/paging';
 import { useCallback, useMemo, useState } from 'react';
 import { useFocusEffect } from 'expo-router';
 import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { openExercisePage } from '../src/features/exercises/openExercise';
-import { Body, Card, Chip, Heading, IconButton, PageHeading, Screen, SegmentedControl, Stepper } from '../src/shared/components/ui';
+import { ActionButton, Body, Card, Chip, Heading, IconButton, PageHeading, Screen, SegmentedControl, Stepper } from '../src/shared/components/ui';
 import { Text } from '../src/shared/components/Text';
 import { getTrainingStatsRows } from '../src/features/analytics/repository';
 import { buildTrainingStats, OTHER_ID, type StatsDimension, type StatsMetrics, type StatsScope, type StatsPeriodKind, type StatsSetRow } from '../src/features/analytics/trainingStats';
@@ -16,27 +17,6 @@ import { useTheme } from '../src/shared/theme/ThemeProvider';
 import { useScaledStyles } from '../src/shared/theme/useScaledStyles';
 import { formatDuration, formatNumber } from '../src/shared/utils/format';
 
-const copy = {
-  en: {
-    title: 'Training totals', subtitle: 'Working sets by pattern or exercise.',
-    pattern: 'Pattern', exercise: 'Exercise', groups: 'Groups', tags: 'Tags',
-    session: 'Session', day: 'Day', week: 'Week', month: 'Month',
-    previous: 'Previous period', next: 'Next period', today: 'Today', latestSession: 'Latest',
-    set: 'set', sets: 'sets', reps: 'reps', threshold: 'RPE threshold', allSets: 'All sets', scopeAll: 'All', scopeStrength: 'Strength', scopeMobility: 'Mobility', modeAll: 'Any', modeActive: 'Active', modePassive: 'Passive', emptyMobility: 'No mobility sets in this period.', emptyStrength: 'No strength sets in this period.',
-    empty: 'No working sets in this period.', noData: 'Finish a workout to see statistics here.',
-    other: 'Other movements', untagged: 'No tag', loading: 'Loading statistics…', error: 'Statistics could not be loaded.', retry: 'Retry',
-  },
-  it: {
-    title: 'Totali allenamento', subtitle: 'Serie di lavoro per pattern o esercizio.',
-    pattern: 'Pattern', exercise: 'Esercizio', groups: 'Gruppi', tags: 'Tag',
-    session: 'Sessione', day: 'Giorno', week: 'Sett.', month: 'Mese',
-    previous: 'Periodo precedente', next: 'Periodo successivo', today: 'Oggi', latestSession: 'Ultima',
-    set: 'serie', sets: 'serie', reps: 'rip', threshold: 'Soglia RPE', allSets: 'Tutte le serie', scopeAll: 'Tutto', scopeStrength: 'Potenziamento', scopeMobility: 'Mobilità', modeAll: 'Tutte', modeActive: 'Attiva', modePassive: 'Passiva', emptyMobility: 'Nessuna serie di mobilità in questo periodo.', emptyStrength: 'Nessuna serie di potenziamento in questo periodo.',
-    empty: 'Nessuna serie di lavoro in questo periodo.', noData: 'Completa un allenamento per vedere qui le statistiche.',
-    other: 'Altri movimenti', untagged: 'Senza tag', loading: 'Caricamento statistiche…', error: 'Impossibile caricare le statistiche.', retry: 'Riprova',
-  },
-} as const;
-type Strings = (typeof copy)['en'] | (typeof copy)['it'];
 
 type StatsView = 'pattern' | 'exercise';
 type PatternKind = 'group' | 'tag';
@@ -52,7 +32,6 @@ export default function StatsScreen() {
   const { palette } = useTheme();
   const { i18n, t } = useTranslation();
   const locale = i18n.language.toLowerCase().startsWith('it') ? 'it' : 'en';
-  const strings = copy[locale];
   const [rows, setRows] = useState<StatsSetRow[] | null>(null);
   const [failed, setFailed] = useState(false);
   const [view, setView] = useState<StatsView>(() => pick('stats.view', ['pattern', 'exercise'], 'pattern'));
@@ -91,76 +70,76 @@ export default function StatsScreen() {
 
   const itemName = (id: string, name: string) => {
     if (dimension === 'exercise') return name;
-    if (id === OTHER_ID) return dimension === 'tag' ? strings.untagged : strings.other;
+    if (id === OTHER_ID) return dimension === 'tag' ? t('trainingStats.untagged') : t('trainingStats.other');
     return dimension === 'group' ? t(`movement.groups.${id}`) : movementTagLabel(id, t);
   };
   const maxSets = Math.max(1, ...(stats?.items.map((item) => item.metrics.sets) ?? [1]));
 
   return <Screen>
-    <PageHeading title={strings.title} subtitle={strings.subtitle} />
+    <PageHeading title={t('trainingStats.title')} subtitle={t('trainingStats.subtitle')} />
     <View style={styles.controls}>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
-        {(['all', 'strength', 'mobility'] as const).map((value) => <Chip key={value} label={strings[value === 'all' ? 'scopeAll' : value === 'strength' ? 'scopeStrength' : 'scopeMobility']} selected={mainScope === value} onPress={() => remember<MainScope>('stats.scope', setMainScope)(value)} />)}
+        {(['all', 'strength', 'mobility'] as const).map((value) => <Chip key={value} label={t(value === 'all' ? 'trainingStats.scopeAll' : value === 'strength' ? 'trainingStats.scopeStrength' : 'trainingStats.scopeMobility')} selected={mainScope === value} onPress={() => remember<MainScope>('stats.scope', setMainScope)(value)} />)}
       </ScrollView>
       {mainScope === 'mobility' && <View style={styles.quietToggle}>
         {(['all', 'active', 'passive'] as const).map((kind, index) => <View key={kind} style={styles.quietItem}>
           {index > 0 && <Text style={{ color: palette.textMuted }}>·</Text>}
           <Pressable accessibilityRole="button" accessibilityState={{ selected: mobilityKind === kind }} hitSlop={10} onPress={() => remember<MobilityKind>('stats.mobilityKind', setMobilityKind)(kind)}>
-            <Text style={[styles.quietText, { color: mobilityKind === kind ? palette.text : palette.textMuted, fontFamily: mobilityKind === kind ? 'Barlow_600SemiBold' : undefined }]}>{kind === 'all' ? strings.modeAll : kind === 'active' ? strings.modeActive : strings.modePassive}</Text>
+            <Text style={[styles.quietText, { color: mobilityKind === kind ? palette.text : palette.textMuted, fontFamily: mobilityKind === kind ? 'Barlow_600SemiBold' : undefined }]}>{kind === 'all' ? t('trainingStats.modeAll') : kind === 'active' ? t('trainingStats.modeActive') : t('trainingStats.modePassive')}</Text>
           </Pressable>
         </View>)}
       </View>}
-      <SegmentedControl<StatsView> value={view} onChange={remember<StatsView>('stats.view', setView)} options={[{ value: 'pattern', label: strings.pattern }, { value: 'exercise', label: strings.exercise }]} />
+      <SegmentedControl<StatsView> value={view} onChange={remember<StatsView>('stats.view', setView)} options={[{ value: 'pattern', label: t('trainingStats.pattern') }, { value: 'exercise', label: t('trainingStats.exercise') }]} />
       {view === 'pattern' && <View style={styles.quietToggle}>
         {(['group', 'tag'] as const).map((kind, index) => <View key={kind} style={styles.quietItem}>
           {index > 0 && <Text style={{ color: palette.textMuted }}>·</Text>}
           <Pressable accessibilityRole="button" accessibilityState={{ selected: patternKind === kind }} hitSlop={10} onPress={() => remember<PatternKind>('stats.patternKind', setPatternKind)(kind)}>
-            <Text style={[styles.quietText, { color: patternKind === kind ? palette.text : palette.textMuted, fontFamily: patternKind === kind ? 'Barlow_600SemiBold' : undefined }]}>{kind === 'group' ? strings.groups : strings.tags}</Text>
+            <Text style={[styles.quietText, { color: patternKind === kind ? palette.text : palette.textMuted, fontFamily: patternKind === kind ? 'Barlow_600SemiBold' : undefined }]}>{kind === 'group' ? t('trainingStats.groups') : t('trainingStats.tags')}</Text>
           </Pressable>
         </View>)}
       </View>}
-      <SegmentedControl<StatsPeriodKind> value={periodKind} onChange={(value) => { remember<StatsPeriodKind>('stats.period', setPeriodKind)(value); setAnchor(null); }} options={(['session', 'day', 'week', 'month'] as const).map((value) => ({ value, label: strings[value] }))} />
-      <SegmentedControl<'all' | 'rpe'> value={rpeOnly ? 'rpe' : 'all'} onChange={changeRpeOnly} options={[{ value: 'all', label: strings.allSets }, { value: 'rpe', label: rpeLabel }]} />
-      {rpeOnly && <Stepper layout="row" label={strings.threshold} value={threshold} step={0.5} min={6} max={10} onChange={changeThreshold} />}
+      <SegmentedControl<StatsPeriodKind> value={periodKind} onChange={(value) => { remember<StatsPeriodKind>('stats.period', setPeriodKind)(value); setAnchor(null); }} options={(['session', 'day', 'week', 'month'] as const).map((value) => ({ value, label: t(`trainingStats.${value}`) }))} />
+      <SegmentedControl<'all' | 'rpe'> value={rpeOnly ? 'rpe' : 'all'} onChange={changeRpeOnly} options={[{ value: 'all', label: t('trainingStats.allSets') }, { value: 'rpe', label: rpeLabel }]} />
+      {rpeOnly && <Stepper layout="row" label={t('trainingStats.threshold')} value={threshold} step={0.5} min={6} max={10} onChange={changeThreshold} />}
     </View>
 
     {!stats ? <Card style={styles.loadingCard}>
-      {failed ? <Pressable accessibilityRole="button" onPress={load}><Heading>{strings.error}</Heading><Body>{strings.retry}</Body></Pressable>
-        : <><ActivityIndicator color={palette.accentStrong} /><Body>{strings.loading}</Body></>}
-    </Card> : !stats.period ? <Card><Body>{strings.noData}</Body></Card> : <>
+      {failed ? <><Heading>{t('trainingStats.error')}</Heading><ActionButton label={t('trainingStats.retry')} secondary onPress={() => { load(); }} /></>
+        : <><ActivityIndicator color={palette.accentStrong} /><Body>{t('trainingStats.loading')}</Body></>}
+    </Card> : !stats.period ? <Card><Body>{t('trainingStats.noData')}</Body></Card> : <>
       <Card>
         <View style={styles.navigator}>
-          <IconButton icon="chevron-back" label={strings.previous} disabled={!stats.olderId} onPress={() => stats.olderId && setAnchor(stats.olderId)} />
+          <IconButton icon="chevron-back" label={t('trainingStats.previous')} disabled={!stats.olderId} onPress={() => stats.olderId && setAnchor(stats.olderId)} />
           <Text numberOfLines={1} accessibilityLiveRegion="polite" style={[styles.periodLabel, { color: palette.text }]}>{formatPeriod(stats.period, periodKind, locale)}</Text>
-          <IconButton icon="chevron-forward" label={strings.next} disabled={!stats.newerId} onPress={() => stats.newerId && setAnchor(stats.newerId)} />
+          <IconButton icon="chevron-forward" label={t('trainingStats.next')} disabled={!stats.newerId} onPress={() => stats.newerId && setAnchor(stats.newerId)} />
         </View>
         {stats.newerId && <Pressable accessibilityRole="button" onPress={() => setAnchor(null)} style={styles.latest}>
-          <Text style={[styles.latestText, { color: palette.accentStrong }]}>{periodKind === 'session' ? strings.latestSession : strings.today}</Text>
+          <Text style={[styles.latestText, { color: palette.accentStrong }]}>{periodKind === 'session' ? t('trainingStats.latestSession') : t('trainingStats.today')}</Text>
         </Pressable>}
         <PeriodBars
           bars={stats.history}
           selectedId={stats.period.id}
           onSelect={setAnchor}
-          describe={(bar) => `${formatPeriodShort(bar.start, periodKind, locale)}: ${bar.sets} ${bar.sets === 1 ? strings.set : strings.sets}`}
+          describe={(bar) => `${formatPeriodShort(bar.start, periodKind, locale)}: ${t('trainingStats.setsCount', { count: bar.sets })}`}
           firstLabel={stats.history.length ? formatPeriodShort(stats.history[0].start, periodKind, locale) : ''}
           lastLabel={stats.history.length ? formatPeriodShort(stats.history[stats.history.length - 1].start, periodKind, locale) : ''}
         />
         <View style={styles.summary}>
           <Text style={[styles.summaryValue, { color: palette.text }]}>{stats.summary.sets}</Text>
-          <Text style={[styles.summaryUnit, { color: palette.textMuted }]}>{stats.summary.sets === 1 ? strings.set : strings.sets}</Text>
+          <Text style={[styles.summaryUnit, { color: palette.textMuted }]}>{t('trainingStats.setsUnit', { count: stats.summary.sets })}</Text>
         </View>
-        {detail(stats.summary, threshold, strings, rpeOnly) ? <Body>{detail(stats.summary, threshold, strings, rpeOnly)}</Body> : null}
+        {detail(stats.summary, threshold, t, rpeOnly) ? <Body>{detail(stats.summary, threshold, t, rpeOnly)}</Body> : null}
       </Card>
 
       <Card>
         {dimension === 'tag' && stats.items.length > 0 ? <Body>{t('exerciseGrouping.statsHint')}</Body> : null}
-        {stats.items.length === 0 ? <Body>{mainScope === 'mobility' ? strings.emptyMobility : mainScope === 'strength' ? strings.emptyStrength : strings.empty}</Body> : <Paged items={stats.items} pageSize={20} resetKey={`${dimension}:${mainScope}`}>{(shownItems) => shownItems.map((item, index) => <Pressable key={item.id} accessible={false} accessibilityRole="none" onLongPress={dimension === 'exercise' && item.id !== OTHER_ID ? () => openExercisePage(item.id) : undefined} style={[styles.row, index > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: palette.border }]}>
+        {stats.items.length === 0 ? <Body>{mainScope === 'mobility' ? t('trainingStats.emptyMobility') : mainScope === 'strength' ? t('trainingStats.emptyStrength') : t('trainingStats.empty')}</Body> : <Paged items={stats.items} pageSize={20} resetKey={`${dimension}:${mainScope}`}>{(shownItems) => shownItems.map((item, index) => <Pressable key={item.id} accessible={false} accessibilityRole="none" onLongPress={dimension === 'exercise' && item.id !== OTHER_ID ? () => openExercisePage(item.id) : undefined} style={[styles.row, index > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: palette.border }]}>
           <View style={styles.rowHead}>
             <Text numberOfLines={1} style={[styles.rowName, { color: palette.text }]}>{itemName(item.id, item.name)}</Text>
             <Text style={[styles.rowValue, { color: palette.text }]}>{mainScope === 'mobility' && item.metrics.holdSeconds > 0 ? formatDuration(item.metrics.holdSeconds) : item.metrics.sets}</Text>
           </View>
           <View style={[styles.rowBar, { width: `${Math.max(3, (item.metrics.sets / maxSets) * 100)}%`, backgroundColor: palette.accentSoft }]} />
-          {detail(item.metrics, threshold, strings, rpeOnly) ? <Text style={[styles.rowDetail, { color: palette.textMuted }]}>{detail(item.metrics, threshold, strings, rpeOnly)}</Text> : null}
+          {detail(item.metrics, threshold, t, rpeOnly) ? <Text style={[styles.rowDetail, { color: palette.textMuted }]}>{detail(item.metrics, threshold, t, rpeOnly)}</Text> : null}
         </Pressable>)}</Paged>}
       </Card>
 
@@ -169,9 +148,9 @@ export default function StatsScreen() {
 }
 
 /** Only the non-zero parts, e.g. "48 rip · 2 ≥ RPE 8 · 120 kg·rep". Empty string when nothing to add. */
-function detail(metrics: StatsMetrics, threshold: number, strings: Strings, rpeOnly: boolean): string {
+function detail(metrics: StatsMetrics, threshold: number, t: TFunction, rpeOnly: boolean): string {
   return [
-    metrics.reps > 0 ? `${metrics.reps} ${strings.reps}` : null,
+    metrics.reps > 0 ? t('trainingStats.repsCount', { count: metrics.reps }) : null,
     metrics.holdSeconds > 0 ? formatDuration(metrics.holdSeconds) : null,
     !rpeOnly && metrics.setsAtThreshold > 0 ? `${metrics.setsAtThreshold} ≥ RPE ${formatNumber(threshold)}` : null,
     metrics.loadRepsKg > 0 ? `${formatNumber(metrics.loadRepsKg)} kg·rep` : null,
@@ -188,7 +167,7 @@ const baseStyles = StyleSheet.create({
   loadingCard: { minHeight: 120, alignItems: 'center', justifyContent: 'center', gap: 10 },
   navigator: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 },
   periodLabel: { flex: 1, textAlign: 'center', fontSize: 16, fontFamily: 'Barlow_600SemiBold' },
-  latest: { alignSelf: 'center', marginBottom: 8 },
+  latest: { alignSelf: 'center', minHeight: 48, justifyContent: 'center', paddingHorizontal: 12, marginBottom: 4 },
   latestText: { fontSize: 13, fontFamily: 'Barlow_600SemiBold' },
   summary: { flexDirection: 'row', alignItems: 'baseline', gap: 6, marginTop: 14 },
   summaryValue: { fontSize: 40, lineHeight: 44, fontFamily: 'BarlowCondensed_700Bold', fontVariant: ['tabular-nums'] },

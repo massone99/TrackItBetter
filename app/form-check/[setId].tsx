@@ -122,12 +122,12 @@ export default function FormCheckScreen() {
                     accessibilityRole="button"
                     accessibilityLabel={t('formCheck.analysePose')}
                     onPress={() => router.push({ pathname: '/pose/new', params: { positionId: 'free', videoUri: video.uri, durationMs: String(video.durationMs), setId: video.setId } })}
-                    hitSlop={8}
+                    style={styles.iconButton}
                   >
                     <Icon name="scan-outline" size={19} color={palette.accentStrong} />
                   </Pressable>
                 )}
-                <Pressable accessibilityRole="button" accessibilityLabel={t('formCheck.delete')} onPress={() => confirmDelete(video)} hitSlop={8}>
+                <Pressable accessibilityRole="button" accessibilityLabel={t('formCheck.delete')} onPress={() => confirmDelete(video)} style={styles.iconButton}>
                   <Icon name="trash-outline" size={18} color={palette.warning} />
                 </Pressable>
               </Card>
@@ -159,7 +159,7 @@ function VideoPanel({ video, compact }: { video: FormCheckVideo; compact: boolea
   };
   return (
     <View style={[styles.videoPanel, compact ? styles.compactPanel : null]}>
-      <VideoView player={player} nativeControls contentFit="contain" style={styles.video} />
+      <VideoView player={player} nativeControls contentFit="contain" style={[styles.video, { backgroundColor: palette.mediaBackdrop }]} />
       <Pressable accessibilityRole="button" onPress={setSlow} style={[styles.slowButton, { backgroundColor: palette.surfaceMuted }]}>
         <Text style={{ color: palette.accentStrong, fontWeight: '700' }}>{slowMotion ? t('formCheck.normalSpeed') : t('formCheck.slowMotion')}</Text>
       </Pressable>
@@ -171,11 +171,12 @@ const baseStyles = StyleSheet.create({
   actions: { gap: 4 },
   videoPanel: { flex: 1, gap: 8 },
   compactPanel: { minWidth: 140 },
-  video: { width: '100%', aspectRatio: 1.35, backgroundColor: '#111', borderRadius: 14 },
+  video: { width: '100%', aspectRatio: 1.35, borderRadius: 14 },
   compareRow: { flexDirection: 'row', gap: 8 },
   slowButton: { minHeight: 48, paddingHorizontal: 12, alignItems: 'center', justifyContent: 'center', borderRadius: 11 },
   clipCard: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 12 },
   clipDetails: { flex: 1, gap: 4 },
   clipDate: { fontSize: 14, fontWeight: '800' },
+  iconButton: { minWidth: 48, minHeight: 48, alignItems: 'center', justifyContent: 'center' },
   compareButton: { minHeight: 48, paddingHorizontal: 12, alignItems: 'center', justifyContent: 'center', borderRadius: 11 },
 });

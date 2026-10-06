@@ -1,4 +1,4 @@
-import { aggregatePairs, samePairValue } from '../../domain/setPairs';
+import { aggregatePairs, samePairValue, type Aggregated } from '../../domain/setPairs';
 import { matchesScope, type ExploreData, type Scope } from './explore';
 import type { ExerciseHistorySession } from './repository';
 
@@ -55,6 +55,17 @@ export function repsAtLoadFromHistory(history: readonly ExerciseHistorySession[]
     workoutId: session.workoutId, workoutName: session.workoutName, startedAt: session.startedAt,
     loadKg: set.addedLoadKg, reps: set.reps,
   }))));
+}
+
+/** Completed working sets of one exercise, already scoped to a side view (see `aggregatePairs`). */
+export function repsAtLoadFromRows(
+  rows: readonly (Aggregated<{ workoutId: string; workoutStartedAt: Date; addedLoadKg: number; reps: number | null; pairId?: string | null; side?: string }>)[],
+  workoutNames: ReadonlyMap<string, string>,
+): RepsAtLoadGroup[] {
+  return groupRepSets(rows.filter((row) => samePairValue(row, (s) => s.addedLoadKg)).map((row) => ({
+    workoutId: row.workoutId, workoutName: workoutNames.get(row.workoutId) ?? '',
+    startedAt: row.workoutStartedAt, loadKg: row.addedLoadKg, reps: row.reps,
+  })));
 }
 
 /** Reuse the explorer's completed working sets and its existing exercise filters. */

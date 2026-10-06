@@ -46,6 +46,12 @@ describe('starting a workout from a program', () => {
     expect(await getActiveWorkout()).toBeNull();
   });
 
+  it('deletes the new workout when its sets cannot be written', async () => {
+    const program = { id: 'bad', name: 'Bad', updatedAt: '', sessions: [{ id: 's', name: 'A', exercises: [{ id: 'e', exerciseId: 'push-up', sets: 2, target: -3, restSeconds: 90 }] }] };
+    await expect(startUserProgramSession(program, program.sessions[0])).rejects.toThrow();
+    expect(await getActiveWorkout()).toBeNull();
+  });
+
   it('skips movements that no longer exist and starts with the rest', async () => {
     const program = { id: 'p2', name: 'Half', updatedAt: '', sessions: [{ id: 's', name: 'A', exercises: [
       { id: 'e1', exerciseId: 'gone-exercise', sets: 3, target: 8, restSeconds: 90 },

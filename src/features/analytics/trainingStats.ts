@@ -1,5 +1,6 @@
 import { exerciseMovementTags, MOVEMENT_GROUP_IDS } from '../exercises/movementCatalog';
 import { aggregatePairs, realMean } from '../../domain/setPairs';
+import { dateFromKey, dateKey } from '../../shared/utils/date';
 
 export type StatsDimension = 'group' | 'tag' | 'exercise';
 export type StatsScope = 'all' | 'strength' | 'mobility' | 'mobility-active' | 'mobility-passive';
@@ -71,15 +72,6 @@ function inScope(row: StatsSetRow, scope: StatsScope): boolean {
   return scope === 'mobility' || row.mobilityMode === scope.slice('mobility-'.length);
 }
 
-function localDateKey(date: Date): string {
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
-}
-
-function dateFromKey(key: string): Date {
-  const [year, month, day = 1] = key.split('-').map(Number);
-  return new Date(year, month - 1, day);
-}
-
 function periodStart(date: Date, kind: CalendarKind): Date {
   const start = new Date(date.getFullYear(), date.getMonth(), kind === 'month' ? 1 : date.getDate());
   if (kind === 'week') start.setDate(start.getDate() - ((start.getDay() + 6) % 7));
@@ -87,7 +79,7 @@ function periodStart(date: Date, kind: CalendarKind): Date {
 }
 
 export function periodId(date: Date, kind: CalendarKind): string {
-  const key = localDateKey(periodStart(date, kind));
+  const key = dateKey(periodStart(date, kind));
   return kind === 'month' ? key.slice(0, 7) : key;
 }
 

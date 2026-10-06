@@ -20,6 +20,18 @@ export const palettes = {
     tabBar: "#FFFFFF",
     hero: "#2F45C8",
     heroText: "#FFFFFF",
+    // Secondary text on `hero` (5.2:1 light, 5.5:1 dark).
+    heroTextMuted: "rgba(255,255,255,0.78)",
+    // Translucent fill for badges, tracks and buttons on `hero`; `heroText` on it stays above 4.9:1.
+    heroOverlay: "rgba(255,255,255,0.18)",
+    // The same fill on an `accent` surface; `accentText` on it stays above 4.9:1.
+    accentOverlay: "rgba(255,255,255,0.18)",
+    // Dark backdrop behind photos and video while they load or letterbox.
+    mediaBackdrop: "#141A1F",
+    // Scrim behind labels laid over photos; `onMedia` on it over a white photo is 5.7:1.
+    mediaScrim: "rgba(0,0,0,0.6)",
+    // Text and icons on media, scrims and `mediaBackdrop`.
+    onMedia: "#FFFFFF",
   },
   dark: {
     background: "#111A21",
@@ -41,6 +53,13 @@ export const palettes = {
     tabBar: "#181E29",
     hero: "#3144B8",
     heroText: "#FFFFFF",
+    heroTextMuted: "rgba(255,255,255,0.78)",
+    heroOverlay: "rgba(255,255,255,0.18)",
+    // Dark `accent` carries dark `accentText`, so the overlay darkens instead (5.4:1).
+    accentOverlay: "rgba(16,21,42,0.16)",
+    mediaBackdrop: "#0B1014",
+    mediaScrim: "rgba(0,0,0,0.6)",
+    onMedia: "#FFFFFF",
   },
 } as const;
 
