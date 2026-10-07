@@ -1,7 +1,7 @@
 import { migrateDatabase } from '../../../db/migrations';
 import { seedCatalogIfEmpty } from '../../../db/seed/import';
-import { listRecentMicroSessionExerciseIds, logMicroSession, logMicroSessionItems } from '../microSession';
-import { listRecentWorkouts } from '../repository';
+import { listRecentMicroSessionExerciseIds, logMicroSession, startMicroSession, logMicroSessionItems } from '../microSession';
+import { getActiveWorkout, listRecentWorkouts } from '../repository';
 
 jest.mock('../../../db/client', () => {
   const { createRealDatabase } = jest.requireActual('../../../test/realDatabase');
@@ -57,5 +57,20 @@ describe('micro-session with several exercises', () => {
     const before = (await listRecentWorkouts()).length;
     await expect(logMicroSessionItems([{ exerciseId: 'pull-up', sets: [{ value: 3 }] }, { exerciseId: 'push-up', sets: [{ value: 0 }] }])).rejects.toThrow(RangeError);
     expect((await listRecentWorkouts()).length).toBe(before);
+  });
+});
+
+describe('startMicroSession', () => {
+  it('starts an ordinary workout in progress with the chosen exercises at their practice targets, or returns the one already open', async () => {
+    const started = await startMicroSession(['push-up', 'pull-up', 'push-up']);
+    if (!('workoutId' in started)) throw new Error('expected a workout');
+    const workout = (await getActiveWorkout(started.workoutId))!;
+    expect(workout.name).toMatch(/^Mini-session \d+$/);
+    expect(workout.exercises.map((exercise) => exercise.exerciseId)).toEqual(['push-up', 'pull-up']);
+    expect(workout.exercises[0].sets[0]).toMatchObject({ reps: 3, completedAt: null });
+    const again = await startMicroSession(['push-up']);
+    expect(again).toEqual({ active: { id: started.workoutId, name: workout.name } });
+    await expect(startMicroSession([])).rejects.toThrow();
+    real.sqlite.prepare('DELETE FROM workout WHERE id = ?').run(started.workoutId);
   });
 });

@@ -3,7 +3,7 @@ import { db, initializeDatabase } from '../../db/client';
 import { groupSets } from '../../domain/setPairs';
 import { exerciseEntries, settings, workouts } from '../../db/schema';
 import { getExerciseById, listExercises } from '../exercises/repository';
-import { addExerciseToWorkout, addSet, completeSet, enableExerciseLoad, finishWorkout, getActiveWorkout, removeSet, setSetFormRating, setSetKind, startWorkout, updateSet, updateSetRpe } from './repository';
+import { addExerciseToWorkout, addSet, completeSet, deleteWorkout, enableExerciseLoad, finishWorkout, getActiveWorkout, removeSet, setSetFormRating, setSetKind, startWorkout, updateSet, updateSetRpe } from './repository';
 
 const LAST_EXERCISE_KEY = 'gtg_last_exercise_id';
 
@@ -40,6 +40,35 @@ export function pickRecent<T extends { id: string }>(ids: readonly string[], exe
 /** Default practice target for a metric: 10 for timed/distance holds, 3 reps otherwise. */
 export function defaultMicroTarget(metric: string): string {
   return metric === 'time' || metric === 'time_load' || metric === 'distance' ? '10' : '3';
+}
+
+/**
+ * Starts a micro-session as an ordinary workout in progress: one entry per exercise, in the order
+ * given, each with its default practice target. The workout screen takes it from there (timers,
+ * rest, notes, everything). Returns the workout id, or the workout already in progress.
+ */
+export async function startMicroSession(exerciseIds: readonly string[]): Promise<{ workoutId: string } | { active: { id: string; name: string } }> {
+  const ids = [...new Set(exerciseIds)];
+  if (ids.length === 0) throw new RangeError('Choose at least one exercise.');
+  const active = await getActiveWorkout();
+  if (active) return { active: { id: active.id, name: active.name } };
+  const found = await Promise.all(ids.map((exerciseId) => getExerciseById(exerciseId)));
+  if (found.some((exercise) => !exercise)) throw new Error('Exercise not found.');
+  const workoutId = await startWorkout(await nextMicroSessionName());
+  try {
+    for (const [index, exercise] of found.entries()) {
+      const entryId = await addExerciseToWorkout(workoutId, ids[index]);
+      const field = exercise!.metric === 'time' || exercise!.metric === 'time_load' ? 'durationSec' : exercise!.metric === 'distance' ? 'distanceM' : 'reps';
+      const sets = (await getActiveWorkout(workoutId))?.exercises.find((entry) => entry.entryId === entryId)?.sets ?? [];
+      for (const set of sets) await updateSet(set.id, field, Number(defaultMicroTarget(exercise!.metric)));
+    }
+  } catch (error) {
+    await deleteWorkout(workoutId).catch(() => undefined);
+    throw error;
+  }
+  const last = ids[ids.length - 1];
+  await db.insert(settings).values({ key: LAST_EXERCISE_KEY, value: last }).onConflictDoUpdate({ target: settings.key, set: { value: last } });
+  return { workoutId };
 }
 
 export async function listMicroSessionExercises(query: string) {

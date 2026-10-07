@@ -2,6 +2,10 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.21.5 - 2026-10-07
+
+- Micro-session is now an ordinary workout: you choose the N exercises first (recent ones, or "Add exercise"), then "Start" opens the same workout screen with sets, rest timers, notifications, notes, bands and everything else. It is named "Mini-session N" and finishes like any workout. If a workout is already in progress, it says so instead of starting.
+
 ## 0.21.4 - 2026-10-07
 
 - More band colours: 18 to pick from (reds, pinks, purples, blues, greens, browns, white, greys, black) and any other colour typed as #rrggbb.
