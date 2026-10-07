@@ -57,8 +57,10 @@ import { playBeep } from '../../src/shared/audio/beeps';
 import {
   ActionButton,
   Body,
+  MenuGrid,
   MenuList,
   MenuRow,
+  MenuTile,
   Card,
   Chip,
   EmptyState,
@@ -851,7 +853,7 @@ export default function WorkoutScreen() {
             <ExerciseBlockField key={`block-${optionsFor.entryId}-${optionsFor.block}`} entryId={optionsFor.entryId} value={optionsFor.block} onChanged={() => { setOptionsFor(null); void refresh(workout.id); }} />
             <SupersetSettings key={`superset-${optionsFor.entryId}-${optionsFor.groupId ?? ''}`} exercise={optionsFor} />
             <ExerciseRestFields key={`rest-${optionsFor.entryId}`} exercise={optionsFor} onSaved={() => void refresh(workout.id)} />
-            <MenuList>
+            <MenuGrid>
               <SupersetActions
                 key={`superset-actions-${optionsFor.entryId}-${optionsFor.groupId ?? ''}`}
                 exercise={optionsFor}
@@ -859,7 +861,7 @@ export default function WorkoutScreen() {
                 onChanged={() => { setOptionsFor(null); void refresh(workout.id); }}
               />
               {emomFieldFor(optionsFor.metric) ? (
-                <MenuRow
+                <MenuTile
                   icon="timer-outline"
                   label={optionsFor.entryId === emomEntryId ? t('emom.stop') : t('emom.open')}
                   onPress={() => {
@@ -870,8 +872,8 @@ export default function WorkoutScreen() {
                   }}
                 />
               ) : null}
-              <MenuRow icon="swap-horizontal" label={t('logger.replaceExercise')} onPress={() => { setReplacing(optionsFor); setOptionsFor(null); setPickerOpen(true); }} />
-              <MenuRow
+              <MenuTile icon="swap-horizontal" label={t('logger.replaceExercise')} onPress={() => { setReplacing(optionsFor); setOptionsFor(null); setPickerOpen(true); }} />
+              <MenuTile
                 icon="construct-outline"
                 label={t('logger.editExercise')}
                 onPress={() => {
@@ -880,8 +882,8 @@ export default function WorkoutScreen() {
                   router.push({ pathname: '/exercise/new', params: { edit: exerciseId } });
                 }}
               />
-              <MenuRow icon={optionsFor.demoUrl ? 'create-outline' : 'link'} label={optionsFor.demoUrl ? t('logger.reference') : t('exercise.addReference')} onPress={() => { setReferenceFor(optionsFor); setOptionsFor(null); }} />
-            </MenuList>
+              <MenuTile icon={optionsFor.demoUrl ? 'create-outline' : 'link'} label={optionsFor.demoUrl ? t('logger.reference') : t('exercise.addReference')} onPress={() => { setReferenceFor(optionsFor); setOptionsFor(null); }} />
+            </MenuGrid>
             <MenuList>
               <MenuRow tone="danger" icon="trash-outline" label={t('logger.removeExercise')} onPress={() => void removeExerciseOrConfirm(optionsFor)} />
             </MenuList>

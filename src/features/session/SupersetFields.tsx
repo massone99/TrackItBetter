@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { MenuGroup, MenuRow, SegmentedControl } from '../../shared/components/ui';
+import { MenuGroup, MenuTile, SegmentedControl } from '../../shared/components/ui';
 import { DurationField } from '../../shared/components/DateTimePickers';
 import { formatClock } from '../../shared/utils/format';
 import { linkWithNext, setSupersetRest, unlinkEntry, type SessionExercise } from './repository';
@@ -35,7 +35,7 @@ export function SupersetActions({ exercise, hasNext, onChanged }: { exercise: Se
   const { t } = useTranslation();
   const groupId = exercise.groupId;
   return <>
-    {hasNext ? <MenuRow icon="link" label={t(groupId ? 'superset.addNext' : 'superset.link')} onPress={() => void linkWithNext(exercise.entryId).then(onChanged)} /> : null}
-    {groupId ? <MenuRow icon="unlink" label={t('superset.unlink')} onPress={() => void unlinkEntry(exercise.entryId).then(onChanged)} /> : null}
+    {hasNext ? <MenuTile icon="link" label={t(groupId ? 'superset.addNext' : 'superset.link')} onPress={() => void linkWithNext(exercise.entryId).then(onChanged)} /> : null}
+    {groupId ? <MenuTile icon="unlink" label={t('superset.unlink')} onPress={() => void unlinkEntry(exercise.entryId).then(onChanged)} /> : null}
   </>;
 }

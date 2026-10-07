@@ -2,6 +2,10 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.20.3 - 2026-10-07
+
+- Exercise menu, more ergonomic: it fits one screen without scrolling. Rest after working sets and warm-ups are one line each with − and + (15 s steps, tap the number to type it); part of the workout is a segmented control; the note folds into one row until you open it; actions are tiles in a grid; Remove stays apart at the bottom.
+
 ## 0.20.2 - 2026-10-07
 
 - Exercise menu in the workout, reorganised: note and part of the workout first, then rest (and superset) settings in their own blocks, then the actions (superset link, EMOM, replace, edit, reference video) as one compact list, and remove apart at the bottom. Same functions as before.

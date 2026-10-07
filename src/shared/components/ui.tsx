@@ -590,6 +590,29 @@ export function MenuRow({ icon, label, onPress, tone = "default" }: { icon: Icon
   );
 }
 
+/** Actions as a grid of tiles (icon over label): one tap each, all in view at once. */
+export function MenuGrid({ children }: PropsWithChildren) {
+  const styles = useScaledStyles(baseStyles);
+  return <View style={styles.menuGrid}>{children}</View>;
+}
+
+export function MenuTile({ icon, label, onPress }: { icon: IconName; label: string; onPress: () => void }) {
+  const styles = useScaledStyles(baseStyles);
+  const { palette } = useTheme();
+  const pressScale = usePressScale(0.97);
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      onPress={() => { tapFeedback(); onPress(); }}
+      style={({ pressed }) => [styles.menuTile, { backgroundColor: palette.surfaceMuted, opacity: pressed ? 0.8 : 1 }, pressScale(pressed)]}
+    >
+      <Icon name={icon} size={22} color={palette.accentStrong} />
+      <Text style={[styles.menuTileLabel, { color: palette.text }]}>{label}</Text>
+    </Pressable>
+  );
+}
+
 /** Bottom sheet for confirmations and short choices; works the same on web and native. */
 export function Sheet({ visible, onClose, title, body, children }: PropsWithChildren<{ visible: boolean; onClose: () => void; title: string; body?: string }>) {
   const styles = useScaledStyles(baseStyles);
@@ -836,6 +859,9 @@ const baseStyles = StyleSheet.create({
   menuList: { borderRadius: radii.surface, borderWidth: StyleSheet.hairlineWidth, overflow: "hidden", gap: StyleSheet.hairlineWidth },
   menuRow: { minHeight: MIN_TOUCH_TARGET + 4, flexDirection: "row", alignItems: "center", gap: spacing.md, paddingHorizontal: spacing.lg, paddingVertical: spacing.sm },
   menuRowLabel: { flex: 1, fontFamily: fonts.medium, fontSize: 16, lineHeight: 22 },
+  menuGrid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
+  menuTile: { flexGrow: 0, flexBasis: "31.5%", minHeight: 76, borderRadius: radii.surface, paddingHorizontal: spacing.sm, paddingVertical: spacing.md, alignItems: "center", justifyContent: "center", gap: spacing.xs },
+  menuTileLabel: { fontFamily: fonts.medium, fontSize: 13, lineHeight: 17, textAlign: "center" },
   sheetContent: { gap: 10 },
   sheetActions: { gap: 10, marginTop: 8 },
   screen: { paddingHorizontal: spacing.page, alignItems: "center" },
