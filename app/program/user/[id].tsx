@@ -10,6 +10,7 @@ import { defaultPastStart } from '../../../src/features/session/pastStart';
 import { logPastUserProgramSession, startUserProgramSession } from '../../../src/features/programs/startUserSession';
 import { deleteUserProgram, duplicateUserProgram, getUserProgram, saveUserProgram } from '../../../src/features/programs/userPrograms';
 import { readDefaultRest } from '../../../src/features/session/restDefaults';
+import { WorkoutDetailsSheet } from '../../../src/features/session/WorkoutDetailsSheet';
 import { WorkoutInProgressSheet } from '../../../src/features/session/WorkoutInProgressSheet';
 import { getActiveWorkout, listRecentWorkoutNames } from '../../../src/features/session/repository';
 import { ReorderableList } from '../../../src/shared/components/ReorderableList';
@@ -48,6 +49,7 @@ export default function UserProgramScreen() {
   const [active, setActive] = useState<{ id: string; name: string } | null>(null);
   const [blockedBy, setBlockedBy] = useState<{ id: string; name: string } | null>(null);
   const [recentNames, setRecentNames] = useState<string[]>([]);
+  const [editing, setEditing] = useState<UserProgramSession | null>(null);
   const [collapsed, setCollapsed] = useState<Set<string>>(() => readCollapsed(id));
 
   useFocusEffect(useCallback(() => {
@@ -194,6 +196,10 @@ export default function UserProgramScreen() {
               accessibilityState={{ expanded: !collapsed.has(session.id) }}
               accessibilityLabel={collapsed.has(session.id) ? t('userProgram.expandDay', { name: session.name }) : t('userProgram.collapseDay', { name: session.name })}
               onPress={() => toggle(session.id)}
+              onLongPress={() => setEditing(session)}
+              accessibilityHint={t('workoutDetails.editHint')}
+              accessibilityActions={[{ name: 'longpress', label: t('workoutDetails.editHint') }]}
+              onAccessibilityAction={(event) => { if (event.nativeEvent.actionName === 'longpress') setEditing(session); }}
               style={styles.sessionHead}
             >
               <View style={styles.flex}>
@@ -217,6 +223,7 @@ export default function UserProgramScreen() {
               />
             ) : null}
           </View>
+          {session.notes?.trim() ? <Text style={[styles.target, { color: palette.text }]}>{session.notes.trim()}</Text> : null}
           {collapsed.has(session.id) ? (
             <Text numberOfLines={2} style={[styles.target, { color: palette.textMuted }]}>
               {session.exercises.map((prescription) => info.get(prescription.exerciseId)?.name ?? t('userProgram.exerciseMissing')).join(' · ')}
@@ -254,6 +261,22 @@ export default function UserProgramScreen() {
           )}
         </Card>
         )}
+      />
+
+      <WorkoutDetailsSheet
+        key={editing?.id ?? 'none'}
+        visible={editing !== null}
+        kind="prescribed"
+        name={editing?.name ?? ''}
+        notes={editing?.notes ?? null}
+        onClose={() => setEditing(null)}
+        onSave={async (details) => {
+          const target = editing;
+          if (!target) return;
+          const saved = await saveUserProgram({ ...program, sessions: program.sessions.map((session) => (session.id === target.id ? { ...session, ...details } : session)) });
+          setProgram(saved);
+          setEditing(null);
+        }}
       />
 
       <WorkoutInProgressSheet active={blockedBy} onClose={() => setBlockedBy(null)} />

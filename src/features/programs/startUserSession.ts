@@ -44,9 +44,9 @@ async function knownPrescriptions(prescriptions: readonly Prescription[]): Promi
  * nothing is left behind: a half-made workout would stay open and block starting any other. Returns
  * the new workout id.
  */
-export async function startPrescribedWorkout(name: string, prescriptions: readonly Prescription[]): Promise<string> {
+export async function startPrescribedWorkout(name: string, prescriptions: readonly Prescription[], notes?: string | null): Promise<string> {
   const known = await knownPrescriptions(prescriptions);
-  const workoutId = await startWorkout(name);
+  const workoutId = await startWorkout(name, notes);
   try {
     await fillWorkout(workoutId, known);
   } catch (error) {
@@ -58,7 +58,7 @@ export async function startPrescribedWorkout(name: string, prescriptions: readon
 
 /** Starts one day of a self-made program; see `startPrescribedWorkout`. */
 export async function startUserProgramSession(program: UserProgram, session: UserProgramSession): Promise<string> {
-  return startPrescribedWorkout(programSessionWorkoutName(program, session), session.exercises);
+  return startPrescribedWorkout(programSessionWorkoutName(program, session), session.exercises, session.notes);
 }
 
 /**
@@ -67,7 +67,7 @@ export async function startUserProgramSession(program: UserProgram, session: Use
  */
 export async function logPastUserProgramSession(program: UserProgram, session: UserProgramSession, startedAt: Date, minutes: number): Promise<string> {
   const known = await knownPrescriptions(session.exercises);
-  const workoutId = await startWorkout(programSessionWorkoutName(program, session));
+  const workoutId = await startWorkout(programSessionWorkoutName(program, session), session.notes);
   try {
     await fillWorkout(workoutId, known);
     await convertToPastWorkout(workoutId, startedAt, minutes);

@@ -298,6 +298,7 @@ export default function PastWorkoutScreen() {
           />
         }
       />
+      {workout.notes ? <Body>{workout.notes}</Body> : null}
       {mobilitySeconds > 0 ? (
         <View style={[styles.mobility, { backgroundColor: palette.accentSoft }]}>
           <Icon name="body-outline" size={16} color={palette.accentStrong} />

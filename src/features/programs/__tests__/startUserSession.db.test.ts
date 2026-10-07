@@ -1,7 +1,7 @@
 import { migrateDatabase } from '../../../db/migrations';
 import { seedCatalogIfEmpty } from '../../../db/seed/import';
 import { createCustomExercise } from '../../exercises/customRepository';
-import { completeSet, finishWorkout, getActiveWorkout, getCompletedWorkout, getPreviousPerformance, setSetFormRating } from '../../session/repository';
+import { completeSet, finishWorkout, getActiveWorkout, getCompletedWorkout, getPreviousPerformance, setSetFormRating, updateWorkoutDetails } from '../../session/repository';
 import { logPastUserProgramSession, startUserProgramSession } from '../startUserSession';
 import { getUserProgram, saveUserProgram } from '../userPrograms';
 
@@ -23,6 +23,21 @@ const custom = (name: string, metric: 'reps' | 'reps_load' | 'time' | 'distance'
 });
 
 describe('starting a workout from a program', () => {
+  it('copies the prescribed workout notes, then the two stay independent', async () => {
+    const id = await custom('Notes press', 'reps');
+    const saved = await saveUserProgram({ name: 'N', sessions: [{ id: 's1', name: 'A', notes: '  Slow negatives  ', exercises: [{ id: 'e', exerciseId: id, sets: 1, target: 5 }] }] });
+    const program = (await getUserProgram(saved.id))!;
+    expect(program.sessions[0].notes).toBe('Slow negatives');
+
+    const workoutId = await startUserProgramSession(program, program.sessions[0]);
+    expect((await getActiveWorkout(workoutId))!.notes).toBe('Slow negatives');
+
+    await updateWorkoutDetails(workoutId, { name: 'Renamed', notes: 'Felt heavy' });
+    expect(await getActiveWorkout(workoutId)).toMatchObject({ name: 'Renamed', notes: 'Felt heavy' });
+    expect((await getUserProgram(saved.id))!.sessions[0]).toMatchObject({ name: 'A', notes: 'Slow negatives' });
+    real.sqlite.prepare('DELETE FROM workout').run();
+  });
+
   it('starts a program made of custom exercises of every measure', async () => {
     const ids = [await custom('My press', 'reps_load'), await custom('My hold', 'time'), await custom('My run', 'distance'), await custom('My reps', 'reps')];
     const saved = await saveUserProgram({

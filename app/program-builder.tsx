@@ -258,6 +258,14 @@ export default function ProgramEditorScreen() {
               maxLength={40}
               error={sessionErrors.some((error) => error.code === 'sessionNameMissing') ? t('userProgram.errors.sessionNameMissing') : null}
             />
+            <TextField
+              label={t('workoutDetails.notes')}
+              value={session.notes ?? ''}
+              onChangeText={(value) => updateSession(session.id, { notes: value })}
+              placeholder={t('workoutDetails.notesPlaceholder')}
+              multiline
+              maxLength={1000}
+            />
             <ReorderableList
               items={session.exercises}
               keyOf={(item) => item.id}

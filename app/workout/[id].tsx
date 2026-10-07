@@ -30,6 +30,7 @@ import {
   moveExerciseEntry,
   getActiveWorkout,
   getPreviousPerformance,
+  updateWorkoutDetails,
   removeExerciseEntry,
   removeExerciseEntryWithUndo,
   removeSetWithUndo,
@@ -72,6 +73,7 @@ import {
 import { ReorderableList } from '../../src/shared/components/ReorderableList';
 import { SaveToProgramSheet } from '../../src/features/programs/SaveToProgramSheet';
 import { ExerciseNoteField } from '../../src/features/session/ExerciseNoteField';
+import { WorkoutDetailsSheet } from '../../src/features/session/WorkoutDetailsSheet';
 import { LoadError } from '../../src/shared/components/LoadError';
 import { SetSheet } from '../../src/features/session/SetSheet';
 import { ExerciseCard, holdDisplay } from '../../src/features/session/ExerciseCard';
@@ -135,6 +137,7 @@ export default function WorkoutScreen() {
   const [clockNow, setClockNow] = useState<number | null>(null);
   const [voiceCues, setVoiceCues] = useState(() => readBooleanPreference(VOICE_CUES_KEY, false));
   const [readinessOpen, setReadinessOpen] = useState(false);
+  const [detailsOpen, setDetailsOpen] = useState(false);
   const [finishOpen, setFinishOpen] = useState(false);
   const [saveOpen, setSaveOpen] = useState(false);
   const [savedTo, setSavedTo] = useState<{ id: string; name: string } | null>(null);
@@ -614,6 +617,8 @@ export default function WorkoutScreen() {
         ) : undefined}
       >
         <PageHeading
+          onTitleLongPress={() => setDetailsOpen(true)}
+          titleLongPressLabel={t('workoutDetails.editHint')}
           title={displayWorkoutName(workout.name, t('log.pastName'))}
           subtitle={[
             t('workout.inProgress', { elapsed }),
@@ -631,6 +636,8 @@ export default function WorkoutScreen() {
             />
           }
         />
+
+        {workout.notes ? <Body>{workout.notes}</Body> : null}
 
         {totalSets > 0 ? (
           <View style={styles.summary}>
@@ -813,6 +820,16 @@ export default function WorkoutScreen() {
         <ActionButton icon="trash-outline" label={t('workout.discardConfirm')} variant="danger" onPress={() => void confirmDiscard()} />
         <ActionButton label={t('logger.keepGoing')} secondary onPress={() => setDiscardOpen(false)} />
       </Sheet>
+
+      <WorkoutDetailsSheet
+        key={`${workout.id}:${detailsOpen}`}
+        visible={detailsOpen}
+        kind="performed"
+        name={workout.name}
+        notes={workout.notes}
+        onClose={() => setDetailsOpen(false)}
+        onSave={async (details) => { await updateWorkoutDetails(workout.id, details); await refresh(workout.id); setDetailsOpen(false); }}
+      />
 
       <Sheet visible={optionsFor !== null} onClose={() => setOptionsFor(null)} title={optionsFor?.name ?? t('logger.options')}>
         {optionsFor ? (

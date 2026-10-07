@@ -242,7 +242,7 @@ export function IconButton({ icon, onPress, label, tone = "muted", size = 40, co
 }
 
 /** Page title with an automatic back button on every non-tab screen. */
-export function PageHeading({ title, subtitle, action }: { title: string; subtitle?: string; action?: ReactNode }) {
+export function PageHeading({ title, subtitle, action, onTitleLongPress, titleLongPressLabel }: { title: string; subtitle?: string; action?: ReactNode; onTitleLongPress?: () => void; titleLongPressLabel?: string }) {
   const styles = useScaledStyles(baseStyles);
   const segments = useSegments();
   const { t } = useTranslation();
@@ -257,7 +257,19 @@ export function PageHeading({ title, subtitle, action }: { title: string; subtit
         </View>
       ) : null}
       <View style={styles.pageTitleRow}>
-        <Title style={styles.pageTitle}>{title}</Title>
+        {onTitleLongPress ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={title}
+            accessibilityHint={titleLongPressLabel}
+            onLongPress={onTitleLongPress}
+            accessibilityActions={[{ name: "longpress", label: titleLongPressLabel }]}
+            onAccessibilityAction={(event) => { if (event.nativeEvent.actionName === "longpress") onTitleLongPress(); }}
+            style={styles.pageTitlePress}
+          >
+            <Title style={styles.pageTitle}>{title}</Title>
+          </Pressable>
+        ) : <Title style={styles.pageTitle}>{title}</Title>}
         {action}
       </View>
       {subtitle ? <Body style={styles.pageSubtitle}>{subtitle}</Body> : null}
@@ -760,6 +772,7 @@ const baseStyles = StyleSheet.create({
   pageTopBar: { flexDirection: "row", alignItems: "center", marginLeft: -12, marginTop: -8 },
   pageTitleRow: { flexDirection: "row", alignItems: "center", gap: spacing.md },
   pageTitle: { flex: 1 },
+  pageTitlePress: { flex: 1 },
   pageSubtitle: { fontSize: 15, lineHeight: 22 },
   title: { fontFamily: fonts.display, ...typeScale.title },
   heading: { fontFamily: fonts.semibold, ...typeScale.heading },
