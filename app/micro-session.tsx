@@ -110,6 +110,7 @@ export default function MicroSessionScreen() {
       {draft.map((exercise) => (
         <ExerciseCard
           key={exercise.entryId}
+          editDone
           exercise={exercise}
           collapsed={collapsed.has(exercise.entryId)}
           onToggleCollapsed={() => setCollapsed((current) => {

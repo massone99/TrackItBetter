@@ -752,6 +752,7 @@ export default function WorkoutScreen() {
             showRpe={showRpe}
             defaultRest={restForSet(exercise.exerciseId, { kind: 'working', restSec: null })}
             onFormRating={(set, rating) => void saveFormRating(set, rating)}
+            editDone
             onRpe={(set, rpe) => void saveRpe(set, rpe)}
             onOptions={() => setOptionsFor(exercise)}
           />

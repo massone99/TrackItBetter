@@ -2,6 +2,10 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.20.5 - 2026-10-07
+
+- Completed sets can be edited in the workout in progress (and in a micro-session): the − and + buttons and the typed value stay available after the check. Saved values update at once; the set stays done and the rest timer keeps running.
+
 ## 0.20.4 - 2026-10-07
 
 - Rest countdown always in the notification shade and on the lock screen, ticking in real time by the system (the native module was missing from the repository, so the countdown never appeared).
