@@ -58,6 +58,7 @@ import { playBeep } from '../../src/shared/audio/beeps';
 import {
   ActionButton,
   Body,
+  IconButton,
   Label,
   MenuGrid,
   MenuGroup,
@@ -719,10 +720,12 @@ export default function WorkoutScreen() {
           />
         ) : null}
 
-        {swipeHint && completedCount < 3 && workout.exercises.some((exercise) => exercise.sets.length > 0) ? (
+        {/* Until the first set is done, or closed: after that it only takes room above the sets. */}
+        {swipeHint && !allSets.some((set) => set.completedAt) && workout.exercises.some((exercise) => exercise.sets.length > 0) ? (
           <Animated.View exiting={itemExiting} style={[styles.swipeHint, { backgroundColor: palette.accentSoft }]}>
             <Icon name="swap-horizontal" size={18} color={palette.accentStrong} />
             <Text style={[styles.swipeHintText, { color: palette.accentStrong }]}>{t('logger.swipeHint')}</Text>
+            <IconButton icon="close" label={t('common.close')} tone="plain" size={40} onPress={markSwiped} />
           </Animated.View>
         ) : null}
         <View onLayout={(event) => { listTop.current = event.nativeEvent.layout.y; }}>

@@ -110,14 +110,14 @@ export function compareWithLast(
       : orderSteps.every((step) => step! <= 0) ? 'less'
         : orderSteps.every((step) => step! >= 0) ? 'more' : null;
   const assistUnknown = kgMissing && assistOrder === null && !(orderSteps?.length === 0);
-  const assistLast = previous && anyBands && !assistUnknown ? mean(perSet(previous, assistOf)) : null;
-  const assistNow = anyBands && !assistUnknown ? mean(perSet(done, assistOf)) : null;
+  const assistLast = previous && anyBands && !kgMissing ? mean(perSet(previous, assistOf)) : null;
+  const assistNow = anyBands && !kgMissing ? mean(perSet(done, assistOf)) : null;
   const assist = assistLast !== null ? { now: assistNow === null ? null : round(assistNow), last: round(assistLast) } : null;
   const working = current.filter((set) => set.kind !== 'warmup');
   const sameWork = previous !== null && working.length > 0 && working.every((set) => set.completedAt)
     && sameValues(perSet(done, (set) => amountOf(set, metric)), totalLast)
     && sameValues(perSet(done, (set) => set.addedLoadKg ?? 0), perSet(previous, (set) => set.addedLoadKg ?? 0))
-    && !assistUnknown && sameValues(perSet(done, (set) => assistOf(set) ?? 0), perSet(previous, (set) => assistOf(set) ?? 0));
+    && (kgMissing ? assistOrder === 'same' : sameValues(perSet(done, (set) => assistOf(set) ?? 0), perSet(previous, (set) => assistOf(set) ?? 0)));
   const improvedRest = rest !== null && rest.now !== null && rest.now < rest.last;
   const improvedForm = form !== null && form.now !== null && form.now > form.last;
   const worseForm = form !== null && form.now !== null && form.now < form.last;

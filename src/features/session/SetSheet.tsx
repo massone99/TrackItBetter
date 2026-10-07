@@ -4,13 +4,14 @@ import { useTranslation } from 'react-i18next';
 import { View } from 'react-native';
 import type { HoldMode } from '../../domain/holdTimer';
 import { poseDetectionAvailable } from '../pose/detectPose';
-import { ActionButton, Body, Label, SegmentedControl, Sheet, TextField } from '../../shared/components/ui';
+import { ActionButton, Body, Label, MenuList, MenuRow, SegmentedControl, Sheet, TextField } from '../../shared/components/ui';
 import { formatClock } from '../../shared/utils/format';
 import { describePreviousSet } from './ExerciseCard';
 import { FormRating } from './LastTime';
 import { removeSetWithUndo, setSetFormRating, updateSetNote, updateSetRpe, type PreviousSetValues, type RemovedRows, type SessionExercise, type SessionSet } from './repository';
 import { RpePicker } from './RpePicker';
 import { SetBandsField } from '../equipment/SetBandsField';
+import { bandsById, describeSetBands, useEquipment } from '../equipment/useEquipment';
 
 /**
  * Per-set details kept out of the row, for the workout in progress and a finished one: RPE, form,
@@ -39,6 +40,10 @@ export function SetSheet({ exercise, set, holdMode, onHoldMode, onClose, onChang
   const [rpe, setRpe] = useState(set.rpe);
   const [form, setForm] = useState(set.formRating);
   const [confirming, setConfirming] = useState(false);
+  // Bands open in their own view of the sheet, so the main view stays short.
+  const [bandsOpen, setBandsOpen] = useState(false);
+  const { catalog } = useEquipment();
+  const bandsText = catalog ? describeSetBands(set, bandsById(catalog), t)?.text ?? null : null;
   // Clips cannot be restored, so only a set with clips asks first; any other removal can be undone.
   const needsConfirm = set.clipCount > 0;
   const timed = exercise.metric === 'time' || exercise.metric === 'time_load';
@@ -67,10 +72,16 @@ export function SetSheet({ exercise, set, holdMode, onHoldMode, onClose, onChang
     <Sheet
       visible
       onClose={close}
-      title={`${exercise.name} · ${t('logger.setTitle', { number: set.index })}`}
+      title={bandsOpen ? `${t('bands.title')} · ${t('logger.setTitle', { number: set.index })}` : `${exercise.name} · ${t('logger.setTitle', { number: set.index })}`}
       body={confirming ? t('logger.removeCompletedWarning') : undefined}
     >
-      {confirming ? null : (
+      {bandsOpen ? (
+        <>
+          <SetBandsField exercise={exercise} set={set} onChanged={onChanged} />
+          <ActionButton icon="arrow-back" label={t('bands.back')} onPress={() => setBandsOpen(false)} />
+        </>
+      ) : null}
+      {confirming || bandsOpen ? null : (
         <>
           {timed && holdMode && onHoldMode ? (
             <View style={{ gap: 6 }}>
@@ -99,7 +110,9 @@ export function SetSheet({ exercise, set, holdMode, onHoldMode, onClose, onChang
           ) : null}
           <RpePicker value={rpe} onChange={(next) => { setRpe(next); void updateSetRpe(set.id, next).then(onChanged); }} />
           {set.kind === 'working' ? <FormRating value={form} onChange={(next) => { setForm(next); void setSetFormRating(set.id, next).then(onChanged); }} /> : null}
-          <SetBandsField exercise={exercise} set={set} onChanged={onChanged} />
+          <MenuList>
+            <MenuRow icon="git-commit-outline" label={bandsText ? `${t('bands.title')}: ${bandsText}` : t('bands.addRow')} onPress={() => setBandsOpen(true)} />
+          </MenuList>
           <TextField
             label={t('logger.noteLabel')}
             value={note}
@@ -125,8 +138,8 @@ export function SetSheet({ exercise, set, holdMode, onHoldMode, onClose, onChang
           ) : null}
         </>
       )}
-      <ActionButton icon="trash-outline" label={confirming ? t('logger.confirmRemove') : t('logger.removeSet')} variant="danger" onPress={() => void remove()} />
-      {confirming
+      {bandsOpen ? null : <ActionButton icon="trash-outline" label={confirming ? t('logger.confirmRemove') : t('logger.removeSet')} variant="danger" onPress={() => void remove()} />}
+      {bandsOpen ? null : confirming
         ? <ActionButton label={t('common.cancel')} secondary onPress={() => setConfirming(false)} />
         : <ActionButton label={t('logger.done')} onPress={close} />}
     </Sheet>

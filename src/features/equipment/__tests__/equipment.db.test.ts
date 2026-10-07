@@ -93,4 +93,18 @@ describe('equipment', () => {
     expect(sets[0].bands).toHaveLength(2);
     real.sqlite.prepare('DELETE FROM workout WHERE id = ?').run(workoutId);
   });
+
+  it('puts the bands on both sides of an L/R pair', async () => {
+    const set = await saveBandSet({ name: 'Pair bands', bands: [{ ...newBand('Red', '#EB5757'), minKg: 10, maxKg: 10 }] });
+    const byId = bandsById(await getEquipment());
+    const workoutId = await startWorkout('Pair');
+    const entryId = await addExerciseToWorkout(workoutId, 'pull-up');
+    const side = { reps: 5, durationSec: null, distanceM: null, addedLoadKg: 0, rpe: null };
+    const pairSet = await addSet(entryId, { left: side, right: side });
+    await setSetBands(pairSet, [{ bandId: set.bands[0].id, tension: 1 }], byId);
+    const rows = real.sqlite.prepare('SELECT side, assist_kg FROM training_set WHERE pair_id IS NOT NULL AND entry_id = ?').all(entryId) as { side: string; assist_kg: number }[];
+    expect(rows).toHaveLength(2);
+    expect(rows.every((row) => row.assist_kg === 10)).toBe(true);
+    real.sqlite.prepare('DELETE FROM workout WHERE id = ?').run(workoutId);
+  });
 });

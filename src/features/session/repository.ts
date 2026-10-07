@@ -527,13 +527,16 @@ export async function setEntryApparatus(entryId: string, apparatusId: string | n
   await bumpIfFinished({ entryId });
 }
 
-/** Saves the bands of a set and their assistance in kg, worked out now so later edits of a band leave history as it was. */
+/**
+ * Saves the bands of a set and their assistance in kg, worked out now so later edits of a band leave
+ * history as it was. Both sides of an L/R pair get them: the same bands help each side.
+ */
 export async function setSetBands(setId: string, bands: readonly SetBand[], catalog: ReadonlyMap<string, Band>): Promise<void> {
   await initializeDatabase();
   await db.update(trainingSets).set({
     bands: bands.length > 0 ? JSON.stringify(bands) : null,
     assistKg: setAssistKg(bands, catalog),
-  }).where(eq(trainingSets.id, setId));
+  }).where(await pairCondition(setId));
   await bumpIfFinished({ setId });
 }
 

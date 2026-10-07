@@ -2,6 +2,14 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.21.3 - 2026-10-07
+
+- Workout screen, more room for the sets: once an exercise has a done set, "vs last time" folds into one line (tap it for the cells); the swipe hint closes with × and goes away after the first done set.
+- Set menu shorter: bands are one row ("Bands: Blue T2") that opens their own view.
+- A done set is marked by its tint and green check only; the set number no longer turns solid too.
+- Bands on an L/R pair go on both sides.
+- Without kg, an "average assistance" cell no longer shows next to the strength-order line.
+
 ## 0.21.2 - 2026-10-07
 
 - Finished workout: an exercise's menu sets its average RPE and average form by hand. The value goes to every completed working set (warm-ups and open sets are left alone), so statistics and "vs last time" use it.
