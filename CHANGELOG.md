@@ -2,6 +2,10 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.21.4 - 2026-10-07
+
+- More band colours: 18 to pick from (reds, pinks, purples, blues, greens, browns, white, greys, black) and any other colour typed as #rrggbb.
+
 ## 0.21.3 - 2026-10-07
 
 - Workout screen, more room for the sets: once an exercise has a done set, "vs last time" folds into one line (tap it for the cells); the swipe hint closes with × and goes away after the first done set.

@@ -1,4 +1,4 @@
-import { bandRanks, compareBandHelp, orderAfterSetEdit, type SetBand } from '../equipment';
+import { bandRanks, compareBandHelp, orderAfterSetEdit, parseHexColor, type SetBand } from '../equipment';
 import { compareWithLast, type ComparableSet } from '../lastTime';
 
 const set = (reps: number, extra: Partial<ComparableSet> = {}): ComparableSet => ({ reps, durationSec: null, distanceM: null, completedAt: new Date(), ...extra });
@@ -104,5 +104,14 @@ describe('band strength order', () => {
     expect([...bandRanks(sets, ['b1', 'a1']).keys()]).toEqual(['b1', 'a1', 'a2']);
     const edited = { ...sets[0], bands: [sets[0].bands[1], sets[0].bands[0], { id: 'a3', name: '', color: '', minKg: null, maxKg: null }] };
     expect(orderAfterSetEdit(['a1', 'b1', 'a2'], sets, edited)).toEqual(['a2', 'b1', 'a1', 'a3']);
+  });
+});
+
+describe('parseHexColor', () => {
+  it('reads 3 or 6 hex digits, with or without #', () => {
+    expect(parseHexColor('2f80ed')).toBe('#2F80ED');
+    expect(parseHexColor(' #abc ')).toBe('#AABBCC');
+    expect(parseHexColor('#12')).toBeNull();
+    expect(parseHexColor('blue')).toBeNull();
   });
 });

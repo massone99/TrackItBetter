@@ -2,7 +2,7 @@ import { useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
-import { BAND_COLORS, type Band, type BandSet } from '../../src/domain/equipment';
+import { BAND_COLORS, parseHexColor, type Band, type BandSet } from '../../src/domain/equipment';
 import { moveItem } from '../../src/domain/userProgram';
 import { newBand, saveBandSet, setBandSetArchived } from '../../src/features/equipment/repository';
 import { bandRange, useEquipment } from '../../src/features/equipment/useEquipment';
@@ -90,6 +90,7 @@ function BandSheet({ band, onClose, onSave, onRemove }: { band: Band; onClose: (
   const styles = useScaledStyles(baseStyles);
   const [name, setName] = useState(band.name);
   const [color, setColor] = useState(band.color);
+  const [hex, setHex] = useState(BAND_COLORS.some((swatch) => swatch === band.color) ? '' : band.color);
   const [minKg, setMinKg] = useState(band.minKg === null ? '' : String(band.minKg));
   const [maxKg, setMaxKg] = useState(band.maxKg === null ? '' : String(band.maxKg));
   const read = (value: string) => { const parsed = parseNumberInput(value, false); return parsed !== null && parsed >= 0 ? parsed : null; };
@@ -112,6 +113,21 @@ function BandSheet({ band, onClose, onSave, onRemove }: { band: Band; onClose: (
             style={[styles.colorOption, { backgroundColor: swatch, borderColor: swatch === color ? palette.accentStrong : palette.border, borderWidth: swatch === color ? 3 : 1 }]}
           />
         ))}
+      </View>
+      <View style={styles.hexRow}>
+        <View style={[styles.hexSwatch, { backgroundColor: color, borderColor: palette.border }]} />
+        <View style={styles.flex}>
+          <TextField
+            label={t('equipment.customColor')}
+            value={hex}
+            onChangeText={(value) => { setHex(value); const parsed = parseHexColor(value); if (parsed) setColor(parsed); }}
+            placeholder="#2F80ED"
+            autoCapitalize="characters"
+            autoCorrect={false}
+            maxLength={7}
+            error={hex.trim() && !parseHexColor(hex) ? t('equipment.customColorInvalid') : null}
+          />
+        </View>
       </View>
       <View style={styles.kgRow}>
         <View style={styles.flex}><TextField label={t('equipment.minKg')} value={minKg} onChangeText={setMinKg} keyboardType="decimal-pad" placeholder="–" /></View>
@@ -137,6 +153,8 @@ const baseStyles = StyleSheet.create({
   colors: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   colorOption: { width: 44, height: 44, borderRadius: 22 },
   kgRow: { flexDirection: 'row', gap: 12 },
+  hexRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 12 },
+  hexSwatch: { width: 48, height: 48, borderRadius: 24, borderWidth: 1, marginBottom: 2 },
   removeRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   removeText: { flex: 1, fontFamily: fonts.medium, fontSize: 13 },
 });

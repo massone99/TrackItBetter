@@ -45,7 +45,20 @@ export function defaultApparatus(): Apparatus[] {
   return BUILTIN_APPARATUS.map((key) => ({ id: `builtin-${key}`, name: '', builtin: key }));
 }
 
-export const BAND_COLORS = ['#F2C94C', '#EB5757', '#27AE60', '#2F80ED', '#9B51E0', '#333333', '#F2994A', '#828282'] as const;
+/** Band colours to pick from, by hue; any other colour can be typed as #rrggbb. */
+export const BAND_COLORS = [
+  '#F2C94C', '#F2994A', '#EB5757', '#B3261E', '#F48FB1', '#9B51E0', '#5E35B1', '#2F80ED',
+  '#56CCF2', '#00897B', '#27AE60', '#9BCB3B', '#8D6E63', '#E0D2B4', '#FFFFFF', '#BDBDBD',
+  '#828282', '#333333',
+] as const;
+
+/** A colour as #rrggbb in capitals, from what was typed (with or without #, 3 or 6 digits); null when it is not one. */
+export function parseHexColor(text: string): string | null {
+  const match = /^#?([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(text.trim());
+  if (!match) return null;
+  const digits = match[1].length === 3 ? match[1].split('').map((digit) => digit + digit).join('') : match[1];
+  return `#${digits.toUpperCase()}`;
+}
 
 /** Assistance of one band: tension 1 is the minimum, 3 the maximum, 2 halfway; null when its kg are unknown. */
 export function bandAssistKg(band: Pick<Band, 'minKg' | 'maxKg'>, tension: Tension): number | null {
