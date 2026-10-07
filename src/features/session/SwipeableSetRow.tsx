@@ -3,6 +3,7 @@ import { StyleSheet, View } from 'react-native';
 import ReanimatedSwipeable, { SwipeDirection, type SwipeableMethods } from 'react-native-gesture-handler/ReanimatedSwipeable';
 import Animated, {
   Extrapolation,
+  FadeIn,
   interpolate,
   useAnimatedStyle,
   useReducedMotion,
@@ -118,16 +119,17 @@ export function PopOnActivate({ active, children }: PropsWithChildren<{ active: 
 }
 
 /** Tinted backdrop that fades in when a set is completed, so the row fills rather than flips. */
+/**
+ * The tint of a done set. Drawn whenever the set is done (not an animated opacity, which could be
+ * left behind at 0 when rows moved or re-mounted, so some done sets showed it and others did not);
+ * it only fades in when it appears.
+ */
 export function DoneTint({ done, color }: { done: boolean; color: string }) {
   const systemReduceMotion = useReducedMotion();
   const { reducedMotion, speed } = useAnimationSettings();
   const reduceMotion = systemReduceMotion || reducedMotion || speed === 'off';
-  const progress = useSharedValue(done ? 1 : 0);
-  useEffect(() => {
-    progress.value = reduceMotion ? (done ? 1 : 0) : withTiming(done ? 1 : 0, { duration: speed === 'fast' ? 140 : 260 });
-  }, [done, progress, reduceMotion, speed]);
-  const style = useAnimatedStyle(() => ({ opacity: progress.value }));
-  return <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: color }, style]} />;
+  if (!done) return null;
+  return <Animated.View pointerEvents="none" entering={reduceMotion ? undefined : FadeIn.duration(speed === 'fast' ? 140 : 260)} style={[StyleSheet.absoluteFill, { backgroundColor: color }]} />;
 }
 
 const baseStyles = StyleSheet.create({

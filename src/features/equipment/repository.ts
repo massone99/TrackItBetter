@@ -2,7 +2,7 @@ import { eq } from 'drizzle-orm';
 import * as Crypto from 'expo-crypto';
 import { db, initializeDatabase } from '../../db/client';
 import { settings } from '../../db/schema';
-import { defaultApparatus, type Apparatus, type Band, type BandSet } from '../../domain/equipment';
+import { defaultApparatus, orderAfterSetEdit, type Apparatus, type Band, type BandSet } from '../../domain/equipment';
 
 export type { Apparatus, Band, BandSet, SetBand, Tension } from '../../domain/equipment';
 
@@ -12,6 +12,8 @@ const KEY = 'equipment_v1';
 export interface EquipmentCatalog {
   apparatus: Apparatus[];
   bandSets: BandSet[];
+  /** Every band from the lightest to the strongest, across band sets (see bandRanks). */
+  bandOrder: string[];
 }
 
 const finite = (value: unknown): number | null => (typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : null);
@@ -41,7 +43,8 @@ export function parseCatalog(value: unknown): EquipmentCatalog {
       return [{ id: row.id, name: row.name, bands, archived: row.archived === true }];
     })
     : [];
-  return { apparatus, bandSets };
+  const bandOrder = Array.isArray(source.bandOrder) ? source.bandOrder.filter((id): id is string => typeof id === 'string') : [];
+  return { apparatus, bandSets, bandOrder };
 }
 
 export async function getEquipment(): Promise<EquipmentCatalog> {
@@ -86,8 +89,18 @@ export async function saveBandSet(set: Omit<BandSet, 'id'> & { id?: string }): P
   const catalog = await getEquipment();
   const next: BandSet = { id: set.id ?? newId(), name: set.name.trim(), archived: set.archived ?? false, bands: set.bands.map((band) => ({ ...band, name: band.name.trim() })) };
   const exists = catalog.bandSets.some((item) => item.id === next.id);
-  await writeEquipment({ ...catalog, bandSets: exists ? catalog.bandSets.map((item) => (item.id === next.id ? next : item)) : [...catalog.bandSets, next] });
+  await writeEquipment({
+    ...catalog,
+    bandSets: exists ? catalog.bandSets.map((item) => (item.id === next.id ? next : item)) : [...catalog.bandSets, next],
+    bandOrder: orderAfterSetEdit(catalog.bandOrder, catalog.bandSets, next),
+  });
   return next;
+}
+
+/** Saves the strength order of every band, lightest first, across band sets. */
+export async function saveBandOrder(bandOrder: string[]): Promise<void> {
+  const catalog = await getEquipment();
+  await writeEquipment({ ...catalog, bandOrder });
 }
 
 export async function setBandSetArchived(id: string, archived: boolean): Promise<void> {

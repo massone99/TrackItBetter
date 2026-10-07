@@ -27,7 +27,7 @@ export function LastTimeStrip({ comparison, metric, date, detail }: {
   const { palette } = useTheme();
   const styles = useScaledStyles(baseStyles);
   const [open, setOpen] = useState(false);
-  const { total, rest, form, rpe, assist, assistUnknown, improved, worse } = comparison;
+  const { total, rest, form, rpe, assist, assistUnknown, assistOrder, improved, worse } = comparison;
   const totalLabel = metric === 'time' || metric === 'time_load' ? t('lastTime.totalTime') : metric === 'distance' ? t('lastTime.totalMeters') : t('lastTime.totalReps');
   const cells: { key: string; label: string; pairing: Pairing; trend: 'up' | 'down' | null; delta: string | null; format: (value: number) => string }[] = [];
   const signed = (value: number) => `${value > 0 ? '+' : '−'}${formatNumber(Math.abs(Math.round(value * 10) / 10))}`;
@@ -77,6 +77,12 @@ export function LastTimeStrip({ comparison, metric, date, detail }: {
           );
         })}
       </View>
+      {assistOrder ? (
+        // Without kg, the bands' strength order still says whether the help went down.
+        <Label style={[styles.detail, assistOrder === 'less' ? { color: palette.success } : null]}>
+          {`${t(`lastTime.assistOrder.${assistOrder}`)}${assistOrder === 'less' ? ' ↑' : ''}`}
+        </Label>
+      ) : null}
       {assistUnknown ? <Label style={styles.detail}>{t('lastTime.assistUnknown')}</Label> : null}
       {open ? <Label style={styles.detail}>{detail}</Label> : null}
     </View>

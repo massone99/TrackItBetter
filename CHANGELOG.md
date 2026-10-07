@@ -2,6 +2,14 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.21.1 - 2026-10-07
+
+- Replacing an exercise in the workout no longer carries its note (from the program's prescription) or apparatus over to the new exercise.
+- Done sets are tinted consistently: before, some done sets kept no tint after rows moved.
+- EMOM bar: round and exercise on top, the time large beside Stop, a bar of rounds done, then the value of this round. The time no longer disappears.
+- Strength order of bands (Equipment → Strength order): every band of every band set from the lightest to the strongest. Without kg, "vs last time" compares the help through this order, also across band sets ("lighter / same / stronger bands than last time"); it gives up only when the order cannot tell (e.g. one strong band against two lighter ones). Reordering a band set keeps the global order in step.
+- Band chip on a set reads "Blue T2" (tension 2).
+
 ## 0.21.0 - 2026-10-07
 
 - Equipment (Profile → Equipment): apparatus (bar, rings, parallel bars, parallettes, floor, wall bars, plus your own) shared by every exercise, and band sets (e.g. "Decathlon") with each band's colour and, when known, kg at minimum and maximum stretch, ordered lightest to strongest.

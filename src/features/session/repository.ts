@@ -1293,7 +1293,8 @@ export async function replaceEntryExercise(entryId: string, exerciseId: string):
     .innerJoin(exercises, eq(exerciseEntries.exerciseId, exercises.id)).where(eq(exerciseEntries.id, entryId)).limit(1);
   const [next] = await db.select({ metric: exercises.metric }).from(exercises).where(eq(exercises.id, exerciseId)).limit(1);
   if (!current || !next) throw new Error('Exercise not found');
-  await db.update(exerciseEntries).set({ exerciseId }).where(eq(exerciseEntries.id, entryId));
+  // The note and apparatus belonged to the exercise being replaced (its prescription in the program), not to the new one.
+  await db.update(exerciseEntries).set({ exerciseId, notes: null, apparatusId: null }).where(eq(exerciseEntries.id, entryId));
   if (measureOf(current.metric) !== measureOf(next.metric)) {
     const measure = measureOf(next.metric);
     await db.update(trainingSets).set({

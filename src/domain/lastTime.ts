@@ -1,3 +1,4 @@
+import type { SetBand } from './equipment';
 import { groupSets } from './setPairs';
 
 /** What the comparison needs from a set, current or from last time. */
@@ -14,7 +15,7 @@ export interface ComparableSet {
   formRating?: number | null;
   rpe?: number | null;
   /** Bands on the set; with `assistKg` null they are bands whose kg are unknown. */
-  bands?: readonly unknown[];
+  bands?: readonly SetBand[];
   assistKg?: number | null;
 }
 
@@ -32,8 +33,10 @@ export interface LastTimeComparison {
   rpe: Pairing | null;
   /** Average band assistance in kg (a set without bands counts 0); null when no set used bands. */
   assist: Pairing | null;
-  /** Some set used a band whose kg are unknown, so assistance cannot be compared. */
+  /** Some set used a band whose kg are unknown and the strength order cannot compare them either. */
   assistUnknown: boolean;
+  /** Without kg, help from the bands compared set by set through the strength order; null when not needed or not possible. */
+  assistOrder: 'less' | 'same' | 'more' | null;
   /**
    * The mini PRs: more in total, less rest, better form, and the same work at a lower average RPE
    * (every set done with the same reps or time and load as last time, rest no longer, form no worse).
@@ -75,7 +78,7 @@ export function compareWithLast(
   current: readonly ComparableSet[],
   previous: readonly ComparableSet[] | null,
   metric: string,
-  options: { defaultRest: number },
+  options: { defaultRest: number; compareBands?: (a: readonly SetBand[], b: readonly SetBand[]) => -1 | 0 | 1 | null },
 ): LastTimeComparison {
   const done = current.filter((set) => set.completedAt);
   const restOf = (set: ComparableSet) => set.restSec ?? options.defaultRest;
@@ -96,7 +99,17 @@ export function compareWithLast(
   const assistOf = (set: ComparableSet) => (banded(set) ? set.assistKg ?? null : 0);
   const workingLast = (previous ?? []).filter((set) => set.kind !== 'warmup');
   const anyBands = done.some(banded) || workingLast.some(banded);
-  const assistUnknown = anyBands && [...done, ...workingLast].some((set) => set.kind !== 'warmup' && banded(set) && set.assistKg == null);
+  const kgMissing = anyBands && [...done, ...workingLast].some((set) => set.kind !== 'warmup' && banded(set) && set.assistKg == null);
+  // Without kg, the strength order compares the bands set by set (an L/R pair counts once).
+  const firstOfEach = (sets: readonly ComparableSet[]) => groupSets(sets.filter((set) => set.kind !== 'warmup')).map((group) => group[0]);
+  const orderSteps = kgMissing && previous && options.compareBands
+    ? firstOfEach(done).slice(0, firstOfEach(previous).length).map((set, index) => options.compareBands!(set.bands ?? [], firstOfEach(previous)[index].bands ?? []))
+    : null;
+  const assistOrder = !orderSteps || orderSteps.length === 0 || orderSteps.some((step) => step === null) ? null
+    : orderSteps.every((step) => step === 0) ? 'same'
+      : orderSteps.every((step) => step! <= 0) ? 'less'
+        : orderSteps.every((step) => step! >= 0) ? 'more' : null;
+  const assistUnknown = kgMissing && assistOrder === null && !(orderSteps?.length === 0);
   const assistLast = previous && anyBands && !assistUnknown ? mean(perSet(previous, assistOf)) : null;
   const assistNow = anyBands && !assistUnknown ? mean(perSet(done, assistOf)) : null;
   const assist = assistLast !== null ? { now: assistNow === null ? null : round(assistNow), last: round(assistLast) } : null;
@@ -115,12 +128,13 @@ export function compareWithLast(
     rpe,
     assist,
     assistUnknown,
+    assistOrder,
     improved: {
       total: total !== null && total.now !== null && total.now > total.last,
       rest: improvedRest,
       form: improvedForm,
       // Less help from the bands for the work done is progress; it fills up like the total.
-      assist: assist !== null && assist.now !== null && assist.now < assist.last && working.every((set) => set.completedAt),
+      assist: working.every((set) => set.completedAt) && ((assist !== null && assist.now !== null && assist.now < assist.last) || assistOrder === 'less'),
       rpe: sameWork && rpe !== null && rpe.now !== null && rpe.now < rpe.last
         && (rest === null || rest.now === null || rest.now <= rest.last) && !worseForm,
     },

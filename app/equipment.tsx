@@ -81,6 +81,11 @@ export default function EquipmentScreen() {
         </ListGroup>
       )}
       <ActionButton icon="add" label={t('equipment.addBandSet')} secondary onPress={createBandSet} />
+      {bandSets.reduce((sum, set) => sum + set.bands.length, 0) > 1 ? (
+        <ListGroup>
+          <ListRow icon="swap-vertical-outline" title={t('equipment.orderTitle')} subtitle={t('equipment.orderRowHint')} onPress={() => router.push('/band-order')} />
+        </ListGroup>
+      ) : null}
       {archivedSets.length > 0 ? (
         <ListGroup>
           {archivedSets.map((set) => (

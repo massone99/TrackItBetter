@@ -81,7 +81,7 @@ import { ReorderableList } from '../../src/shared/components/ReorderableList';
 import { SaveToProgramSheet } from '../../src/features/programs/SaveToProgramSheet';
 import { ExerciseNoteField } from '../../src/features/session/ExerciseNoteField';
 import { WorkoutDetailsSheet } from '../../src/features/session/WorkoutDetailsSheet';
-import { apparatusName, bandsById, describeSetBands, useEquipment } from '../../src/features/equipment/useEquipment';
+import { apparatusName, bandComparer, bandsById, describeSetBands, useEquipment } from '../../src/features/equipment/useEquipment';
 import { LoadError } from '../../src/shared/components/LoadError';
 import { SetSheet } from '../../src/features/session/SetSheet';
 import { ExerciseCard, holdDisplay } from '../../src/features/session/ExerciseCard';
@@ -148,6 +148,7 @@ export default function WorkoutScreen() {
   const [detailsOpen, setDetailsOpen] = useState(false);
   const { catalog, reload: reloadEquipment } = useEquipment();
   const bandIndex = catalog ? bandsById(catalog) : null;
+  const compareBands = catalog ? bandComparer(catalog) : undefined;
   const [finishOpen, setFinishOpen] = useState(false);
   const [saveOpen, setSaveOpen] = useState(false);
   const [savedTo, setSavedTo] = useState<{ id: string; name: string } | null>(null);
@@ -616,6 +617,9 @@ export default function WorkoutScreen() {
           <TimerBar
             emom={emom.plan && emom.phase ? {
               label: emomBarLabel(emom.phase, emom.plan, t),
+              exercise: workout.exercises.find((item) => item.entryId === emom.plan?.entryId)?.name ?? '',
+              progress: emom.phase.phase === 'running' ? (emom.phase.round - 1) / emom.plan.rounds : emom.phase.phase === 'done' ? 1 : 0,
+              timeLabel: emom.phase.phase === 'countdown' ? t('emom.startsIn') : t('emom.timeLeft'),
               display: emom.phase.phase === 'done' ? '0:00' : emom.phase.phase === 'countdown' ? String(emom.phase.secondsLeft) : formatClock(emom.phase.secondsLeft),
               value: emom.plan.field === 'durationSec' ? formatClock(emom.plan.value) : t('emom.reps', { count: emom.plan.value }),
               valueLabel: t('emom.thisRound'),
@@ -765,6 +769,7 @@ export default function WorkoutScreen() {
             apparatusLabel={exercise.apparatusId && catalog ? apparatusName(catalog.apparatus.find((item) => item.id === exercise.apparatusId), t) : null}
             firstTimeLabel={exercise.apparatusAffectsDifficulty && exercise.apparatusId && catalog ? t('equipment.firstTimeOn', { name: apparatusName(catalog.apparatus.find((item) => item.id === exercise.apparatusId), t) }) : undefined}
             describeBands={(set) => (bandIndex ? describeSetBands(set, bandIndex, t) : null)}
+            compareBands={compareBands}
             onRpe={(set, rpe) => void saveRpe(set, rpe)}
             onOptions={() => setOptionsFor(exercise)}
           />
@@ -1000,7 +1005,14 @@ function lastTimeFor(exercise: SessionExercise, set: SessionSet, previous: Previ
 }
 
 interface EmomBar {
+  /** "Round 3 / 10", "Get ready" or "Done". */
   label: string;
+  /** Exercise the EMOM runs on. */
+  exercise: string;
+  /** Rounds already behind, 0–1. */
+  progress: number;
+  /** What the clock counts: the countdown before round 1, or what is left of this round. */
+  timeLabel: string;
   display: string;
   value: string;
   valueLabel: string;
@@ -1040,19 +1052,24 @@ function TimerBar({ emom, hold, restEndsAt, voiceCues, onRestEnd, onFinishHold, 
     return (
       <View style={[styles.timerBar, { backgroundColor: palette.hero }]}>
         <View style={[styles.timerInner, styles.emomInner]}>
-        <View style={styles.emomRow}>
-          <View style={styles.flex}>
-            <Text style={[styles.timerLabel, { color: palette.heroText }]}>{emom.label}</Text>
-            <Text style={[styles.timerValue, { color: palette.heroText }]}>{emom.display}</Text>
+          {/* Round and exercise on top, the clock large beside Stop: the clock never shares a flexible box that could squeeze it. */}
+          <View style={styles.emomRow}>
+            <View style={styles.emomHead}>
+              <Text style={[styles.emomRound, { color: palette.heroText }]}>{emom.label}</Text>
+              {emom.exercise ? <Text numberOfLines={1} style={[styles.timerLabel, { color: palette.heroText }]}>{emom.exercise}</Text> : null}
+            </View>
+            <Text accessibilityRole="timer" accessibilityLabel={`${emom.timeLabel} ${emom.display}`} style={[styles.emomClock, { color: palette.heroText }]}>{emom.display}</Text>
+            <TimerAction label={t('emom.stopShort')} filled onPress={emom.onStop} />
           </View>
-          <TimerAction label={t('emom.stopShort')} filled onPress={emom.onStop} />
-        </View>
-        <View style={styles.emomRow}>
-          <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8} style={[styles.timerLabel, styles.flex, { color: palette.heroText }]}>{emom.valueLabel}</Text>
-          <TimerAction label="−" accessibilityLabel={`${emom.valueLabel} −`} onPress={() => emom.onChange(-1)} />
-          <Text accessibilityLiveRegion="polite" style={[styles.emomValueText, { color: palette.heroText }]}>{emom.value}</Text>
-          <TimerAction label="+" accessibilityLabel={`${emom.valueLabel} +`} onPress={() => emom.onChange(1)} />
-        </View>
+          <View accessible={false} style={[styles.emomTrack, { backgroundColor: palette.heroOverlay }]}>
+            <View style={[styles.emomFill, { backgroundColor: palette.heroText, width: `${Math.round(Math.min(1, Math.max(0, emom.progress)) * 100)}%` }]} />
+          </View>
+          <View style={styles.emomRow}>
+            <Text numberOfLines={1} style={[styles.timerLabel, styles.emomValueLabel, { color: palette.heroText }]}>{emom.valueLabel}</Text>
+            <TimerAction label="−" accessibilityLabel={`${emom.valueLabel} −`} onPress={() => emom.onChange(-1)} />
+            <Text accessibilityLiveRegion="polite" style={[styles.emomValueText, { color: palette.heroText }]}>{emom.value}</Text>
+            <TimerAction label="+" accessibilityLabel={`${emom.valueLabel} +`} onPress={() => emom.onChange(1)} />
+          </View>
         </View>
       </View>
     );
@@ -1198,6 +1215,12 @@ const baseStyles = StyleSheet.create({
   // No wrapping here: a wrapping column lays the two rows side by side and squeezes the labels to nothing.
   emomInner: { flexDirection: 'column', flexWrap: 'nowrap', alignItems: 'stretch', justifyContent: 'flex-start', gap: 8 },
   emomRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  emomHead: { flexGrow: 1, flexShrink: 1, minWidth: 120, gap: 2 },
+  emomRound: { fontFamily: fonts.semibold, fontSize: 17, lineHeight: 22 },
+  emomClock: { fontFamily: fonts.display, fontSize: 40, lineHeight: 44, minWidth: 84, textAlign: 'right', fontVariant: ['tabular-nums'] },
+  emomTrack: { height: 6, borderRadius: 3, overflow: 'hidden' },
+  emomFill: { height: 6, borderRadius: 3 },
+  emomValueLabel: { flexGrow: 1, flexShrink: 1, minWidth: 80 },
   emomValueText: { fontFamily: fonts.display, fontSize: 26, lineHeight: 30, minWidth: 72, textAlign: 'center', fontVariant: ['tabular-nums'] },
   timerAction: { minWidth: 56, minHeight: 48, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10, alignItems: 'center', justifyContent: 'center' },
   timerActionText: { fontFamily: fonts.semibold, fontSize: 15 },

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { TFunction } from 'i18next';
-import type { Apparatus, Band } from '../../domain/equipment';
+import { bandRanks, compareBandHelp, type Apparatus, type Band, type SetBand } from '../../domain/equipment';
 import { formatNumber } from '../../shared/utils/format';
 import { getEquipment, type EquipmentCatalog } from './repository';
 
@@ -42,7 +42,13 @@ export function describeSetBands(
   t: TFunction,
 ): { colors: string[]; text: string } | null {
   if (set.bands.length === 0) return null;
-  const parts = set.bands.map((item) => `${byId.get(item.bandId)?.name ?? t('bands.unknown')} · ${item.tension}`);
+  const parts = set.bands.map((item) => t('bands.chip', { name: byId.get(item.bandId)?.name ?? t('bands.unknown'), tension: item.tension }));
   const kg = set.assistKg === null ? null : t('bands.assistShort', { value: formatNumber(set.assistKg) });
   return { colors: set.bands.map((item) => byId.get(item.bandId)?.color ?? '#828282'), text: [parts.join(' + '), kg].filter(Boolean).join(' · ') };
+}
+
+/** Compares the help of two sets' bands through the global strength order (for "vs last time" without kg). */
+export function bandComparer(catalog: EquipmentCatalog): (a: readonly SetBand[], b: readonly SetBand[]) => -1 | 0 | 1 | null {
+  const ranks = bandRanks(catalog.bandSets, catalog.bandOrder);
+  return (a, b) => compareBandHelp(a, b, ranks);
 }

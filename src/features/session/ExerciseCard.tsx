@@ -17,6 +17,7 @@ import { useScaledStyles } from '../../shared/theme/useScaledStyles';
 import { formatClock, formatNumber } from '../../shared/utils/format';
 import { FormRating, LastTimeStrip } from './LastTime';
 import type { PreviousPerformance, SessionExercise, SessionSet } from './repository';
+import type { SetBand } from '../../domain/equipment';
 import { RpePicker } from './RpePicker';
 import { formatLoad, LOAD_STEP_KG, StepButton } from './SetEntry';
 import { DoneTint, PopOnActivate, SwipeableSetRow } from './SwipeableSetRow';
@@ -30,7 +31,7 @@ const NO_RECORDS: ReadonlyMap<string, RecordKind[]> = new Map();
  * and the add-set row. Shared by the workout in progress and a finished workout's page; the live-only
  * parts (hold timer, EMOM, comparison with last time, records) are optional.
  */
-export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, previous, hold = null, onChange, onSetValue, onComplete, onStartHold, onFinishHold, onAddSet, onAddWarmup, onSetOptions, onUncomplete, onRemoveSet, onSwiped, showRpe, onRpe, onOptions, onToggleWarmup, setRecords = NO_RECORDS, volumeRecord = false, supersetLabel = null, emomLabel: emomBadgeLabel, defaultRest = 0, onFormRating, editDone = false, typeDone = false, compare = true, apparatusLabel = null, firstTimeLabel, describeBands }: {
+export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, previous, hold = null, onChange, onSetValue, onComplete, onStartHold, onFinishHold, onAddSet, onAddWarmup, onSetOptions, onUncomplete, onRemoveSet, onSwiped, showRpe, onRpe, onOptions, onToggleWarmup, setRecords = NO_RECORDS, volumeRecord = false, supersetLabel = null, emomLabel: emomBadgeLabel, defaultRest = 0, onFormRating, editDone = false, typeDone = false, compare = true, apparatusLabel = null, firstTimeLabel, describeBands, compareBands }: {
   handle?: ReactNode;
   exercise: SessionExercise;
   collapsed: boolean;
@@ -73,6 +74,8 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
   firstTimeLabel?: string;
   /** Swatches and text for a set's bands ("Blue · 2"), shown under the set. */
   describeBands?: (set: SessionSet) => { colors: string[]; text: string } | null;
+  /** Compares two sets' bands by the strength order, for the assistance comparison without kg. */
+  compareBands?: (a: readonly SetBand[], b: readonly SetBand[]) => -1 | 0 | 1 | null;
 }) {
   const styles = useScaledStyles(baseStyles);
   const { t, i18n } = useTranslation();
@@ -110,8 +113,8 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
   }).join(' · ');
   const results = doneValues && !timed && !distance ? t('logger.resultsReps', { values: doneValues }) : doneValues;
   const previousText = previous ? describePrevious(previous.sets, exercise.metric) : null;
-  const comparison = compareWithLast(exercise.sets, previous?.sets ?? null, exercise.metric, { defaultRest });
-  const hasComparison = Boolean(comparison.total || comparison.rest || comparison.form || comparison.assist);
+  const comparison = compareWithLast(exercise.sets, previous?.sets ?? null, exercise.metric, { defaultRest, compareBands });
+  const hasComparison = Boolean(comparison.total || comparison.rest || comparison.form || comparison.assist || comparison.assistOrder);
   // Average form of today's rated sets (also when there is nothing to compare it with).
   const ratedForms = exercise.sets.filter((set) => set.completedAt && set.kind === 'working' && set.formRating !== null).map((set) => set.formRating as number);
   const comparisonFormNow = ratedForms.length ? Math.round((ratedForms.reduce((sum, value) => sum + value, 0) / ratedForms.length) * 10) / 10 : null;

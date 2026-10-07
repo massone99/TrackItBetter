@@ -99,3 +99,55 @@ export function parseIdList(value: string | null | undefined): string[] {
 export function effectiveApparatus(entryApparatusId: string | null | undefined, defaultApparatusId: string | null | undefined): string | null {
   return entryApparatusId ?? defaultApparatusId ?? null;
 }
+
+/**
+ * Every band's place in one strength order, lightest first, across all band sets: the stored
+ * global order, then any band missing from it in band-set order.
+ */
+export function bandRanks(bandSets: readonly BandSet[], bandOrder: readonly string[]): Map<string, number> {
+  const known = new Set(bandSets.flatMap((set) => set.bands.map((band) => band.id)));
+  const ordered = [...new Set([...bandOrder.filter((id) => known.has(id)), ...bandSets.flatMap((set) => set.bands.map((band) => band.id))])];
+  return new Map(ordered.map((id, index) => [id, index]));
+}
+
+/** The global order after a band set was edited: its bands take the slots its old bands had, in their new order; new bands follow its strongest. */
+export function orderAfterSetEdit(bandOrder: readonly string[], bandSets: readonly BandSet[], edited: BandSet): string[] {
+  const current = [...bandRanks(bandSets, bandOrder).keys()];
+  const before = new Set((bandSets.find((set) => set.id === edited.id)?.bands ?? []).map((band) => band.id));
+  const kept = edited.bands.map((band) => band.id).filter((id) => before.has(id));
+  const added = edited.bands.map((band) => band.id).filter((id) => !before.has(id));
+  // Kept bands refill the slots of the old ones, in the new order; slots of removed bands close up.
+  let next = 0;
+  const result = current.flatMap((id) => (before.has(id) ? (next < kept.length ? [kept[next++]] : []) : [id]));
+  if (added.length === 0) return result;
+  const lastOfSet = result.reduce((last, id, index) => (kept.includes(id) ? index : last), -1);
+  const at = lastOfSet < 0 ? result.length : lastOfSet + 1;
+  return [...result.slice(0, at), ...added, ...result.slice(at)];
+}
+
+/** Strength of one band on a set: its place in the order first, then its tension. */
+const bandLevel = (band: SetBand, ranks: ReadonlyMap<string, number>) => {
+  const rank = ranks.get(band.bandId);
+  return rank === undefined ? null : rank * 10 + band.tension;
+};
+
+/**
+ * Which of two sets had more help from bands, using the strength order when kg are unknown:
+ * -1 when `a` had less, 0 the same, 1 more, null when the order cannot tell (e.g. a stronger band
+ * against two lighter ones). No bands is the least help.
+ */
+export function compareBandHelp(a: readonly SetBand[], b: readonly SetBand[], ranks: ReadonlyMap<string, number>): -1 | 0 | 1 | null {
+  const levels = (bands: readonly SetBand[]) => bands.map((band) => bandLevel(band, ranks));
+  const left = levels(a);
+  const right = levels(b);
+  if (left.some((value) => value === null) || right.some((value) => value === null)) return null;
+  const sortDown = (values: (number | null)[]) => (values as number[]).sort((x, y) => y - x);
+  const x = sortDown(left);
+  const y = sortDown(right);
+  // `small` gives no more help than `big` when each of its bands can be matched to a band of `big` at least as strong.
+  const covered = (small: number[], big: number[]) => small.length <= big.length && small.every((value, index) => value <= big[index]);
+  if (x.length === y.length && x.every((value, index) => value === y[index])) return 0;
+  if (covered(x, y)) return -1;
+  if (covered(y, x)) return 1;
+  return null;
+}

@@ -1,6 +1,6 @@
 # Ubiquitous language
 
-Version 2 · 2026-10-07. Bump the version and add a line to "History" whenever a term changes. UI
+Version 3 · 2026-10-07. Bump the version and add a line to "History" whenever a term changes. UI
 strings, code, tests and conversations use these words with these meanings.
 
 | Term (en) | Termine (it) | Meaning | Code today |
@@ -16,6 +16,7 @@ strings, code, tests and conversations use these words with these meanings.
 | Band set | Set di elastici | A brand's or collection's bands (e.g. "Decathlon"), ordered from the lightest to the strongest. | `BandSet` |
 | Band | Elastico | One band of a set: name or colour, swatch, and optionally kg at minimum and maximum stretch. | `Band` |
 | Tension | Tensione | How far a band is stretched on a set: 1 (little, the minimum kg), 2 (halfway), 3 (a lot, the maximum kg). | `SetBand.tension` |
+| Strength order | Ordine di resistenza | All bands, across band sets, from the lightest to the strongest; compares assistance when kg are unknown. | `EquipmentCatalog.bandOrder`, `compareBandHelp` |
 | Assistance | Assistenza | Kg of help from a set's bands, worked out when logged and saved with the set; unknown when a band has no kg. Less assistance is progress. | `training_set.assist_kg` |
 | Notes | Note | Free text. Prescribed-workout notes are planned; workout notes are about this performance. | `UserProgramSession.notes`, `workout.notes` |
 
@@ -31,9 +32,11 @@ strings, code, tests and conversations use these words with these meanings.
 
 - A workout exercise uses the apparatus chosen in the workout, else the exercise default; past workouts
   without one count as done on the default.
-- Assistance is compared only in kg; bands without kg make it "unknown" and it is not compared.
+- Assistance is compared in kg when every band has kg; otherwise through the strength order (band first,
+  then tension), set by set. It is "not comparable" only when the order cannot tell.
 
 ## History
 
 - 1 · 2026-10-07: prescribed workout vs workout split; notes on both.
 - 2 · 2026-10-07: apparatus, band set, band, tension, assistance.
+- 3 · 2026-10-07: strength order; assistance compared by order without kg.

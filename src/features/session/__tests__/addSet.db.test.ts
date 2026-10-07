@@ -1,6 +1,6 @@
 import { migrateDatabase } from '../../../db/migrations';
 import { seedCatalogIfEmpty } from '../../../db/seed/import';
-import { addExerciseToWorkout, addSet, getActiveWorkout, getPreviousPerformance, replaceEntryExercise, setEntryRest, setSetKind, startWorkout, updateSet, updateSetNote, updateSetRpe } from '../repository';
+import { addExerciseToWorkout, addSet, getActiveWorkout, getPreviousPerformance, replaceEntryExercise, setEntryRest, setSetKind, startWorkout, updateEntryNote, updateSet, updateSetNote, updateSetRpe } from '../repository';
 
 jest.mock('../../../db/client', () => {
   const { createRealDatabase } = jest.requireActual('../../../test/realDatabase');
@@ -98,12 +98,15 @@ describe('replaceEntryExercise', () => {
     const { id: setId } = real.sqlite.prepare('SELECT id FROM training_set WHERE entry_id = ?').get(entryId) as { id: string };
     await updateSet(setId, 'reps', 12);
     await updateSetNote(setId, 'tenuta');
+    await updateEntryNote(entryId, 'Note of the prescribed push-up');
 
     await replaceEntryExercise(entryId, 'pull-up');
 
     const [exercise] = (await getActiveWorkout(workoutId))!.exercises;
     expect(exercise.exerciseId).toBe('pull-up');
     expect(exercise.sets[0]).toMatchObject({ reps: 12, note: 'tenuta' });
+    // The exercise note belongs to the replaced exercise's prescription, not to the new exercise.
+    expect(exercise.notes).toBeNull();
   });
 
   it('turns reps into a default hold when the new exercise is timed, and drops the load', async () => {
