@@ -1,6 +1,6 @@
 import { migrateDatabase } from '../../../db/migrations';
 import { seedCatalogIfEmpty } from '../../../db/seed/import';
-import { addExerciseToWorkout, addSet, getActiveWorkout, getPreviousPerformance, replaceEntryExercise, setEntryRest, setSetKind, startWorkout, updateEntryNote, updateSet, updateSetNote, updateSetRpe } from '../repository';
+import { addExerciseToWorkout, addSet, getActiveWorkout, getPreviousPerformance, replaceEntryExercise, setEntryAverages, setEntryRest, setSetKind, startWorkout, updateEntryNote, updateSet, updateSetNote, updateSetRpe } from '../repository';
 
 jest.mock('../../../db/client', () => {
   const { createRealDatabase } = jest.requireActual('../../../test/realDatabase');
@@ -130,5 +130,30 @@ describe('adding an exercise to a workout', () => {
     const [exercise] = (await getActiveWorkout(workoutId))!.exercises;
     expect(exercise.sets).toHaveLength(1);
     expect(exercise.sets[0].restSec).toBeNull();
+  });
+});
+
+describe('setEntryAverages', () => {
+  it('gives the chosen RPE and form to every completed working set, leaving warm-ups and open sets alone', async () => {
+    const workoutId = await startWorkout('Averages');
+    const entryId = await addExerciseToWorkout(workoutId, 'push-up');
+    const { id: warm } = real.sqlite.prepare('SELECT id FROM training_set WHERE entry_id = ?').get(entryId) as { id: string };
+    await setSetKind(warm, 'warmup');
+    const first = await addSet(entryId);
+    await setSetKind(first, 'working');
+    const second = await addSet(entryId);
+    const open = await addSet(entryId);
+    real.sqlite.prepare('UPDATE training_set SET completed_at = 5 WHERE id IN (?, ?, ?)').run(warm, first, second);
+    await updateSetRpe(first, 7);
+
+    await setEntryAverages(entryId, { rpe: 8.5, formRating: 4 });
+
+    const rows = real.sqlite.prepare('SELECT id, rpe, form_rating FROM training_set WHERE entry_id = ?').all(entryId) as { id: string; rpe: number | null; form_rating: number | null }[];
+    const byId = new Map(rows.map((row) => [row.id, row]));
+    expect(byId.get(first)).toMatchObject({ rpe: 8.5, form_rating: 4 });
+    expect(byId.get(second)).toMatchObject({ rpe: 8.5, form_rating: 4 });
+    expect(byId.get(warm)).toMatchObject({ rpe: null, form_rating: null });
+    expect(byId.get(open)).toMatchObject({ form_rating: null });
+    await expect(setEntryAverages(entryId, { rpe: 11 })).rejects.toThrow();
   });
 });

@@ -2,6 +2,10 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.21.2 - 2026-10-07
+
+- Finished workout: an exercise's menu sets its average RPE and average form by hand. The value goes to every completed working set (warm-ups and open sets are left alone), so statistics and "vs last time" use it.
+
 ## 0.21.1 - 2026-10-07
 
 - Replacing an exercise in the workout no longer carries its note (from the program's prescription) or apparatus over to the new exercise.

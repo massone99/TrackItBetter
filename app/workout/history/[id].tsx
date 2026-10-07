@@ -36,6 +36,7 @@ import type {
   SessionSet,
 } from "../../../src/features/session/repository";
 import { ExerciseNoteField } from "../../../src/features/session/ExerciseNoteField";
+import { ExerciseAveragesField } from "../../../src/features/session/ExerciseAveragesField";
 import { PairEditor } from "../../../src/features/session/PairEditor";
 import { SetSheet } from "../../../src/features/session/SetSheet";
 import { ExerciseCard } from "../../../src/features/session/ExerciseCard";
@@ -585,6 +586,7 @@ function ExerciseSheet({
               onSaved={onChanged}
             />
           ) : null}
+          {exercise ? <ExerciseAveragesField key={`averages-${exercise.entryId}`} exercise={exercise} onChanged={onChanged} /> : null}
           <ActionButton
             icon="construct-outline"
             label={t("logger.editExercise")}

@@ -821,6 +821,21 @@ export async function setSetFormRating(setId: string, rating: number | null): Pr
   await bumpIfFinished({ setId });
 }
 
+/**
+ * Sets the average RPE or form of an exercise in a workout by giving that value to every completed
+ * working set (the averages are computed from the sets everywhere else); null clears it.
+ */
+export async function setEntryAverages(entryId: string, values: { rpe?: number | null; formRating?: number | null }): Promise<void> {
+  await initializeDatabase();
+  if (values.rpe != null && !isValidRpe(values.rpe)) throw new RangeError('RPE must be between 6 and 10 in half steps');
+  if (values.formRating != null && (!Number.isInteger(values.formRating) || values.formRating < 1 || values.formRating > 5)) throw new RangeError('Form ratings are integers from 1 to 5');
+  const patch = { ...(values.rpe !== undefined ? { rpe: values.rpe } : {}), ...(values.formRating !== undefined ? { formRating: values.formRating } : {}) };
+  if (Object.keys(patch).length === 0) return;
+  await db.update(trainingSets).set(patch)
+    .where(and(eq(trainingSets.entryId, entryId), eq(trainingSets.kind, 'working'), isNotNull(trainingSets.completedAt)));
+  await bumpIfFinished({ entryId });
+}
+
 /** Sets the RPE the program planned for a set; null clears it. */
 export async function setSetTargetRpe(setId: string, rpe: number | null): Promise<void> {
   await initializeDatabase();
