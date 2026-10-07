@@ -61,6 +61,8 @@ export interface SessionExercise {
 export interface ActiveWorkout {
   id: string;
   name: string;
+  /** Free-text note for the whole workout; starts as the prescribed workout's note. */
+  notes: string | null;
   startedAt: Date;
   sleep: number | null;
   energy: number | null;
@@ -210,11 +212,20 @@ async function latestBodyweightKg(): Promise<number | null> {
   return latest ? latest.unit === 'lb' ? latest.value * 0.45359237 : latest.value : null;
 }
 
-export async function startWorkout(name = 'Workout'): Promise<string> {
+export async function startWorkout(name = 'Workout', notes?: string | null): Promise<string> {
   await initializeDatabase();
   const workoutId = id();
-  await db.insert(workouts).values({ id: workoutId, name, startedAt: new Date(), bodyweightKg: await latestBodyweightKg() });
+  await db.insert(workouts).values({ id: workoutId, name, notes: notes?.trim() || null, startedAt: new Date(), bodyweightKg: await latestBodyweightKg() });
   return workoutId;
+}
+
+/** Renames the workout being done and edits its notes; the prescribed workout in the program is untouched. */
+export async function updateWorkoutDetails(workoutId: string, details: { name: string; notes: string }): Promise<void> {
+  await initializeDatabase();
+  const name = details.name.trim();
+  if (!name) throw new Error('A workout needs a name.');
+  await db.update(workouts).set({ name, notes: details.notes.trim().slice(0, 1000) || null }).where(eq(workouts.id, workoutId));
+  await bumpIfFinished({ workoutId });
 }
 
 export async function getActiveWorkout(id?: string): Promise<ActiveWorkout | null> {
@@ -232,6 +243,7 @@ export async function getActiveWorkout(id?: string): Promise<ActiveWorkout | nul
   return {
     id: workout.id,
     name: workout.name,
+    notes: workout.notes,
     startedAt: workout.startedAt,
     sleep: workout.sleep,
     energy: workout.energy,
@@ -326,6 +338,7 @@ export async function getCompletedWorkout(workoutId: string): Promise<CompletedW
   return {
     id: workout.id,
     name: workout.name,
+    notes: workout.notes,
     startedAt: workout.startedAt,
     endedAt: workout.endedAt,
     sleep: workout.sleep,

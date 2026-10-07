@@ -1,7 +1,8 @@
 # TrackItBetter: notes for Claude
 
 Expo SDK 57 / React Native, Android-first, offline (SQLite + drizzle). The owner writes in Italian and
-wants short answers. Product context: `PRODUCT.md`, `DESIGN.md`.
+wants short answers. Product context: `PRODUCT.md`, `DESIGN.md`. Vocabulary (prescribed workout vs
+workout, versioned): `docs/LANGUAGE.md`; use it in UI strings, code and answers.
 
 ## Release flow (always merge to `main` and release)
 

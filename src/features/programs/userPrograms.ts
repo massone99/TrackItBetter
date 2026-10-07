@@ -28,7 +28,7 @@ export async function saveUserProgram(program: Omit<UserProgram, 'id' | 'updated
   const next: UserProgram = {
     id: program.id ?? Crypto.randomUUID(),
     name: program.name.trim(),
-    sessions: program.sessions.map((session) => ({ ...session, name: session.name.trim() })),
+    sessions: program.sessions.map((session) => ({ ...session, name: session.name.trim(), notes: session.notes?.trim().slice(0, 1000) || null })),
     updatedAt: new Date().toISOString(),
   };
   if (validateUserProgram(next).length > 0) {
@@ -94,7 +94,7 @@ function parseProgram(value: unknown): UserProgram | null {
     const exercises = candidate.exercises.filter((exercise) => exercise && typeof exercise === 'object' && isValidPrescription(exercise));
     if (exercises.length === 0) continue;
     const day = WEEK_ORDER.indexOf(candidate.weekday as never);
-    sessions.push({ id: candidate.id, name: candidate.name, exercises, order: (day >= 0 ? day : 7) * 1000 + position });
+    sessions.push({ id: candidate.id, name: candidate.name, notes: typeof candidate.notes === 'string' ? candidate.notes : null, exercises, order: (day >= 0 ? day : 7) * 1000 + position });
   }
   return {
     id: item.id,

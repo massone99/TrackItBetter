@@ -2,6 +2,12 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.20.0 - 2026-10-07
+
+- Notes on a prescribed workout (program) and on the workout in progress; starting a workout copies the notes.
+- Long press the workout name (in the workout, or a day in a program) to edit its name and notes. Editing the workout in progress never changes the program.
+- `docs/LANGUAGE.md`: versioned vocabulary (prescribed workout vs workout).
+
 ## 0.19.1 - 2026-10-06
 
 - Micro-session: no exercise is chosen for you any more; the picker opens on arrival so you pick the exercises yourself.

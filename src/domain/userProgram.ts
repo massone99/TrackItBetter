@@ -30,6 +30,8 @@ export interface UserProgramExercise {
 export interface UserProgramSession {
   id: string;
   name: string;
+  /** Free text for the whole prescribed workout (focus of the day, cues); copied to the workout's notes when it starts. */
+  notes?: string | null;
   exercises: UserProgramExercise[];
 }
 
