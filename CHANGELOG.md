@@ -2,6 +2,11 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.20.4 - 2026-10-07
+
+- Rest countdown always in the notification shade and on the lock screen, ticking in real time by the system (the native module was missing from the repository, so the countdown never appeared).
+- Rest notifications no longer pile up: a new rest replaces the previous countdown and the previous end alert.
+
 ## 0.20.3 - 2026-10-07
 
 - Exercise menu, more ergonomic: it fits one screen without scrolling. Rest after working sets and warm-ups are one line each with − and + (15 s steps, tap the number to type it); part of the workout is a segmented control; the note folds into one row until you open it; actions are tiles in a grid; Remove stays apart at the bottom.

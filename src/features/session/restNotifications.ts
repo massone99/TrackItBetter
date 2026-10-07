@@ -14,11 +14,20 @@ export interface RestNotificationText {
   channel: string;
 }
 
+/** One rest alert at a time: a new one takes the place of the previous, scheduled or already shown. */
+const REST_ALERT_ID = 'workout-rest-end';
+
 async function cancelExistingRestAlerts(): Promise<void> {
   const requests = await Notifications.getAllScheduledNotificationsAsync();
-  await Promise.all(requests
-    .filter((request) => request.content.data?.restTimer === true)
-    .map((request) => Notifications.cancelScheduledNotificationAsync(request.identifier)));
+  const shown = await Notifications.getPresentedNotificationsAsync();
+  await Promise.all([
+    ...requests
+      .filter((request) => request.content.data?.restTimer === true)
+      .map((request) => Notifications.cancelScheduledNotificationAsync(request.identifier)),
+    ...shown
+      .filter((item) => item.request.content.data?.restTimer === true)
+      .map((item) => Notifications.dismissNotificationAsync(item.request.identifier)),
+  ]);
 }
 
 /** Asks once; later calls respect the answer. */
@@ -30,8 +39,10 @@ async function notificationsAllowed(): Promise<boolean> {
 }
 
 /**
- * Shows a lock-screen countdown (Android) and schedules an alert for the exact end of the rest,
- * so a phone in standby still shows when the rest is over.
+ * Shows the countdown in the notification shade and on the lock screen (Android; the system ticks
+ * it, so it stays exact with the app in the background) and schedules an alert for the exact end of
+ * the rest, so a phone in standby still shows when the rest is over. Both replace what an earlier
+ * rest left behind.
  */
 export async function scheduleRestFinishedNotification(seconds: number, text: RestNotificationText): Promise<void> {
   if (Platform.OS === 'web') return;
@@ -48,6 +59,7 @@ export async function scheduleRestFinishedNotification(seconds: number, text: Re
     });
   }
   await Notifications.scheduleNotificationAsync({
+    identifier: REST_ALERT_ID,
     content: {
       title: text.title,
       body: text.body,

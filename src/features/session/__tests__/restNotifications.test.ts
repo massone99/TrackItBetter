@@ -5,6 +5,8 @@ jest.mock('react-native', () => ({ Platform: { OS: 'android' } }));
 jest.mock('../../../../modules/rest-timer/src', () => ({ RestTimer: { show: jest.fn(), hide: jest.fn() } }));
 jest.mock('expo-notifications', () => ({
   getAllScheduledNotificationsAsync: jest.fn(async () => []),
+  getPresentedNotificationsAsync: jest.fn(async () => []),
+  dismissNotificationAsync: jest.fn(),
   cancelScheduledNotificationAsync: jest.fn(),
   getPermissionsAsync: jest.fn(),
   requestPermissionsAsync: jest.fn(),
@@ -34,6 +36,7 @@ describe('rest notifications', () => {
     expect(RestTimer.show).toHaveBeenCalledWith(1_090_000, 'Recupero', 'Timer recupero');
     const request = mocked.scheduleNotificationAsync.mock.calls[0][0];
     expect(request.trigger).toMatchObject({ type: 'date', date: 1_090_000 });
+    expect(request.identifier).toBe('workout-rest-end');
     expect(request.content).toMatchObject({ title: 'Recupero terminato', sticky: false, autoDismiss: true });
   });
 
@@ -43,6 +46,17 @@ describe('rest notifications', () => {
     expect(mocked.requestPermissionsAsync).not.toHaveBeenCalled();
     expect(RestTimer.show).not.toHaveBeenCalled();
     expect(mocked.scheduleNotificationAsync).not.toHaveBeenCalled();
+  });
+
+  it('dismisses the alert a previous rest left in the shade', async () => {
+    mocked.getPermissionsAsync.mockResolvedValue({ granted: true } as never);
+    mocked.getPresentedNotificationsAsync.mockResolvedValueOnce([
+      { request: { identifier: 'old', content: { data: { restTimer: true } } } },
+      { request: { identifier: 'other', content: { data: {} } } },
+    ] as never);
+    await scheduleRestFinishedNotification(60, text);
+    expect(mocked.dismissNotificationAsync).toHaveBeenCalledTimes(1);
+    expect(mocked.dismissNotificationAsync).toHaveBeenCalledWith('old');
   });
 
   it('removes the countdown when the rest is skipped', async () => {
