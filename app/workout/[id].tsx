@@ -10,7 +10,7 @@ import { ReferenceLinkSheet } from '../../src/features/exercises/ReferenceLinkSh
 import { cancelRestFinishedNotification, scheduleRestFinishedNotification } from '../../src/features/session/restNotifications';
 import { restForSet } from '../../src/features/session/restDefaults';
 import { supersetStep } from '../../src/features/session/superset';
-import { SupersetFields } from '../../src/features/session/SupersetFields';
+import { SupersetActions, SupersetSettings } from '../../src/features/session/SupersetFields';
 import type { ScrollHandle } from '../../src/shared/components/keyboard';
 import { getSessionRecords } from '../../src/features/analytics/repository';
 import type { RecordKind } from '../../src/features/analytics/records';
@@ -57,6 +57,8 @@ import { playBeep } from '../../src/shared/audio/beeps';
 import {
   ActionButton,
   Body,
+  MenuList,
+  MenuRow,
   Card,
   Chip,
   EmptyState,
@@ -844,59 +846,47 @@ export default function WorkoutScreen() {
 
       <Sheet visible={optionsFor !== null} onClose={() => setOptionsFor(null)} title={optionsFor?.name ?? t('logger.options')}>
         {optionsFor ? (
-          <ExerciseNoteField key={optionsFor.entryId} entryId={optionsFor.entryId} initial={optionsFor.notes} onSaved={() => void refresh(workout.id)} />
+          <>
+            <ExerciseNoteField key={optionsFor.entryId} entryId={optionsFor.entryId} initial={optionsFor.notes} onSaved={() => void refresh(workout.id)} />
+            <ExerciseBlockField key={`block-${optionsFor.entryId}-${optionsFor.block}`} entryId={optionsFor.entryId} value={optionsFor.block} onChanged={() => { setOptionsFor(null); void refresh(workout.id); }} />
+            <SupersetSettings key={`superset-${optionsFor.entryId}-${optionsFor.groupId ?? ''}`} exercise={optionsFor} />
+            <ExerciseRestFields key={`rest-${optionsFor.entryId}`} exercise={optionsFor} onSaved={() => void refresh(workout.id)} />
+            <MenuList>
+              <SupersetActions
+                key={`superset-actions-${optionsFor.entryId}-${optionsFor.groupId ?? ''}`}
+                exercise={optionsFor}
+                hasNext={workout.exercises.findIndex((item) => item.entryId === optionsFor.entryId) < workout.exercises.length - 1}
+                onChanged={() => { setOptionsFor(null); void refresh(workout.id); }}
+              />
+              {emomFieldFor(optionsFor.metric) ? (
+                <MenuRow
+                  icon="timer-outline"
+                  label={optionsFor.entryId === emomEntryId ? t('emom.stop') : t('emom.open')}
+                  onPress={() => {
+                    const exercise = optionsFor;
+                    setOptionsFor(null);
+                    if (exercise.entryId === emomEntryId) void emom.stop();
+                    else setEmomSetupFor(exercise);
+                  }}
+                />
+              ) : null}
+              <MenuRow icon="swap-horizontal" label={t('logger.replaceExercise')} onPress={() => { setReplacing(optionsFor); setOptionsFor(null); setPickerOpen(true); }} />
+              <MenuRow
+                icon="construct-outline"
+                label={t('logger.editExercise')}
+                onPress={() => {
+                  const exerciseId = optionsFor.exerciseId;
+                  setOptionsFor(null);
+                  router.push({ pathname: '/exercise/new', params: { edit: exerciseId } });
+                }}
+              />
+              <MenuRow icon={optionsFor.demoUrl ? 'create-outline' : 'link'} label={optionsFor.demoUrl ? t('logger.reference') : t('exercise.addReference')} onPress={() => { setReferenceFor(optionsFor); setOptionsFor(null); }} />
+            </MenuList>
+            <MenuList>
+              <MenuRow tone="danger" icon="trash-outline" label={t('logger.removeExercise')} onPress={() => void removeExerciseOrConfirm(optionsFor)} />
+            </MenuList>
+          </>
         ) : null}
-        {optionsFor ? (
-          <ExerciseBlockField key={`block-${optionsFor.entryId}-${optionsFor.block}`} entryId={optionsFor.entryId} value={optionsFor.block} onChanged={() => { setOptionsFor(null); void refresh(workout.id); }} />
-        ) : null}
-        {optionsFor ? (
-          <SupersetFields
-            key={`superset-${optionsFor.entryId}-${optionsFor.groupId ?? ''}`}
-            exercise={optionsFor}
-            hasNext={workout.exercises.findIndex((item) => item.entryId === optionsFor.entryId) < workout.exercises.length - 1}
-            onChanged={() => { setOptionsFor(null); void refresh(workout.id); }}
-          />
-        ) : null}
-        {optionsFor ? (
-          <ExerciseRestFields key={`rest-${optionsFor.entryId}`} exercise={optionsFor} onSaved={() => void refresh(workout.id)} />
-        ) : null}
-        {optionsFor && emomFieldFor(optionsFor.metric) ? (
-          <ActionButton
-            icon="timer-outline"
-            label={optionsFor.entryId === emomEntryId ? t('emom.stop') : t('emom.open')}
-            secondary
-            onPress={() => {
-              const exercise = optionsFor;
-              setOptionsFor(null);
-              if (exercise.entryId === emomEntryId) void emom.stop();
-              else setEmomSetupFor(exercise);
-            }}
-          />
-        ) : null}
-        <ActionButton
-          icon="swap-horizontal"
-          label={t('logger.replaceExercise')}
-          secondary
-          onPress={() => { setReplacing(optionsFor); setOptionsFor(null); setPickerOpen(true); }}
-        />
-        <ActionButton
-          icon="construct-outline"
-          label={t('logger.editExercise')}
-          secondary
-          onPress={() => {
-            if (!optionsFor) return;
-            const exerciseId = optionsFor.exerciseId;
-            setOptionsFor(null);
-            router.push({ pathname: '/exercise/new', params: { edit: exerciseId } });
-          }}
-        />
-        <ActionButton
-          icon={optionsFor?.demoUrl ? 'create-outline' : 'link'}
-          label={optionsFor?.demoUrl ? t('logger.reference') : t('exercise.addReference')}
-          secondary
-          onPress={() => { setReferenceFor(optionsFor); setOptionsFor(null); }}
-        />
-        <ActionButton icon="trash-outline" label={t('logger.removeExercise')} variant="danger" onPress={() => { if (optionsFor) void removeExerciseOrConfirm(optionsFor); }} />
       </Sheet>
 
       <Sheet

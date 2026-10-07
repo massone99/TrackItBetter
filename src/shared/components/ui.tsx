@@ -554,6 +554,42 @@ export function SegmentedControl<T extends string>({ value, options, onChange }:
   );
 }
 
+/** A tinted block that keeps related settings together inside a sheet; `title` names the group. */
+export function MenuGroup({ title, children }: PropsWithChildren<{ title?: string }>) {
+  const styles = useScaledStyles(baseStyles);
+  const { palette } = useTheme();
+  return (
+    <View style={[styles.menuGroup, { backgroundColor: palette.surfaceMuted, borderColor: palette.border }]}>
+      {title ? <Text accessibilityRole="header" style={[styles.menuGroupTitle, { color: palette.text }]}>{title}</Text> : null}
+      {children}
+    </View>
+  );
+}
+
+/** A list of actions as one block of rows (icon, label), instead of a stack of full-width buttons. */
+export function MenuList({ children }: PropsWithChildren) {
+  const styles = useScaledStyles(baseStyles);
+  const { palette } = useTheme();
+  return <View style={[styles.menuList, { borderColor: palette.border, backgroundColor: palette.border }]}>{children}</View>;
+}
+
+export function MenuRow({ icon, label, onPress, tone = "default" }: { icon: IconName; label: string; onPress: () => void; tone?: "default" | "danger" }) {
+  const styles = useScaledStyles(baseStyles);
+  const { palette } = useTheme();
+  const color = tone === "danger" ? palette.warning : palette.text;
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      onPress={() => { tapFeedback(); onPress(); }}
+      style={({ pressed }) => [styles.menuRow, { backgroundColor: pressed ? palette.surfaceMuted : palette.surface }]}
+    >
+      <Icon name={icon} size={20} color={tone === "danger" ? palette.warning : palette.accentStrong} />
+      <Text style={[styles.menuRowLabel, { color }]}>{label}</Text>
+    </Pressable>
+  );
+}
+
 /** Bottom sheet for confirmations and short choices; works the same on web and native. */
 export function Sheet({ visible, onClose, title, body, children }: PropsWithChildren<{ visible: boolean; onClose: () => void; title: string; body?: string }>) {
   const styles = useScaledStyles(baseStyles);
@@ -795,6 +831,11 @@ const baseStyles = StyleSheet.create({
   sheetHandle: { width: 40, height: 4, borderRadius: 2, alignSelf: "center", marginBottom: 8 },
   sheetHeading: { flexDirection: "row", alignItems: "center", gap: spacing.md },
   sheetTitle: { flex: 1, fontFamily: fonts.display, fontSize: 28, lineHeight: 32 },
+  menuGroup: { borderRadius: radii.surface, borderWidth: StyleSheet.hairlineWidth, padding: spacing.md, gap: spacing.md },
+  menuGroupTitle: { fontFamily: fonts.semibold, fontSize: 16, lineHeight: 22 },
+  menuList: { borderRadius: radii.surface, borderWidth: StyleSheet.hairlineWidth, overflow: "hidden", gap: StyleSheet.hairlineWidth },
+  menuRow: { minHeight: MIN_TOUCH_TARGET + 4, flexDirection: "row", alignItems: "center", gap: spacing.md, paddingHorizontal: spacing.lg, paddingVertical: spacing.sm },
+  menuRowLabel: { flex: 1, fontFamily: fonts.medium, fontSize: 16, lineHeight: 22 },
   sheetContent: { gap: 10 },
   sheetActions: { gap: 10, marginTop: 8 },
   screen: { paddingHorizontal: spacing.page, alignItems: "center" },

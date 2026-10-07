@@ -2,6 +2,10 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.20.2 - 2026-10-07
+
+- Exercise menu in the workout, reorganised: note and part of the workout first, then rest (and superset) settings in their own blocks, then the actions (superset link, EMOM, replace, edit, reference video) as one compact list, and remove apart at the bottom. Same functions as before.
+
 ## 0.20.1 - 2026-10-07
 
 - − and + step the number you are typing (reps, time, distance, load) instead of the saved one, and the field stays open.

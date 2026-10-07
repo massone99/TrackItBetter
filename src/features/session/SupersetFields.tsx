@@ -1,13 +1,13 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ActionButton, SegmentedControl } from '../../shared/components/ui';
+import { MenuGroup, MenuRow, SegmentedControl } from '../../shared/components/ui';
 import { DurationField } from '../../shared/components/DateTimePickers';
 import { formatClock } from '../../shared/utils/format';
 import { linkWithNext, setSupersetRest, unlinkEntry, type SessionExercise } from './repository';
 import { parseSupersetType, type SupersetRest } from './superset';
 
-/** Superset controls in the exercise menu: link with the next exercise, rest mode, unlink. */
-export function SupersetFields({ exercise, hasNext, onChanged }: { exercise: SessionExercise; hasNext: boolean; onChanged: () => void }) {
+/** Rest mode of the superset this exercise is in; nothing when it is not linked. */
+export function SupersetSettings({ exercise }: { exercise: SessionExercise }) {
   const { t } = useTranslation();
   const [rest, setRest] = useState<SupersetRest>(() => parseSupersetType(exercise.groupType));
   const groupId = exercise.groupId;
@@ -15,8 +15,9 @@ export function SupersetFields({ exercise, hasNext, onChanged }: { exercise: Ses
     setRest(next);
     if (groupId) void setSupersetRest(groupId, next);
   };
-  return <>
-    {groupId ? <>
+  if (!groupId) return null;
+  return (
+    <MenuGroup title={t('superset.title')}>
       <SegmentedControl<SupersetRest['mode']>
         value={rest.mode}
         onChange={(mode) => save({ mode, betweenSec: mode === 'between' ? rest.betweenSec || 30 : 0 })}
@@ -25,8 +26,16 @@ export function SupersetFields({ exercise, hasNext, onChanged }: { exercise: Ses
       {rest.mode === 'between' ? (
         <DurationField label={t('superset.betweenLabel')} value={rest.betweenSec} format={formatClock} step={5} min={5} max={180} presets={[15, 30, 60, 90]} onChange={(betweenSec) => save({ mode: 'between', betweenSec })} />
       ) : null}
-    </> : null}
-    {hasNext ? <ActionButton icon="link" label={t(groupId ? 'superset.addNext' : 'superset.link')} secondary onPress={() => void linkWithNext(exercise.entryId).then(onChanged)} /> : null}
-    {groupId ? <ActionButton icon="unlink" label={t('superset.unlink')} secondary onPress={() => void unlinkEntry(exercise.entryId).then(onChanged)} /> : null}
+    </MenuGroup>
+  );
+}
+
+/** Link with the next exercise / unlink, as rows of the exercise menu. */
+export function SupersetActions({ exercise, hasNext, onChanged }: { exercise: SessionExercise; hasNext: boolean; onChanged: () => void }) {
+  const { t } = useTranslation();
+  const groupId = exercise.groupId;
+  return <>
+    {hasNext ? <MenuRow icon="link" label={t(groupId ? 'superset.addNext' : 'superset.link')} onPress={() => void linkWithNext(exercise.entryId).then(onChanged)} /> : null}
+    {groupId ? <MenuRow icon="unlink" label={t('superset.unlink')} onPress={() => void unlinkEntry(exercise.entryId).then(onChanged)} /> : null}
   </>;
 }
