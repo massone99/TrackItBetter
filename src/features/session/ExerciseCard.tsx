@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next';
 import { Pressable, StyleSheet, View } from 'react-native';
 import Animated, { FadeInDown, FadeOutLeft, LinearTransition, ZoomIn } from 'react-native-reanimated';
-import type { ReactNode } from 'react';
+import { useRef, type ReactNode } from 'react';
 import { compareWithLast } from '../../domain/lastTime';
 import { formatRpe } from '../../domain/rpe';
 import { completedSetCount, groupSets } from '../../domain/setPairs';
@@ -9,7 +9,7 @@ import type { RecordKind } from '../analytics/records';
 import { openExercisePage } from '../exercises/openExercise';
 import { openReferenceVideo } from '../exercises/ReferenceLinkSheet';
 import { HoldDurationField } from '../../shared/components/DateTimePickers';
-import { Heading, Icon, IconButton, Label, NumberEdit, tapFeedback, Text } from '../../shared/components/ui';
+import { Heading, Icon, IconButton, Label, NumberEdit, tapFeedback, Text, type NumberEditControl } from '../../shared/components/ui';
 import { useAnimationSettings } from '../../shared/settings/AnimationProvider';
 import { useTheme } from '../../shared/theme/ThemeProvider';
 import { fonts } from '../../shared/theme/typography';
@@ -69,6 +69,16 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
   const styles = useScaledStyles(baseStyles);
   const { t, i18n } = useTranslation();
   const { palette } = useTheme();
+  // The number fields that are open, so − and + step what is typed rather than the saved value.
+  const controls = useRef(new Map<string, NumberEditControl>());
+  const step = (set: SessionSet, field: Parameters<typeof onChange>[1], delta: number) => {
+    const typed = controls.current.get(`${set.id}:${field}`)?.read() ?? null;
+    if (typed === null) { void onChange(set, field, delta); return; }
+    const next = Math.round((typed + delta) * 100) / 100;
+    const value = field === 'addedLoadKg' ? next : Math.max(0, next);
+    controls.current.get(`${set.id}:${field}`)?.set(String(value));
+    onSetValue(set, field, value);
+  };
   const { duration } = useAnimationSettings();
   const setEntering = duration(220) ? FadeInDown.duration(duration(220)) : undefined;
   const itemExiting = duration(200) ? FadeOutLeft.duration(duration(200)) : undefined;
@@ -220,7 +230,7 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
                 </PopOnActivate>
               </View>
               <View style={[styles.colValue, styles.stepper]}>
-                {showSteps ? <StepButton icon="remove" label={t('logger.stepDown', { field: fieldLabel, number: workingNumber, side: sideLabel }).trim()} onPress={(multiplier) => void onChange(set, field, (distance ? -0.5 : timed ? -5 : -1) * multiplier)} /> : null}
+                {showSteps ? <StepButton icon="remove" label={t('logger.stepDown', { field: fieldLabel, number: workingNumber, side: sideLabel }).trim()} onPress={(multiplier) => step(set, field, (distance ? -0.5 : timed ? -5 : -1) * multiplier)} /> : null}
                 {(done && !editDone) || holding ? (
                   <Text style={[styles.setValue, { color: holding ? palette.accentStrong : palette.text }]}>{value}</Text>
                 ) : timed ? (
@@ -231,15 +241,16 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
                     display={value}
                     label={`${t('logger.editValue', { number: set.index })} ${sideLabel}`}
                     onCommit={(next) => onSetValue(set, field, field === 'reps' ? Math.round(next) : next)}
+                    onControl={(control) => { controls.current.set(`${set.id}:${field}`, control); }}
                     onLongPress={openMenu}
                     style={[styles.setValue, { color: palette.text }]}
                   />
                 )}
-                {showSteps ? <StepButton icon="add" label={t('logger.stepUp', { field: fieldLabel, number: workingNumber, side: sideLabel }).trim()} onPress={(multiplier) => void onChange(set, field, (distance ? 0.5 : timed ? 5 : 1) * multiplier)} /> : null}
+                {showSteps ? <StepButton icon="add" label={t('logger.stepUp', { field: fieldLabel, number: workingNumber, side: sideLabel }).trim()} onPress={(multiplier) => step(set, field, (distance ? 0.5 : timed ? 5 : 1) * multiplier)} /> : null}
               </View>
               {withLoad ? (
                 <View style={[styles.colLoad, styles.stepper]}>
-                  {showSteps ? <StepButton icon="remove" label={t('logger.stepDown', { field: t('history.addedLoad'), number: workingNumber, side: sideLabel }).trim()} onPress={(multiplier) => void onChange(set, 'addedLoadKg', -LOAD_STEP_KG * multiplier)} /> : null}
+                  {showSteps ? <StepButton icon="remove" label={t('logger.stepDown', { field: t('history.addedLoad'), number: workingNumber, side: sideLabel }).trim()} onPress={(multiplier) => step(set, 'addedLoadKg', -LOAD_STEP_KG * multiplier)} /> : null}
                   {done && !editDone ? (
                     <Text style={[styles.loadValue, { color: set.addedLoadKg === 0 ? palette.textMuted : palette.text }]}>{loadText}</Text>
                   ) : (
@@ -249,11 +260,12 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
                       allowNegative
                       label={`${t('history.addedLoad')} ${sideLabel}`}
                       onCommit={(next) => onSetValue(set, 'addedLoadKg', next)}
+                      onControl={(control) => { controls.current.set(`${set.id}:addedLoadKg`, control); }}
                       onLongPress={openMenu}
                       style={[styles.loadValue, { color: set.addedLoadKg === 0 ? palette.textMuted : palette.text }]}
                     />
                   )}
-                  {showSteps ? <StepButton icon="add" label={t('logger.stepUp', { field: t('history.addedLoad'), number: workingNumber, side: sideLabel }).trim()} onPress={(multiplier) => void onChange(set, 'addedLoadKg', LOAD_STEP_KG * multiplier)} /> : null}
+                  {showSteps ? <StepButton icon="add" label={t('logger.stepUp', { field: t('history.addedLoad'), number: workingNumber, side: sideLabel }).trim()} onPress={(multiplier) => step(set, 'addedLoadKg', LOAD_STEP_KG * multiplier)} /> : null}
                 </View>
               ) : null}
               <View style={styles.colAction}>

@@ -388,7 +388,15 @@ export function Stepper({ label, value, display, step = 1, min = 0, max = 999, l
   const styles = useScaledStyles(baseStyles);
   const { palette } = useTheme();
   const clamp = (next: number) => Math.min(max, Math.max(min, Math.round(next * 100) / 100));
-  const change = (delta: number) => onChange(clamp(value + delta));
+  const editor = useRef<NumberEditControl | null>(null);
+  // While the number is being typed, buttons step what is typed, and the field shows the result.
+  const change = (delta: number) => {
+    const typed = editable ? editor.current?.read() ?? null : null;
+    const next = clamp((typed ?? value) + delta);
+    if (typed !== null && !clock) editor.current?.set(String(next));
+    else if (typed !== null) editor.current?.set(null);
+    onChange(next);
+  };
   const shown = display ?? String(value);
   return (
     <View>
@@ -397,7 +405,7 @@ export function Stepper({ label, value, display, step = 1, min = 0, max = 999, l
         <View style={styles.stepperControls}>
           <StepperButton icon="remove" label={`${label} −`} disabled={value <= min} onStep={(multiplier) => change(-step * multiplier)} />
           {editable ? (
-            <NumberEdit value={value} display={shown} initialDraft={value < 0 ? "" : undefined} clock={clock} label={label} onCommit={(next) => onChange(clamp(next))} style={styles.stepperValue} />
+            <NumberEdit value={value} display={shown} initialDraft={value < 0 ? "" : undefined} clock={clock} label={label} onControl={(control) => { editor.current = control; }} onCommit={(next) => onChange(clamp(next))} style={styles.stepperValue} />
           ) : (
             <Text style={styles.stepperValue}>{shown}</Text>
           )}
@@ -584,7 +592,15 @@ export const AUTOSAVE_DELAY_MS = 400;
  * A number shown as text that turns into a numeric field when tapped, so a value can be typed
  * instead of stepped. With `clock`, "1:30" is accepted as 90 seconds. Invalid input is discarded.
  */
-export function NumberEdit({ value, display, label, onCommit, onLongPress, initialDraft, clock = false, allowNegative = false, disabled = false, style }: {
+/** Lets buttons next to a `NumberEdit` step the number being typed instead of the saved one. */
+export type NumberEditControl = {
+  /** The typed number while the field is open; null when closed or not a number yet. */
+  read: () => number | null;
+  /** Replaces the typed text (field stays open); with no text, closes the field. */
+  set: (text: string | null) => void;
+};
+
+export function NumberEdit({ value, display, label, onCommit, onLongPress, initialDraft, clock = false, allowNegative = false, disabled = false, style, onControl }: {
   value: number;
   /** Text shown while not editing, e.g. "1:05". */
   display: string;
@@ -599,10 +615,13 @@ export function NumberEdit({ value, display, label, onCommit, onLongPress, initi
   allowNegative?: boolean;
   disabled?: boolean;
   style?: TextProps["style"];
+  /** Called after every render with the controls, for buttons that step the typed number. */
+  onControl?: (control: NumberEditControl) => void;
 }) {
   const styles = useScaledStyles(baseStyles);
   const { palette } = useTheme();
   const [draft, setDraft] = useState<string | null>(null);
+  const draftRef = useRef<string | null>(null);
   // Typing saves after a short pause rather than on every keystroke (each save reloads the workout);
   // leaving the field, or the screen, saves at once.
   const pending = useRef<{ timer: ReturnType<typeof setTimeout>; value: number } | null>(null);
@@ -622,6 +641,18 @@ export function NumberEdit({ value, display, label, onCommit, onLongPress, initi
   const flushRef = useRef(flush);
   useEffect(() => { flushRef.current = flush; });
   useEffect(() => () => flushRef.current(), []);
+  useEffect(() => {
+    draftRef.current = draft;
+    onControl?.({
+      read: () => (draftRef.current === null ? null : parseNumberInput(draftRef.current, clock)),
+      set: (text) => {
+        if (pending.current) { clearTimeout(pending.current.timer); pending.current = null; }
+        saved.current = null;
+        draftRef.current = text;
+        setDraft(text);
+      },
+    });
+  });
   const commit = () => {
     if (draft === null) return;
     const parsed = parseNumberInput(draft, clock);

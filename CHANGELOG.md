@@ -2,6 +2,11 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.20.1 - 2026-10-07
+
+- − and + step the number you are typing (reps, time, distance, load) instead of the saved one, and the field stays open.
+- In a superset the screen no longer jumps to the next exercise until the set's form is rated; rating it moves on.
+
 ## 0.20.0 - 2026-10-07
 
 - Notes on a prescribed workout (program) and on the workout in progress; starting a workout copies the notes.

@@ -403,6 +403,16 @@ export default function WorkoutScreen() {
     if (!step || step.endOfRound) startRestTimer(restAfter(setId));
     else if (step.mode === 'between' && step.betweenSec > 0) startRestTimer(step.betweenSec);
     else skipRest();
+    // A working set still to be rated keeps the screen where it is; rating it moves on (see saveFormRating).
+    const rated = finished?.kind !== 'working' || finished.formRating !== null || !!emomEntryId;
+    if (rated) scrollToNextExercise(setId);
+  };
+
+  /** In a superset, scrolls to the exercise that comes after the one this set belongs to. */
+  const scrollToNextExercise = (setId: string) => {
+    const exercise = workout?.exercises.find((item) => item.sets.some((set) => set.id === setId));
+    const marked = workout?.exercises.map((item) => ({ ...item, sets: item.sets.map((set) => set.id === setId ? { ...set, completedAt: set.completedAt ?? new Date() } : set) })) ?? [];
+    const step = exercise ? supersetStep(marked, exercise.entryId) : null;
     const top = step?.nextEntryId && step.nextEntryId !== exercise?.entryId ? cardTops.current.get(step.nextEntryId) : undefined;
     if (top !== undefined) scrollRef.current?.scrollTo({ y: Math.max(0, top - 16), animated: true });
   };
@@ -452,6 +462,7 @@ export default function WorkoutScreen() {
     tapFeedback();
     patchSet(set.id, { formRating: rating });
     await setSetFormRating(set.id, rating);
+    if (rating !== null && set.formRating === null && set.completedAt) scrollToNextExercise(set.id);
     if (workout) await refresh(workout.id);
   };
 
