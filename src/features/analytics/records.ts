@@ -6,6 +6,8 @@ export interface RecordRow {
   setId: string;
   workoutId: string;
   exerciseId: string;
+  /** What records are compared within: the exercise, or the exercise on one apparatus when that changes the difficulty. */
+  compareKey?: string;
   metric: string;
   reps: number | null;
   durationSec: number | null;
@@ -91,8 +93,9 @@ export function detectSetRecords(rows: readonly RecordRow[], workoutId: string, 
   const records: SetRecord[] = [];
   const earlierByExercise = new Map<string, RecordRow[]>();
   for (const row of scopedRows(rows, scope)) {
-    const earlier = earlierByExercise.get(row.exerciseId) ?? [];
-    earlierByExercise.set(row.exerciseId, [...earlier, row]);
+    const group = row.compareKey ?? row.exerciseId;
+    const earlier = earlierByExercise.get(group) ?? [];
+    earlierByExercise.set(group, [...earlier, row]);
     if (row.workoutId !== workoutId || row.metric === 'distance') continue;
     if (!earlier.some((item) => item.workoutId !== workoutId)) continue;
     const amount = amountOf(row);
@@ -147,9 +150,11 @@ function volumeOf(row: RecordRow): number {
 
 export function detectVolumeRecords(rows: readonly RecordRow[], workoutId: string, scope: RecordScope = 'average'): VolumeRecord[] {
   const sessions = new Map<string, Map<string, number>>();
+  const exerciseOf = new Map<string, string>();
   for (const row of scopedRows(rows, scope)) {
     if (row.metric === 'distance') continue;
-    const key = `${row.exerciseId}\u0000${recordScope(row)}`;
+    const key = `${row.compareKey ?? row.exerciseId}\u0000${recordScope(row)}`;
+    exerciseOf.set(key, row.exerciseId);
     const byWorkout = sessions.get(key) ?? new Map<string, number>();
     byWorkout.set(row.workoutId, (byWorkout.get(row.workoutId) ?? 0) + volumeOf(row));
     sessions.set(key, byWorkout);
@@ -157,7 +162,7 @@ export function detectVolumeRecords(rows: readonly RecordRow[], workoutId: strin
   const records: VolumeRecord[] = [];
   for (const [key, byWorkout] of sessions) {
     const separator = key.indexOf('\u0000');
-    const exerciseId = key.slice(0, separator);
+    const exerciseId = exerciseOf.get(key) ?? key.slice(0, separator);
     const rowScope = key.slice(separator + 1) as RecordScope;
     const value = byWorkout.get(workoutId);
     const previous = maxOf([...byWorkout].filter(([id]) => id !== workoutId).map(([, volume]) => volume));

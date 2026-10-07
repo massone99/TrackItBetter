@@ -114,6 +114,8 @@ function AppNavigator() {
         <Stack.Screen name="pose/new" />
         <Stack.Screen name="pose/[positionId]" />
         <Stack.Screen name="goals" />
+        <Stack.Screen name="equipment" />
+        <Stack.Screen name="band-set/[id]" />
       </Stack>
     </>
   );

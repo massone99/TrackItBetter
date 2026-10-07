@@ -30,6 +30,7 @@ import {
   moveExerciseEntry,
   getActiveWorkout,
   getPreviousPerformance,
+  setEntryApparatus,
   updateWorkoutDetails,
   removeExerciseEntry,
   removeExerciseEntryWithUndo,
@@ -57,7 +58,9 @@ import { playBeep } from '../../src/shared/audio/beeps';
 import {
   ActionButton,
   Body,
+  Label,
   MenuGrid,
+  MenuGroup,
   MenuList,
   MenuRow,
   MenuTile,
@@ -78,6 +81,7 @@ import { ReorderableList } from '../../src/shared/components/ReorderableList';
 import { SaveToProgramSheet } from '../../src/features/programs/SaveToProgramSheet';
 import { ExerciseNoteField } from '../../src/features/session/ExerciseNoteField';
 import { WorkoutDetailsSheet } from '../../src/features/session/WorkoutDetailsSheet';
+import { apparatusName, bandsById, describeSetBands, useEquipment } from '../../src/features/equipment/useEquipment';
 import { LoadError } from '../../src/shared/components/LoadError';
 import { SetSheet } from '../../src/features/session/SetSheet';
 import { ExerciseCard, holdDisplay } from '../../src/features/session/ExerciseCard';
@@ -142,6 +146,8 @@ export default function WorkoutScreen() {
   const [voiceCues, setVoiceCues] = useState(() => readBooleanPreference(VOICE_CUES_KEY, false));
   const [readinessOpen, setReadinessOpen] = useState(false);
   const [detailsOpen, setDetailsOpen] = useState(false);
+  const { catalog, reload: reloadEquipment } = useEquipment();
+  const bandIndex = catalog ? bandsById(catalog) : null;
   const [finishOpen, setFinishOpen] = useState(false);
   const [saveOpen, setSaveOpen] = useState(false);
   const [savedTo, setSavedTo] = useState<{ id: string; name: string } | null>(null);
@@ -186,9 +192,10 @@ export default function WorkoutScreen() {
       }), FOLD_DELAY_MS);
     }
     // "Last time" only changes when the exercises change, so it is not re-read after every set.
-    const exerciseKey = `${next.id}:${next.exercises.map((exercise) => exercise.exerciseId).join(',')}`;
+    const exerciseKey = `${next.id}:${next.exercises.map((exercise) => `${exercise.exerciseId}@${exercise.apparatusId ?? ''}`).join(',')}`;
+    const apparatusOf = new Map(next.exercises.map((exercise) => [exercise.exerciseId, exercise.apparatusId ?? null] as const));
     const [previousPerformance, found] = await Promise.all([
-      previousKey.current === exerciseKey ? null : getPreviousPerformance(next.exercises.map((exercise) => exercise.exerciseId), next.id),
+      previousKey.current === exerciseKey ? null : getPreviousPerformance(next.exercises.map((exercise) => exercise.exerciseId), next.id, apparatusOf),
       getSessionRecords(next.id).catch(() => null),
     ]);
     if (previousPerformance) { previousKey.current = exerciseKey; setPrevious(previousPerformance); }
@@ -248,7 +255,9 @@ export default function WorkoutScreen() {
   useFocusEffect(useCallback(() => {
     if (!focusedOnce.current) { focusedOnce.current = true; return; }
     if (id && id !== 'new') void refresh(id);
-  }, [id, refresh]));
+    // Back from the equipment screens or an exercise's settings: new bands and apparatus show at once.
+    void reloadEquipment();
+  }, [id, refresh, reloadEquipment]));
 
   /** The rest ran out: the countdown itself lives in the timer bar, so only it re-renders each second. */
   const endRest = () => {
@@ -752,7 +761,10 @@ export default function WorkoutScreen() {
             showRpe={showRpe}
             defaultRest={restForSet(exercise.exerciseId, { kind: 'working', restSec: null })}
             onFormRating={(set, rating) => void saveFormRating(set, rating)}
-            editDone
+            typeDone
+            apparatusLabel={exercise.apparatusId && catalog ? apparatusName(catalog.apparatus.find((item) => item.id === exercise.apparatusId), t) : null}
+            firstTimeLabel={exercise.apparatusAffectsDifficulty && exercise.apparatusId && catalog ? t('equipment.firstTimeOn', { name: apparatusName(catalog.apparatus.find((item) => item.id === exercise.apparatusId), t) }) : undefined}
+            describeBands={(set) => (bandIndex ? describeSetBands(set, bandIndex, t) : null)}
             onRpe={(set, rpe) => void saveRpe(set, rpe)}
             onOptions={() => setOptionsFor(exercise)}
           />
@@ -851,6 +863,21 @@ export default function WorkoutScreen() {
         {optionsFor ? (
           <>
             <ExerciseNoteField key={optionsFor.entryId} entryId={optionsFor.entryId} initial={optionsFor.notes} onSaved={() => void refresh(workout.id)} />
+            {catalog && (optionsFor.apparatusIds?.length ?? 0) > 0 ? (
+              <MenuGroup title={t('equipment.apparatusInWorkout')}>
+                <View style={styles.choiceRow}>
+                  {optionsFor.apparatusIds!.map((apparatusId) => (
+                    <Chip
+                      key={apparatusId}
+                      label={apparatusName(catalog.apparatus.find((item) => item.id === apparatusId), t)}
+                      selected={optionsFor.apparatusId === apparatusId}
+                      onPress={() => { const entryId = optionsFor.entryId; setOptionsFor(null); void setEntryApparatus(entryId, apparatusId).then(() => refresh(workout.id)); }}
+                    />
+                  ))}
+                </View>
+                {optionsFor.apparatusAffectsDifficulty ? <Label>{t('equipment.apparatusCompareHint')}</Label> : null}
+              </MenuGroup>
+            ) : null}
             <ExerciseBlockField key={`block-${optionsFor.entryId}-${optionsFor.block}`} entryId={optionsFor.entryId} value={optionsFor.block} onChanged={() => { setOptionsFor(null); void refresh(workout.id); }} />
             <SupersetSettings key={`superset-${optionsFor.entryId}-${optionsFor.groupId ?? ''}`} exercise={optionsFor} />
             <ExerciseRestFields key={`rest-${optionsFor.entryId}`} exercise={optionsFor} onSaved={() => void refresh(workout.id)} />
@@ -1135,6 +1162,7 @@ function ReadinessRow({ label, value, onChange }: { label: string; value: number
 
 
 const baseStyles = StyleSheet.create({
+  choiceRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   root: { flex: 1 },
   flex: { flex: 1 },
   readinessToggle: { flexShrink: 1, flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: MIN_TOUCH_TARGET },
@@ -1167,7 +1195,8 @@ const baseStyles = StyleSheet.create({
   timerValue: { fontFamily: fonts.display, fontSize: 38, lineHeight: 42, fontVariant: ['tabular-nums'] },
   timerReadout: { flexGrow: 1, minWidth: 110 },
   timerActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  emomInner: { flexDirection: 'column', alignItems: 'stretch', gap: 8 },
+  // No wrapping here: a wrapping column lays the two rows side by side and squeezes the labels to nothing.
+  emomInner: { flexDirection: 'column', flexWrap: 'nowrap', alignItems: 'stretch', justifyContent: 'flex-start', gap: 8 },
   emomRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   emomValueText: { fontFamily: fonts.display, fontSize: 26, lineHeight: 30, minWidth: 72, textAlign: 'center', fontVariant: ['tabular-nums'] },
   timerAction: { minWidth: 56, minHeight: 48, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10, alignItems: 'center', justifyContent: 'center' },

@@ -50,6 +50,9 @@ workout, versioned): `docs/LANGUAGE.md`; use it in UI strings, code and answers.
 - Long lists render in pages ("Show more"), not all at once: `usePaged`, `usePagedSections` or `<Paged>`
   (`src/shared/components/paging.tsx`). The Log pages in the database (`listWorkoutsPage`, a cursor).
 - Open improvements and their status are in `AUDIT.md`.
+- Apparatus and band sets are global, stored as one JSON setting (`src/features/equipment`); a set's bands
+  and assistance kg live on `training_set` (schema v17). Comparisons by apparatus go through
+  `getPreviousPerformance(..., apparatusOf)` and the records' `compareKey`.
 - Main actions of long screens go in `Screen`'s `footer` (`FooterAction`, at most two, never a
   destructive one), so they are reachable without scrolling to the end.
 - Editing screens save on the way out with `useSaveOnLeave` (`src/shared/forms`); invalid edits ask

@@ -66,6 +66,10 @@ const exerciseSchema = z.object({
   favourite: z.boolean(),
   archived: z.boolean(),
   createdAt: timestamp,
+  // Added in schema v17.
+  apparatusIds: z.string().default('[]'),
+  defaultApparatusId: nullableString.default(null),
+  apparatusAffectsDifficulty: z.boolean().default(false),
 }).strict();
 
 const progressionChainSchema = z.object({
@@ -110,6 +114,8 @@ const entrySchema = z.object({
   block: z.enum(['warmup', 'main', 'mobility']).nullable().default(null),
   // Added in schema v14.
   formRating: z.number().int().min(1).max(5).nullable().default(null),
+  // Added in schema v17.
+  apparatusId: nullableString.default(null),
 }).strict();
 
 const setSchema = z.object({
@@ -136,6 +142,9 @@ const setSchema = z.object({
   targetRpe: nullableNumber.default(null),
   // Added in schema v15.
   formRating: z.number().int().min(1).max(5).nullable().default(null),
+  // Added in schema v17.
+  bands: nullableString.default(null),
+  assistKg: nullableNumber.default(null),
 }).strict();
 
 const measurementSchema = z.object({

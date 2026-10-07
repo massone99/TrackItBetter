@@ -187,6 +187,10 @@ async function readRecordRows(onlyWorkoutId?: string): Promise<RecordRow[]> {
       durationSec: trainingSets.durationSec,
       addedLoadKg: trainingSets.addedLoadKg,
       restSec: trainingSets.restSec,
+      assistKg: trainingSets.assistKg,
+      apparatusId: exerciseEntries.apparatusId,
+      defaultApparatusId: exercises.defaultApparatusId,
+      apparatusAffectsDifficulty: exercises.apparatusAffectsDifficulty,
     })
     .from(trainingSets)
     .innerJoin(exerciseEntries, eq(trainingSets.entryId, exerciseEntries.id))
@@ -202,11 +206,15 @@ async function readRecordRows(onlyWorkoutId?: string): Promise<RecordRow[]> {
     // Rest after a warm-up is not comparable with rest between working sets.
     const restBeforeSec = row.pairId ? restBeforePair : previous?.entryId === row.entryId && previous.kind === 'working' ? previous.restSec : null;
     if (row.kind !== 'working') continue;
-    const effectiveLoadKg = getEffectiveLoad({ ...row, distanceM: null, completedAt: null } as never) ?? null;
+    // Band assistance counts as negative load, so an assisted set is compared at its real load.
+    const addedLoadKg = row.addedLoadKg - (row.assistKg ?? 0);
+    const effectiveLoadKg = getEffectiveLoad({ ...row, addedLoadKg, distanceM: null, completedAt: null } as never) ?? null;
+    const apparatus = row.apparatusAffectsDifficulty ? row.apparatusId ?? row.defaultApparatusId : null;
     result.push({
       pairId: row.pairId, side: row.side,
       setId: row.setId, workoutId: row.workoutId, exerciseId: row.exerciseId, metric: row.metric,
-      reps: row.reps, durationSec: row.durationSec, addedLoadKg: row.addedLoadKg, effectiveLoadKg, restBeforeSec,
+      compareKey: apparatus ? `${row.exerciseId}@${apparatus}` : row.exerciseId,
+      reps: row.reps, durationSec: row.durationSec, addedLoadKg, effectiveLoadKg, restBeforeSec,
     });
     }
     previous = group.at(-1) ?? null;

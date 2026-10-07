@@ -39,6 +39,11 @@ export const exercises = sqliteTable(
     favourite: integer('favourite', { mode: 'boolean' }).notNull().default(false),
     archived: integer('archived', { mode: 'boolean' }).notNull().default(false),
     createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+    /** JSON list of apparatus ids (see features/equipment) this exercise can be done on; empty for none. */
+    apparatusIds: text('apparatus_ids').notNull().default('[]'),
+    defaultApparatusId: text('default_apparatus_id'),
+    /** When true, comparisons and records only use sessions on the same apparatus. */
+    apparatusAffectsDifficulty: integer('apparatus_affects_difficulty', { mode: 'boolean' }).notNull().default(false),
   },
   (table) => [index('exercise_category_idx').on(table.category)],
 );
@@ -94,6 +99,8 @@ export const exerciseEntries = sqliteTable(
     /** Part of the workout (warm-up, main work, mobility); null is the main work. */
     block: text('block', { enum: ['warmup', 'main', 'mobility'] }),
     notes: text('notes'),
+    /** Apparatus used for this exercise in this workout; null means the exercise's default. */
+    apparatusId: text('apparatus_id'),
     /** Per-exercise form rating from 0.13.0; ratings now live on the sets (see trainingSets.formRating). */
     formRating: integer('form_rating'),
   },
@@ -125,6 +132,10 @@ export const trainingSets = sqliteTable(
     /** How clean the form of this set was, 1–5; null when not rated. */
     formRating: integer('form_rating'),
     note: text('note'),
+    /** JSON list of { bandId, tension } for resistance bands that helped this set; null when none. */
+    bands: text('bands'),
+    /** Assistance of those bands in kg when the set was logged; null without bands or when a band's kg are unknown. */
+    assistKg: real('assist_kg'),
     completedAt: integer('completed_at', { mode: 'timestamp_ms' }),
   },
   (table) => [index('set_entry_index_idx').on(table.entryId, table.index)],

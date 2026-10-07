@@ -1,4 +1,4 @@
-import { and, asc, count, desc, eq, gt, gte, inArray, isNotNull, isNull, lt, max, ne, or } from 'drizzle-orm';
+import { and, asc, count, desc, eq, gt, gte, inArray, isNotNull, isNull, lt, max, ne, or, sql } from 'drizzle-orm';
 import * as Crypto from 'expo-crypto';
 import { db, initializeDatabase } from '../../db/client';
 import { bumpFinishedVersion } from '../../db/cache';
@@ -11,6 +11,7 @@ import type { SetKind } from './restDefaults';
 import { formatSupersetType, type SupersetRest } from './superset';
 import { groupSets, completedSetCount, validatePairs } from '../../domain/setPairs';
 import { blockAfterMove, blockOf, sortByBlock, type Block } from '../../domain/blocks';
+import { effectiveApparatus, parseIdList, parseSetBands, setAssistKg, type Band, type SetBand } from '../../domain/equipment';
 
 export interface SessionSet {
   pairId?: string | null;
@@ -31,6 +32,10 @@ export interface SessionSet {
   /** How clean the form of this set was, 1–5; null when not rated. */
   formRating: number | null;
   note: string | null;
+  /** Resistance bands that helped this set, with how far each was stretched. */
+  bands: SetBand[];
+  /** Their assistance in kg; null without bands or when a band's kg are unknown. */
+  assistKg: number | null;
   /** Number of form-check clips the user attached to this set. */
   clipCount: number;
   /** Number of pose analyses linked to this set. */
@@ -39,6 +44,12 @@ export interface SessionSet {
 }
 
 export interface SessionExercise {
+  /** Apparatus used here: the one chosen in this workout, else the exercise default; null for none. */
+  apparatusId?: string | null;
+  /** Apparatus this exercise can be done on. */
+  apparatusIds?: string[];
+  /** When true, comparisons only use sessions on the same apparatus. */
+  apparatusAffectsDifficulty?: boolean;
   unilateral?: boolean;
   unilateralRestMode?: 'side' | 'pair';
   unilateralRestOverride?: 'side' | 'pair' | null;
@@ -300,6 +311,9 @@ async function loadSessionExercises(workoutId: string): Promise<SessionExercise[
       unilateralRestMode: entry.unilateralRestMode ?? exercise.unilateralRestMode,
       unilateralRestOverride: entry.unilateralRestMode,
       demoUrl: exercise.demoUrl,
+      apparatusId: effectiveApparatus(entry.apparatusId, exercise.defaultApparatusId),
+      apparatusIds: parseIdList(exercise.apparatusIds),
+      apparatusAffectsDifficulty: exercise.apparatusAffectsDifficulty,
       notes: entry.notes,
       block: blockOf(entry.block),
       groupId: entry.groupId,
@@ -319,6 +333,8 @@ async function loadSessionExercises(workoutId: string): Promise<SessionExercise[
         targetRpe: set.targetRpe,
         formRating: set.formRating,
         note: set.note,
+        bands: parseSetBands(set.bands),
+        assistKg: set.assistKg,
         clipCount: clipsBySet.get(set.id) ?? 0,
         poseCount: posesBySet.get(set.id) ?? 0,
         completedAt: set.completedAt,
@@ -468,6 +484,8 @@ export async function addSet(entryId: string, pairValues?: { left: PairEditValue
     addedLoadKg: previous?.addedLoadKg ?? 0,
     restSec: previous?.restSec ?? null,
     band: previous?.band ?? null,
+    bands: previous?.bands ?? null,
+    assistKg: previous?.assistKg ?? null,
     rpe: previous?.rpe ?? null,
     targetRpe: previous?.targetRpe ?? null,
     side: 'both',
@@ -499,6 +517,23 @@ export async function updateSet(
   }
   if (field !== 'restSec' && !isValidSetValue(field, value)) throw new Error('Invalid workout set value');
   await writeSetValue(setId, field, value);
+  await bumpIfFinished({ setId });
+}
+
+/** Chooses the apparatus of a workout exercise; null goes back to the exercise default. */
+export async function setEntryApparatus(entryId: string, apparatusId: string | null): Promise<void> {
+  await initializeDatabase();
+  await db.update(exerciseEntries).set({ apparatusId }).where(eq(exerciseEntries.id, entryId));
+  await bumpIfFinished({ entryId });
+}
+
+/** Saves the bands of a set and their assistance in kg, worked out now so later edits of a band leave history as it was. */
+export async function setSetBands(setId: string, bands: readonly SetBand[], catalog: ReadonlyMap<string, Band>): Promise<void> {
+  await initializeDatabase();
+  await db.update(trainingSets).set({
+    bands: bands.length > 0 ? JSON.stringify(bands) : null,
+    assistKg: setAssistKg(bands, catalog),
+  }).where(eq(trainingSets.id, setId));
   await bumpIfFinished({ setId });
 }
 
@@ -981,13 +1016,14 @@ export interface PreviousPerformance {
   sets: PreviousSetValues[];
 }
 
-export type PreviousSetValues = Pick<SessionSet, 'reps' | 'durationSec' | 'distanceM' | 'addedLoadKg' | 'rpe' | 'note' | 'side' | 'pairId'> & { restSec?: number | null; formRating?: number | null };
+export type PreviousSetValues = Pick<SessionSet, 'reps' | 'durationSec' | 'distanceM' | 'addedLoadKg' | 'rpe' | 'note' | 'side' | 'pairId'> & { restSec?: number | null; formRating?: number | null; bands?: SetBand[]; assistKg?: number | null };
 
-/** Fills an open set with the values of a set from last time, note included. */
+/** Fills an open set with the values of a set from last time, note and bands included. */
 export async function copyValuesToSet(setId: string, values: PreviousSetValues): Promise<void> {
   await initializeDatabase();
   const { reps, durationSec, distanceM, addedLoadKg, rpe, note } = values;
-  await db.update(trainingSets).set({ reps, durationSec, distanceM, addedLoadKg, rpe, note }).where(eq(trainingSets.id, setId));
+  const bands = values.bands && values.bands.length > 0 ? { bands: JSON.stringify(values.bands), assistKg: values.assistKg ?? null } : {};
+  await db.update(trainingSets).set({ reps, durationSec, distanceM, addedLoadKg, rpe, note, ...bands }).where(eq(trainingSets.id, setId));
   await bumpIfFinished({ setId });
 }
 
@@ -1017,7 +1053,7 @@ export async function repeatWorkout(sourceId: string): Promise<string> {
     if (sets.length === 0) continue;
     validatePairs(sets, true);
     const entryId = id();
-    newEntries.push({ id: entryId, workoutId, exerciseId: entry.exerciseId, order: newEntries.length + 1, notes: entry.notes, groupId: entry.groupId, groupType: entry.groupType, unilateralRestMode: entry.unilateralRestMode, block: entry.block });
+    newEntries.push({ id: entryId, workoutId, exerciseId: entry.exerciseId, order: newEntries.length + 1, notes: entry.notes, groupId: entry.groupId, groupType: entry.groupType, unilateralRestMode: entry.unilateralRestMode, block: entry.block, apparatusId: entry.apparatusId });
     const pairIds = new Map(sets.filter((s) => s.pairId).map((s) => [s.pairId, id()]));
     newSets.push(...sets.map((set) => ({
       // How hard and how clean it was belong to that day: the copy starts without them.
@@ -1113,21 +1149,37 @@ export async function addPlannedEntries(workoutId: string, planned: readonly Pla
   return newEntries.map((entry) => entry.id!);
 }
 
-/** Completed sets from the most recent finished workout that included each exercise. */
-export async function getPreviousPerformance(exerciseIds: string[], excludeWorkoutId: string): Promise<Map<string, PreviousPerformance>> {
+/**
+ * Completed sets from the most recent finished workout that included each exercise. With
+ * `apparatusOf`, an exercise whose apparatus changes the difficulty only looks at workouts done on
+ * the apparatus given for it (a past workout without one counts as the exercise default).
+ */
+export async function getPreviousPerformance(exerciseIds: string[], excludeWorkoutId: string, apparatusOf?: ReadonlyMap<string, string | null>): Promise<Map<string, PreviousPerformance>> {
   await initializeDatabase();
   const result = new Map<string, PreviousPerformance>();
   if (exerciseIds.length === 0) return result;
   const done = and(isNotNull(workouts.endedAt), isNotNull(trainingSets.completedAt), eq(trainingSets.kind, 'working'));
   // First the latest finished workout of each exercise (SQLite takes the bare workout id from the
   // row holding the max), then only the sets of those workouts.
-  const latest = await db
+  const latestOf = async (ids: string[], apparatusId?: string | null) => db
     .select({ exerciseId: exerciseEntries.exerciseId, workoutId: workouts.id, startedAt: max(workouts.startedAt) })
     .from(trainingSets)
     .innerJoin(exerciseEntries, eq(trainingSets.entryId, exerciseEntries.id))
+    .innerJoin(exercises, eq(exerciseEntries.exerciseId, exercises.id))
     .innerJoin(workouts, eq(exerciseEntries.workoutId, workouts.id))
-    .where(and(inArray(exerciseEntries.exerciseId, exerciseIds), done, ne(workouts.id, excludeWorkoutId)))
+    .where(and(
+      inArray(exerciseEntries.exerciseId, ids), done, ne(workouts.id, excludeWorkoutId),
+      apparatusId === undefined ? undefined
+        : apparatusId === null ? sql`coalesce(${exerciseEntries.apparatusId}, ${exercises.defaultApparatusId}) IS NULL`
+          : sql`coalesce(${exerciseEntries.apparatusId}, ${exercises.defaultApparatusId}) = ${apparatusId}`,
+    ))
     .groupBy(exerciseEntries.exerciseId);
+  const strict = apparatusOf ? (await db.select({ id: exercises.id }).from(exercises)
+    .where(and(inArray(exercises.id, exerciseIds), eq(exercises.apparatusAffectsDifficulty, true)))).map((row) => row.id) : [];
+  const latest = [
+    ...await latestOf(exerciseIds.filter((exerciseId) => !strict.includes(exerciseId))),
+    ...(await Promise.all(strict.map((exerciseId) => latestOf([exerciseId], apparatusOf?.get(exerciseId) ?? null)))).flat(),
+  ];
   if (latest.length === 0) return result;
   const latestWorkout = new Map(latest.map((row) => [row.exerciseId, row.workoutId]));
   const rows = await db
@@ -1145,6 +1197,8 @@ export async function getPreviousPerformance(exerciseIds: string[], excludeWorko
       note: trainingSets.note,
       restSec: trainingSets.restSec,
       formRating: trainingSets.formRating,
+      bands: trainingSets.bands,
+      assistKg: trainingSets.assistKg,
     })
     .from(trainingSets)
     .innerJoin(exerciseEntries, eq(trainingSets.entryId, exerciseEntries.id))
@@ -1154,7 +1208,7 @@ export async function getPreviousPerformance(exerciseIds: string[], excludeWorko
   for (const row of rows) {
     if (latestWorkout.get(row.exerciseId) !== row.workoutId) continue;
     const entry: PreviousPerformance = result.get(row.exerciseId) ?? { workoutStartedAt: row.startedAt, sets: [] };
-    entry.sets.push({ side: row.side, pairId: row.pairId, reps: row.reps, durationSec: row.durationSec, distanceM: row.distanceM, addedLoadKg: row.addedLoadKg, rpe: row.rpe, note: row.note, restSec: row.restSec, formRating: row.formRating });
+    entry.sets.push({ side: row.side, pairId: row.pairId, reps: row.reps, durationSec: row.durationSec, distanceM: row.distanceM, addedLoadKg: row.addedLoadKg, rpe: row.rpe, note: row.note, restSec: row.restSec, formRating: row.formRating, bands: parseSetBands(row.bands), assistKg: row.assistKg });
     result.set(row.exerciseId, entry);
   }
   return result;

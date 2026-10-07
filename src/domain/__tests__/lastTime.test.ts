@@ -4,6 +4,16 @@ const set = (reps: number, extra: Partial<ComparableSet> = {}): ComparableSet =>
 const options = { defaultRest: 90 };
 
 describe('compareWithLast', () => {
+  it('compares band assistance in kg: less help is progress, unknown kg hide the comparison', () => {
+    const set = (assistKg: number | null, done = true) => ({ reps: 5, durationSec: null, distanceM: null, bands: [{}], assistKg, completedAt: done ? new Date() : null, kind: 'working' });
+    const better = compareWithLast([set(15), set(15)], [set(25), set(25)], 'reps', { defaultRest: 90 });
+    expect(better.assist).toEqual({ now: 15, last: 25 });
+    expect(better.improved.assist).toBe(true);
+    const unknown = compareWithLast([set(null)], [set(25)], 'reps', { defaultRest: 90 });
+    expect(unknown.assist).toBeNull();
+    expect(unknown.assistUnknown).toBe(true);
+  });
+
   it('sums reps of completed working sets and flags a higher total', () => {
     const result = compareWithLast([set(8), set(8), set(9), set(5, { kind: 'warmup' }), set(8, { completedAt: null })], [set(8), set(7), set(7)], 'reps', options);
     expect(result.total).toEqual({ now: 25, last: 22 });
@@ -27,7 +37,7 @@ describe('compareWithLast', () => {
     const result = compareWithLast([hold(20, 4), hold(25, 5)], [hold(20, 3), hold(20, 4)], 'time', options);
     expect(result.total).toEqual({ now: 45, last: 40 });
     expect(result.form).toEqual({ now: 4.5, last: 3.5 });
-    expect(result.improved).toEqual({ total: true, rest: false, form: true, rpe: false });
+    expect(result.improved).toEqual({ total: true, rest: false, form: true, rpe: false, assist: false });
     expect(result.worse.form).toBe(false);
   });
 
@@ -56,7 +66,7 @@ describe('compareWithLast', () => {
 
   it('has nothing to compare the first time', () => {
     const result = compareWithLast([set(8, { formRating: 4 })], null, 'reps', options);
-    expect(result).toEqual({ total: null, rest: null, form: null, rpe: null, improved: { total: false, rest: false, form: false, rpe: false }, worse: { form: false } });
+    expect(result).toEqual({ total: null, rest: null, form: null, rpe: null, assist: null, assistUnknown: false, improved: { total: false, rest: false, form: false, rpe: false, assist: false }, worse: { form: false } });
   });
 
   it('keeps last time visible before anything is done today', () => {
@@ -64,6 +74,6 @@ describe('compareWithLast', () => {
     expect(result.total).toEqual({ now: 0, last: 8 });
     expect(result.rest).toEqual({ now: null, last: 60 });
     expect(result.form).toEqual({ now: null, last: 3 });
-    expect(result.improved).toEqual({ total: false, rest: false, form: false, rpe: false });
+    expect(result.improved).toEqual({ total: false, rest: false, form: false, rpe: false, assist: false });
   });
 });

@@ -2,6 +2,14 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.21.0 - 2026-10-07
+
+- Equipment (Profile → Equipment): apparatus (bar, rings, parallel bars, parallettes, floor, wall bars, plus your own) shared by every exercise, and band sets (e.g. "Decathlon") with each band's colour and, when known, kg at minimum and maximum stretch, ordered lightest to strongest.
+- Exercise settings: the apparatus it can be done on, the default, and "the apparatus changes the difficulty". When on, "last time", the comparison and records only use sessions on the same apparatus, and a first session there says so. Choose the apparatus per exercise in the workout from its menu.
+- Bands per set (set menu): one or more bands, each with tension 1–3; the assistance in kg is saved with the set, shown under it, copied to new sets and "use for the remaining sets". "Vs last time" compares average assistance (less is progress); with a band without kg it says the assistance cannot be compared. Records count band assistance as negative load.
+- Old free-text band values move into the set note.
+- Running EMOM and long workouts are tidier: done sets drop their − and + (tap the value to edit it), and the EMOM bar no longer squeezes its labels into an empty block.
+
 ## 0.20.5 - 2026-10-07
 
 - Completed sets can be edited in the workout in progress (and in a micro-session): the − and + buttons and the typed value stay available after the check. Saved values update at once; the set stays done and the rest timer keeps running.

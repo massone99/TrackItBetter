@@ -13,6 +13,9 @@ export interface ComparableSet {
   restSec?: number | null;
   formRating?: number | null;
   rpe?: number | null;
+  /** Bands on the set; with `assistKg` null they are bands whose kg are unknown. */
+  bands?: readonly unknown[];
+  assistKg?: number | null;
 }
 
 /** This session against last time; `now` is null until there is something to compare (no set done, no rating). */
@@ -27,11 +30,15 @@ export interface LastTimeComparison {
   form: Pairing | null;
   /** Average RPE of the sets; only when every set has one (last time; and today, for `now`). */
   rpe: Pairing | null;
+  /** Average band assistance in kg (a set without bands counts 0); null when no set used bands. */
+  assist: Pairing | null;
+  /** Some set used a band whose kg are unknown, so assistance cannot be compared. */
+  assistUnknown: boolean;
   /**
    * The mini PRs: more in total, less rest, better form, and the same work at a lower average RPE
    * (every set done with the same reps or time and load as last time, rest no longer, form no worse).
    */
-  improved: { total: boolean; rest: boolean; form: boolean; rpe: boolean };
+  improved: { total: boolean; rest: boolean; form: boolean; rpe: boolean; assist: boolean };
   /** Regressions worth flagging. Only form: total and rest fill up during the workout, so "less so far" is not one. */
   worse: { form: boolean };
 }
@@ -85,10 +92,19 @@ export function compareWithLast(
   const rpeLast = previous ? fullMean(previous, (set) => set.rpe) : null;
   const rpeNow = done.length ? fullMean(done, (set) => set.rpe) : null;
   const rpe = rpeLast !== null ? { now: rpeNow === null ? null : round(rpeNow), last: round(rpeLast) } : null;
+  const banded = (set: ComparableSet) => (set.bands?.length ?? 0) > 0;
+  const assistOf = (set: ComparableSet) => (banded(set) ? set.assistKg ?? null : 0);
+  const workingLast = (previous ?? []).filter((set) => set.kind !== 'warmup');
+  const anyBands = done.some(banded) || workingLast.some(banded);
+  const assistUnknown = anyBands && [...done, ...workingLast].some((set) => set.kind !== 'warmup' && banded(set) && set.assistKg == null);
+  const assistLast = previous && anyBands && !assistUnknown ? mean(perSet(previous, assistOf)) : null;
+  const assistNow = anyBands && !assistUnknown ? mean(perSet(done, assistOf)) : null;
+  const assist = assistLast !== null ? { now: assistNow === null ? null : round(assistNow), last: round(assistLast) } : null;
   const working = current.filter((set) => set.kind !== 'warmup');
   const sameWork = previous !== null && working.length > 0 && working.every((set) => set.completedAt)
     && sameValues(perSet(done, (set) => amountOf(set, metric)), totalLast)
-    && sameValues(perSet(done, (set) => set.addedLoadKg ?? 0), perSet(previous, (set) => set.addedLoadKg ?? 0));
+    && sameValues(perSet(done, (set) => set.addedLoadKg ?? 0), perSet(previous, (set) => set.addedLoadKg ?? 0))
+    && !assistUnknown && sameValues(perSet(done, (set) => assistOf(set) ?? 0), perSet(previous, (set) => assistOf(set) ?? 0));
   const improvedRest = rest !== null && rest.now !== null && rest.now < rest.last;
   const improvedForm = form !== null && form.now !== null && form.now > form.last;
   const worseForm = form !== null && form.now !== null && form.now < form.last;
@@ -97,10 +113,14 @@ export function compareWithLast(
     rest,
     form,
     rpe,
+    assist,
+    assistUnknown,
     improved: {
       total: total !== null && total.now !== null && total.now > total.last,
       rest: improvedRest,
       form: improvedForm,
+      // Less help from the bands for the work done is progress; it fills up like the total.
+      assist: assist !== null && assist.now !== null && assist.now < assist.last && working.every((set) => set.completedAt),
       rpe: sameWork && rpe !== null && rpe.now !== null && rpe.now < rpe.last
         && (rest === null || rest.now === null || rest.now <= rest.last) && !worseForm,
     },

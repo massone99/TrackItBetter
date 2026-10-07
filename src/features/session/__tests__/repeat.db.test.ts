@@ -38,7 +38,7 @@ beforeAll(async () => {
 describe('previous values', () => {
   it('include the set note', async () => {
     const previous = await getPreviousPerformance(['pull-up'], 'none');
-    expect(previous.get('pull-up')?.sets).toEqual([{ pairId: null, side: 'both', reps: 6, durationSec: null, distanceM: null, addedLoadKg: 15, rpe: 8.5, note: 'Presa stretta', restSec: 150, formRating: null }]);
+    expect(previous.get('pull-up')?.sets).toEqual([{ pairId: null, side: 'both', reps: 6, durationSec: null, distanceM: null, addedLoadKg: 15, rpe: 8.5, note: 'Presa stretta', restSec: 150, formRating: null, bands: [], assistKg: null }]);
   });
 
   it('are copied onto a set, note included', async () => {

@@ -10,6 +10,7 @@ import { describePreviousSet } from './ExerciseCard';
 import { FormRating } from './LastTime';
 import { removeSetWithUndo, setSetFormRating, updateSetNote, updateSetRpe, type PreviousSetValues, type RemovedRows, type SessionExercise, type SessionSet } from './repository';
 import { RpePicker } from './RpePicker';
+import { SetBandsField } from '../equipment/SetBandsField';
 
 /**
  * Per-set details kept out of the row, for the workout in progress and a finished one: RPE, form,
@@ -98,6 +99,7 @@ export function SetSheet({ exercise, set, holdMode, onHoldMode, onClose, onChang
           ) : null}
           <RpePicker value={rpe} onChange={(next) => { setRpe(next); void updateSetRpe(set.id, next).then(onChanged); }} />
           {set.kind === 'working' ? <FormRating value={form} onChange={(next) => { setForm(next); void setSetFormRating(set.id, next).then(onChanged); }} /> : null}
+          <SetBandsField exercise={exercise} set={set} onChanged={onChanged} />
           <TextField
             label={t('logger.noteLabel')}
             value={note}

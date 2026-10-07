@@ -19,6 +19,7 @@ import {
   type ExerciseFormValues,
 } from '../../src/features/exercises/exerciseForm';
 import { MOBILITY_MODES } from '../../src/features/exercises/mobilityMode';
+import { ApparatusField } from '../../src/features/equipment/ApparatusField';
 import { Body, Chip, FooterAction, Icon, Label, PageHeading, Screen, TextField } from '../../src/shared/components/ui';
 import { addExerciseToCompletedWorkout, addExerciseToWorkout, replaceEntryExercise } from '../../src/features/session/repository';
 import { getExerciseById } from '../../src/features/exercises/repository';
@@ -47,7 +48,7 @@ export default function NewExerciseRoute() {
     resolver: zodResolver(exerciseFormSchema),
     defaultValues: { ...EMPTY_EXERCISE_FORM, name: edit ? EMPTY_EXERCISE_FORM.name : suggestedName?.slice(0, 80) ?? EMPTY_EXERCISE_FORM.name },
   });
-  const [category, extraCategories, movementTags, movementGroup, mobilityMode] = useWatch({ control, name: ['category', 'extraCategories', 'movementTags', 'movementGroup', 'mobilityMode'] });
+  const [category, extraCategories, movementTags, movementGroup, mobilityMode, apparatusIds, defaultApparatusId, apparatusAffectsDifficulty] = useWatch({ control, name: ['category', 'extraCategories', 'movementTags', 'movementGroup', 'mobilityMode', 'apparatusIds', 'defaultApparatusId', 'apparatusAffectsDifficulty'] });
   const isMobility = category === 'mobility' || extraCategories.includes('mobility');
   const detailErrors = Boolean(errors.equipment || errors.cues || errors.demoUrl);
 
@@ -146,6 +147,15 @@ export default function NewExerciseRoute() {
           return <Chip label={label} accessibilityLabel={label} selected={value === true} onPress={() => onChange(value !== true)} />;
         }} />
       </View>
+
+      <ApparatusField
+        value={{ ids: apparatusIds ?? [], defaultId: defaultApparatusId ?? null, affectsDifficulty: apparatusAffectsDifficulty === true }}
+        onChange={(next) => {
+          setValue('apparatusIds', next.ids, { shouldDirty: true });
+          setValue('defaultApparatusId', next.defaultId, { shouldDirty: true });
+          setValue('apparatusAffectsDifficulty', next.affectsDifficulty, { shouldDirty: true });
+        }}
+      />
 
       <View style={styles.field}>
         <Label>{t('customExercise.category')}</Label>

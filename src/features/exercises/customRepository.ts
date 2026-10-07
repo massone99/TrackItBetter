@@ -25,6 +25,15 @@ export interface CreateCustomExerciseInput {
   movementGroup?: MovementGroupId | null;
   /** Only kept while mobility is one of the categories. */
   mobilityMode?: MobilityMode | null;
+  /** Apparatus it can be done on (global list), the default one, and whether it changes the difficulty. */
+  apparatus?: { ids: string[]; defaultId: string | null; affectsDifficulty: boolean };
+}
+
+function apparatusFields(input: CreateCustomExerciseInput) {
+  if (!input.apparatus) return {};
+  const ids = [...new Set(input.apparatus.ids)];
+  const defaultId = input.apparatus.defaultId && ids.includes(input.apparatus.defaultId) ? input.apparatus.defaultId : ids[0] ?? null;
+  return { apparatusIds: JSON.stringify(ids), defaultApparatusId: defaultId, apparatusAffectsDifficulty: ids.length > 0 && input.apparatus.affectsDifficulty };
 }
 
 /** Extra categories without duplicates or the main category itself. */
@@ -58,6 +67,7 @@ export async function createCustomExercise(input: CreateCustomExerciseInput): Pr
     cues: JSON.stringify(input.cues),
     demoUrl: input.demoUrl ?? null,
     ...classification,
+    ...apparatusFields(input),
     isCustom: true,
     unilateral: input.unilateral ?? false,
     createdAt: new Date(),
@@ -84,6 +94,7 @@ export async function updateExercise(id: string, input: CreateCustomExerciseInpu
     cues: JSON.stringify(input.cues),
     demoUrl: input.demoUrl ?? null,
     ...classification,
+    ...apparatusFields(input),
   }).where(eq(exercises.id, id));
   // Name, measure and categories show up in records and statistics of finished workouts.
   bumpFinishedVersion();

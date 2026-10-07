@@ -23,6 +23,9 @@ export const exerciseFormSchema = z.object({
   movementTags: z.array(z.string()).optional(),
   movementGroup: z.enum(MOVEMENT_GROUP_IDS as unknown as [MovementGroupId, ...MovementGroupId[]]).nullable(),
   mobilityMode: z.enum(MOBILITY_MODES).nullable().optional(),
+  apparatusIds: z.array(z.string()).optional().default([]),
+  defaultApparatusId: z.string().nullable().optional().default(null),
+  apparatusAffectsDifficulty: z.boolean().optional().default(false),
 });
 
 export type ExerciseFormValues = z.infer<typeof exerciseFormSchema>;
@@ -30,7 +33,7 @@ export type ExerciseFormValues = z.infer<typeof exerciseFormSchema>;
 export type ExerciseFormInput = z.input<typeof exerciseFormSchema>;
 
 export const EMPTY_EXERCISE_FORM: ExerciseFormValues = {
-  name: '', metric: 'reps', unilateral: false, category: 'push', extraCategories: [], equipment: '', cues: '', demoUrl: '', movementTag: null, movementGroup: null, mobilityMode: null,
+  name: '', metric: 'reps', unilateral: false, category: 'push', extraCategories: [], equipment: '', cues: '', demoUrl: '', movementTag: null, movementGroup: null, mobilityMode: null, apparatusIds: [], defaultApparatusId: null, apparatusAffectsDifficulty: false,
 };
 
 export interface StoredExercise {
@@ -46,6 +49,9 @@ export interface StoredExercise {
   movementTags?: string | null;
   movementGroup: string | null;
   mobilityMode?: string | null;
+  apparatusIds?: string | null;
+  defaultApparatusId?: string | null;
+  apparatusAffectsDifficulty?: boolean | null;
 }
 
 function readList(value: string): string[] {
@@ -85,6 +91,9 @@ export function exerciseToFormValues(exercise: StoredExercise): ExerciseFormValu
     movementTags: tags,
     movementGroup: (MOVEMENT_GROUP_IDS as readonly string[]).includes(exercise.movementGroup ?? '') ? exercise.movementGroup as MovementGroupId : null,
     mobilityMode: mobilityModeFor({ category, extraCategories: extras.filter((item) => item !== category) }, exercise.mobilityMode),
+    apparatusIds: readList(exercise.apparatusIds ?? '[]'),
+    defaultApparatusId: exercise.defaultApparatusId ?? null,
+    apparatusAffectsDifficulty: exercise.apparatusAffectsDifficulty === true,
   };
 }
 
@@ -104,6 +113,7 @@ export function formValuesToInput(values: ExerciseFormValues): CreateCustomExerc
     movementTags: tags,
     movementGroup: values.movementGroup,
     mobilityMode: mobilityModeFor(values, values.mobilityMode),
+    apparatus: { ids: values.apparatusIds ?? [], defaultId: values.defaultApparatusId ?? null, affectsDifficulty: values.apparatusAffectsDifficulty === true },
   };
 }
 

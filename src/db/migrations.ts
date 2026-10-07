@@ -222,6 +222,23 @@ CREATE INDEX IF NOT EXISTS pose_capture_set_idx ON pose_capture(set_id);
 PRAGMA user_version = 16;
 `;
 
+/**
+ * Apparatus (bar, rings…) per exercise and per workout exercise, and resistance bands per set
+ * (JSON list of band and tension, with the assistance in kg worked out when it was logged).
+ * The old free-text band moves into the set note.
+ */
+const equipmentSchema = `
+ALTER TABLE exercise ADD COLUMN apparatus_ids TEXT NOT NULL DEFAULT '[]';
+ALTER TABLE exercise ADD COLUMN default_apparatus_id TEXT;
+ALTER TABLE exercise ADD COLUMN apparatus_affects_difficulty INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE exercise_entry ADD COLUMN apparatus_id TEXT;
+ALTER TABLE training_set ADD COLUMN bands TEXT;
+ALTER TABLE training_set ADD COLUMN assist_kg REAL;
+UPDATE training_set SET note = CASE WHEN note IS NULL OR trim(note) = '' THEN band ELSE note || ' · ' || band END, band = NULL
+  WHERE band IS NOT NULL AND trim(band) <> '';
+PRAGMA user_version = 17;
+`;
+
 /** Applies numbered, local-first SQLite schema migrations once per database. */
 export async function migrateDatabase(database: SQLiteDatabase): Promise<void> {
   await database.execAsync('PRAGMA foreign_keys = ON;');
@@ -332,6 +349,12 @@ export async function migrateDatabase(database: SQLiteDatabase): Promise<void> {
   if (version < 16) {
     await database.withTransactionAsync(async () => {
       await database.execAsync(poseLinkSchema);
+    });
+  }
+
+  if (version < 17) {
+    await database.withTransactionAsync(async () => {
+      await database.execAsync(equipmentSchema);
     });
   }
 }

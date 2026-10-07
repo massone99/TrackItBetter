@@ -18,6 +18,7 @@ jest.mock('expo-router', () => ({
 jest.mock('../../../src/shared/navigation/goBack', () => ({ goBack: jest.fn() }));
 jest.mock('../../../src/features/session/repository', () => ({ addExerciseToWorkout: jest.fn() }));
 jest.mock('../../../src/features/exercises/repository', () => ({ getExerciseById: jest.fn() }));
+jest.mock('../../../src/features/equipment/repository', () => ({ getEquipment: jest.fn(async () => ({ apparatus: [], bandSets: [] })), addApparatus: jest.fn() }));
 jest.mock('../../../src/features/exercises/customRepository', () => ({
   createCustomExercise: jest.fn(async () => 'new-id'),
   updateExercise: jest.fn(async () => undefined),
@@ -90,6 +91,7 @@ describe('edit exercise', () => {
       movementTags: ['Shoulder flexion'],
       movementGroup: 'vertical-push',
       mobilityMode: null,
+      apparatus: { ids: [], defaultId: null, affectsDifficulty: false },
     });
     expect(goBack).toHaveBeenCalled();
   });

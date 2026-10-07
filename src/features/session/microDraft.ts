@@ -40,6 +40,8 @@ function newSet(metric: string, index: number, kind: SetKind, from?: SessionSet)
     targetRpe: null,
     formRating: null,
     note: null,
+    bands: [],
+    assistKg: null,
     clipCount: 0,
     completedAt: null,
   };

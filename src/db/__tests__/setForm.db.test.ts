@@ -8,6 +8,12 @@ describe('schema v15: form rated per set', () => {
     await migrateDatabase(legacy.expo);
     await seedCatalogIfEmpty(legacy.db as unknown as Parameters<typeof seedCatalogIfEmpty>[0]);
     legacy.sqlite.exec(`
+      ALTER TABLE exercise DROP COLUMN apparatus_ids;
+      ALTER TABLE exercise DROP COLUMN default_apparatus_id;
+      ALTER TABLE exercise DROP COLUMN apparatus_affects_difficulty;
+      ALTER TABLE exercise_entry DROP COLUMN apparatus_id;
+      ALTER TABLE training_set DROP COLUMN bands;
+      ALTER TABLE training_set DROP COLUMN assist_kg;
       ALTER TABLE training_set DROP COLUMN form_rating;
       DROP TABLE pose_capture;
       CREATE TABLE pose_capture (id TEXT PRIMARY KEY NOT NULL, position_id TEXT NOT NULL, side TEXT, value REAL NOT NULL, level INTEGER NOT NULL, keypoints TEXT NOT NULL, file_name TEXT NOT NULL UNIQUE, width INTEGER NOT NULL, height INTEGER NOT NULL, media_kind TEXT NOT NULL, note TEXT NOT NULL DEFAULT '', captured_at INTEGER NOT NULL);

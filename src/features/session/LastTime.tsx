@@ -27,7 +27,7 @@ export function LastTimeStrip({ comparison, metric, date, detail }: {
   const { palette } = useTheme();
   const styles = useScaledStyles(baseStyles);
   const [open, setOpen] = useState(false);
-  const { total, rest, form, rpe, improved, worse } = comparison;
+  const { total, rest, form, rpe, assist, assistUnknown, improved, worse } = comparison;
   const totalLabel = metric === 'time' || metric === 'time_load' ? t('lastTime.totalTime') : metric === 'distance' ? t('lastTime.totalMeters') : t('lastTime.totalReps');
   const cells: { key: string; label: string; pairing: Pairing; trend: 'up' | 'down' | null; delta: string | null; format: (value: number) => string }[] = [];
   const signed = (value: number) => `${value > 0 ? '+' : '−'}${formatNumber(Math.abs(Math.round(value * 10) / 10))}`;
@@ -35,6 +35,7 @@ export function LastTimeStrip({ comparison, metric, date, detail }: {
   if (rest) cells.push({ key: 'rest', label: t('lastTime.restAverage'), pairing: rest, trend: improved.rest ? 'up' : null, delta: improved.rest && rest.now !== null ? `${signed(rest.now - rest.last)} s` : null, format: (value) => `${value} s` });
   // Average RPE shows only when last time had one; lower is a mini PR only for the same work.
   if (rpe) cells.push({ key: 'rpe', label: t('lastTime.rpeAverage'), pairing: rpe, trend: improved.rpe ? 'up' : null, delta: improved.rpe && rpe.now !== null ? signed(rpe.now - rpe.last) : null, format: (value) => formatNumber(value) });
+  if (assist) cells.push({ key: 'assist', label: t('lastTime.assistAverage'), pairing: assist, trend: improved.assist ? 'up' : null, delta: improved.assist && assist.now !== null ? `${signed(assist.now - assist.last)} kg` : null, format: (value) => `${formatNumber(value)} kg` });
   if (form) cells.push({ key: 'form', label: t('lastTime.formAverage', { value: '' }).trim(), pairing: form, trend: improved.form ? 'up' : worse.form ? 'down' : null, delta: form.now !== null && form.now !== form.last ? signed(form.now - form.last) : null, format: (value) => formatNumber(value) });
   return (
     <View style={styles.wrap}>
@@ -76,6 +77,7 @@ export function LastTimeStrip({ comparison, metric, date, detail }: {
           );
         })}
       </View>
+      {assistUnknown ? <Label style={styles.detail}>{t('lastTime.assistUnknown')}</Label> : null}
       {open ? <Label style={styles.detail}>{detail}</Label> : null}
     </View>
   );

@@ -30,7 +30,7 @@ const NO_RECORDS: ReadonlyMap<string, RecordKind[]> = new Map();
  * and the add-set row. Shared by the workout in progress and a finished workout's page; the live-only
  * parts (hold timer, EMOM, comparison with last time, records) are optional.
  */
-export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, previous, hold = null, onChange, onSetValue, onComplete, onStartHold, onFinishHold, onAddSet, onAddWarmup, onSetOptions, onUncomplete, onRemoveSet, onSwiped, showRpe, onRpe, onOptions, onToggleWarmup, setRecords = NO_RECORDS, volumeRecord = false, supersetLabel = null, emomLabel: emomBadgeLabel, defaultRest = 0, onFormRating, editDone = false, compare = true }: {
+export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, previous, hold = null, onChange, onSetValue, onComplete, onStartHold, onFinishHold, onAddSet, onAddWarmup, onSetOptions, onUncomplete, onRemoveSet, onSwiped, showRpe, onRpe, onOptions, onToggleWarmup, setRecords = NO_RECORDS, volumeRecord = false, supersetLabel = null, emomLabel: emomBadgeLabel, defaultRest = 0, onFormRating, editDone = false, typeDone = false, compare = true, apparatusLabel = null, firstTimeLabel, describeBands }: {
   handle?: ReactNode;
   exercise: SessionExercise;
   collapsed: boolean;
@@ -61,10 +61,18 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
   /** Rest the app applies to a working set without its own, for the rest comparison. */
   defaultRest?: number;
   onFormRating: (set: SessionSet, rating: number | null) => void;
-  /** Done sets stay editable in place (a finished workout); live, a done set is reopened to edit it. */
+  /** Done sets keep their − and + buttons (a finished workout, where every set is done). */
   editDone?: boolean;
+  /** Done sets stay editable by tapping the value, without − and +, so finished rows stay quiet (the workout in progress). */
+  typeDone?: boolean;
   /** Shows "last time" (or "first time") in the header; off where there is no last time to show. */
   compare?: boolean;
+  /** Name of the apparatus used for this exercise, shown in the header. */
+  apparatusLabel?: string | null;
+  /** Replaces "first time logging this movement", e.g. "first time on the rings". */
+  firstTimeLabel?: string;
+  /** Swatches and text for a set's bands ("Blue · 2"), shown under the set. */
+  describeBands?: (set: SessionSet) => { colors: string[]; text: string } | null;
 }) {
   const styles = useScaledStyles(baseStyles);
   const { t, i18n } = useTranslation();
@@ -103,7 +111,7 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
   const results = doneValues && !timed && !distance ? t('logger.resultsReps', { values: doneValues }) : doneValues;
   const previousText = previous ? describePrevious(previous.sets, exercise.metric) : null;
   const comparison = compareWithLast(exercise.sets, previous?.sets ?? null, exercise.metric, { defaultRest });
-  const hasComparison = Boolean(comparison.total || comparison.rest || comparison.form);
+  const hasComparison = Boolean(comparison.total || comparison.rest || comparison.form || comparison.assist);
   // Average form of today's rated sets (also when there is nothing to compare it with).
   const ratedForms = exercise.sets.filter((set) => set.completedAt && set.kind === 'working' && set.formRating !== null).map((set) => set.formRating as number);
   const comparisonFormNow = ratedForms.length ? Math.round((ratedForms.reduce((sum, value) => sum + value, 0) / ratedForms.length) * 10) / 10 : null;
@@ -142,6 +150,7 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
             <Icon name={allDone ? 'checkmark-circle' : 'ellipse-outline'} size={14} color={allDone ? palette.success : palette.textMuted} />
             <Label style={allDone ? { color: palette.success } : undefined}>{t('logger.setsProgress', { done: doneSets, total: totalSets })}</Label>
             {targetText ? <Label>{`· @ ${t('logger.rpeTag', { value: targetText })}`}</Label> : null}
+            {apparatusLabel ? <Label>{`· ${apparatusLabel}`}</Label> : null}
             {supersetLabel ? <Label style={{ color: palette.accentStrong }}>{`· ${supersetLabel}`}</Label> : null}
             {emomBadgeLabel ? <Label accessibilityLiveRegion="polite" style={{ color: palette.accentStrong }}>{`· ${emomBadgeLabel}`}</Label> : null}
             {volumeRecord ? (
@@ -159,7 +168,7 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
             </Label>
           ) : null}
           {collapsed && prNotes.length ? <Text numberOfLines={2} style={[styles.prNotes, { color: palette.success }]}>{prNotes.join(' · ')}</Text> : null}
-          {collapsed || hasComparison || !compare ? null : <Label>{previousText ? t('logger.lastTime', { value: previousText }) : t('logger.firstTime')}</Label>}
+          {collapsed || hasComparison || !compare ? null : <Label>{previousText ? t('logger.lastTime', { value: previousText }) : firstTimeLabel ?? t('logger.firstTime')}</Label>}
           {exercise.notes ? <Text numberOfLines={3} style={[styles.exerciseNote, { color: palette.textMuted }]}>{exercise.notes}</Text> : null}
         </Pressable>
         {exercise.demoUrl ? (
@@ -188,7 +197,9 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
         const done = Boolean(set.completedAt);
         // In a running EMOM a recorded round stays editable in place and keeps its check, so the round count holds.
         const emomLocked = done && Boolean(emomBadgeLabel);
-        const showSteps = !done || emomLocked || editDone;
+        // Done rows drop − and +: a running EMOM or a long workout would otherwise be a wall of buttons.
+        const showSteps = !done || editDone;
+        const editableDone = editDone || typeDone || emomLocked;
         const workingNumber = groupSets(exercise.sets.filter((item) => item.kind === 'working' && item.index <= set.index)).length;
         const sideLabel = set.side === 'left' ? t('logger.sideLeft') : set.side === 'right' ? t('logger.sideRight') : '';
         const holding = hold?.setId === set.id;
@@ -231,7 +242,7 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
               </View>
               <View style={[styles.colValue, styles.stepper]}>
                 {showSteps ? <StepButton icon="remove" label={t('logger.stepDown', { field: fieldLabel, number: workingNumber, side: sideLabel }).trim()} onPress={(multiplier) => step(set, field, (distance ? -0.5 : timed ? -5 : -1) * multiplier)} /> : null}
-                {(done && !editDone) || holding ? (
+                {(done && !editableDone) || holding ? (
                   <Text style={[styles.setValue, { color: holding ? palette.accentStrong : palette.text }]}>{value}</Text>
                 ) : timed ? (
                   <HoldDurationField compact value={stored} label={`${t('logger.holdCol')} · ${t('logger.editValue', { number: set.index })}`} onChange={(next) => onSetValue(set, 'durationSec', next)} />
@@ -251,7 +262,7 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
               {withLoad ? (
                 <View style={[styles.colLoad, styles.stepper]}>
                   {showSteps ? <StepButton icon="remove" label={t('logger.stepDown', { field: t('history.addedLoad'), number: workingNumber, side: sideLabel }).trim()} onPress={(multiplier) => step(set, 'addedLoadKg', -LOAD_STEP_KG * multiplier)} /> : null}
-                  {done && !editDone ? (
+                  {done && !editableDone ? (
                     <Text style={[styles.loadValue, { color: set.addedLoadKg === 0 ? palette.textMuted : palette.text }]}>{loadText}</Text>
                   ) : (
                     <NumberEdit
@@ -334,8 +345,17 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
             {/* Row 3, once the set is done: how clean the form was. The exercise folds only after the last rating. */}
             {done && set.kind === 'working' && !emomBadgeLabel ? <FormRating value={set.formRating} sideLabel={sideLabel} onChange={(rating) => onFormRating(set, rating)} /> : null}
             {/* Only when there is something to show: PR, clips, note (and RPE when its row is hidden). */}
-            {set.note || set.clipCount > 0 || (set.poseCount ?? 0) > 0 || (!rpeRow && set.rpe !== null) || setRecords.has(set.id) ? (
+            {set.note || set.clipCount > 0 || (set.poseCount ?? 0) > 0 || (!rpeRow && set.rpe !== null) || setRecords.has(set.id) || set.bands.length > 0 ? (
               <Pressable accessibilityRole="button" onPress={() => onSetOptions(set)} style={styles.setMeta}>
+                {(() => {
+                  const described = set.bands.length > 0 ? describeBands?.(set) : null;
+                  return described ? (
+                    <View accessibilityLabel={described.text} style={[styles.clipChip, { backgroundColor: palette.surface }]}>
+                      {described.colors.map((color, index) => <View key={`${color}-${index}`} style={[styles.bandDot, { backgroundColor: color, borderColor: palette.border }]} />)}
+                      <Text style={[styles.clipChipText, { color: palette.text }]}>{described.text}</Text>
+                    </View>
+                  ) : null;
+                })()}
                 {setRecords.has(set.id) ? (
                   <View
                     accessibilityLabel={setRecords.get(set.id)!.map((kind) => t(`records.kinds.${kind}`)).join(', ')}
@@ -419,6 +439,7 @@ export function holdDisplay(hold: ActiveHold): string {
 }
 
 const baseStyles = StyleSheet.create({
+  bandDot: { width: 12, height: 12, borderRadius: 6, borderWidth: 1 },
   flex: { flex: 1 },
   // Exercises are flat sections divided by a hairline, not cards: more room for the sets.
   exerciseSection: { borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 16, gap: 8 },
