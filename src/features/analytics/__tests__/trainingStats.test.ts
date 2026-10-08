@@ -1,4 +1,4 @@
-import { buildTrainingStats, OTHER_ID, periodId, type StatsSetRow } from '../trainingStats';
+import { averageAssistKg, buildTrainingStats, OTHER_ID, periodId, type StatsSetRow } from '../trainingStats';
 
 const at = (year: number, month: number, day: number, hour = 10) => new Date(year, month - 1, day, hour);
 const now = at(2026, 9, 28, 20); // Monday
@@ -38,7 +38,7 @@ describe('buildTrainingStats', () => {
 
     expect(stats.period).toMatchObject({ id: '2026-09-28', workoutName: null });
     expect(stats.period?.end).toEqual(at(2026, 10, 4, 0));
-    expect(stats.summary).toEqual({ sets: 4, setsAtThreshold: 3, reps: 20, holdSeconds: 30, loadRepsKg: 100, loadSecondsKg: 150 });
+    expect(stats.summary).toEqual({ sets: 4, setsAtThreshold: 3, reps: 20, holdSeconds: 30, loadRepsKg: 100, loadSecondsKg: 150, bandSets: 0, assistKnownSets: 0, assistKgSum: 0 });
     expect(stats.items.map((item) => item.id)).toEqual(['vertical-pull', 'horizontal-push', OTHER_ID]);
     expect(stats.items[0].metrics).toMatchObject({ sets: 2, reps: 10, loadRepsKg: 100, setsAtThreshold: 2 });
     expect(stats.history).toHaveLength(8);
@@ -101,7 +101,7 @@ describe('buildTrainingStats', () => {
       row({ exerciseId: 'hold', metric: 'time', durationSec: -5 }),
       row({ rpe: 7.5 }),
     ], { dimension: 'exercise', period: 'day', anchor: null, threshold: 8, now });
-    expect(stats.summary).toEqual({ sets: 3, setsAtThreshold: 0, reps: 10, holdSeconds: 0, loadRepsKg: 0, loadSecondsKg: 0 });
+    expect(stats.summary).toEqual({ sets: 3, setsAtThreshold: 0, reps: 10, holdSeconds: 0, loadRepsKg: 0, loadSecondsKg: 0, bandSets: 0, assistKnownSets: 0, assistKgSum: 0 });
   });
 
   it('counts only sets at or above the RPE threshold when filtering', () => {
@@ -143,5 +143,20 @@ describe('scope', () => {
   it('adds up mobility volume under each tag', () => {
     const hip = run('mobility').items.find((item) => item.id === 'Hip flexion');
     expect(hip?.metrics).toMatchObject({ sets: 3, holdSeconds: 100 });
+  });
+});
+
+describe('help from bands', () => {
+  it('counts the sets with bands and averages the kg of help over those whose kg are known', () => {
+    const rows = [
+      row({ exerciseId: 'pull', exerciseName: 'Pull-up', bandCount: 1, assistKg: 20 }),
+      row({ exerciseId: 'pull', exerciseName: 'Pull-up', bandCount: 2, assistKg: 10 }),
+      row({ exerciseId: 'pull', exerciseName: 'Pull-up', bandCount: 1, assistKg: null }),
+      row({ exerciseId: 'pull', exerciseName: 'Pull-up' }),
+    ];
+    const stats = buildTrainingStats(rows, { dimension: 'exercise', period: 'week', anchor: null, threshold: 8, now });
+    expect(stats.summary).toMatchObject({ sets: 4, bandSets: 3, assistKnownSets: 2, assistKgSum: 30 });
+    expect(averageAssistKg(stats.summary)).toBe(15);
+    expect(averageAssistKg({ assistKnownSets: 0, assistKgSum: 0 })).toBeNull();
   });
 });

@@ -2,7 +2,7 @@ import { migrateDatabase } from '../../../db/migrations';
 import { seedCatalogIfEmpty } from '../../../db/seed/import';
 import { getSessionRecords } from '../../analytics/repository';
 import { updateExercise } from '../../exercises/customRepository';
-import { addExerciseToWorkout, addSet, getActiveWorkout, getPreviousPerformance, setEntryApparatus, setSetBands, startWorkout, updateSet } from '../../session/repository';
+import { addExerciseToWorkout, addSet, getActiveWorkout, getPreviousPerformance, setEntryApparatus, setEntryBands, setSetBands, startWorkout, updateSet } from '../../session/repository';
 import { addApparatus, getEquipment, newBand, saveBandSet } from '../repository';
 import { bandsById } from '../useEquipment';
 
@@ -105,6 +105,24 @@ describe('equipment', () => {
     const rows = real.sqlite.prepare('SELECT side, assist_kg FROM training_set WHERE pair_id IS NOT NULL AND entry_id = ?').all(entryId) as { side: string; assist_kg: number }[];
     expect(rows).toHaveLength(2);
     expect(rows.every((row) => row.assist_kg === 10)).toBe(true);
+    real.sqlite.prepare('DELETE FROM workout WHERE id = ?').run(workoutId);
+  });
+
+  it('gives every set of an exercise the same bands, also in a finished workout', async () => {
+    const set = await saveBandSet({ name: 'All sets', bands: [{ ...newBand('Black', '#333333'), minKg: 30, maxKg: 40 }] });
+    const byId = bandsById(await getEquipment());
+    const workoutId = await startWorkout('All');
+    const entryId = await addExerciseToWorkout(workoutId, 'pull-up');
+    await addSet(entryId);
+    await addSet(entryId);
+    real.sqlite.prepare('UPDATE training_set SET completed_at = 5 WHERE entry_id = ?').run(entryId);
+    real.sqlite.prepare('UPDATE workout SET ended_at = started_at + 1 WHERE id = ?').run(workoutId);
+    await setEntryBands(entryId, [{ bandId: set.bands[0].id, tension: 3 }], byId);
+    const rows = real.sqlite.prepare('SELECT assist_kg, bands FROM training_set WHERE entry_id = ?').all(entryId) as { assist_kg: number; bands: string }[];
+    expect(rows).toHaveLength(3);
+    expect(rows.every((row) => row.assist_kg === 40 && row.bands.includes(set.bands[0].id))).toBe(true);
+    await setEntryBands(entryId, [], byId);
+    expect((real.sqlite.prepare('SELECT bands FROM training_set WHERE entry_id = ?').all(entryId) as { bands: string | null }[]).every((row) => row.bands === null)).toBe(true);
     real.sqlite.prepare('DELETE FROM workout WHERE id = ?').run(workoutId);
   });
 });

@@ -83,12 +83,15 @@ export async function getTrainingStatsRows(): Promise<StatsSetRow[]> {
     reps: trainingSets.reps,
     durationSec: trainingSets.durationSec,
     addedLoadKg: trainingSets.addedLoadKg,
+    assistKg: trainingSets.assistKg,
+    bands: trainingSets.bands,
     rpe: trainingSets.rpe,
   }).from(trainingSets)
     .innerJoin(exerciseEntries, eq(trainingSets.entryId, exerciseEntries.id))
     .innerJoin(exercises, eq(exerciseEntries.exerciseId, exercises.id))
     .innerJoin(workouts, eq(exerciseEntries.workoutId, workouts.id))
-    .where(and(isNotNull(workouts.endedAt), isNotNull(trainingSets.completedAt), eq(trainingSets.kind, 'working')));
+    .where(and(isNotNull(workouts.endedAt), isNotNull(trainingSets.completedAt), eq(trainingSets.kind, 'working')))
+    .then((rows) => rows.map(({ bands, ...row }) => ({ ...row, bandCount: parseSetBands(bands).length })));
 }
 
 /** RPE-based max reps or max hold of one bodyweight exercise. */

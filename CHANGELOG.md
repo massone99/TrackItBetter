@@ -2,6 +2,11 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.21.7 - 2026-10-08
+
+- Statistics by period: the sets done with bands are counted, with the average kg of help over those whose kg are known ("6 sets with bands · average help 18 kg"), per period, group, tag and exercise.
+- Set menu → Bands: "Use for all sets of this exercise" gives every set of the exercise in that workout the same bands, in a workout in progress and in a finished one alike.
+
 ## 0.21.6 - 2026-10-08
 
 - Band assistance is a record: "Least help from bands for this work" when a set does at least the reps (or seconds) of an earlier set with less help (kg when known, else the strength order, also across band sets; no band at all counts as the least help). It shows as a PR in the workout and in the summary.

@@ -8,7 +8,7 @@ import { useTheme } from '../../shared/theme/ThemeProvider';
 import { fonts } from '../../shared/theme/typography';
 import { useScaledStyles } from '../../shared/theme/useScaledStyles';
 import { formatNumber } from '../../shared/utils/format';
-import { setSetBands, type SessionExercise, type SessionSet } from '../session/repository';
+import { setEntryBands, setSetBands, type SessionExercise, type SessionSet } from '../session/repository';
 import { bandRange, bandsById, useEquipment } from './useEquipment';
 
 const TENSIONS: Tension[] = [1, 2, 3];
@@ -25,7 +25,7 @@ export function SetBandsField({ exercise, set, onChanged }: { exercise: SessionE
   const [bands, setBands] = useState<SetBand[]>(set.bands);
   const [picking, setPicking] = useState(false);
   const [bandSetId, setBandSetId] = useState<string | null>(null);
-  const [applied, setApplied] = useState(false);
+  const [applied, setApplied] = useState<'remaining' | 'all' | null>(null);
   if (!catalog) return null;
   const byId = bandsById(catalog);
   const sets = catalog.bandSets.filter((item) => !item.archived && item.bands.length > 0);
@@ -34,13 +34,18 @@ export function SetBandsField({ exercise, set, onChanged }: { exercise: SessionE
 
   const save = (next: SetBand[]) => {
     setBands(next);
-    setApplied(false);
+    setApplied(null);
     void setSetBands(set.id, next, byId).then(onChanged);
   };
   const applyToRemaining = () => {
     const later = exercise.sets.filter((item) => item.index > set.index && !item.completedAt);
-    setApplied(true);
+    setApplied('remaining');
     void Promise.all(later.map((item) => setSetBands(item.id, bands, byId))).then(onChanged);
+  };
+  // Every set of this exercise in this workout, done or not (also in a workout already finished).
+  const applyToAll = () => {
+    setApplied('all');
+    void setEntryBands(exercise.entryId, bands, byId).then(onChanged);
   };
 
   if (sets.length === 0 && bands.length === 0) {
@@ -104,8 +109,11 @@ export function SetBandsField({ exercise, set, onChanged }: { exercise: SessionE
         </View>
       ) : null}
       {!picking && sets.length > 0 ? <ActionButton icon="add" label={bands.length === 0 ? t('bands.add') : t('bands.addAnother')} secondary onPress={() => setPicking(true)} /> : null}
+      {bands.length > 0 && exercise.sets.length > 1 ? (
+        <ActionButton icon={applied === 'all' ? 'checkmark' : 'copy-outline'} label={applied === 'all' ? t('bands.appliedAll') : t('bands.applyAll')} variant="ghost" onPress={applyToAll} />
+      ) : null}
       {bands.length > 0 && exercise.sets.some((item) => item.index > set.index && !item.completedAt) ? (
-        <ActionButton icon={applied ? 'checkmark' : 'copy-outline'} label={applied ? t('bands.applied') : t('bands.applyRemaining')} variant="ghost" onPress={applyToRemaining} />
+        <ActionButton icon={applied === 'remaining' ? 'checkmark' : 'copy-outline'} label={applied === 'remaining' ? t('bands.applied') : t('bands.applyRemaining')} variant="ghost" onPress={applyToRemaining} />
       ) : null}
     </MenuGroup>
   );

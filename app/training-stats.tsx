@@ -8,7 +8,7 @@ import { openExercisePage } from '../src/features/exercises/openExercise';
 import { ActionButton, Body, Card, Chip, Heading, IconButton, PageHeading, Screen, SegmentedControl, Stepper } from '../src/shared/components/ui';
 import { Text } from '../src/shared/components/Text';
 import { getTrainingStatsRows } from '../src/features/analytics/repository';
-import { buildTrainingStats, OTHER_ID, type StatsDimension, type StatsMetrics, type StatsScope, type StatsPeriodKind, type StatsSetRow } from '../src/features/analytics/trainingStats';
+import { averageAssistKg, buildTrainingStats, OTHER_ID, type StatsDimension, type StatsMetrics, type StatsScope, type StatsPeriodKind, type StatsSetRow } from '../src/features/analytics/trainingStats';
 import { formatPeriod, formatPeriodShort } from '../src/features/analytics/periodLabels';
 import { PeriodBars } from '../src/features/analytics/PeriodBars';
 import { movementTagLabel } from '../src/features/exercises/ClassificationChoices';
@@ -155,6 +155,7 @@ function detail(metrics: StatsMetrics, threshold: number, t: TFunction, rpeOnly:
     !rpeOnly && metrics.setsAtThreshold > 0 ? `${metrics.setsAtThreshold} ≥ RPE ${formatNumber(threshold)}` : null,
     metrics.loadRepsKg > 0 ? `${formatNumber(metrics.loadRepsKg)} kg·rep` : null,
     metrics.loadSecondsKg > 0 ? `${formatNumber(metrics.loadSecondsKg)} kg·s` : null,
+    metrics.bandSets > 0 ? (averageAssistKg(metrics) !== null ? t('trainingStats.assist', { count: metrics.bandSets, value: formatNumber(averageAssistKg(metrics)!) }) : t('trainingStats.assistUnknown', { count: metrics.bandSets })) : null,
   ].filter((part): part is string => part !== null).join(' · ');
 }
 

@@ -540,6 +540,19 @@ export async function setSetBands(setId: string, bands: readonly SetBand[], cata
   await bumpIfFinished({ setId });
 }
 
+/**
+ * Gives every set of an exercise in a workout (in progress or finished, warm-ups included) the same
+ * bands, with the assistance worked out now. An empty list clears them.
+ */
+export async function setEntryBands(entryId: string, bands: readonly SetBand[], catalog: ReadonlyMap<string, Band>): Promise<void> {
+  await initializeDatabase();
+  await db.update(trainingSets).set({
+    bands: bands.length > 0 ? JSON.stringify(bands) : null,
+    assistKg: setAssistKg(bands, catalog),
+  }).where(eq(trainingSets.entryId, entryId));
+  await bumpIfFinished({ entryId });
+}
+
 export async function completeSet(setId: string): Promise<void> {
   await initializeDatabase();
   await requireActiveSet(setId);

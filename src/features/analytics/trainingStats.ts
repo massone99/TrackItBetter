@@ -30,10 +30,23 @@ export interface StatsSetRow {
   reps: number | null;
   durationSec: number | null;
   addedLoadKg: number;
+  /** Kg of help from resistance bands on the set; null without bands or when a band's kg are unknown. */
+  assistKg?: number | null;
+  /** How many bands helped the set (0 or missing: none). */
+  bandCount?: number;
   rpe: number | null;
 }
 
-export interface StatsMetrics { sets: number; setsAtThreshold: number; reps: number; holdSeconds: number; loadRepsKg: number; loadSecondsKg: number }
+export interface StatsMetrics {
+  sets: number; setsAtThreshold: number; reps: number; holdSeconds: number; loadRepsKg: number; loadSecondsKg: number;
+  /** Sets done with bands, how many of those have known kg, and the kg of help summed over them. */
+  bandSets: number; assistKnownSets: number; assistKgSum: number;
+}
+
+/** Average kg of help over the band sets whose kg are known; null when there are none. */
+export function averageAssistKg(metrics: Pick<StatsMetrics, 'assistKnownSets' | 'assistKgSum'>): number | null {
+  return metrics.assistKnownSets > 0 ? Math.round((metrics.assistKgSum / metrics.assistKnownSets) * 10) / 10 : null;
+}
 export interface StatsItem { id: string; name: string; metrics: StatsMetrics }
 /** `end` is the last day of the period (inclusive); for a session it equals `start`. */
 export interface StatsPeriod { id: string; start: Date; end: Date; workoutName: string | null }
@@ -170,6 +183,10 @@ function itemKeys(row: StatsSetRow, dimension: StatsDimension): [string, string]
 
 function addSet(metrics: StatsMetrics, row: StatsSetRow, threshold: number) {
   metrics.sets += 1;
+  if ((row.bandCount ?? 0) > 0) {
+    metrics.bandSets += 1;
+    if (row.assistKg != null) { metrics.assistKnownSets += 1; metrics.assistKgSum += row.assistKg; }
+  }
   if (row.rpe != null && row.rpe >= threshold) metrics.setsAtThreshold += 1;
   if (row.metric === 'reps' || row.metric === 'reps_load') {
     const reps = Math.max(0, row.reps ?? 0);
@@ -189,5 +206,5 @@ function compareItems(a: StatsItem, b: StatsItem): number {
 }
 
 function emptyMetrics(): StatsMetrics {
-  return { sets: 0, setsAtThreshold: 0, reps: 0, holdSeconds: 0, loadRepsKg: 0, loadSecondsKg: 0 };
+  return { sets: 0, setsAtThreshold: 0, reps: 0, holdSeconds: 0, loadRepsKg: 0, loadSecondsKg: 0, bandSets: 0, assistKnownSets: 0, assistKgSum: 0 };
 }
