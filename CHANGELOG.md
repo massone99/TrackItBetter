@@ -2,6 +2,10 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.21.11 - 2026-10-08
+
+- Reps by load or help: the chips of the 5 most recently trained loads are now in scale order, lowest to highest (like the ‹ › step), instead of most recent first.
+
 ## 0.21.10 - 2026-10-08
 
 - Reps by load or help with many trained loads: the selector keeps one height however many loads there are. A step ‹ › moves to the next lower or higher load (to compare close ones), chips jump to the 5 most recently trained loads, and "All (N)" opens the full ladder in a sheet, from the most help to the most load. Before, "Show all" opened a wall of rows and pushed the chart out of sight.

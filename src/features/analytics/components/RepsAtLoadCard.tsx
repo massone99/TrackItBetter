@@ -60,7 +60,8 @@ export function RepsAtLoadCard({ groups }: { groups: readonly RepsAtLoadGroup[] 
   const position = group ? ladder.findIndex((item) => item.loadKg === group.loadKg) : -1;
   const lower = position > 0 ? ladder[position - 1] : null;
   const higher = position >= 0 && position < ladder.length - 1 ? ladder[position + 1] : null;
-  const recent = [...groups].sort((a, b) => lastOf(b).startedAt.getTime() - lastOf(a).startedAt.getTime()).slice(0, RECENT_LOADS);
+  // The 5 loads trained most recently, shown in ladder order (lowest to highest, like the step) so the row reads as a scale.
+  const recent = [...groups].sort((a, b) => lastOf(b).startedAt.getTime() - lastOf(a).startedAt.getTime()).slice(0, RECENT_LOADS).sort((a, b) => a.loadKg - b.loadKg);
   const groupDelta = group ? deltaOf(group) : null;
 
   return (
