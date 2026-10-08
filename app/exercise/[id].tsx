@@ -1,7 +1,7 @@
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import type { Exercise } from '../../src/db/schema';
 import { openReferenceVideo, ReferenceLinkSheet } from '../../src/features/exercises/ReferenceLinkSheet';
 import { movementTagLabel } from '../../src/features/exercises/ClassificationChoices';
@@ -22,7 +22,7 @@ import { formatMinutes, formatNumber } from '../../src/shared/utils/format';
 import { formatRpe } from '../../src/domain';
 import { poseDetectionAvailable } from '../../src/features/pose/detectPose';
 import { countPoseCapturesForExercise } from '../../src/features/pose/repository';
-import { ActionButton, Body, FooterAction, Icon, IconButton, ListGroup, ListRow, PageHeading, Screen, SectionTitle, SegmentedControl, Sheet, SwitchRow, Text, Toast } from '../../src/shared/components/ui';
+import { ActionButton, Body, Chip, FooterAction, Icon, IconButton, ListGroup, ListRow, PageHeading, Screen, SectionTitle, SegmentedControl, Sheet, SwitchRow, Text, Toast } from '../../src/shared/components/ui';
 import type { PairScope } from '../../src/domain/setPairs';
 import { useTheme } from '../../src/shared/theme/ThemeProvider';
 import { fonts } from '../../src/shared/theme/typography';
@@ -53,6 +53,11 @@ export default function ExerciseRoute() {
   const [cycle, setCycle] = useState<{ current: ExerciseCycle | null; previous: ExerciseCycle | null } | null>(null);
   const [estimate, setEstimate] = useState<ExerciseEstimate | null>(null);
   const [oneRepMax, setOneRepMax] = useState<OneRepMaxEstimate | null>(null);
+  // The load the estimated max is read at; null follows the most recent set.
+  const estimateLoad = useRef<number | null>(null);
+  // Chips of the estimate's loads: where each sits, so the chosen one is scrolled into view.
+  const estimateChips = useRef<ScrollView>(null);
+  const estimateChipX = useRef(new Map<number, number>());
   const [records, setRecords] = useState<ExerciseRecordSummary | null>(null);
   const [editingReference, setEditingReference] = useState(false);
   const [history, setHistory] = useState<ExerciseHistorySession[]>([]);
@@ -80,7 +85,7 @@ export default function ExerciseRoute() {
     const [cycle, week, estimate, records, progress, oneRm] = await Promise.all([
       mobility ? getExerciseCycle(found.id, undefined, scope).catch(() => null) : null,
       mobility ? null : getExerciseWeekStats(found.id, found.metric, undefined, scope).catch(() => null),
-      getExerciseEstimate(found.id, undefined, scope).catch(() => null),
+      getExerciseEstimate(found.id, undefined, scope, estimateLoad.current).catch(() => null),
       getExerciseRecordSummary(found.id, scope).catch(() => null),
       found.metric === 'reps' || found.metric === 'reps_load' ? getExerciseRepsAtLoad(found.id, scope).catch(() => []) : [],
       found.metric === 'reps' || found.metric === 'reps_load' ? getExerciseOneRepMax(found.id, undefined, scope).catch(() => null) : null,
@@ -356,10 +361,38 @@ export default function ExerciseRoute() {
                 />
                 {estimate.recentBest ? <WeekStat value={formatEstimate(estimate.kind, estimate.recentBest.value)} label={t('estimate.recentBest')} /> : null}
               </View>
-              {estimate.condition ? (
-                <Body>{estimate.condition.netLoadKg > 0
-                  ? t('estimate.atLoad', { value: formatNumber(estimate.condition.netLoadKg) })
-                  : t('estimate.withHelp', { value: formatNumber(-estimate.condition.netLoadKg) })}</Body>
+              {estimate.conditions.length > 1 ? (
+                // Which load the estimate is read at: every trained net load, lowest (most help) to highest.
+                <ScrollView
+                  ref={estimateChips}
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.estimateChips}
+                  onContentSizeChange={() => {
+                    const chosen = estimate.selectedNetLoadKg;
+                    const x = chosen === null ? undefined : [...estimateChipX.current].find(([kg]) => Math.abs(kg - chosen) < 0.05)?.[1];
+                    if (x !== undefined) estimateChips.current?.scrollTo({ x: Math.max(0, x - 24), animated: false });
+                  }}
+                >
+                  {estimate.conditions.map((kg) => (
+                    <View key={kg} onLayout={(event) => { estimateChipX.current.set(kg, event.nativeEvent.layout.x); }}>
+                    <Chip
+                      label={kg === 0 ? t('repsAtLoad.zeroShort') : kg < 0 ? t('repsAtLoad.assistedShort', { weight: formatNumber(-kg) }) : `+${formatNumber(kg)}`}
+                      accessibilityLabel={kg === 0 ? t('estimate.bodyOnly') : kg > 0 ? t('estimate.atLoad', { value: formatNumber(kg) }) : t('estimate.withHelp', { value: formatNumber(-kg) })}
+                      selected={estimate.selectedNetLoadKg !== null && Math.abs(kg - estimate.selectedNetLoadKg) < 0.05}
+                      onPress={() => {
+                        estimateLoad.current = kg;
+                        void getExerciseEstimate(exercise.id, undefined, pairScope, kg).then(setEstimate).catch(() => undefined);
+                      }}
+                    />
+                    </View>
+                  ))}
+                </ScrollView>
+              ) : null}
+              {estimate.selectedNetLoadKg !== null ? (
+                <Body>{estimate.selectedNetLoadKg > 0
+                  ? t('estimate.atLoad', { value: formatNumber(estimate.selectedNetLoadKg) })
+                  : estimate.selectedNetLoadKg < 0 ? t('estimate.withHelp', { value: formatNumber(-estimate.selectedNetLoadKg) }) : t('estimate.bodyOnly')}</Body>
               ) : null}
               <Body>{t('estimate.body')}</Body>
               {estimate.condition === null ? (
@@ -549,6 +582,7 @@ function Tag({ label, icon }: { label: string; icon: 'body-outline' | 'construct
 }
 
 const baseStyles = StyleSheet.create({
+  estimateChips: { flexDirection: 'row', gap: 8, paddingRight: 8 },
   section: { gap: 10 },
   flex: { flex: 1 },
   history: { borderRadius: 16, borderWidth: 1, overflow: 'hidden' },

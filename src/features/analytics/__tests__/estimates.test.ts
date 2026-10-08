@@ -59,7 +59,7 @@ describe('buildExerciseEstimate', () => {
   });
 
   it('flags unrated history and skips distance exercises', () => {
-    expect(buildExerciseEstimate([row({ rpe: null })], 'pull-up', now)).toEqual({ kind: 'reps', condition: null, latest: null, recentBest: null });
+    expect(buildExerciseEstimate([row({ rpe: null })], 'pull-up', now)).toEqual({ kind: 'reps', condition: null, selectedNetLoadKg: null, conditions: [], latest: null, recentBest: null });
     expect(buildExerciseEstimate([row({ metric: 'distance' })], 'pull-up', now)).toBeNull();
     expect(buildExerciseEstimate([], 'pull-up', now)).toBeNull();
   });
@@ -88,6 +88,15 @@ describe('buildExerciseEstimate', () => {
     expect(estimate.latest).toMatchObject({ value: 10, done: 8 });
     // Helped sets stay out of the plain per-set estimate used by the statistics explorer.
     expect(setEstimate(row({ bandCount: 1, assistKg: 20 }))).toBeNull();
+    // Every condition can be chosen: with 10 kg of help (9 reps, 1 in reserve) or without any help (12 + 2).
+    expect(estimate.conditions).toEqual([-20, -10, 0]);
+    expect(buildExerciseEstimate(rows, 'pull-up', now, -10)!.latest).toMatchObject({ value: 11, done: 9 });
+    const plain = buildExerciseEstimate(rows, 'pull-up', now, 0)!;
+    expect(plain.condition).toBeNull();
+    expect(plain.selectedNetLoadKg).toBe(0);
+    expect(plain.latest).toMatchObject({ value: 14, done: 12 });
+    // A condition that was never trained falls back to the latest one.
+    expect(buildExerciseEstimate(rows, 'pull-up', now, 55)!.selectedNetLoadKg).toBe(-20);
   });
 });
 

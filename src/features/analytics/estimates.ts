@@ -39,6 +39,10 @@ export interface ExerciseEstimate {
    * the same net load.
    */
   condition: { netLoadKg: number } | null;
+  /** Net load of the estimate shown, also when it is zero (plain bodyweight); null when nothing was rated. */
+  selectedNetLoadKg: number | null;
+  /** Every net load (kg, lowest first) with a rated set, to choose the estimate's condition from. */
+  conditions: number[];
   /** Best estimate of the most recent session with rated sets (later sets are tired, so not the last set); null when no set has an RPE yet. */
   latest: { value: number; date: Date; done: number; rpe: number } | null;
   /** Highest estimate in the last 30 days; null when the latest rated set is older. */
@@ -70,7 +74,7 @@ const rowNetLoad = (row: CompletedSetRow) => (row.pairMembers ? realMean(row, ro
  * band-assisted work is estimated at one net load at a time, that of the latest rated set, since
  * reps at different loads say nothing about one another.
  */
-export function buildExerciseEstimate(rows: readonly CompletedSetRow[], exerciseId: string, now = new Date()): ExerciseEstimate | null {
+export function buildExerciseEstimate(rows: readonly CompletedSetRow[], exerciseId: string, now = new Date(), netLoadChoice: number | null = null): ExerciseEstimate | null {
   rows = aggregatePairs(rows);
   const exerciseRows = rows.filter((row) => row.exerciseId === exerciseId && row.completedAt);
   const metric = exerciseRows[0]?.metric;
@@ -81,7 +85,10 @@ export function buildExerciseEstimate(rows: readonly CompletedSetRow[], exercise
   const newest = rated.reduce<CompletedSetRow | null>((best, row) => (!best
     || row.workoutStartedAt.getTime() > best.workoutStartedAt.getTime()
     || (row.workoutStartedAt.getTime() === best.workoutStartedAt.getTime() && row.completedAt!.getTime() > best.completedAt!.getTime()) ? row : best), null);
-  const load = newest ? rowNetLoad(newest) : null;
+  const conditions = [...new Set(rated.map((row) => Math.round(rowNetLoad(row)! * 10) / 10))].sort((a, b) => a - b);
+  // The chosen condition when it has rated sets, else that of the most recent one.
+  const chosen = netLoadChoice !== null ? conditions.find((value) => sameLoad(value, netLoadChoice)) : undefined;
+  const load = chosen !== undefined ? chosen : newest ? rowNetLoad(newest) : null;
   const condition = load !== null && Math.abs(load) >= 0.05 ? { netLoadKg: Math.round(load * 10) / 10 } : null;
   let latest: ExerciseEstimate['latest'] = null;
   let latestSession = -Infinity;
@@ -100,7 +107,7 @@ export function buildExerciseEstimate(rows: readonly CompletedSetRow[], exercise
       recentBest = { value: estimate.value, date };
     }
   }
-  return { kind, condition, latest, recentBest };
+  return { kind, condition, selectedNetLoadKg: load === null ? null : Math.round(load * 10) / 10, conditions, latest, recentBest };
 }
 
 export interface OneRepMaxEstimate {

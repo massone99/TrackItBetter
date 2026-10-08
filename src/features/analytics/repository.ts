@@ -95,8 +95,8 @@ export async function getTrainingStatsRows(): Promise<StatsSetRow[]> {
 }
 
 /** RPE-based max reps or max hold of one bodyweight exercise. */
-export async function getExerciseEstimate(exerciseId: string, now = new Date(), scope: PairScope = 'average'): Promise<ExerciseEstimate | null> {
-  return buildExerciseEstimate(rowsForScope(await loadCompletedSetRows(), scope, exerciseId), exerciseId, now);
+export async function getExerciseEstimate(exerciseId: string, now = new Date(), scope: PairScope = 'average', netLoadKg: number | null = null): Promise<ExerciseEstimate | null> {
+  return buildExerciseEstimate(rowsForScope(await loadCompletedSetRows(), scope, exerciseId), exerciseId, now, netLoadKg);
 }
 
 /** Estimated 1RM of one exercise, from load or help from bands, bodyweight share and RPE. */

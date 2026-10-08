@@ -87,6 +87,7 @@ async function seedLoads(many = false): Promise<void> {
     const completed = await getCompletedWorkout(id);
     const ids = completed?.exercises[0].sets.map((item) => item.id) ?? [];
     if (ids.length === 0) continue;
+    await db.update(trainingSets).set({ rpe: 8 }).where(inArray(trainingSets.id, ids));
     if (load !== 0) await db.update(trainingSets).set({ addedLoadKg: load }).where(inArray(trainingSets.id, ids));
     if (band) {
       const picked = band === 'blue' ? blue : green;

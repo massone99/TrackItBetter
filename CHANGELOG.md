@@ -2,6 +2,10 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.21.12 - 2026-10-08
+
+- Estimated max (reps or hold) can be read at any trained net load: chips under the estimate (from the most help to the most load added, "−25 kg", "Body", "+10") choose the condition, so you see the estimate with a given help, without help, or at a given load. It opens on the most recent one, and the chosen chip stays in view.
+
 ## 0.21.11 - 2026-10-08
 
 - Reps by load or help: the chips of the 5 most recently trained loads are now in scale order, lowest to highest (like the ‹ › step), instead of most recent first.
