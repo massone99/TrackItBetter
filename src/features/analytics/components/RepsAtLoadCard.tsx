@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { router } from 'expo-router';
 import { useTranslation } from 'react-i18next';
-import { Pressable, StyleSheet, View } from 'react-native';
-import { Body, Card, Icon, IconButton, Label, ListGroup, ListRow, Metric, SectionTitle, SegmentedControl, tapFeedback, Text } from '../../../shared/components/ui';
+import { ScrollView, StyleSheet, View } from 'react-native';
+import { Body, Card, Chip, Icon, IconButton, Label, ListGroup, ListRow, Metric, SectionTitle, SegmentedControl, Sheet, Text } from '../../../shared/components/ui';
 import { fonts } from '../../../shared/theme/typography';
 import { useTheme } from '../../../shared/theme/ThemeProvider';
 import { useScaledStyles } from '../../../shared/theme/useScaledStyles';
@@ -13,12 +13,12 @@ import { StatsChart } from './StatsChart';
 const SESSIONS_PER_PAGE = 6;
 type ViewMetric = 'best' | 'total';
 
-const OVERVIEW_ROWS = 5;
+const RECENT_LOADS = 5;
 
 /**
- * Reps compared by net load: added weight or help from bands. A ladder of every load at a glance
- * (last session, best, change since the session before), each row selecting the load whose
- * sessions are charted below.
+ * Reps compared by net load: added weight or help from bands. The selector keeps one height however
+ * many loads were trained: a step to the next lower or higher load (to compare close loads), the
+ * most recently trained loads as chips, and the full ladder in a sheet.
  */
 export function RepsAtLoadCard({ groups }: { groups: readonly RepsAtLoadGroup[] }) {
   const { t, i18n } = useTranslation();
@@ -28,7 +28,7 @@ export function RepsAtLoadCard({ groups }: { groups: readonly RepsAtLoadGroup[] 
   const [metric, setMetric] = useState<ViewMetric>('best');
   const [page, setPage] = useState(0);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [showAll, setShowAll] = useState(false);
+  const [choosing, setChoosing] = useState(false);
   const group = groups.find((item) => item.loadKg === load) ?? groups[0];
   const sessions = group?.sessions ?? [];
   const lastPage = Math.max(0, Math.ceil(sessions.length / SESSIONS_PER_PAGE) - 1);
@@ -46,61 +46,50 @@ export function RepsAtLoadCard({ groups }: { groups: readonly RepsAtLoadGroup[] 
   const weightLabel = (kg: number) => kg === 0 ? t('repsAtLoad.zero') : kg < 0
     ? t('repsAtLoad.assisted', { weight: formatWeight(Math.abs(kg)) })
     : `${formatWeight(kg)} kg`;
+  const shortLabel = (kg: number) => kg === 0 ? t('repsAtLoad.zeroShort') : kg < 0 ? t('repsAtLoad.assistedShort', { weight: formatWeight(Math.abs(kg)) }) : `+${formatWeight(kg)}`;
   const dateLabel = (date: Date) => date.toLocaleDateString(i18n.language, { day: 'numeric', month: 'short' });
   const changePage = (next: number) => { setPage(next); setSelectedId(null); };
   const select = (kg: number) => { setLoad(kg); setPage(0); setSelectedId(null); };
-  // The ladder runs from the most load (least help) down; the selected load always stays in view.
-  const ladder = [...groups].sort((a, b) => b.loadKg - a.loadKg);
-  const visible = showAll ? ladder : ladder.filter((item, index) => index < OVERVIEW_ROWS || item.loadKg === group?.loadKg);
   const signed = (amount: number) => `${amount > 0 ? '+' : '−'}${formatNumber(Math.abs(amount))}`;
+  const lastOf = (item: RepsAtLoadGroup) => item.sessions[item.sessions.length - 1];
+  const summary = (item: RepsAtLoadGroup) => t('repsAtLoad.rowSummary', { last: lastOf(item).bestReps, best: Math.max(...item.sessions.map((entry) => entry.bestReps)), sessions: item.sessions.length });
+  const deltaOf = (item: RepsAtLoadGroup) => (item.sessions.length > 1 ? lastOf(item).bestReps - item.sessions[item.sessions.length - 2].bestReps : null);
+
+  // The ladder, from the least load (most help) to the most; the step moves along it.
+  const ladder = [...groups].sort((a, b) => a.loadKg - b.loadKg);
+  const position = group ? ladder.findIndex((item) => item.loadKg === group.loadKg) : -1;
+  const lower = position > 0 ? ladder[position - 1] : null;
+  const higher = position >= 0 && position < ladder.length - 1 ? ladder[position + 1] : null;
+  const recent = [...groups].sort((a, b) => lastOf(b).startedAt.getTime() - lastOf(a).startedAt.getTime()).slice(0, RECENT_LOADS);
+  const groupDelta = group ? deltaOf(group) : null;
 
   return (
     <Card>
       <SectionTitle title={t('repsAtLoad.title')} />
       <Body>{t('repsAtLoad.body')}</Body>
       {!group ? <Body>{t('repsAtLoad.empty')}</Body> : <>
+        <View style={styles.stepper}>
+          <IconButton icon="chevron-back" label={lower ? t('repsAtLoad.lowerTo', { weight: weightLabel(lower.loadKg) }) : t('repsAtLoad.noLower')} disabled={!lower} onPress={() => lower && select(lower.loadKg)} />
+          <View style={styles.stepperMain} accessibilityLiveRegion="polite">
+            <Text style={[styles.stepperLoad, { color: palette.text }]}>{weightLabel(group.loadKg)}</Text>
+            <View style={styles.stepperMeta}>
+              <Text style={[styles.rungMeta, { color: palette.textMuted }]}>{summary(group)}</Text>
+              {groupDelta !== null && groupDelta !== 0 ? (
+                <View style={styles.rungDelta}>
+                  <Icon name={groupDelta > 0 ? 'arrow-up' : 'arrow-down'} size={14} color={groupDelta > 0 ? palette.success : palette.warning} />
+                  <Text style={[styles.rungDeltaText, { color: groupDelta > 0 ? palette.success : palette.warning }]}>{signed(groupDelta)}</Text>
+                </View>
+              ) : null}
+            </View>
+          </View>
+          <IconButton icon="chevron-forward" label={higher ? t('repsAtLoad.higherTo', { weight: weightLabel(higher.loadKg) }) : t('repsAtLoad.noHigher')} disabled={!higher} onPress={() => higher && select(higher.loadKg)} />
+        </View>
         {ladder.length > 1 ? (
-          <View accessibilityRole="radiogroup" style={styles.ladder}>
-            {visible.map((item) => {
-              const last = item.sessions[item.sessions.length - 1];
-              const before = item.sessions.length > 1 ? item.sessions[item.sessions.length - 2] : null;
-              const delta = before ? last.bestReps - before.bestReps : null;
-              const best = Math.max(...item.sessions.map((session) => session.bestReps));
-              const on = item.loadKg === group.loadKg;
-              return (
-                <Pressable
-                  key={item.loadKg}
-                  accessibilityRole="radio"
-                  accessibilityState={{ selected: on }}
-                  accessibilityLabel={`${weightLabel(item.loadKg)}: ${t('repsAtLoad.rowSummary', { last: last.bestReps, best, sessions: item.sessions.length })}`}
-                  onPress={() => { tapFeedback(); select(item.loadKg); }}
-                  style={({ pressed }) => [styles.rung, { borderColor: on ? palette.accentStrong : palette.border, backgroundColor: on ? palette.accentSoft : 'transparent', opacity: pressed ? 0.75 : 1 }]}
-                >
-                  <View style={styles.rungMain}>
-                    <Text style={[styles.rungLoad, { color: on ? palette.accentStrong : palette.text }]}>{weightLabel(item.loadKg)}</Text>
-                    <Text style={[styles.rungMeta, { color: palette.textMuted }]}>{t('repsAtLoad.rowSummary', { last: last.bestReps, best, sessions: item.sessions.length })}</Text>
-                  </View>
-                  {delta !== null && delta !== 0 ? (
-                    <View style={styles.rungDelta}>
-                      <Icon name={delta > 0 ? 'arrow-up' : 'arrow-down'} size={14} color={delta > 0 ? palette.success : palette.warning} />
-                      <Text style={[styles.rungDeltaText, { color: delta > 0 ? palette.success : palette.warning }]}>{signed(delta)}</Text>
-                    </View>
-                  ) : null}
-                </Pressable>
-              );
-            })}
-            {ladder.length > visible.length || showAll ? (
-              <Pressable accessibilityRole="button" hitSlop={8} onPress={() => setShowAll((current) => !current)} style={styles.more}>
-                <Text style={[styles.moreText, { color: palette.accentStrong }]}>{showAll ? t('repsAtLoad.showFewerLoads') : t('repsAtLoad.showAllLoads', { total: ladder.length })}</Text>
-              </Pressable>
-            ) : null}
-          </View>
-        ) : (
-          <View style={styles.loadRow}>
-            <Label>{t('repsAtLoad.weight')}</Label>
-            <Text style={[styles.rungLoad, { color: palette.text }]}>{weightLabel(group.loadKg)}</Text>
-          </View>
-        )}
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.chips}>
+            {recent.map((item) => <Chip key={item.loadKg} label={shortLabel(item.loadKg)} accessibilityLabel={weightLabel(item.loadKg)} selected={item.loadKg === group.loadKg} onPress={() => select(item.loadKg)} />)}
+            {ladder.length > recent.length ? <Chip icon="list" label={t('repsAtLoad.allLoads', { total: ladder.length })} onPress={() => setChoosing(true)} /> : null}
+          </ScrollView>
+        ) : null}
         <SegmentedControl value={metric} options={[
           { value: 'best', label: t('repsAtLoad.best') },
           { value: 'total', label: t('repsAtLoad.total') },
@@ -131,21 +120,30 @@ export function RepsAtLoadCard({ groups }: { groups: readonly RepsAtLoadGroup[] 
         </View> : null}
         <Body>{t('repsAtLoad.hint')}</Body>
       </>}
+      <Sheet visible={choosing} onClose={() => setChoosing(false)} title={t('repsAtLoad.allLoadsTitle')} body={t('repsAtLoad.allLoadsHint')}>
+        <ListGroup>{ladder.map((item) => {
+          const delta = deltaOf(item);
+          return <ListRow
+            key={item.loadKg} title={weightLabel(item.loadKg)}
+            subtitle={`${summary(item)}${delta ? ` · ${signed(delta)}` : ''}`}
+            selected={item.loadKg === group?.loadKg}
+            onPress={() => { select(item.loadKg); setChoosing(false); }}
+          />;
+        })}</ListGroup>
+      </Sheet>
     </Card>
   );
 }
 
 const baseStyles = StyleSheet.create({
-  loadRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
-  ladder: { gap: 8 },
-  rung: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 56, borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 8 },
-  rungMain: { flex: 1, gap: 2 },
-  rungLoad: { fontFamily: fonts.semibold, fontSize: 16, lineHeight: 22 },
+  stepper: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  stepperMain: { flex: 1, alignItems: 'center', gap: 2 },
+  stepperLoad: { fontFamily: fonts.display, fontSize: 24, lineHeight: 28, textAlign: 'center' },
+  stepperMeta: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center', gap: 8 },
+  chips: { flexDirection: 'row', gap: 8, paddingRight: 8 },
   rungMeta: { fontFamily: fonts.medium, fontSize: 13, lineHeight: 18, fontVariant: ['tabular-nums'] },
   rungDelta: { flexDirection: 'row', alignItems: 'center', gap: 2 },
   rungDeltaText: { fontFamily: fonts.semibold, fontSize: 14, fontVariant: ['tabular-nums'] },
-  more: { minHeight: 48, alignItems: 'center', justifyContent: 'center' },
-  moreText: { fontFamily: fonts.semibold, fontSize: 14 },
   pager: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
   range: { flex: 1, textAlign: 'center' },
   detail: { gap: 12, paddingTop: 8 },

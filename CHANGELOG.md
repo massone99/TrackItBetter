@@ -2,6 +2,10 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.21.10 - 2026-10-08
+
+- Reps by load or help with many trained loads: the selector keeps one height however many loads there are. A step ‹ › moves to the next lower or higher load (to compare close ones), chips jump to the 5 most recently trained loads, and "All (N)" opens the full ladder in a sheet, from the most help to the most load. Before, "Show all" opened a wall of rows and pushed the chart out of sight.
+
 ## 0.21.9 - 2026-10-08
 
 - Reps by load or help (exercise page and statistics): every load at a glance as a ladder, the most load first down to the most help. Each row shows the last session, the best and the change since the one before, and one tap charts its sessions (before: a weight picker in a sheet). The selected load stays in view; "Show all" opens the rest.

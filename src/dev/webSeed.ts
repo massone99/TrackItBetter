@@ -60,7 +60,7 @@ async function seed(count = 40, active = false, from = 0, total = count): Promis
  * Development only: pull-up sessions at different added loads and with help from bands, to look at
  * the load comparison. `__seedLoads()` once, on an empty database.
  */
-async function seedLoads(): Promise<void> {
+async function seedLoads(many = false): Promise<void> {
   const { db } = await import('../db/client');
   const { trainingSets } = await import('../db/schema');
   const { inArray } = await import('drizzle-orm');
@@ -76,6 +76,8 @@ async function seedLoads(): Promise<void> {
     [30, [3, 3, 2], 0, null, 1], [14, [4, 3, 3], 0, null, 1], [3, [5, 4, 3], 0, null, 1],
     [21, [3, 3, 3], 10, null, 1], [8, [4, 3, 3], 10, null, 1], [2, [3, 3, 3], 15, null, 1],
   ];
+  // `many`: one session at every 2.5 kg from 2.5 to 60, to see a ladder of 25+ loads.
+  if (many) for (let step = 1; step <= 24; step += 1) plan.push([step + 1, [Math.max(1, 9 - Math.floor(step / 4)), 3, 3], step * 2.5, null, 1]);
   for (const [ago, reps, load, band, tension] of plan) {
     const startedAt = new Date(now - ago * day);
     const id = await logCompletedWorkout({
