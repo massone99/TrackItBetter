@@ -7,6 +7,8 @@ export function formatRecordValue(kind: RecordKind | 'volume', value: number, me
     case 'loadAtReps':
     case 'e1rm':
       return `${formatNumber(Math.round(value * 10) / 10)} kg`;
+    case 'lessAssist':
+      return value < 0 ? t('records.lighterBands') : `${formatNumber(Math.round(value * 10) / 10)} kg`;
     case 'repsAtLoad':
       return t('records.reps', { count: value });
     case 'holdAtLoad':

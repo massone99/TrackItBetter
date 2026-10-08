@@ -11,6 +11,8 @@ import { formatRecordValue } from '../../../src/features/analytics/recordLabels'
 import type { WorkoutRecord } from '../../../src/features/analytics/summary';
 import { CompletedWorkout, getCompletedWorkout, getPreviousPerformance, type PreviousPerformance } from '../../../src/features/session/repository';
 import { compareWithLast } from '../../../src/domain/lastTime';
+import { bandRanks, compareBandHelp, type SetBand } from '../../../src/domain/equipment';
+import { getEquipment } from '../../../src/features/equipment/repository';
 import { restForSet } from '../../../src/features/session/restDefaults';
 import { ActionButton, Body, Icon, Label, ListGroup, ListRow, Numeral, Screen, SectionTitle, tapFeedback, Text, Title } from '../../../src/shared/components/ui';
 import { Arrive } from '../../../src/shared/components/Arrive';
@@ -34,12 +36,17 @@ export default function WorkoutSummaryScreen() {
   const [attempt, setAttempt] = useState(0);
   const [mobilitySeconds, setMobilitySeconds] = useState(0);
   const [previous, setPrevious] = useState<Map<string, PreviousPerformance>>(new Map());
+  const [compareBands, setCompareBands] = useState<((a: readonly SetBand[], b: readonly SetBand[]) => -1 | 0 | 1 | null) | undefined>(undefined);
 
   useEffect(() => {
     let mounted = true;
     void Promise.all([getCompletedWorkout(id), getWorkoutRecords(id), getWorkoutMobilitySeconds(id), getSessionRecords(id)]).then(async ([completed, found, mobility, session]) => {
-      const last = completed ? await getPreviousPerformance(completed.exercises.map((exercise) => exercise.exerciseId), completed.id) : new Map<string, PreviousPerformance>();
+      const last = completed ? await getPreviousPerformance(completed.exercises.map((exercise) => exercise.exerciseId), completed.id, new Map(completed.exercises.map((exercise) => [exercise.exerciseId, exercise.apparatusId ?? null] as const))) : new Map<string, PreviousPerformance>();
+      const catalog = await getEquipment();
+      const ranks = bandRanks(catalog.bandSets, catalog.bandOrder);
+      const comparer = (a: readonly SetBand[], b: readonly SetBand[]) => compareBandHelp(a, b, ranks);
       if (!mounted) return;
+      setCompareBands(() => comparer);
       setPrevious(last);
       setMobilitySeconds(mobility);
       setWorkout(completed);
@@ -50,8 +57,8 @@ export default function WorkoutSummaryScreen() {
       setLoading(false);
       const beatLastTime = (completed?.exercises ?? []).some((exercise) => {
         const before = last.get(exercise.exerciseId);
-        const { improved } = compareWithLast(exercise.sets, before?.sets ?? null, exercise.metric, { defaultRest: restForSet(exercise.exerciseId, { kind: 'working', restSec: null }) });
-        return improved.total || improved.rest || improved.form || improved.rpe;
+        const { improved } = compareWithLast(exercise.sets, before?.sets ?? null, exercise.metric, { defaultRest: restForSet(exercise.exerciseId, { kind: 'working', restSec: null }), compareBands: comparer });
+        return improved.total || improved.rest || improved.form || improved.rpe || improved.assist;
       });
       if (distance.length + session.sets.length + session.volume.length > 0 || beatLastTime) tapFeedback('success');
     }).catch(() => { if (mounted) { setLoadFailed(true); setLoading(false); } });
@@ -83,11 +90,12 @@ export default function WorkoutSummaryScreen() {
   // Mini PRs against last time: more in total, less rest, better form, the same work at a lower RPE.
   const betterLines = workout.exercises.flatMap((exercise) => {
     const before = previous.get(exercise.exerciseId);
-    const { total, rest, rpe, improved } = compareWithLast(exercise.sets, before?.sets ?? null, exercise.metric, { defaultRest: restForSet(exercise.exerciseId, { kind: 'working', restSec: null }) });
+    const { total, rest, rpe, assist, improved } = compareWithLast(exercise.sets, before?.sets ?? null, exercise.metric, { defaultRest: restForSet(exercise.exerciseId, { kind: 'working', restSec: null }), compareBands });
     const items = [
       improved.total && total ? t('lastTime.totalShort', { delta: Math.round(((total.now ?? 0) - total.last) * 10) / 10 }) : null,
       improved.rest && rest ? t('lastTime.restShort', { delta: rest.last - (rest.now ?? rest.last) }) : null,
       improved.form ? t('lastTime.formShort') : null,
+      improved.assist ? (assist && assist.now !== null ? t('lastTime.assistShort', { value: Math.round((assist.last - assist.now) * 10) / 10 }) : t('lastTime.assistLighter')) : null,
       improved.rpe && rpe && rpe.now !== null ? t('lastTime.rpeShort', { value: formatRpe(rpe.now), last: formatRpe(rpe.last) }) : null,
     ].filter((item): item is string => item !== null);
     return items.length ? [{ entryId: exercise.entryId, exerciseId: exercise.exerciseId, name: exercise.name, items }] : [];

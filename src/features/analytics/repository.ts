@@ -7,9 +7,11 @@ import { buildExerciseEstimate, type ExerciseEstimate } from './estimates';
 import type { ExploreData } from './explore';
 import { buildProgressSnapshot, detectWorkoutRecords, type CompletedSetRow, type CompletedWorkoutRow, type ProgressSnapshot, type WorkoutRecord } from './summary';
 import type { StatsSetRow } from './trainingStats';
-import { detectSetRecords, detectVolumeRecords, exerciseRecordSummary, type ExerciseRecordSummary, type RecordRow, type SetRecord, type VolumeRecord } from './records';
+import { detectSetRecords, detectVolumeRecords, exerciseRecordSummary, type BandHelpComparer, type ExerciseRecordSummary, type RecordRow, type SetRecord, type VolumeRecord } from './records';
 import { getEffectiveLoad } from './summary';
 import { aggregatePairs, groupSets, type PairScope } from '../../domain/setPairs';
+import { bandRanks, compareBandHelp, parseSetBands } from '../../domain/equipment';
+import { getEquipment } from '../equipment/repository';
 import { repsAtLoadFromRows, type RepsAtLoadGroup } from './repsAtLoad';
 
 /** Scope raw rows once here; the domain builders still accept legacy unscoped rows. */
@@ -188,6 +190,7 @@ async function readRecordRows(onlyWorkoutId?: string): Promise<RecordRow[]> {
       addedLoadKg: trainingSets.addedLoadKg,
       restSec: trainingSets.restSec,
       assistKg: trainingSets.assistKg,
+      bands: trainingSets.bands,
       apparatusId: exerciseEntries.apparatusId,
       defaultApparatusId: exercises.defaultApparatusId,
       apparatusAffectsDifficulty: exercises.apparatusAffectsDifficulty,
@@ -215,6 +218,7 @@ async function readRecordRows(onlyWorkoutId?: string): Promise<RecordRow[]> {
       setId: row.setId, workoutId: row.workoutId, exerciseId: row.exerciseId, metric: row.metric,
       compareKey: apparatus ? `${row.exerciseId}@${apparatus}` : row.exerciseId,
       reps: row.reps, durationSec: row.durationSec, addedLoadKg, effectiveLoadKg, restBeforeSec,
+      bands: parseSetBands(row.bands), assistKg: row.assistKg,
     });
     }
     previous = group.at(-1) ?? null;
@@ -225,7 +229,10 @@ async function readRecordRows(onlyWorkoutId?: string): Promise<RecordRow[]> {
 /** PRs and volume mini PRs of a workout, in progress or finished. */
 export async function getSessionRecords(workoutId: string): Promise<{ sets: SetRecord[]; volume: VolumeRecord[] }> {
   const rows = await loadRecordRows(workoutId);
-  return { sets: detectSetRecords(rows, workoutId), volume: detectVolumeRecords(rows, workoutId) };
+  const catalog = await getEquipment();
+  const ranks = bandRanks(catalog.bandSets, catalog.bandOrder);
+  const compareBands: BandHelpComparer = (a, b) => compareBandHelp(a, b, ranks);
+  return { sets: detectSetRecords(rows, workoutId, 'average', compareBands), volume: detectVolumeRecords(rows, workoutId) };
 }
 
 /** Reps at each logged load across finished sessions of one exercise, in a side view. */
@@ -252,6 +259,10 @@ export interface ExerciseHistorySet {
   durationSec: number | null;
   distanceM: number | null;
   addedLoadKg: number;
+  /** Kg of help from bands (null without bands, or when a band's kg are unknown). */
+  assistKg?: number | null;
+  /** Names are not stored on the set: the number of bands tells there were some. */
+  bandCount?: number;
   rpe: number | null;
 }
 
@@ -311,6 +322,8 @@ export async function getExerciseHistory(exerciseId: string, limit?: number): Pr
     durationSec: trainingSets.durationSec,
     distanceM: trainingSets.distanceM,
     addedLoadKg: trainingSets.addedLoadKg,
+    assistKg: trainingSets.assistKg,
+    bands: trainingSets.bands,
     rpe: trainingSets.rpe,
   }).from(exerciseEntries)
     .innerJoin(workouts, eq(workouts.id, exerciseEntries.workoutId))
@@ -325,7 +338,7 @@ export async function getExerciseHistory(exerciseId: string, limit?: number): Pr
       session = { workoutId: row.workoutId, workoutName: row.workoutName, startedAt: row.startedAt, notes: row.notes, sets: [] };
       sessions.set(row.workoutId, session);
     }
-    session.sets.push({ id: row.setId, pairId: row.pairId, side: row.side, kind: row.kind, reps: row.reps, durationSec: row.durationSec, distanceM: row.distanceM, addedLoadKg: row.addedLoadKg, rpe: row.rpe });
+    session.sets.push({ id: row.setId, pairId: row.pairId, side: row.side, kind: row.kind, reps: row.reps, durationSec: row.durationSec, distanceM: row.distanceM, addedLoadKg: row.addedLoadKg, assistKg: row.assistKg, bandCount: parseSetBands(row.bands).length, rpe: row.rpe });
   }
   return [...sessions.values()];
 }

@@ -154,3 +154,45 @@ describe('exerciseRecordSummary', () => {
     expect(exerciseRecordSummary([legacy, ...paired], 'dip', 'legacy').bestVolume).toBe(600);
   });
 });
+
+describe('less help from bands', () => {
+  const band = (bandId: string, tension: 1 | 2 | 3 = 2) => [{ bandId, tension }];
+  // Strength order across band sets: green (another brand) < blue < red.
+  const rank = new Map([['green', 0], ['blue', 1], ['red', 2]]);
+  const compare = (a: readonly { bandId: string; tension: number }[], b: readonly { bandId: string; tension: number }[]) => {
+    const level = (list: readonly { bandId: string; tension: number }[]) => list.map((item) => (rank.get(item.bandId) ?? 0) * 10 + item.tension).sort((x, y) => y - x);
+    const x = level(a); const y = level(b);
+    if (x.length === y.length && x.every((value, index) => value === y[index])) return 0;
+    if (x.length <= y.length && x.every((value, index) => value <= y[index])) return -1 as const;
+    if (y.length <= x.length && y.every((value, index) => value <= x[index])) return 1 as const;
+    return null;
+  };
+  const pullUp = (overrides: Partial<RecordRow>) => row({ exerciseId: 'pull-up', metric: 'reps', addedLoadKg: 0, effectiveLoadKg: null, reps: 6, ...overrides });
+
+  it('is a record with the same reps and fewer kg of help', () => {
+    const today = pullUp({ workoutId: 'new', bands: band('blue'), assistKg: 15 });
+    const records = detectSetRecords([pullUp({ bands: band('blue'), assistKg: 25 }), today], 'new', 'average', compare);
+    expect(records.find((record) => record.setId === today.setId && record.kind === 'lessAssist')).toMatchObject({ value: 15, previous: 25 });
+  });
+
+  it('is not a record with more help, or when fewer reps were done', () => {
+    const more = pullUp({ workoutId: 'new', bands: band('blue'), assistKg: 30 });
+    expect(kinds(detectSetRecords([pullUp({ bands: band('blue'), assistKg: 25 }), more], 'new', 'average', compare), more.setId)).not.toContain('lessAssist');
+    const fewer = pullUp({ workoutId: 'new', reps: 4, bands: band('green'), assistKg: 5 });
+    expect(kinds(detectSetRecords([pullUp({ bands: band('blue'), assistKg: 25 }), fewer], 'new', 'average', compare), fewer.setId)).not.toContain('lessAssist');
+  });
+
+  it('is a record with no band at all, as the least help', () => {
+    const today = pullUp({ workoutId: 'new' });
+    expect(kinds(detectSetRecords([pullUp({ bands: band('blue'), assistKg: 25 }), today], 'new', 'average', compare), today.setId)).toContain('lessAssist');
+  });
+
+  it('uses the strength order, across band sets, when the kg are unknown', () => {
+    const today = pullUp({ workoutId: 'new', bands: band('green', 3), assistKg: null });
+    const records = detectSetRecords([pullUp({ bands: band('blue', 1), assistKg: null }), today], 'new', 'average', compare);
+    expect(kinds(records, today.setId)).toContain('lessAssist');
+    expect(records.find((record) => record.kind === 'lessAssist')).toMatchObject({ value: -1 });
+    // Without an order to tell, there is no record.
+    expect(kinds(detectSetRecords([pullUp({ bands: band('blue', 1), assistKg: null }), today], 'new'), today.setId)).not.toContain('lessAssist');
+  });
+});

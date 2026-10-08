@@ -2,6 +2,12 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.21.6 - 2026-10-08
+
+- Band assistance is a record: "Least help from bands for this work" when a set does at least the reps (or seconds) of an earlier set with less help (kg when known, else the strength order, also across band sets; no band at all counts as the least help). It shows as a PR in the workout and in the summary.
+- Summary: "better than last time" counts less assistance ("2 kg less help", "lighter bands"), compares with the same apparatus and uses the strength order.
+- Exercise history shows the help of each set, e.g. "6 (−15 kg band)".
+
 ## 0.21.5 - 2026-10-07
 
 - Micro-session is now an ordinary workout: you choose the N exercises first (recent ones, or "Add exercise"), then "Start" opens the same workout screen with sets, rest timers, notifications, notes, bands and everything else. It is named "Mini-session N" and finishes like any workout. If a workout is already in progress, it says so instead of starting.

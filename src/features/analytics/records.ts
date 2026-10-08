@@ -1,4 +1,5 @@
 import { estimateOneRepMax } from '../../domain/e1rm';
+import type { SetBand } from '../../domain/equipment';
 import { aggregatePairs, realMean, recordScope, samePairValue, type PairScope } from '../../domain/setPairs';
 
 /** One completed working set, in chronological order. */
@@ -24,11 +25,17 @@ export interface RecordRow {
   pairMembers?: readonly RecordRow[];
   /** Present for callers that pass incomplete in-progress rows to the aggregator. */
   completedAt?: unknown;
+  /** Bands that helped this set and their assistance in kg (null when a band's kg are unknown). */
+  bands?: readonly SetBand[];
+  assistKg?: number | null;
 }
+
+/** -1 when `a` had less help from bands than `b`, 0 the same, 1 more, null when that cannot be told. */
+export type BandHelpComparer = (a: readonly SetBand[], b: readonly SetBand[]) => -1 | 0 | 1 | null;
 
 export type RecordScope = PairScope;
 
-export type RecordKind = 'loadAtReps' | 'repsAtLoad' | 'holdAtLoad' | 'e1rm' | 'shorterRest';
+export type RecordKind = 'loadAtReps' | 'repsAtLoad' | 'holdAtLoad' | 'e1rm' | 'shorterRest' | 'lessAssist';
 
 export interface SetRecord {
   setId: string;
@@ -89,7 +96,7 @@ const maxOf = (values: number[]) => (values.length ? Math.max(...values) : null)
  * Records set in `workoutId`: each of its sets is compared with every earlier set of the exercise,
  * earlier sets of the same session included. An exercise done for the first time has no records.
  */
-export function detectSetRecords(rows: readonly RecordRow[], workoutId: string, scope: RecordScope = 'average'): SetRecord[] {
+export function detectSetRecords(rows: readonly RecordRow[], workoutId: string, scope: RecordScope = 'average', compareBands?: BandHelpComparer): SetRecord[] {
   const records: SetRecord[] = [];
   const earlierByExercise = new Map<string, RecordRow[]>();
   for (const row of scopedRows(rows, scope)) {
@@ -126,6 +133,24 @@ export function detectSetRecords(rows: readonly RecordRow[], workoutId: string, 
       .map(oneRepMax)
       .filter((value): value is number => value !== null));
     if (e1rm !== null && previousE1rm !== null && e1rm > previousE1rm + EPSILON) add('e1rm', e1rm, previousE1rm);
+
+    // At least the same work as an earlier set, with less help from bands: kg when both are known, else the bands' strength order.
+    const helpVersus = (item: RecordRow): -1 | 0 | 1 | null => {
+      if ((row.bands?.length ?? 0) === 0 && (item.bands?.length ?? 0) === 0) return 0;
+      const kgRow = (row.bands?.length ?? 0) === 0 ? 0 : row.assistKg ?? null;
+      const kgItem = (item.bands?.length ?? 0) === 0 ? 0 : item.assistKg ?? null;
+      if (kgRow !== null && kgItem !== null) return Math.abs(kgRow - kgItem) <= EPSILON ? 0 : kgRow < kgItem ? -1 : 1;
+      return compareBands ? compareBands(row.bands ?? [], item.bands ?? []) : null;
+    };
+    if ((row.bands?.length ?? 0) > 0 || earlier.some((item) => (item.bands?.length ?? 0) > 0)) {
+      const rivals = earlier.filter((item) => item !== row && sameRecordScope(item, row) && amountOf(item) <= amount + EPSILON);
+      const verdicts = rivals.map(helpVersus);
+      if (rivals.length > 0 && verdicts.every((verdict) => verdict === -1)) {
+        const known = rivals.flatMap((item) => ((item.bands?.length ?? 0) === 0 ? [0] : item.assistKg != null ? [item.assistKg] : []));
+        const own = (row.bands?.length ?? 0) === 0 ? 0 : row.assistKg;
+        add('lessAssist', own ?? -1, known.length === rivals.length ? Math.min(...known) : -1);
+      }
+    }
 
     if (row.restBeforeSec !== null && sameAmountWithinPair(row) && sameLoadWithinPair(row)) {
       const comparable = earlier.filter((item) => sameRecordScope(item, row) && item.restBeforeSec !== null
