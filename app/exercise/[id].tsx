@@ -11,12 +11,12 @@ import { canTransfer, deleteExerciseWithHistory, getExerciseUsage, hideExercise,
 import { ExercisePicker, type ExerciseChoice } from '../../src/features/exercises/ExercisePicker';
 import { HistoryRow } from '../../src/features/exercises/HistoryRow';
 import { addExerciseToWorkout, getActiveWorkout, startWorkout } from '../../src/features/session/repository';
-import { getExerciseCycle, getExerciseEstimate, getExerciseHistory, getExerciseHistoryOverview, getExerciseRecordSummary, getExerciseRepsAtLoad, getExerciseWeekStats, type ExerciseHistoryOverview, type ExerciseHistorySession } from '../../src/features/analytics/repository';
+import { getExerciseCycle, getExerciseEstimate, getExerciseOneRepMax, getExerciseHistory, getExerciseHistoryOverview, getExerciseRecordSummary, getExerciseRepsAtLoad, getExerciseWeekStats, type ExerciseHistoryOverview, type ExerciseHistorySession } from '../../src/features/analytics/repository';
 import type { ExerciseRecordSummary } from '../../src/features/analytics/records';
 import type { RepsAtLoadGroup } from '../../src/features/analytics/repsAtLoad';
 import { RepsAtLoadCard } from '../../src/features/analytics/components/RepsAtLoadCard';
 import { formatRecordValue } from '../../src/features/analytics/recordLabels';
-import type { ExerciseEstimate } from '../../src/features/analytics/estimates';
+import type { ExerciseEstimate, OneRepMaxEstimate } from '../../src/features/analytics/estimates';
 import type { ExerciseCycle, ExerciseWeek } from '../../src/features/analytics/mobility';
 import { formatMinutes, formatNumber } from '../../src/shared/utils/format';
 import { formatRpe } from '../../src/domain';
@@ -52,6 +52,7 @@ export default function ExerciseRoute() {
   const [week, setWeek] = useState<ExerciseWeek | null>(null);
   const [cycle, setCycle] = useState<{ current: ExerciseCycle | null; previous: ExerciseCycle | null } | null>(null);
   const [estimate, setEstimate] = useState<ExerciseEstimate | null>(null);
+  const [oneRepMax, setOneRepMax] = useState<OneRepMaxEstimate | null>(null);
   const [records, setRecords] = useState<ExerciseRecordSummary | null>(null);
   const [editingReference, setEditingReference] = useState(false);
   const [history, setHistory] = useState<ExerciseHistorySession[]>([]);
@@ -76,17 +77,19 @@ export default function ExerciseRoute() {
     const request = ++scopedRequest.current;
     // Mobility and stretching count their own week from the first day trained; the rest the last 7 days.
     const mobility = [found.category, ...readList(found.extraCategories)].includes('mobility');
-    const [cycle, week, estimate, records, progress] = await Promise.all([
+    const [cycle, week, estimate, records, progress, oneRm] = await Promise.all([
       mobility ? getExerciseCycle(found.id, undefined, scope).catch(() => null) : null,
       mobility ? null : getExerciseWeekStats(found.id, found.metric, undefined, scope).catch(() => null),
       getExerciseEstimate(found.id, undefined, scope).catch(() => null),
       getExerciseRecordSummary(found.id, scope).catch(() => null),
       found.metric === 'reps' || found.metric === 'reps_load' ? getExerciseRepsAtLoad(found.id, scope).catch(() => []) : [],
+      found.metric === 'reps' || found.metric === 'reps_load' ? getExerciseOneRepMax(found.id, undefined, scope).catch(() => null) : null,
     ]);
     // A newer side view was chosen while this one loaded: its results win.
     if (request !== scopedRequest.current) return;
     if (mobility) setCycle(cycle); else setWeek(week);
     setEstimate(estimate);
+    setOneRepMax(oneRm);
     setRecords(records);
     setLoadProgress(progress);
   }, []);
@@ -353,16 +356,45 @@ export default function ExerciseRoute() {
                 />
                 {estimate.recentBest ? <WeekStat value={formatEstimate(estimate.kind, estimate.recentBest.value)} label={t('estimate.recentBest')} /> : null}
               </View>
+              {estimate.condition ? (
+                <Body>{estimate.condition.netLoadKg > 0
+                  ? t('estimate.atLoad', { value: formatNumber(estimate.condition.netLoadKg) })
+                  : t('estimate.withHelp', { value: formatNumber(-estimate.condition.netLoadKg) })}</Body>
+              ) : null}
               <Body>{t('estimate.body')}</Body>
-              <ListGroup>
-                <ListRow
-                  icon="stats-chart-outline"
-                  title={t('estimate.seeTrend')}
-                  onPress={() => router.push({ pathname: '/stats', params: { exerciseId: exercise.id, metric: estimate.kind === 'reps' ? 'estMaxReps' : 'estMaxHold', pairScope } })}
-                />
-              </ListGroup>
+              {estimate.condition === null ? (
+                <ListGroup>
+                  <ListRow
+                    icon="stats-chart-outline"
+                    title={t('estimate.seeTrend')}
+                    onPress={() => router.push({ pathname: '/stats', params: { exerciseId: exercise.id, metric: estimate.kind === 'reps' ? 'estMaxReps' : 'estMaxHold', pairScope } })}
+                  />
+                </ListGroup>
+              ) : null}
             </>
           ) : <Body>{t('estimate.hint')}</Body>}
+        </View>
+      ) : null}
+
+      {oneRepMax?.latest ? (
+        <View style={styles.section}>
+          <SectionTitle title={t('oneRm.title')} />
+          <View style={[styles.week, { backgroundColor: palette.surface, borderColor: palette.border }]}>
+            <WeekStat
+              value={`${formatNumber(Math.round(oneRepMax.latest.value * 10) / 10)} kg`}
+              label={`${t('estimate.latest')} · ${t(oneRepMax.latest.rpe !== null ? 'oneRm.sourceRpe' : 'oneRm.source', { reps: oneRepMax.latest.reps, load: formatNumber(Math.round(oneRepMax.latest.loadKg * 10) / 10), rpe: oneRepMax.latest.rpe !== null ? formatRpe(oneRepMax.latest.rpe) : '' })}`}
+            />
+            {oneRepMax.best && oneRepMax.best.value > oneRepMax.latest.value + 0.05 ? <WeekStat value={`${formatNumber(Math.round(oneRepMax.best.value * 10) / 10)} kg`} label={t('oneRm.best')} /> : null}
+          </View>
+          {oneRepMax.vsBodyKg !== null ? (
+            <Body>{oneRepMax.vsBodyKg >= 0 ? t('oneRm.addable', { value: formatNumber(oneRepMax.vsBodyKg) }) : t('oneRm.needsHelp', { value: formatNumber(-oneRepMax.vsBodyKg) })}</Body>
+          ) : null}
+          <Body>{t('oneRm.body')}</Body>
+          {exercise.metric === 'reps_load' ? (
+            <ListGroup>
+              <ListRow icon="stats-chart-outline" title={t('estimate.seeTrend')} onPress={() => router.push({ pathname: '/stats', params: { exerciseId: exercise.id, metric: 'bestE1rm', pairScope } })} />
+            </ListGroup>
+          ) : null}
         </View>
       ) : null}
 

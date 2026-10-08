@@ -1,4 +1,4 @@
-import { buildExerciseEstimate, setEstimate } from '../estimates';
+import { buildExerciseEstimate, buildOneRepMaxEstimate, setEstimate } from '../estimates';
 import { buildProgressSnapshot, type CompletedSetRow } from '../summary';
 
 const at = (month: number, day: number) => new Date(2026, month - 1, day, 18);
@@ -58,10 +58,58 @@ describe('buildExerciseEstimate', () => {
     expect(buildExerciseEstimate(rows, 'pull-up', now)?.latest?.value).toBe(12);
   });
 
-  it('flags unrated history and skips loaded exercises', () => {
-    expect(buildExerciseEstimate([row({ rpe: null })], 'pull-up', now)).toEqual({ kind: 'reps', latest: null, recentBest: null });
-    expect(buildExerciseEstimate([row({ metric: 'reps_load' })], 'pull-up', now)).toBeNull();
+  it('flags unrated history and skips distance exercises', () => {
+    expect(buildExerciseEstimate([row({ rpe: null })], 'pull-up', now)).toEqual({ kind: 'reps', condition: null, latest: null, recentBest: null });
+    expect(buildExerciseEstimate([row({ metric: 'distance' })], 'pull-up', now)).toBeNull();
     expect(buildExerciseEstimate([], 'pull-up', now)).toBeNull();
+  });
+
+  it('estimates loaded exercises at the net load of the latest set only', () => {
+    const rows = [
+      row({ metric: 'reps_load', addedLoadKg: 10, reps: 8, rpe: 8, completedAt: at(9, 10) }),
+      row({ metric: 'reps_load', addedLoadKg: 20, reps: 5, rpe: 8, completedAt: at(9, 20) }),
+    ];
+    const estimate = buildExerciseEstimate(rows, 'pull-up', now)!;
+    expect(estimate.condition).toEqual({ netLoadKg: 20 });
+    expect(estimate.latest).toMatchObject({ value: 7, done: 5 });
+  });
+
+  it('estimates band-assisted work at its own help, apart from unassisted sets', () => {
+    const rows = [
+      row({ reps: 12, rpe: 8, completedAt: at(9, 10) }),
+      row({ reps: 6, rpe: 8, bandCount: 1, assistKg: 20, completedAt: at(9, 20) }),
+      row({ reps: 8, rpe: 8, bandCount: 1, assistKg: 20, completedAt: at(9, 22) }),
+      row({ reps: 9, rpe: 8, bandCount: 1, assistKg: 10, completedAt: at(9, 5) }),
+      row({ reps: 20, rpe: 8, bandCount: 1, assistKg: null, completedAt: at(9, 23) }),
+    ];
+    const estimate = buildExerciseEstimate(rows, 'pull-up', now)!;
+    expect(estimate.condition).toEqual({ netLoadKg: -20 });
+    // 8 reps and 2 in reserve; the unassisted 12 and the 10 kg-help 9 do not count, nor does the set with unknown kg.
+    expect(estimate.latest).toMatchObject({ value: 10, done: 8 });
+    // Helped sets stay out of the plain per-set estimate used by the statistics explorer.
+    expect(setEstimate(row({ bandCount: 1, assistKg: 20 }))).toBeNull();
+  });
+});
+
+describe('buildOneRepMaxEstimate', () => {
+  const weighted = (overrides: Partial<CompletedSetRow>) => row({ metric: 'reps_load', leverageFactor: 1, ...overrides });
+
+  it('uses bodyweight, load, reps in reserve and help from bands', () => {
+    const rows = [weighted({ addedLoadKg: 10, reps: 5, rpe: 8, completedAt: at(9, 20) })];
+    const estimate = buildOneRepMaxEstimate(rows, 'pull-up', now)!;
+    // 80 kg moved, 5 + 2 reps: 80 × (1 + 7/30).
+    expect(estimate.latest?.value).toBeCloseTo(98.67, 1);
+    expect(estimate.vsBodyKg).toBeCloseTo(28.7, 1);
+    const helped = buildOneRepMaxEstimate([row({ leverageFactor: 1, reps: 5, rpe: 10, bandCount: 1, assistKg: 30, completedAt: at(9, 20) })], 'pull-up', now)!;
+    // 40 kg moved, 5 reps.
+    expect(helped.latest?.value).toBeCloseTo(46.67, 1);
+    expect(helped.vsBodyKg).toBeCloseTo(-23.3, 1);
+  });
+
+  it('has no estimate without a positive load, over 12 reps, or with bands of unknown kg', () => {
+    expect(buildOneRepMaxEstimate([row({ reps: 8, rpe: 8 })], 'pull-up', now)).toBeNull();
+    expect(buildOneRepMaxEstimate([weighted({ reps: 12, rpe: 8, completedAt: at(9, 20) })], 'pull-up', now)).toBeNull();
+    expect(buildOneRepMaxEstimate([row({ leverageFactor: 1, bandCount: 1, assistKg: null })], 'pull-up', now)).toBeNull();
   });
 });
 

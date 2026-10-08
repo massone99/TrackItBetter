@@ -3,7 +3,7 @@ import { db, initializeDatabase } from '../../db/client';
 import { cachedUntilHistoryChange } from '../../db/cache';
 import { exerciseEntries, exercises, trainingSets, workouts } from '../../db/schema';
 import { buildExerciseCycle, buildExerciseWeek, buildMobilityCycles, buildMobilityWeek, mobilitySecondsForWorkout, type ExerciseCycle, type ExerciseWeek, type MobilityWeek } from './mobility';
-import { buildExerciseEstimate, type ExerciseEstimate } from './estimates';
+import { buildExerciseEstimate, buildOneRepMaxEstimate, type ExerciseEstimate, type OneRepMaxEstimate } from './estimates';
 import type { ExploreData } from './explore';
 import { buildProgressSnapshot, detectWorkoutRecords, type CompletedSetRow, type CompletedWorkoutRow, type ProgressSnapshot, type WorkoutRecord } from './summary';
 import type { StatsSetRow } from './trainingStats';
@@ -99,6 +99,11 @@ export async function getExerciseEstimate(exerciseId: string, now = new Date(), 
   return buildExerciseEstimate(rowsForScope(await loadCompletedSetRows(), scope, exerciseId), exerciseId, now);
 }
 
+/** Estimated 1RM of one exercise, from load or help from bands, bodyweight share and RPE. */
+export async function getExerciseOneRepMax(exerciseId: string, now = new Date(), scope: PairScope = 'average'): Promise<OneRepMaxEstimate | null> {
+  return buildOneRepMaxEstimate(rowsForScope(await loadCompletedSetRows(), scope, exerciseId), exerciseId, now);
+}
+
 /** Every finished set and workout, for the statistics explorer to slice in memory. */
 export async function getExploreData(): Promise<ExploreData> {
   const rows = await loadCompletedSetRows();
@@ -143,6 +148,8 @@ async function readCompletedSetRows(): Promise<CompletedSetRow[]> {
       durationSec: trainingSets.durationSec,
       distanceM: trainingSets.distanceM,
       addedLoadKg: trainingSets.addedLoadKg,
+      assistKg: trainingSets.assistKg,
+      bands: trainingSets.bands,
       completedAt: trainingSets.completedAt,
       rpe: trainingSets.rpe,
       formRating: trainingSets.formRating,
@@ -152,7 +159,8 @@ async function readCompletedSetRows(): Promise<CompletedSetRow[]> {
     .innerJoin(exercises, eq(exerciseEntries.exerciseId, exercises.id))
     .innerJoin(workouts, eq(exerciseEntries.workoutId, workouts.id))
     .where(and(isNotNull(workouts.endedAt), isNotNull(trainingSets.completedAt), eq(trainingSets.kind, 'working')))
-    .orderBy(asc(trainingSets.completedAt));
+    .orderBy(asc(trainingSets.completedAt))
+    .then((rows) => rows.map(({ bands, ...row }) => ({ ...row, bandCount: parseSetBands(bands).length })));
 }
 
 /**
@@ -214,7 +222,7 @@ async function readRecordRows(onlyWorkoutId?: string): Promise<RecordRow[]> {
     if (row.kind !== 'working') continue;
     // Band assistance counts as negative load, so an assisted set is compared at its real load.
     const addedLoadKg = row.addedLoadKg - (row.assistKg ?? 0);
-    const effectiveLoadKg = getEffectiveLoad({ ...row, addedLoadKg, distanceM: null, completedAt: null } as never) ?? null;
+    const effectiveLoadKg = getEffectiveLoad({ ...row, addedLoadKg, assistKg: null, bandCount: 0, distanceM: null, completedAt: null } as never) ?? null;
     const apparatus = row.apparatusAffectsDifficulty ? row.apparatusId ?? row.defaultApparatusId : null;
     result.push({
       pairId: row.pairId, side: row.side,

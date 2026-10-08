@@ -1,6 +1,6 @@
 # Ubiquitous language
 
-Version 3 · 2026-10-07. Bump the version and add a line to "History" whenever a term changes. UI
+Version 4 · 2026-10-08. Bump the version and add a line to "History" whenever a term changes. UI
 strings, code, tests and conversations use these words with these meanings.
 
 | Term (en) | Termine (it) | Meaning | Code today |
@@ -17,6 +17,8 @@ strings, code, tests and conversations use these words with these meanings.
 | Band | Elastico | One band of a set: name or colour, swatch, and optionally kg at minimum and maximum stretch. | `Band` |
 | Tension | Tensione | How far a band is stretched on a set: 1 (little, the minimum kg), 2 (halfway), 3 (a lot, the maximum kg). | `SetBand.tension` |
 | Strength order | Ordine di resistenza | All bands, across band sets, from the lightest to the strongest; compares assistance when kg are unknown. | `EquipmentCatalog.bandOrder`, `compareBandHelp` |
+| Net load | Carico netto | Load added minus help from bands (negative: still helped). Estimated max reps/hold compare only sets at the same net load. | `netLoadKg` |
+| Estimated 1RM | 1RM stimato | One-rep max of the effective load moved (bodyweight share + load − help), with reps in reserve from RPE as reps done; up to 12 reps. | `oneRepMaxEstimate` |
 | Assistance | Assistenza | Kg of help from a set's bands, worked out when logged and saved with the set; unknown when a band has no kg. Less assistance is progress. | `training_set.assist_kg` |
 | Notes | Note | Free text. Prescribed-workout notes are planned; workout notes are about this performance. | `UserProgramSession.notes`, `workout.notes` |
 
@@ -40,3 +42,4 @@ strings, code, tests and conversations use these words with these meanings.
 - 1 · 2026-10-07: prescribed workout vs workout split; notes on both.
 - 2 · 2026-10-07: apparatus, band set, band, tension, assistance.
 - 3 · 2026-10-07: strength order; assistance compared by order without kg.
+- 4 · 2026-10-08: net load, estimated 1RM with assistance.

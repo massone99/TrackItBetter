@@ -6,3 +6,4 @@ export * from './units';
 export * from './volume';
 export * from './rpe';
 export * from './mobilityPlan';
+export * from './strengthEstimates';

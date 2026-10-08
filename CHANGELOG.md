@@ -2,6 +2,12 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.21.8 - 2026-10-08
+
+- Estimated max (reps or hold) now works for every exercise but distance, loaded and band-assisted ones included: it compares only sets at the same net load (load added minus help from bands) and says which ("At +10 kg", "With 20 kg of help from bands"). Sets with bands of unknown kg are left out.
+- New "Estimated 1RM" on the exercise page for rep exercises: from the effective load (bodyweight share + load added − help from bands) and the reps plus the reps in reserve given by RPE, up to 12 reps. It shows the latest and best estimate and what it means against your body: about +N kg that could be added, or N kg of help still needed for a single rep.
+- Effective load, estimated 1RM records and trends now subtract the help from bands.
+
 ## 0.21.7 - 2026-10-08
 
 - Statistics by period: the sets done with bands are counted, with the average kg of help over those whose kg are known ("6 sets with bands · average help 18 kg"), per period, group, tag and exercise.

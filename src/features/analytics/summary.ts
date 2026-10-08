@@ -1,3 +1,4 @@
+import { netLoadKg } from '../../domain/strengthEstimates';
 import { calculateEffectiveLoad, calculateVolume, detectPersonalRecords, estimateOneRepMax } from '../../domain';
 import { setEstimate } from './estimates';
 import { aggregatePairs, realMean, recordScope } from '../../domain/setPairs';
@@ -42,6 +43,9 @@ export interface CompletedSetRow {
   durationSec: number | null;
   distanceM: number | null;
   addedLoadKg: number;
+  /** Kg of help from bands (null without bands, or when their kg are unknown) and how many bands helped. */
+  assistKg?: number | null;
+  bandCount?: number;
   completedAt: Date | null;
   /** Optional so callers that only need volume and records can omit it. */
   rpe?: number | null;
@@ -318,16 +322,19 @@ function isLegPattern(pattern: string | null): boolean {
 
 export function getEffectiveLoad(row: CompletedSetRow): number | undefined {
   if (row.pairMembers) return realMean(row, getEffectiveLoad) ?? undefined;
+  // Help from bands lowers the load; with bands of unknown kg the load is unknown.
+  const net = netLoadKg(row.addedLoadKg, row.assistKg, row.bandCount);
+  if (net === null) return undefined;
   if (row.leverageFactor != null) {
     if (row.bodyweightKg == null) return undefined;
     try {
-      const load = calculateEffectiveLoad(row.bodyweightKg, row.leverageFactor, row.addedLoadKg);
+      const load = calculateEffectiveLoad(row.bodyweightKg, row.leverageFactor, net);
       return load > 0 ? load : undefined;
     } catch {
       return undefined;
     }
   }
-  return row.addedLoadKg > 0 ? row.addedLoadKg : undefined;
+  return net > 0 ? net : undefined;
 }
 
 export interface WorkoutRecord {
