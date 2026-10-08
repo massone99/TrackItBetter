@@ -2,6 +2,11 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.21.9 - 2026-10-08
+
+- Reps by load or help (exercise page and statistics): every load at a glance as a ladder, the most load first down to the most help. Each row shows the last session, the best and the change since the one before, and one tap charts its sessions (before: a weight picker in a sheet). The selected load stays in view; "Show all" opens the rest.
+- The comparison now uses the net load: weight added minus the kg of help from bands, so helped sets no longer mix with plain bodyweight sets (bands of unknown kg are left out).
+
 ## 0.21.8 - 2026-10-08
 
 - Estimated max (reps or hold) now works for every exercise but distance, loaded and band-assisted ones included: it compares only sets at the same net load (load added minus help from bands) and says which ("At +10 kg", "With 20 kg of help from bands"). Sets with bands of unknown kg are left out.

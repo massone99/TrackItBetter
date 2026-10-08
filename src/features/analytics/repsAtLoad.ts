@@ -1,3 +1,4 @@
+import { netLoadKg } from '../../domain/strengthEstimates';
 import { aggregatePairs, samePairValue, type Aggregated } from '../../domain/setPairs';
 import { matchesScope, type ExploreData, type Scope } from './explore';
 import type { ExerciseHistorySession } from './repository';
@@ -12,7 +13,7 @@ export interface RepsAtLoadSession {
 }
 
 export interface RepsAtLoadGroup {
-  /** The signed load actually logged: added weight, zero, or assistance. */
+  /** The signed net load: added weight, zero, or help (added load minus the kg of help from bands). */
   loadKg: number;
   sessions: RepsAtLoadSession[];
 }
@@ -49,31 +50,37 @@ function groupRepSets(sets: readonly RepSet[]): RepsAtLoadGroup[] {
   })).sort((a, b) => b.sessions[b.sessions.length - 1].startedAt.getTime() - a.sessions[a.sessions.length - 1].startedAt.getTime() || b.loadKg - a.loadKg);
 }
 
+type LoadFields = { addedLoadKg: number; assistKg?: number | null; bandCount?: number };
+
+/** Net load of a set; null when bands helped but their kg are unknown (such sets cannot be placed on the load ladder). */
+const netOf = (set: LoadFields) => netLoadKg(set.addedLoadKg, set.assistKg, set.bandCount);
+const sameNet = (set: { pairMembers?: readonly LoadFields[] } & LoadFields) =>
+  samePairValue(set as { pairMembers?: readonly LoadFields[] } & LoadFields, (side) => netOf(side as LoadFields));
+
 /** The exercise page already loads completed history, including warm-ups that we omit here. */
 export function repsAtLoadFromHistory(history: readonly ExerciseHistorySession[]): RepsAtLoadGroup[] {
-  return groupRepSets(history.flatMap((session) => aggregatePairs(session.sets).filter((set) => set.kind === 'working' && samePairValue(set, (s) => s.addedLoadKg)).map((set) => ({
-    workoutId: session.workoutId, workoutName: session.workoutName, startedAt: session.startedAt,
-    loadKg: set.addedLoadKg, reps: set.reps,
-  }))));
+  return groupRepSets(history.flatMap((session) => aggregatePairs(session.sets).filter((set) => set.kind === 'working' && sameNet(set)).flatMap((set) => {
+    const loadKg = netOf(set);
+    return loadKg === null ? [] : [{ workoutId: session.workoutId, workoutName: session.workoutName, startedAt: session.startedAt, loadKg, reps: set.reps }];
+  })));
 }
 
+type RowFields = LoadFields & { workoutId: string; workoutStartedAt: Date; reps: number | null; pairId?: string | null; side?: string };
+
 /** Completed working sets of one exercise, already scoped to a side view (see `aggregatePairs`). */
-export function repsAtLoadFromRows(
-  rows: readonly (Aggregated<{ workoutId: string; workoutStartedAt: Date; addedLoadKg: number; reps: number | null; pairId?: string | null; side?: string }>)[],
-  workoutNames: ReadonlyMap<string, string>,
-): RepsAtLoadGroup[] {
-  return groupRepSets(rows.filter((row) => samePairValue(row, (s) => s.addedLoadKg)).map((row) => ({
-    workoutId: row.workoutId, workoutName: workoutNames.get(row.workoutId) ?? '',
-    startedAt: row.workoutStartedAt, loadKg: row.addedLoadKg, reps: row.reps,
-  })));
+export function repsAtLoadFromRows(rows: readonly Aggregated<RowFields>[], workoutNames: ReadonlyMap<string, string>): RepsAtLoadGroup[] {
+  return groupRepSets(rows.filter(sameNet).flatMap((row) => {
+    const loadKg = netOf(row);
+    return loadKg === null ? [] : [{ workoutId: row.workoutId, workoutName: workoutNames.get(row.workoutId) ?? '', startedAt: row.workoutStartedAt, loadKg, reps: row.reps }];
+  }));
 }
 
 /** Reuse the explorer's completed working sets and its existing exercise filters. */
 export function repsAtLoadFromExplore(data: ExploreData, scope: Scope): RepsAtLoadGroup[] {
   if (!scope.exerciseId) return [];
   const workouts = new Map(data.workouts.map((workout) => [workout.id, workout]));
-  return groupRepSets(aggregatePairs(data.rows).filter((row) => matchesScope(row, scope) && samePairValue(row, (s) => s.addedLoadKg) && (row.metric === 'reps' || row.metric === 'reps_load')).map((row) => ({
-    workoutId: row.workoutId, workoutName: workouts.get(row.workoutId)?.name ?? row.exerciseName,
-    startedAt: row.workoutStartedAt, loadKg: row.addedLoadKg, reps: row.reps,
-  })));
+  return groupRepSets(aggregatePairs(data.rows).filter((row) => matchesScope(row, scope) && sameNet(row) && (row.metric === 'reps' || row.metric === 'reps_load')).flatMap((row) => {
+    const loadKg = netOf(row);
+    return loadKg === null ? [] : [{ workoutId: row.workoutId, workoutName: workouts.get(row.workoutId)?.name ?? row.exerciseName, startedAt: row.workoutStartedAt, loadKg, reps: row.reps }];
+  }));
 }

@@ -56,6 +56,45 @@ async function seed(count = 40, active = false, from = 0, total = count): Promis
 
 (globalThis as { __seed?: typeof seed }).__seed = seed;
 
+/**
+ * Development only: pull-up sessions at different added loads and with help from bands, to look at
+ * the load comparison. `__seedLoads()` once, on an empty database.
+ */
+async function seedLoads(): Promise<void> {
+  const { db } = await import('../db/client');
+  const { trainingSets } = await import('../db/schema');
+  const { inArray } = await import('drizzle-orm');
+  const { saveBandSet, newBand } = await import('../features/equipment/repository');
+  const set = await saveBandSet({ name: 'Decathlon', bands: [{ ...newBand('Blu', '#2F80ED'), minKg: 15, maxKg: 35 }, { ...newBand('Verde', '#27AE60'), minKg: 5, maxKg: 15 }] });
+  const [blue, green] = set.bands;
+  const day = 86_400_000;
+  const now = Date.now();
+  // [days ago, reps per set, added load, band (blue|green|none), tension]
+  const plan: [number, number[], number, 'blue' | 'green' | null, 1 | 2 | 3][] = [
+    [40, [4, 3, 3], 0, 'blue', 3], [33, [5, 4, 4], 0, 'blue', 3], [26, [6, 5, 5], 0, 'blue', 2],
+    [19, [4, 4, 3], 0, 'green', 3], [12, [6, 5, 4], 0, 'green', 2], [5, [7, 6, 5], 0, 'green', 1],
+    [30, [3, 3, 2], 0, null, 1], [14, [4, 3, 3], 0, null, 1], [3, [5, 4, 3], 0, null, 1],
+    [21, [3, 3, 3], 10, null, 1], [8, [4, 3, 3], 10, null, 1], [2, [3, 3, 3], 15, null, 1],
+  ];
+  for (const [ago, reps, load, band, tension] of plan) {
+    const startedAt = new Date(now - ago * day);
+    const id = await logCompletedWorkout({
+      name: 'Pull day', startedAt, endedAt: new Date(startedAt.getTime() + 2_400_000),
+      entries: [{ exerciseId: 'pull-up', sets: reps.map((value, index) => ({ reps: value, completedAt: new Date(startedAt.getTime() + index * 120_000) })) }],
+    });
+    const completed = await getCompletedWorkout(id);
+    const ids = completed?.exercises[0].sets.map((item) => item.id) ?? [];
+    if (ids.length === 0) continue;
+    if (load !== 0) await db.update(trainingSets).set({ addedLoadKg: load }).where(inArray(trainingSets.id, ids));
+    if (band) {
+      const picked = band === 'blue' ? blue : green;
+      const assist = band === 'blue' ? (tension === 1 ? 15 : tension === 2 ? 25 : 35) : (tension === 1 ? 5 : tension === 2 ? 10 : 15);
+      await db.update(trainingSets).set({ bands: JSON.stringify([{ bandId: picked.id, tension }]), assistKg: assist }).where(inArray(trainingSets.id, ids));
+    }
+  }
+}
+(globalThis as { __seedLoads?: typeof seedLoads }).__seedLoads = seedLoads;
+
 /** Times `fn` over `runs` calls and returns the median in ms. */
 async function time(fn: () => Promise<unknown>, runs = 5): Promise<number> {
   const samples: number[] = [];
