@@ -285,6 +285,7 @@ export default function TodayScreen() {
         <ListRow icon="flash-outline" title={t("home.micro")} subtitle={t("home.microBody")} onPress={() => router.push("/micro-session")} />
         <ListRow icon="scale-outline" title={t("home.bodyweight")} subtitle={t("home.bodyweightBody")} onPress={() => router.push("/bodyweight")} />
         <ListRow icon="body-outline" title={t("home.mobility")} subtitle={t("home.mobilityBody")} onPress={() => router.push("/mobility")} />
+        <ListRow icon="calculator-outline" title={t("home.estimator")} subtitle={t("home.estimatorBody")} onPress={() => router.push("/estimator")} />
         {poseDetectionAvailable ? (
           <ListRow icon="scan-outline" title={t("home.pose")} subtitle={t("home.poseBody")} onPress={() => router.push({ pathname: "/pose/new", params: { positionId: "free" } })} />
         ) : null}

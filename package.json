@@ -1,6 +1,6 @@
 {
   "name": "track-it-better",
-  "version": "0.21.12",
+  "version": "0.22.0",
   "private": true,
   "main": "expo-router/entry",
   "scripts": {

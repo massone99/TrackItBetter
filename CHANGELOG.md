@@ -2,6 +2,10 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.22.0 - 2026-10-09
+
+- Estimate your max: new screen on Home (above the pose analysis), independent of any exercise. From one set (reps or hold, RPE, bodyweight or external load only, added load, bands or manual help) it shows max reps or longest hold, estimated 1RM and the load for 1, 3, 5, 8, 10 and 12 reps. It reuses the exercise page's stat tiles, RPE picker and bands picker.
+
 ## 0.21.12 - 2026-10-08
 
 - Estimated max (reps or hold) can be read at any trained net load: chips under the estimate (from the most help to the most load added, "−25 kg", "Body", "+10") choose the condition, so you see the estimate with a given help, without help, or at a given load. It opens on the most recent one, and the chosen chip stays in view.

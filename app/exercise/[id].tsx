@@ -17,6 +17,7 @@ import type { RepsAtLoadGroup } from '../../src/features/analytics/repsAtLoad';
 import { RepsAtLoadCard } from '../../src/features/analytics/components/RepsAtLoadCard';
 import { formatRecordValue } from '../../src/features/analytics/recordLabels';
 import type { ExerciseEstimate, OneRepMaxEstimate } from '../../src/features/analytics/estimates';
+import { StatRow, StatTile } from '../../src/features/analytics/components/StatTiles';
 import type { ExerciseCycle, ExerciseWeek } from '../../src/features/analytics/mobility';
 import { formatMinutes, formatNumber } from '../../src/shared/utils/format';
 import { formatRpe } from '../../src/domain';
@@ -296,11 +297,11 @@ export default function ExerciseRoute() {
                 start: cycle.current.start.toLocaleDateString(i18n.language, { weekday: 'short', day: 'numeric', month: 'short' }),
                 end: new Date(cycle.current.end.getTime() - 1).toLocaleDateString(i18n.language, { weekday: 'short', day: 'numeric', month: 'short' }),
               })}</Body>
-              <View style={[styles.week, { backgroundColor: palette.surface, borderColor: palette.border }]}>
-                {cycle.current.seconds !== null ? <WeekStat value={formatMinutes(cycle.current.seconds)} label={t('mobilityStats.exerciseTime')} /> : null}
-                <WeekStat value={String(cycle.current.sets)} label={t('mobilityStats.exerciseSets', { count: cycle.current.sets })} />
-                <WeekStat value={String(cycle.current.sessions)} label={t('mobilityStats.exerciseSessions', { count: cycle.current.sessions })} />
-              </View>
+              <StatRow>
+                {cycle.current.seconds !== null ? <StatTile value={formatMinutes(cycle.current.seconds)} label={t('mobilityStats.exerciseTime')} /> : null}
+                <StatTile value={String(cycle.current.sets)} label={t('mobilityStats.exerciseSets', { count: cycle.current.sets })} />
+                <StatTile value={String(cycle.current.sessions)} label={t('mobilityStats.exerciseSessions', { count: cycle.current.sessions })} />
+              </StatRow>
             </>
           ) : (
             <Body>{t('exerciseCycle.none')}</Body>
@@ -321,11 +322,11 @@ export default function ExerciseRoute() {
           {week.sets === 0 ? (
             <Body>{t('mobilityStats.exerciseNone')}</Body>
           ) : (
-            <View style={[styles.week, { backgroundColor: palette.surface, borderColor: palette.border }]}>
-              <WeekStat value={String(week.sets)} label={t('mobilityStats.exerciseSets', { count: week.sets })} />
-              <WeekStat value={String(week.sessions)} label={t('mobilityStats.exerciseSessions', { count: week.sessions })} />
-              {week.seconds !== null ? <WeekStat value={formatMinutes(week.seconds)} label={t('mobilityStats.exerciseTime')} /> : null}
-            </View>
+            <StatRow>
+              <StatTile value={String(week.sets)} label={t('mobilityStats.exerciseSets', { count: week.sets })} />
+              <StatTile value={String(week.sessions)} label={t('mobilityStats.exerciseSessions', { count: week.sessions })} />
+              {week.seconds !== null ? <StatTile value={formatMinutes(week.seconds)} label={t('mobilityStats.exerciseTime')} /> : null}
+            </StatRow>
           )}
         </View>
       ) : null}
@@ -333,14 +334,14 @@ export default function ExerciseRoute() {
       {records && exercise.metric !== 'distance' && records.bestAmount !== null ? (
         <View style={styles.section}>
           <SectionTitle title={t('records.title')} />
-          <View style={[styles.week, { backgroundColor: palette.surface, borderColor: palette.border }]}>
-            <WeekStat
+          <StatRow>
+            <StatTile
               value={formatRecordValue(exercise.metric === 'time' || exercise.metric === 'time_load' ? 'holdAtLoad' : 'repsAtLoad', records.bestAmount, exercise.metric, t)}
               label={t('records.bestAmount')}
             />
-            {records.bestE1rm !== null ? <WeekStat value={formatRecordValue('e1rm', records.bestE1rm, exercise.metric, t)} label={t('records.bestE1rm')} /> : null}
-            {records.bestVolume !== null ? <WeekStat value={formatRecordValue('volume', records.bestVolume, exercise.metric, t)} label={t('records.bestVolume')} /> : null}
-          </View>
+            {records.bestE1rm !== null ? <StatTile value={formatRecordValue('e1rm', records.bestE1rm, exercise.metric, t)} label={t('records.bestE1rm')} /> : null}
+            {records.bestVolume !== null ? <StatTile value={formatRecordValue('volume', records.bestVolume, exercise.metric, t)} label={t('records.bestVolume')} /> : null}
+          </StatRow>
           {records.repMaxes.length > 0 ? (
             <Body>{t('records.repMaxes')}: {records.repMaxes.map((item) => t('records.repMax', { reps: item.reps, load: formatNumber(item.loadKg) })).join(' · ')}</Body>
           ) : null}
@@ -354,13 +355,13 @@ export default function ExerciseRoute() {
           <SectionTitle title={t('estimate.title')} />
           {estimate.latest ? (
             <>
-              <View style={[styles.week, { backgroundColor: palette.surface, borderColor: palette.border }]}>
-                <WeekStat
+              <StatRow>
+                <StatTile
                   value={formatEstimate(estimate.kind, estimate.latest.value)}
                   label={`${t('estimate.latest')} · ${t(estimate.kind === 'reps' ? 'estimate.sourceReps' : 'estimate.sourceHold', { done: estimate.kind === 'reps' ? estimate.latest.done : formatMinutes(estimate.latest.done), rpe: formatRpe(estimate.latest.rpe) })}`}
                 />
-                {estimate.recentBest ? <WeekStat value={formatEstimate(estimate.kind, estimate.recentBest.value)} label={t('estimate.recentBest')} /> : null}
-              </View>
+                {estimate.recentBest ? <StatTile value={formatEstimate(estimate.kind, estimate.recentBest.value)} label={t('estimate.recentBest')} /> : null}
+              </StatRow>
               {estimate.conditions.length > 1 ? (
                 // Which load the estimate is read at: every trained net load, lowest (most help) to highest.
                 <ScrollView
@@ -412,13 +413,13 @@ export default function ExerciseRoute() {
       {oneRepMax?.latest ? (
         <View style={styles.section}>
           <SectionTitle title={t('oneRm.title')} />
-          <View style={[styles.week, { backgroundColor: palette.surface, borderColor: palette.border }]}>
-            <WeekStat
+          <StatRow>
+            <StatTile
               value={`${formatNumber(Math.round(oneRepMax.latest.value * 10) / 10)} kg`}
               label={`${t('estimate.latest')} · ${t(oneRepMax.latest.rpe !== null ? 'oneRm.sourceRpe' : 'oneRm.source', { reps: oneRepMax.latest.reps, load: formatNumber(Math.round(oneRepMax.latest.loadKg * 10) / 10), rpe: oneRepMax.latest.rpe !== null ? formatRpe(oneRepMax.latest.rpe) : '' })}`}
             />
-            {oneRepMax.best && oneRepMax.best.value > oneRepMax.latest.value + 0.05 ? <WeekStat value={`${formatNumber(Math.round(oneRepMax.best.value * 10) / 10)} kg`} label={t('oneRm.best')} /> : null}
-          </View>
+            {oneRepMax.best && oneRepMax.best.value > oneRepMax.latest.value + 0.05 ? <StatTile value={`${formatNumber(Math.round(oneRepMax.best.value * 10) / 10)} kg`} label={t('oneRm.best')} /> : null}
+          </StatRow>
           {oneRepMax.vsBodyKg !== null ? (
             <Body>{oneRepMax.vsBodyKg >= 0 ? t('oneRm.addable', { value: formatNumber(oneRepMax.vsBodyKg) }) : t('oneRm.needsHelp', { value: formatNumber(-oneRepMax.vsBodyKg) })}</Body>
           ) : null}
@@ -559,17 +560,6 @@ function formatEstimate(kind: ExerciseEstimate['kind'], value: number): string {
   return kind === 'reps' ? `${formatNumber(Math.round(value * 2) / 2)} reps` : formatMinutes(value);
 }
 
-function WeekStat({ value, label }: { value: string; label: string }) {
-  const styles = useScaledStyles(baseStyles);
-  const { palette } = useTheme();
-  return (
-    <View style={styles.weekItem}>
-      <Text style={[styles.weekValue, { color: palette.text }]}>{value}</Text>
-      <Text style={[styles.weekLabel, { color: palette.textMuted }]}>{label}</Text>
-    </View>
-  );
-}
-
 function Tag({ label, icon }: { label: string; icon: 'body-outline' | 'construct-outline' }) {
   const styles = useScaledStyles(baseStyles);
   const { palette } = useTheme();
@@ -592,10 +582,6 @@ const baseStyles = StyleSheet.create({
   transferPair: { flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 16, paddingHorizontal: 16, paddingVertical: 14 },
   transferName: { flex: 1, fontFamily: fonts.semibold, fontSize: 16 },
   transferNote: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
-  week: { flexDirection: 'row', borderRadius: 16, borderWidth: 1, paddingVertical: 18 },
-  weekItem: { flex: 1, alignItems: 'center', gap: 2, paddingHorizontal: 6 },
-  weekValue: { fontFamily: fonts.display, fontSize: 30, lineHeight: 34, fontVariant: ['tabular-nums'] },
-  weekLabel: { fontFamily: fonts.medium, fontSize: 14, lineHeight: 20, textAlign: 'center' },
   cues: { borderRadius: 16, borderWidth: 1, paddingHorizontal: 16, paddingVertical: 8 },
   cue: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, paddingVertical: 9 },
   cueText: { flex: 1 },
