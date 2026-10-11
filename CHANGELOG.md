@@ -2,6 +2,10 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.23.0 - 2026-10-11
+
+- Narrated mode for mobility workouts: a mic chip on a workout made only of mobility exercises starts a hands-free session. It announces each exercise and set, counts down a preparation before every set and every change of exercise, runs holds on their own and waits for Done on rep sets, follows supersets round by round and announces the rest, which is separate from the preparation. Sets are marked done when you finish. New Narration section in You: spoken cues on/off and the preparation length (default 5 s). The guided mobility routines share the same player; a rest is no longer stretched into the preparation, which follows it.
+
 ## 0.22.0 - 2026-10-09
 
 - Estimate your max: new screen on Home (above the pose analysis), independent of any exercise. From one set (reps or hold, RPE, bodyweight or external load only, added load, bands or manual help) it shows max reps or longest hold, estimated 1RM and the load for 1, 3, 5, 8, 10 and 12 reps. It reuses the exercise page's stat tiles, RPE picker and bands picker.

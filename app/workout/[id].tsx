@@ -600,6 +600,9 @@ export default function WorkoutScreen() {
   if (!workout) return <Screen><PageHeading title={t('workout.unavailable')} subtitle={t('workout.finished')} /><ActionButton label={t('workout.backToToday')} onPress={() => router.replace('/(tabs)/today')} /></Screen>;
 
   const allSets = workout.exercises.flatMap((exercise) => exercise.sets);
+  // Narration needs open sets, and only fits a workout of mobility exercises.
+  const openExercises = workout.exercises.filter((exercise) => exercise.sets.some((set) => !set.completedAt));
+  const narratable = openExercises.length > 0 && openExercises.every((exercise) => exercise.mobility);
   const allCollapsed = workout.exercises.every((exercise) => collapsedEntries.get(exercise.entryId) ?? exerciseFinished(exercise.sets));
   const totalSets = groupSets(allSets).length;
   const showBlocks = usesBlocks(workout.exercises);
@@ -656,13 +659,18 @@ export default function WorkoutScreen() {
             volumeKg > 0 ? `${formatNumber(Math.round(volumeKg))} kg` : null,
           ].filter(Boolean).join(' · ')}
           action={
-            <Chip
-              icon={voiceCues ? 'volume-high' : 'volume-mute-outline'}
-              label={t('logger.voiceChip')}
-              accessibilityLabel={voiceCues ? t('logger.voiceOn') : t('logger.voiceOff')}
-              selected={voiceCues}
-              onPress={toggleVoiceCues}
-            />
+            <View style={styles.headingActions}>
+              {narratable ? (
+                <Chip icon="mic-outline" label={t('narration.start')} accessibilityLabel={t('narration.startHint')} onPress={() => router.push({ pathname: '/workout/narrate/[id]', params: { id: workout.id } })} />
+              ) : null}
+              <Chip
+                icon={voiceCues ? 'volume-high' : 'volume-mute-outline'}
+                label={t('logger.voiceChip')}
+                accessibilityLabel={voiceCues ? t('logger.voiceOn') : t('logger.voiceOff')}
+                selected={voiceCues}
+                onPress={toggleVoiceCues}
+              />
+            </View>
           }
         />
 
@@ -1182,6 +1190,7 @@ function ReadinessRow({ label, value, onChange }: { label: string; value: number
 
 
 const baseStyles = StyleSheet.create({
+  headingActions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, justifyContent: 'flex-end' },
   choiceRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   root: { flex: 1 },
   flex: { flex: 1 },

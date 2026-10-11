@@ -24,7 +24,7 @@ export interface MobilityRoutineShape {
 }
 
 export type MobilitySegment =
-  | { kind: 'work'; stepIndex: number; round: number; side: MobilitySide | null; mode: MobilityMode; durationSec: number | null; reps: number | null }
+  | { kind: 'work'; stepIndex: number; round: number; side: MobilitySide | null; mode: MobilityMode; durationSec: number | null; reps: number | null; setIds?: string[] }
   | { kind: 'switch' | 'rest' | 'transition' | 'prep'; stepIndex: number; durationSec: number };
 
 /** Seconds the side switch takes when a drill is done per side. */
@@ -37,8 +37,9 @@ export const ESTIMATED_SEC_PER_REP = 3;
 /**
  * Expands a routine into the ordered segments the guided player walks through. `stepIndex` on
  * rest/switch/transition/prep segments points at the drill that comes next. With `prepSec`, every
- * drill is preceded by a countdown of at least that long: a switch, rest or transition right before
- * it is stretched to fit, otherwise a `prep` segment is added.
+ * drill is preceded by a countdown of at least that long: a switch or transition right before it is
+ * stretched to fit, otherwise a `prep` segment is added. A rest is never stretched: the preparation
+ * follows it as its own segment.
  */
 export function expandRoutine(routine: MobilityRoutineShape): MobilitySegment[] {
   const prepSec = Math.max(0, Math.round(routine.prepSec ?? 0));
@@ -48,7 +49,7 @@ export function expandRoutine(routine: MobilityRoutineShape): MobilitySegment[] 
   for (const segment of segments) {
     const before = withPrep[withPrep.length - 1];
     if (segment.kind === 'work') {
-      if (before && before.kind !== 'work') before.durationSec = Math.max(before.durationSec, prepSec);
+      if (before && before.kind !== 'work' && before.kind !== 'rest') before.durationSec = Math.max(before.durationSec, prepSec);
       else withPrep.push({ kind: 'prep', stepIndex: segment.stepIndex, durationSec: prepSec });
     }
     withPrep.push(segment);

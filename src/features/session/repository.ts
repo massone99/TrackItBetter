@@ -51,6 +51,8 @@ export interface SessionExercise {
   /** When true, comparisons only use sessions on the same apparatus. */
   apparatusAffectsDifficulty?: boolean;
   unilateral?: boolean;
+  /** Mobility is one of the exercise's categories; a workout of only these can be narrated. */
+  mobility?: boolean;
   unilateralRestMode?: 'side' | 'pair';
   unilateralRestOverride?: 'side' | 'pair' | null;
   /** Part of the workout this exercise belongs to. */
@@ -308,6 +310,7 @@ async function loadSessionExercises(workoutId: string): Promise<SessionExercise[
       name: exercise.name,
       metric: exercise.metric,
       unilateral: exercise.unilateral,
+      mobility: exercise.category === 'mobility' || exercise.extraCategories.includes('"mobility"'),
       unilateralRestMode: entry.unilateralRestMode ?? exercise.unilateralRestMode,
       unilateralRestOverride: entry.unilateralRestMode,
       demoUrl: exercise.demoUrl,

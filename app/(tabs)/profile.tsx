@@ -6,6 +6,7 @@ import Constants from "expo-constants";
 import { Body, Card, Icon, Label, ListGroup, ListRow, PageHeading, Screen, SectionTitle, SegmentedControl, SwitchRow, Text } from "../../src/shared/components/ui";
 import { fonts } from "../../src/shared/theme/typography";
 import { DurationField } from "../../src/shared/components/DateTimePickers";
+import { MAX_NARRATION_PREP_SEC, readNarrationPrepSec, readNarrationVoice, writeNarrationPrepSec, writeNarrationVoice } from "../../src/features/narration/settings";
 import { readDefaultRest, writeDefaultRest } from "../../src/features/session/restDefaults";
 import { readBooleanPreference, RPE_PROMPT_KEY, writePreference } from "../../src/shared/settings/preferences";
 import { UI_SCALES, type UiScale } from "../../src/shared/theme/scale";
@@ -20,6 +21,8 @@ export default function ProfileScreen() {
   const { preference, setMode, palette, scale, setScale } = useTheme();
   const { speed, setSpeed, reducedMotion } = useAnimationSettings();
   const [rpePrompt, setRpePrompt] = useState(() => readBooleanPreference(RPE_PROMPT_KEY, true));
+  const [voice, setVoice] = useState(readNarrationVoice);
+  const [prepSec, setPrepSec] = useState(readNarrationPrepSec);
   const [rest, setRest] = useState(() => ({ working: readDefaultRest("working"), warmup: readDefaultRest("warmup") }));
   const changeRest = (kind: "working" | "warmup", seconds: number) => { setRest((current) => ({ ...current, [kind]: seconds })); writeDefaultRest(kind, seconds); };
   const sizeLabels = [t("profile.sizeCompact"), t("profile.sizeSnug"), t("profile.sizeDefault"), t("profile.sizeLarge")];
@@ -82,6 +85,13 @@ export default function ProfileScreen() {
         <DurationField label={t("logger.restWorking")} value={rest.working} max={600} presets={[30, 60, 90, 120, 180]} format={(seconds) => t("userProgram.secondsValue", { value: seconds })} onChange={(value) => changeRest("working", value)} />
         <DurationField label={t("logger.restWarmup")} value={rest.warmup} max={600} presets={[30, 60, 90, 120, 180]} format={(seconds) => t("userProgram.secondsValue", { value: seconds })} onChange={(value) => changeRest("warmup", value)} />
         <Body>{t("profile.restHint")}</Body>
+      </Card>
+
+      <SectionTitle title={t("narration.title")} />
+      <Card>
+        <SwitchRow icon="volume-high" title={t("narration.voice")} subtitle={t("narration.voiceHint")} value={voice} onChange={(next) => { setVoice(next); writeNarrationVoice(next); }} />
+        <DurationField label={t("narration.prep")} value={prepSec} min={0} max={MAX_NARRATION_PREP_SEC} step={1} presets={[0, 3, 5, 10]} format={(seconds) => seconds === 0 ? t("narration.prepOff") : t("userProgram.secondsValue", { value: seconds })} onChange={(value) => { setPrepSec(value); writeNarrationPrepSec(value); }} />
+        <Body>{t("narration.prepHint")}</Body>
       </Card>
 
       <SectionTitle title={t("profile.data")} />
