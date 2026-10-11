@@ -2,6 +2,10 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.23.1 - 2026-10-11
+
+- The workout screen now shows a stopwatch under the title, ticking every second from the start of the workout until you finish it.
+
 ## 0.23.0 - 2026-10-11
 
 - Narrated mode for mobility workouts: a mic chip on a workout made only of mobility exercises starts a hands-free session. It announces each exercise and set, counts down a preparation before every set and every change of exercise, runs holds on their own and waits for Done on rep sets, follows supersets round by round and announces the rest, which is separate from the preparation. Sets are marked done when you finish. New Narration section in You: spoken cues on/off and the preparation length (default 5 s). The guided mobility routines share the same player; a rest is no longer stretched into the preparation, which follows it.
