@@ -2,6 +2,10 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.23.2 - 2026-10-11
+
+- The stopwatch also runs in the narrated player (workouts and mobility routines), under the top bar.
+
 ## 0.23.1 - 2026-10-11
 
 - The workout screen now shows a stopwatch under the title, ticking every second from the start of the workout until you finish it.

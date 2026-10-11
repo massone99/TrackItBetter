@@ -90,6 +90,7 @@ import Animated, { FadeInDown, FadeOutLeft, LayoutAnimationConfig, LinearTransit
 import { readBooleanPreference, RPE_PROMPT_KEY, writePreference } from '../../src/shared/settings/preferences';
 
 import { MIN_TOUCH_TARGET } from '../../src/shared/theme/tokens';
+import { WorkoutStopwatch } from '../../src/features/session/WorkoutStopwatch';
 import { useTheme } from '../../src/shared/theme/ThemeProvider';
 import { fonts } from '../../src/shared/theme/typography';
 import { formatClock, formatNumber } from '../../src/shared/utils/format';
@@ -1037,27 +1038,6 @@ function emomBarLabel(phase: EmomPhase, plan: EmomPlan, t: (key: string, options
   return t('emom.notifyDone');
 }
 
-/** Running time since the workout started, ticking every second until the workout is finished. */
-function WorkoutStopwatch({ startedAt }: { startedAt: Date }) {
-  const styles = useScaledStyles(baseStyles);
-  const { palette } = useTheme();
-  const { t } = useTranslation();
-  const [now, setNow] = useState(() => Date.now());
-  useEffect(() => {
-    const timer = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(timer);
-  }, []);
-  const total = Math.max(0, Math.floor((now - startedAt.getTime()) / 1000));
-  const hours = Math.floor(total / 3600);
-  const text = `${hours > 0 ? `${hours}:` : ''}${String(Math.floor((total % 3600) / 60)).padStart(hours > 0 ? 2 : 1, '0')}:${String(total % 60).padStart(2, '0')}`;
-  return (
-    <View style={styles.stopwatch} accessible accessibilityRole="timer" accessibilityLabel={`${t('workout.stopwatch')} ${text}`}>
-      <Icon name="timer-outline" size={22} color={palette.accentStrong} />
-      <Text style={[styles.stopwatchText, { color: palette.text }]}>{text}</Text>
-    </View>
-  );
-}
-
 function TimerBar({ emom, hold, restEndsAt, voiceCues, onRestEnd, onFinishHold, onExtend, onReduce, onSkip }: {
   emom: EmomBar | null;
   hold: ActiveHold | null;
@@ -1205,8 +1185,6 @@ function ReadinessRow({ label, value, onChange }: { label: string; value: number
 
 
 const baseStyles = StyleSheet.create({
-  stopwatch: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 48 },
-  stopwatchText: { fontFamily: fonts.display, fontSize: 28, fontVariant: ['tabular-nums'] },
   headingActions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, justifyContent: 'flex-end' },
   choiceRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   root: { flex: 1 },

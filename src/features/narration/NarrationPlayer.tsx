@@ -6,6 +6,7 @@ import { Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useAppInsets } from '../../shared/layout/useAppInsets';
 import { type MobilitySegment, type MobilitySide } from '../../domain/mobilityPlan';
 import { openReferenceVideo } from '../exercises/ReferenceLinkSheet';
+import { WorkoutStopwatch } from '../session/WorkoutStopwatch';
 import { readNarrationVoice, writeNarrationVoice } from './settings';
 import { ActionButton, Icon, IconButton, PageHeading, Screen, Sheet, tapFeedback, Text } from '../../shared/components/ui';
 import { readPreference, writePreference } from '../../shared/settings/preferences';
@@ -235,6 +236,8 @@ export function NarrationPlayer({ draftKey, title, segments, drills, exitHref, o
         <Text style={[styles.routineName, { color: soft }]} numberOfLines={1}>{title}</Text>
         <IconButton icon={voice ? 'volume-high' : 'volume-mute-outline'} label={t('mobility.voice')} tone="plain" color={ink} onPress={toggleVoice} />
       </View>
+
+      <WorkoutStopwatch startedAt={initialStart} size={20} color={soft} iconColor={soft} />
 
       <View style={styles.segmentsBar}>
         {workSegments.map(({ position }) => (
