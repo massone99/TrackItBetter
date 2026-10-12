@@ -14,6 +14,8 @@ export interface MobilityRoutine {
   prepSec: number;
   steps: MobilityStep[];
   favourite: boolean;
+  /** When a run of this routine was last saved; absent for a routine never run (or run before this was kept). */
+  lastDoneAt?: string;
   updatedAt: string;
 }
 
@@ -38,6 +40,7 @@ const routineSchema = z.object({
   prepSec: z.number().int().min(0).max(30).default(DEFAULT_PREP_SEC),
   steps: z.array(stepSchema).min(1).max(40),
   favourite: z.boolean().default(false),
+  lastDoneAt: z.string().optional(),
   updatedAt: z.string(),
 });
 
@@ -67,9 +70,12 @@ export async function getMobilityRoutine(id: string): Promise<MobilityRoutine | 
 }
 
 /** Validates and stores a routine; throws a ZodError when it is incomplete. */
-export async function saveMobilityRoutine(input: Omit<MobilityRoutine, 'id' | 'updatedAt' | 'favourite'> & { id?: string; favourite?: boolean }): Promise<MobilityRoutine> {
-  const routine = routineSchema.parse({ ...input, favourite: input.favourite ?? false, id: input.id ?? Crypto.randomUUID(), updatedAt: new Date().toISOString() });
-  const others = (await listMobilityRoutines()).filter((item) => item.id !== routine.id);
+export async function saveMobilityRoutine(input: Omit<MobilityRoutine, 'id' | 'updatedAt' | 'favourite' | 'lastDoneAt'> & { id?: string; favourite?: boolean; lastDoneAt?: string }): Promise<MobilityRoutine> {
+  const all = await listMobilityRoutines();
+  const previous = all.find((item) => item.id === input.id);
+  // Editing keeps what the editor does not know about: the favourite star and the last run.
+  const routine = routineSchema.parse({ ...input, favourite: input.favourite ?? previous?.favourite ?? false, lastDoneAt: input.lastDoneAt ?? previous?.lastDoneAt, id: input.id ?? Crypto.randomUUID(), updatedAt: new Date().toISOString() });
+  const others = all.filter((item) => item.id !== routine.id);
   await writeAll([routine, ...others]);
   return routine;
 }
@@ -78,6 +84,12 @@ export async function saveMobilityRoutine(input: Omit<MobilityRoutine, 'id' | 'u
 export async function setMobilityFavourite(id: string, favourite: boolean): Promise<void> {
   const all = await listMobilityRoutines();
   await writeAll(all.map((routine) => (routine.id === id ? { ...routine, favourite } : routine)));
+}
+
+/** Remembers a finished run, without changing the routine's position in the list. */
+export async function markMobilityRoutineDone(id: string, at: Date): Promise<void> {
+  const all = await listMobilityRoutines();
+  await writeAll(all.map((routine) => (routine.id === id ? { ...routine, lastDoneAt: at.toISOString() } : routine)));
 }
 
 /** A copy of a routine under a new name, with fresh ids. */

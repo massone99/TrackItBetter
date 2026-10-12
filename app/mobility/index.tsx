@@ -3,6 +3,8 @@ import { useCallback, useMemo, useState, type ComponentProps } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Platform, Pressable, StyleSheet, View } from 'react-native';
 import { estimateRoutineSeconds } from '../../src/domain/mobilityPlan';
+import { daysSinceRun, recommendRoutine } from '../../src/domain/mobilityRecommend';
+import { GOAL_PRESETS_MIN, readWeeklyGoalMin, writeWeeklyGoalMin } from '../../src/features/mobility/goal';
 import { deleteMobilityRoutine, duplicateMobilityRoutine, listMobilityRoutines, setMobilityFavourite, type MobilityRoutine } from '../../src/features/mobility/routines';
 import { getMobilityCycles, getMobilityWeek } from '../../src/features/analytics/repository';
 import type { ExerciseCycle, MobilityWeek } from '../../src/features/analytics/mobility';
@@ -23,8 +25,15 @@ export default function MobilityHubScreen() {
   const [menuFor, setMenuFor] = useState<MobilityRoutine | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<MobilityRoutine | null>(null);
   const [failed, setFailed] = useState(false);
+  const [goalMin, setGoalMin] = useState(readWeeklyGoalMin);
+  const [goalOpen, setGoalOpen] = useState(false);
+  const recommended = useMemo(() => recommendRoutine(routines ?? [], new Date()), [routines]);
   const reload = useCallback(() => listMobilityRoutines().then(setRoutines), []);
   const shown = useMemo(() => (routines ?? []).filter((routine) => filter === 'all' || routine.favourite), [routines, filter]);
+  const lastRun = (routine: MobilityRoutine) => {
+    const days = daysSinceRun(routine, new Date());
+    return days === null ? t('mobilityHub.neverDone') : days === 0 ? t('mobilityHub.lastDoneToday') : t('mobilityHub.lastDone', { count: days });
+  };
   const run = (action: () => Promise<unknown>) => {
     setMenuFor(null);
     setFailed(false);
@@ -46,6 +55,26 @@ export default function MobilityHubScreen() {
         subtitle={t('mobility.subtitle')}
       />
 
+      {recommended ? (
+        <View style={[styles.suggested, { backgroundColor: palette.hero }]}>
+          <View style={styles.suggestedCopy}>
+            <Text style={[styles.suggestedLabel, { color: palette.heroTextMuted }]}>{t('mobilityHub.recommended')}</Text>
+            <Text style={[styles.suggestedName, { color: palette.heroText }]}>{recommended.name}</Text>
+            <Text style={[styles.suggestedMeta, { color: palette.heroTextMuted }]}>
+              {t('mobility.minutes', { count: Math.max(1, Math.round(estimateRoutineSeconds(recommended) / 60)) })} · {lastRun(recommended)}
+            </Text>
+          </View>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`${t('mobility.start')} ${recommended.name}`}
+            onPress={() => router.push({ pathname: '/mobility/play/[id]', params: { id: recommended.id } })}
+            style={({ pressed }) => [styles.suggestedPlay, { backgroundColor: palette.heroText, opacity: pressed ? 0.8 : 1 }]}
+          >
+            <Icon name="play" size={24} color={palette.hero} />
+          </Pressable>
+        </View>
+      ) : null}
+
       <SectionTitle title={t('mobilityHub.create')} />
       <View style={styles.createRow}>
         <CreateTile icon="add" label={t('mobilityHub.createNew')} primary onPress={() => router.push({ pathname: '/mobility/routine/[id]', params: { id: 'new' } })} />
@@ -64,6 +93,23 @@ export default function MobilityHubScreen() {
             <Text style={styles.weekValue}>{week.sessions}</Text>
             <Text style={[styles.weekLabel, { color: palette.textMuted }]}>{t('mobilityStats.hubSessions', { count: week.sessions })}</Text>
           </View>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={t('mobilityHub.goalTitle')}
+            onPress={() => setGoalOpen(true)}
+            style={styles.goal}
+          >
+            {goalMin > 0 ? (
+              <>
+                <View style={[styles.goalTrack, { backgroundColor: palette.surfaceMuted }]}>
+                  <View style={[styles.goalFill, { backgroundColor: palette.accent, width: `${Math.min(100, Math.round((week.seconds / 60 / goalMin) * 100))}%` }]} />
+                </View>
+                <Text style={[styles.routineMeta, { color: palette.textMuted }]}>
+                  {week.seconds / 60 >= goalMin ? t('mobilityHub.goalReached') : t('mobilityHub.goalProgress', { done: Math.floor(week.seconds / 60), goal: goalMin })}
+                </Text>
+              </>
+            ) : <Text style={[styles.goalSet, { color: palette.accentStrong }]}>{t('mobilityHub.goalSet')}</Text>}
+          </Pressable>
         </View>
       ) : null}
 
@@ -142,6 +188,14 @@ export default function MobilityHubScreen() {
         )}
       </ListGroup>
 
+      <Sheet visible={goalOpen} onClose={() => setGoalOpen(false)} title={t('mobilityHub.goalTitle')} body={`${t('mobilityHub.goalSheetBody')} ${t('mobilityHub.goalHint')}`}>
+        <View style={styles.chips}>
+          {GOAL_PRESETS_MIN.map((minutes) => (
+            <Chip key={minutes} label={t('mobility.minutes', { count: minutes })} selected={goalMin === minutes} onPress={() => { setGoalMin(minutes); writeWeeklyGoalMin(minutes); setGoalOpen(false); }} />
+          ))}
+          <Chip label={t('mobilityHub.goalOff')} selected={goalMin === 0} onPress={() => { setGoalMin(0); writeWeeklyGoalMin(0); setGoalOpen(false); }} />
+        </View>
+      </Sheet>
       <Sheet visible={menuFor !== null} onClose={() => setMenuFor(null)} title={menuFor?.name ?? ''}>
         {menuFor ? (
           <>
@@ -178,12 +232,22 @@ function CreateTile({ icon, label, primary = false, onPress }: { icon: Component
 
 const baseStyles = StyleSheet.create({
   emptyAction: { alignSelf: 'stretch', marginTop: 6 },
-  week: { flexDirection: 'row', borderRadius: 16, borderWidth: 1, paddingVertical: 18 },
+  week: { flexDirection: 'row', flexWrap: 'wrap', borderRadius: 16, borderWidth: 1, paddingVertical: 18 },
   weekItem: { flex: 1, alignItems: 'center', gap: 2, paddingHorizontal: 8 },
   weekValue: { fontFamily: fonts.display, fontSize: 32, lineHeight: 36, fontVariant: ['tabular-nums'] },
   weekLabel: { fontFamily: fonts.medium, fontSize: 14, lineHeight: 20, textAlign: 'center' },
   weekDivider: { width: StyleSheet.hairlineWidth },
   flex: { flex: 1 },
+  suggested: { flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 20, paddingVertical: 16, paddingLeft: 20, paddingRight: 16 },
+  suggestedCopy: { flex: 1, gap: 2 },
+  suggestedLabel: { fontFamily: fonts.semibold, fontSize: 12, letterSpacing: 0.7, textTransform: 'uppercase' },
+  suggestedName: { fontFamily: fonts.display, fontSize: 28, lineHeight: 32 },
+  suggestedMeta: { fontFamily: fonts.body, fontSize: 14, lineHeight: 20 },
+  suggestedPlay: { width: 56, height: 56, borderRadius: 28, alignItems: 'center', justifyContent: 'center' },
+  goal: { flexBasis: '100%', minHeight: 48, justifyContent: 'center', gap: 6, paddingHorizontal: 16 },
+  goalTrack: { height: 8, borderRadius: 4, overflow: 'hidden' },
+  goalFill: { height: '100%', borderRadius: 4 },
+  goalSet: { fontFamily: fonts.semibold, fontSize: 15 },
   createRow: { flexDirection: 'row', gap: 10 },
   tile: { flex: 1, minHeight: 88, borderRadius: 16, borderWidth: 1, padding: 12, justifyContent: 'space-between', gap: 8 },
   tileLabel: { fontFamily: fonts.semibold, fontSize: 15, lineHeight: 19 },

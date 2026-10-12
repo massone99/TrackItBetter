@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { ActivityIndicator } from 'react-native';
 import { expandRoutine } from '../../../src/domain/mobilityPlan';
 import { getExerciseById } from '../../../src/features/exercises/repository';
-import { getMobilityRoutine, type MobilityRoutine } from '../../../src/features/mobility/routines';
+import { getMobilityRoutine, markMobilityRoutineDone, type MobilityRoutine } from '../../../src/features/mobility/routines';
 import { NarrationPlayer, type NarrationDrill, type NarrationRecord } from '../../../src/features/narration/NarrationPlayer';
 import { logCompletedWorkout, type LoggedSetInput } from '../../../src/features/session/repository';
 import { PageHeading, Screen } from '../../../src/shared/components/ui';
@@ -63,6 +63,8 @@ export default function MobilityPlayerScreen() {
       endedAt: new Date(),
       entries: [...byStep.entries()].sort(([a], [b]) => a - b).map(([stepIndex, sets]) => ({ exerciseId: routine.steps[stepIndex].exerciseId, sets })),
     });
+    // A failure to note the run must not undo a saved workout.
+    await markMobilityRoutineDone(routine.id, new Date()).catch(() => undefined);
     router.replace({ pathname: '/workout/summary/[id]', params: { id: workoutId } });
   }, [routine]);
 

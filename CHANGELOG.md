@@ -2,6 +2,11 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.25.0 - 2026-10-12
+
+- Mobility home: a "Suggested today" card at the top proposes the routine never run, or run longest ago (favourites first), with its length and when it was last run, and a play button. The last run is remembered from now on; routines run before this version show as not run yet.
+- Weekly mobility goal: tap the week summary to set 30 to 150 minutes (or none); a bar shows the progress, counted on hold time over the last 7 days.
+
 ## 0.24.0 - 2026-10-12
 
 - Mobility home redesigned: a Create row (new routine, from a workout, convert a program), All/Favourites filter, and one card per routine with Start (silent) and Narrated buttons plus a menu to edit, duplicate, favourite or delete.
