@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { Pressable, StyleSheet, View } from "react-native";
 import { getProgressSnapshot } from "../../src/features/analytics/repository";
 import { estimateSessionSeconds, programsByRecentUse, sessionSetCount, type UserProgram, type UserProgramSession } from "../../src/domain/userProgram";
+import { StartFromProgramSheet } from "../../src/features/programs/StartFromProgramSheet";
 import { startUserProgramSession } from "../../src/features/programs/startUserSession";
 import { listUserPrograms } from "../../src/features/programs/userPrograms";
 import { listExercises } from "../../src/features/exercises/repository";
@@ -64,6 +65,7 @@ export default function TodayScreen() {
   const [failed, setFailed] = useState(false);
   const [starting, setStarting] = useState<string | null>(null);
   const [repeating, setRepeating] = useState(false);
+  const [chooserOpen, setChooserOpen] = useState(false);
   const [notice, setNotice] = useState<{ message: string; programId?: string } | null>(null);
 
   // Refocusing keeps the previous data on screen while the new one loads, so nothing flashes.
@@ -203,16 +205,27 @@ export default function TodayScreen() {
           <ActionButton variant="inverse" icon="add" label={t("home.startEmpty")} onPress={startEmpty} />
         )}
         {active ? null : (
-          <Pressable
-            accessibilityRole="button"
-            onPress={featured ? startEmpty : () => router.push("/programs")}
-            style={styles.heroLinkRow}
-          >
-            <Text style={[styles.heroLink, { color: palette.heroText }]}>{featured ? t("home.emptyWorkout") : t("home.choosePlan")}</Text>
-            <Icon name={featured ? "add" : "arrow-forward"} size={18} color={palette.heroText} />
-          </Pressable>
+          <>
+            <Pressable accessibilityRole="button" onPress={() => setChooserOpen(true)} style={styles.heroLinkRow}>
+              <Text style={[styles.heroLink, { color: palette.heroText }]}>{t("startFrom.choose")}</Text>
+              <Icon name="list" size={18} color={palette.heroText} />
+            </Pressable>
+            {featured ? (
+              <Pressable accessibilityRole="button" onPress={startEmpty} style={styles.heroLinkRow}>
+                <Text style={[styles.heroLink, { color: palette.heroText }]}>{t("home.emptyWorkout")}</Text>
+                <Icon name="add" size={18} color={palette.heroText} />
+              </Pressable>
+            ) : null}
+          </>
         )}
       </View>
+
+      <StartFromProgramSheet
+        visible={chooserOpen}
+        onClose={() => setChooserOpen(false)}
+        onStarted={(workoutId) => { setChooserOpen(false); router.push({ pathname: "/workout/[id]", params: { id: workoutId } }); }}
+        onError={(message) => { setChooserOpen(false); setNotice({ message }); }}
+      />
 
       {others.length > 0 ? (
         <ListGroup>

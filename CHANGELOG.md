@@ -2,6 +2,10 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.26.0 - 2026-10-12
+
+- Home: "Choose a workout" under the main card opens a list of all programs (yours first, then the built-in ones) and, one tap further, their workouts, so you can start any of them without going through the suggested one or an empty workout. "Empty workout" stays next to it.
+
 ## 0.25.0 - 2026-10-12
 
 - Mobility home: a "Suggested today" card at the top proposes the routine never run, or run longest ago (favourites first), with its length and when it was last run, and a play button. The last run is remembered from now on; routines run before this version show as not run yet.

@@ -4,6 +4,7 @@ import { ActivityIndicator, Alert, StyleSheet, View } from "react-native";
 import { Text } from "../../src/shared/components/Text";
 import { WorkoutInProgressSheet } from "../../src/features/session/WorkoutInProgressSheet";
 import { getActiveWorkout } from "../../src/features/session/repository";
+import { prescriptionsFromTemplate } from "../../src/features/programs/templatePrescriptions";
 import { startPrescribedWorkout } from "../../src/features/programs/startUserSession";
 import { findProgram, ProgramExercise } from "../../src/features/programs/catalog";
 import { ActionButton, Body, Card, Heading, Label, PageHeading, Screen, SectionTitle } from "../../src/shared/components/ui";
@@ -32,13 +33,7 @@ export default function ProgramRoute() {
       const open = await getActiveWorkout();
       if (open) { setBlockedBy({ id: open.id, name: open.name }); return; }
       // Shared with self-made programs: a failure part-way deletes the half-built workout.
-      const workoutId = await startPrescribedWorkout(sessionName, exercises.map((prescription, index) => ({
-        id: `${sessionId}-${index}`,
-        exerciseId: prescription.exerciseId,
-        sets: prescription.sets,
-        target: prescription.target.seconds ?? prescription.target.reps ?? null,
-        restSeconds: prescription.restSeconds,
-      })));
+      const workoutId = await startPrescribedWorkout(sessionName, prescriptionsFromTemplate(sessionId, exercises));
       router.replace({ pathname: "/workout/[id]", params: { id: workoutId } });
     } catch (error) {
       Alert.alert(
