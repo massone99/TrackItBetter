@@ -2,6 +2,10 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.23.3 - 2026-10-12
+
+- Narrated player: the countdown of a set, preparation, switch or rest now starts when its announcement has finished, so the voice no longer eats into the time (at most 8 s of waiting). Without voice it starts at once; pausing during the announcement skips the rest of it.
+
 ## 0.23.2 - 2026-10-11
 
 - The stopwatch also runs in the narrated player (workouts and mobility routines), under the top bar.

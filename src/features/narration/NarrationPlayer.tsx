@@ -17,6 +17,9 @@ import { formatClock } from '../../shared/utils/format';
 import { playBeep } from '../../shared/audio/beeps';
 import { goBack } from '../../shared/navigation/goBack';
 
+/** Longest wait for an announcement to end before the countdown starts anyway. */
+const ANNOUNCEMENT_TIMEOUT_MS = 8000;
+
 export interface NarrationDrill { name: string; cue: string | null; demoUrl: string | null; rounds: number }
 export interface NarrationRecord { stepIndex: number; round?: number; side: MobilitySide | null; seconds: number | null; reps: number | null; completedAt: Date; setIds?: string[] }
 type Performed = NarrationRecord;
@@ -50,6 +53,9 @@ export function NarrationPlayer({ draftKey, title, segments, drills, exitHref, o
   const [index, setIndex] = useState(() => readDraft(draftKey)?.index ?? 0);
   const [endsAt, setEndsAt] = useState<number | null>(null);
   const [pausedRemaining, setPausedRemaining] = useState<number | null>(null);
+  // Full length of a timed segment whose announcement is still being spoken; its countdown starts after it.
+  const [announcingMs, setAnnouncingMs] = useState<number | null>(null);
+  const announceToken = useRef(0);
   const [now, setNow] = useState(() => Date.now());
   const [performed, setPerformed] = useState<Map<number, Performed>>(() => new Map(readDraft(draftKey)?.records ?? []));
   const [ending, setEnding] = useState(false);
@@ -62,11 +68,11 @@ export function NarrationPlayer({ draftKey, title, segments, drills, exitHref, o
     if (!finished.current) writePreference(draftKey, JSON.stringify({ records: [...performed], index, startedAt: startedAt.current.getTime() }));
   }, [draftKey, performed, index]);
 
-  useEffect(() => () => { void Speech.stop(); }, []);
+  useEffect(() => () => { announceToken.current += 1; void Speech.stop(); }, []);
 
   const segment = segments[index] as MobilitySegment | undefined;
   const paused = pausedRemaining !== null;
-  const remainingMs = paused ? pausedRemaining : endsAt === null ? null : Math.max(0, endsAt - now);
+  const remainingMs = paused ? pausedRemaining : announcingMs ?? (endsAt === null ? null : Math.max(0, endsAt - now));
 
   useEffect(() => {
     if (paused || endsAt === null) return;
@@ -74,10 +80,19 @@ export function NarrationPlayer({ draftKey, title, segments, drills, exitHref, o
     return () => clearInterval(timer);
   }, [paused, endsAt]);
 
-  const speak = useCallback((text: string) => {
-    if (!voice) return;
+  // `onDone` runs once when the speech ends (or is cut off, fails, or takes too long); at once without voice.
+  const speak = useCallback((text: string, onDone?: () => void) => {
+    let settled = false;
+    const settle = () => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(fallback);
+      onDone?.();
+    };
+    const fallback = setTimeout(settle, ANNOUNCEMENT_TIMEOUT_MS);
+    if (!voice || !text) { settle(); return; }
     void Speech.stop();
-    Speech.speak(text, { language: i18n.resolvedLanguage === 'it' ? 'it-IT' : 'en-US', rate: 0.98 });
+    Speech.speak(text, { language: i18n.resolvedLanguage === 'it' ? 'it-IT' : 'en-US', rate: 0.98, onDone: settle, onStopped: settle, onError: settle });
   }, [voice, i18n.resolvedLanguage]);
 
   const finish = useCallback(async (records: Map<number, Performed>) => {
@@ -88,7 +103,8 @@ export function NarrationPlayer({ draftKey, title, segments, drills, exitHref, o
       Alert.alert(t('logger.pairIncompleteTitle'), t('logger.pairIncompleteBody', { name: drills[missing.stepIndex]?.name ?? '', number: missing.round, side: t(missing.side === 'left' ? 'logger.sideRight' : 'logger.sideLeft') }));
       if (missingIndex >= 0) {
         const target = segments[missingIndex];
-        setIndex(missingIndex); setEndsAt(null);
+        announceToken.current += 1;
+        setIndex(missingIndex); setEndsAt(null); setAnnouncingMs(null);
         setPausedRemaining(target.kind === 'work' && target.mode === 'hold' ? (target.durationSec ?? 0) * 1000 : null);
       }
       return;
@@ -115,25 +131,34 @@ export function NarrationPlayer({ draftKey, title, segments, drills, exitHref, o
     setPausedRemaining(null);
     const timed = target.kind !== 'work' || target.mode === 'hold';
     const seconds = target.kind === 'work' ? target.durationSec ?? 0 : target.durationSec;
-    setEndsAt(timed ? Date.now() + seconds * 1000 : null);
-    setNow(Date.now());
+    // The countdown starts when the announcement ends, so speaking never eats into the time.
+    const token = announceToken.current + 1;
+    announceToken.current = token;
+    setEndsAt(null);
+    setAnnouncingMs(timed ? seconds * 1000 : null);
+    const startCountdown = () => {
+      if (!timed || announceToken.current !== token) return;
+      setAnnouncingMs(null);
+      setEndsAt(Date.now() + seconds * 1000);
+      setNow(Date.now());
+    };
     // A drill starting gets the "go" beep; breaks between drills only a light tap.
     if (target.kind === 'work') playBeep('go'); else tapFeedback();
     if (target.kind === 'work') {
       const drill = drills[target.stepIndex];
       const side = target.side === 'left' ? t('mobility.left') : target.side === 'right' ? t('mobility.right') : '';
       const reps = target.mode === 'reps' && target.reps ? t('narration.repsSpoken', { count: target.reps }) : '';
-      speak([drill?.name, side, reps].filter(Boolean).join('. '));
+      speak([drill?.name, side, reps].filter(Boolean).join('. '), startCountdown);
     } else if (target.kind === 'switch') {
-      speak(t('mobility.switchLabel'));
+      speak(t('mobility.switchLabel'), startCountdown);
     } else if (target.kind === 'rest') {
-      speak(t('narration.restFor', { count: target.durationSec }));
+      speak(t('narration.restFor', { count: target.durationSec }), startCountdown);
     } else {
       // A countdown before a drill names what comes next (and which set), so there is time to get into position.
       const upcoming = segments.slice(next).find((item): item is Extract<MobilitySegment, { kind: 'work' }> => item.kind === 'work');
       const rounds = drills[target.stepIndex]?.rounds ?? 1;
       const name = drills[target.stepIndex]?.name ?? '';
-      speak(upcoming && rounds > 1 ? t('narration.getReadySet', { name, number: upcoming.round, total: rounds }) : t('mobility.getReadyFor', { name }));
+      speak(upcoming && rounds > 1 ? t('narration.getReadySet', { name, number: upcoming.round, total: rounds }) : t('mobility.getReadyFor', { name }), startCountdown);
     }
   }, [segments, drills, finish, speak, t]);
 
@@ -164,10 +189,10 @@ export function NarrationPlayer({ draftKey, title, segments, drills, exitHref, o
   const secondsLeft = remainingMs === null ? null : Math.ceil(remainingMs / 1000);
   const countingIn = segment !== undefined && segment.kind !== 'work';
   useEffect(() => {
-    if (secondsLeft === null || secondsLeft <= 0 || secondsLeft > 3 || paused) return;
+    if (secondsLeft === null || secondsLeft <= 0 || secondsLeft > 3 || paused || announcingMs !== null) return;
     playBeep('tick');
     if (countingIn) speak(String(secondsLeft));
-  }, [secondsLeft, paused, countingIn, speak]);
+  }, [secondsLeft, paused, announcingMs, countingIn, speak]);
 
   const togglePause = () => {
     if (remainingMs === null) return;
@@ -176,12 +201,16 @@ export function NarrationPlayer({ draftKey, title, segments, drills, exitHref, o
       setPausedRemaining(null);
       setNow(Date.now());
     } else {
+      // Pausing also drops an announcement still being spoken: resuming starts the countdown at once.
+      announceToken.current += 1;
+      setAnnouncingMs(null);
       setPausedRemaining(remainingMs);
       void Speech.stop();
     }
   };
   const addTen = () => {
     if (paused) setPausedRemaining((value) => (value ?? 0) + 10_000);
+    else if (announcingMs !== null) setAnnouncingMs(announcingMs + 10_000);
     else if (endsAt !== null) setEndsAt(endsAt + 10_000);
   };
   const skip = () => goTo(index + 1, performed);
