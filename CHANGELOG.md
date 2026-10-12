@@ -2,6 +2,10 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.29.3 - 2026-10-12
+
+- Duration fields (holds, rests, timed sets, the estimator) open the plain number pad and accept digits only. They read like a kitchen timer: up to two digits are seconds (45 is 0:45, 90 is 1:30), longer entries end with the seconds (130 is 1:30, 1000 is 10:00). Editing starts from the current value in the same form.
+
 ## 0.29.2 - 2026-10-12
 
 - Bands can be renamed where they are used: a pencil next to each band in the workout's band picker and in the band order opens "Rename band". In a band set the rows show a pencil too (tap opens the band's name, colour and kg). The band keeps its id, so sets already logged with it show the new name.

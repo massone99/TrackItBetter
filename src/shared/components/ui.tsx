@@ -662,6 +662,12 @@ export type NumberEditControl = {
   set: (text: string | null) => void;
 };
 
+/** A duration as the digits typed on the number pad: 90 s is "130" (1:30), 45 s is "45". */
+function clockDigits(seconds: number): string {
+  const total = Math.max(0, Math.round(seconds));
+  return total < 60 ? String(total) : `${Math.floor(total / 60)}${String(total % 60).padStart(2, "0")}`;
+}
+
 export function NumberEdit({ value, display, label, onCommit, onLongPress, initialDraft, clock = false, allowNegative = false, disabled = false, style, onControl }: {
   value: number;
   /** Text shown while not editing, e.g. "1:05". */
@@ -730,10 +736,12 @@ export function NumberEdit({ value, display, label, onCommit, onLongPress, initi
         accessibilityLabel={label}
         autoFocus
         selectTextOnFocus
-        keyboardType={clock ? "numbers-and-punctuation" : allowNegative ? "numbers-and-punctuation" : "decimal-pad"}
+        // Durations get the plain number pad: digits only, read like a kitchen timer (see parseNumberInput).
+        keyboardType={clock ? "number-pad" : allowNegative ? "numbers-and-punctuation" : "decimal-pad"}
         value={draft}
         // Saved shortly after typing stops, so a value counts even if the field is never confirmed.
-        onChangeText={(text) => {
+        onChangeText={(input) => {
+          const text = clock ? input.replace(/[^\d:]/g, "") : input;
           setDraft(text);
           const parsed = parseNumberInput(text, clock);
           if (pending.current) clearTimeout(pending.current.timer);
@@ -755,7 +763,7 @@ export function NumberEdit({ value, display, label, onCommit, onLongPress, initi
       accessibilityHint={disabled ? undefined : display}
       disabled={disabled}
       hitSlop={6}
-      onPress={() => { tapFeedback(); setDraft(initialDraft ?? (clock ? display : String(value))); }}
+      onPress={() => { tapFeedback(); setDraft(initialDraft ?? (clock ? clockDigits(value) : String(value))); }}
       onLongPress={onLongPress}
       delayLongPress={450}
     >

@@ -19,6 +19,15 @@ describe('parseNumberInput', () => {
     expect(parseNumberInput('abc')).toBeNull();
   });
 
+  it('reads number-pad digits like a kitchen timer when asked', () => {
+    expect(parseNumberInput('45', true)).toBe(45);
+    expect(parseNumberInput('90', true)).toBe(90);
+    expect(parseNumberInput('130', true)).toBe(90);
+    expect(parseNumberInput('1000', true)).toBe(600);
+    expect(parseNumberInput('175', true)).toBeNull();
+    expect(parseNumberInput('1.5', true)).toBeNull();
+  });
+
   it('round-trips with the clock format', () => {
     expect(parseNumberInput(formatClock(125), true)).toBe(125);
   });

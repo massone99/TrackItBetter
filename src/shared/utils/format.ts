@@ -40,6 +40,14 @@ export function parseNumberInput(text: string, clock = false): number | null {
     const match = /^(\d+):([0-5]?\d)$/.exec(trimmed);
     return match ? Number(match[1]) * 60 + Number(match[2]) : null;
   }
+  // Durations are typed on the number pad like a kitchen timer: up to two digits are seconds, longer
+  // entries end with two digits of seconds ("130" is 1:30, "1000" is 10:00).
+  if (clock) {
+    if (!/^\d+$/.test(trimmed)) return null;
+    if (trimmed.length <= 2) return Number(trimmed);
+    const seconds = Number(trimmed.slice(-2));
+    return seconds > 59 ? null : Number(trimmed.slice(0, -2)) * 60 + seconds;
+  }
   const value = Number(trimmed);
   return Number.isFinite(value) ? value : null;
 }
