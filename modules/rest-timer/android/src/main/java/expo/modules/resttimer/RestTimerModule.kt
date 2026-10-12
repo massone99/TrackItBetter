@@ -41,16 +41,22 @@ class RestTimerModule : Module() {
       return
     }
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-      // Low importance: no sound or pop-up, the end of the rest is announced by its own alert.
-      val channel = NotificationChannel(CHANNEL_ID, channelName, NotificationManager.IMPORTANCE_LOW)
+      // Default importance so the countdown is listed with the alerting notifications and shown on the
+      // lock screen (silent ones are folded away there); the notification itself is silent, the end
+      // of the rest has its own alert. A channel's importance cannot change, hence the new id.
+      val channel = NotificationChannel(CHANNEL_ID, channelName, NotificationManager.IMPORTANCE_DEFAULT)
       channel.setShowBadge(false)
+      channel.setSound(null, null)
+      channel.enableVibration(false)
+      channel.lockscreenVisibility = android.app.Notification.VISIBILITY_PUBLIC
       manager().createNotificationChannel(channel)
+      manager().deleteNotificationChannel(OLD_CHANNEL_ID)
     }
     val openApp = context.packageManager.getLaunchIntentForPackage(context.packageName)?.let { intent ->
       PendingIntent.getActivity(context, 0, intent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
     }
     val notification = NotificationCompat.Builder(context, CHANNEL_ID)
-      .setSmallIcon(context.applicationInfo.icon)
+      .setSmallIcon(smallIcon())
       .setContentTitle(title)
       .setWhen(endsAtMs)
       .setShowWhen(true)
@@ -61,14 +67,22 @@ class RestTimerModule : Module() {
       .setSilent(true)
       .setCategory(NotificationCompat.CATEGORY_STOPWATCH)
       .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+      .setPriority(NotificationCompat.PRIORITY_DEFAULT)
       .setTimeoutAfter(remainingMs)
       .setContentIntent(openApp)
       .build()
     manager().notify(NOTIFICATION_ID, notification)
   }
 
+  /** A plain white-on-transparent glyph: a full-colour or adaptive app icon can be refused as a small icon. */
+  private fun smallIcon(): Int {
+    val id = context.resources.getIdentifier("ic_rest_timer", "drawable", context.packageName)
+    return if (id != 0) id else android.R.drawable.ic_lock_idle_alarm
+  }
+
   companion object {
-    private const val CHANNEL_ID = "workout-rest-countdown"
+    private const val OLD_CHANNEL_ID = "workout-rest-countdown"
+    private const val CHANNEL_ID = "workout-rest-countdown-live"
     private const val NOTIFICATION_ID = 7301
   }
 }

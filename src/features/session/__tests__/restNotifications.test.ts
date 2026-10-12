@@ -11,6 +11,9 @@ jest.mock('expo-notifications', () => ({
   getPermissionsAsync: jest.fn(),
   requestPermissionsAsync: jest.fn(),
   setNotificationChannelAsync: jest.fn(),
+  deleteNotificationChannelAsync: jest.fn(async () => undefined),
+  AndroidAudioUsage: { ALARM: 4 },
+  AndroidAudioContentType: { SONIFICATION: 4 },
   scheduleNotificationAsync: jest.fn(),
   AndroidImportance: { HIGH: 4 },
   AndroidNotificationVisibility: { PUBLIC: 1 },
@@ -62,5 +65,17 @@ describe('rest notifications', () => {
   it('removes the countdown when the rest is skipped', async () => {
     await cancelRestFinishedNotification();
     expect(RestTimer.hide).toHaveBeenCalled();
+  });
+});
+
+describe('rest alert channel', () => {
+  it('rings on the alarm stream and still schedules the end alert when the live countdown fails', async () => {
+    mocked.getPermissionsAsync.mockResolvedValue({ granted: true } as never);
+    RestTimer.show.mockImplementationOnce(() => { throw new Error('no icon'); });
+
+    await scheduleRestFinishedNotification(60, text);
+
+    expect(mocked.setNotificationChannelAsync).toHaveBeenCalledWith('workout-rest-alarm', expect.objectContaining({ sound: 'default', audioAttributes: expect.objectContaining({ usage: 4 }) }));
+    expect(mocked.scheduleNotificationAsync.mock.calls[0][0].trigger).toMatchObject({ channelId: 'workout-rest-alarm' });
   });
 });

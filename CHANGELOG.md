@@ -2,6 +2,11 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.28.4 - 2026-10-12
+
+- Rest timer outside the app: the end-of-rest alert now rings on the alarm channel, so it is heard with the app closed and the phone on silent, and it is scheduled before (and independently of) the live countdown, so a failing countdown can no longer cost the sound.
+- The live rest countdown in the notification shade uses its own white stopwatch icon and a default-importance silent channel, so it is listed with the active notifications and shown on the lock screen instead of being folded away.
+
 ## 0.28.3 - 2026-10-12
 
 - Narrated mode always starts with the voice on (routines and workouts); the speaker button in the player turns it off for that session only. The voice switch in You is gone.

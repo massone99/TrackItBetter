@@ -2,7 +2,27 @@ import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 import { RestTimer } from '../../../modules/rest-timer/src';
 
-const REST_CHANNEL_ID = 'workout-rest-timer';
+// A channel's sound and importance cannot change once created, so the alarm-sound channel has a new id.
+const REST_CHANNEL_ID = 'workout-rest-alarm';
+const OLD_REST_CHANNEL_ID = 'workout-rest-timer';
+
+/**
+ * High importance, on the alarm audio stream: the end of a rest is heard with the app closed and the
+ * phone in silent mode, like a kitchen timer.
+ */
+async function ensureRestChannel(): Promise<void> {
+  if (Platform.OS !== 'android') return;
+  await Notifications.setNotificationChannelAsync(REST_CHANNEL_ID, {
+    name: 'Workout rest timer',
+    importance: Notifications.AndroidImportance.HIGH,
+    sound: 'default',
+    audioAttributes: { usage: Notifications.AndroidAudioUsage.ALARM, contentType: Notifications.AndroidAudioContentType.SONIFICATION },
+    enableVibrate: true,
+    vibrationPattern: [0, 400, 200, 400, 200, 400],
+    lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
+  });
+  await Notifications.deleteNotificationChannelAsync(OLD_REST_CHANNEL_ID).catch(() => undefined);
+}
 
 export interface RestNotificationText {
   /** End alert. */
@@ -49,15 +69,9 @@ export async function scheduleRestFinishedNotification(seconds: number, text: Re
   await cancelExistingRestAlerts();
   if (!(await notificationsAllowed())) return;
   const endsAt = Date.now() + Math.max(1, Math.floor(seconds)) * 1000;
-  RestTimer?.show(endsAt, text.countdown, text.channel);
-  if (Platform.OS === 'android') {
-    await Notifications.setNotificationChannelAsync(REST_CHANNEL_ID, {
-      name: 'Workout rest timer',
-      importance: Notifications.AndroidImportance.HIGH,
-      vibrationPattern: [0, 400, 200, 400, 200, 400],
-      lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
-    });
-  }
+  await ensureRestChannel();
+  // The end alert is scheduled first and on its own: the countdown in the shade failing must never
+  // cost the sound at the end of the rest.
   await Notifications.scheduleNotificationAsync({
     identifier: REST_ALERT_ID,
     content: {
@@ -75,11 +89,16 @@ export async function scheduleRestFinishedNotification(seconds: number, text: Re
       ...(Platform.OS === 'android' ? { channelId: REST_CHANNEL_ID } : {}),
     },
   });
+  try {
+    RestTimer?.show(endsAt, text.countdown, text.channel);
+  } catch {
+    // The live countdown is a convenience; the scheduled alert above still rings.
+  }
 }
 
 export async function cancelRestFinishedNotification(): Promise<void> {
   if (Platform.OS === 'web') return;
-  RestTimer?.hide();
+  try { RestTimer?.hide(); } catch { /* nothing shown */ }
   await cancelExistingRestAlerts();
 }
 
@@ -95,14 +114,7 @@ export async function scheduleEmomNotifications(alerts: readonly { at: number; t
   if (Platform.OS === 'web') return;
   await cancelExistingEmomAlerts();
   if (!(await notificationsAllowed())) return;
-  if (Platform.OS === 'android') {
-    await Notifications.setNotificationChannelAsync(REST_CHANNEL_ID, {
-      name: 'Workout rest timer',
-      importance: Notifications.AndroidImportance.HIGH,
-      vibrationPattern: [0, 400, 200, 400, 200, 400],
-      lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
-    });
-  }
+  await ensureRestChannel();
   const now = Date.now();
   for (const alert of alerts.filter((item) => item.at > now).slice(0, 60)) {
     await Notifications.scheduleNotificationAsync({
