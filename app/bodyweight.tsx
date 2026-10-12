@@ -7,6 +7,7 @@ import { ActionButton, Body, Card, Heading, Label, ListGroup, ListRow, Numeral, 
 import { useSaveOnLeave } from '../src/shared/forms/useSaveOnLeave';
 import { useTheme } from '../src/shared/theme/ThemeProvider';
 import { useScaledStyles } from '../src/shared/theme/useScaledStyles';
+import { sanitizeNumberInput } from '../src/shared/utils/format';
 
 type WeightEntry = Awaited<ReturnType<typeof listBodyweights>>[number];
 
@@ -55,7 +56,7 @@ export default function BodyweightScreen() {
         <TextField
           label={t('bodyweight.value')}
           value={value}
-          onChangeText={setValue}
+          onChangeText={(text) => setValue(sanitizeNumberInput(text))}
           keyboardType="decimal-pad"
           maxLength={6}
           selectTextOnFocus

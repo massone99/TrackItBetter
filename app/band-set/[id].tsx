@@ -12,7 +12,7 @@ import { goBack } from '../../src/shared/navigation/goBack';
 import { useTheme } from '../../src/shared/theme/ThemeProvider';
 import { fonts } from '../../src/shared/theme/typography';
 import { useScaledStyles } from '../../src/shared/theme/useScaledStyles';
-import { parseNumberInput } from '../../src/shared/utils/format';
+import { parseNumberInput, sanitizeNumberInput } from '../../src/shared/utils/format';
 
 /** A band set: its name and its bands, lightest first. */
 export default function BandSetScreen() {
@@ -131,8 +131,8 @@ function BandSheet({ band, onClose, onSave, onRemove }: { band: Band; onClose: (
         </View>
       </View>
       <View style={styles.kgRow}>
-        <View style={styles.flex}><TextField label={t('equipment.minKg')} value={minKg} onChangeText={setMinKg} keyboardType="decimal-pad" placeholder="–" /></View>
-        <View style={styles.flex}><TextField label={t('equipment.maxKg')} value={maxKg} onChangeText={setMaxKg} keyboardType="decimal-pad" placeholder="–" /></View>
+        <View style={styles.flex}><TextField label={t('equipment.minKg')} value={minKg} onChangeText={(text) => setMinKg(sanitizeNumberInput(text))} keyboardType="decimal-pad" placeholder="–" /></View>
+        <View style={styles.flex}><TextField label={t('equipment.maxKg')} value={maxKg} onChangeText={(text) => setMaxKg(sanitizeNumberInput(text))} keyboardType="decimal-pad" placeholder="–" /></View>
       </View>
       <Body>{low !== null && high !== null && low > high ? t('equipment.kgOrder') : t('equipment.kgHelp')}</Body>
       <ActionButton label={t('common.save')} disabled={invalid} onPress={() => onSave({ ...band, name: name.trim(), color, minKg: low, maxKg: high })} />

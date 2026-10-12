@@ -244,6 +244,7 @@ function SideFields({
           value={value}
           display={`${value} ${unit}`}
           label={`${metricLabel} · ${label}`}
+          integer={!distance}
           onCommit={(next) =>
             onChange(
               distance ? "distanceM" : "reps",

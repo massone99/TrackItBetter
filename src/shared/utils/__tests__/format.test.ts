@@ -1,4 +1,4 @@
-import { formatClock, formatMinutes, parseNumberInput } from '../format';
+import { formatClock, formatMinutes, parseNumberInput, sanitizeNumberInput } from '../format';
 
 describe('parseNumberInput', () => {
   it('reads plain and decimal-comma numbers', () => {
@@ -30,6 +30,17 @@ describe('parseNumberInput', () => {
 
   it('round-trips with the clock format', () => {
     expect(parseNumberInput(formatClock(125), true)).toBe(125);
+  });
+});
+
+describe('sanitizeNumberInput', () => {
+  it('keeps only what each kind of number field accepts', () => {
+    expect(sanitizeNumberInput('1a2b', { integer: true })).toBe('12');
+    expect(sanitizeNumberInput('8.5', { integer: true })).toBe('85');
+    expect(sanitizeNumberInput('22,5,0kg')).toBe('22,50');
+    expect(sanitizeNumberInput('-12.5', { allowNegative: true })).toBe('-12.5');
+    expect(sanitizeNumberInput('-12.5')).toBe('12.5');
+    expect(sanitizeNumberInput('1:3x0', { clock: true })).toBe('1:30');
   });
 });
 

@@ -33,6 +33,22 @@ export function formatMinutes(seconds: number): string {
  * Reads a number typed by hand: accepts a decimal comma and, with `clock`, "m:ss" (1:30 → 90).
  * Returns null for anything that is not a finite number.
  */
+/**
+ * Keeps only what a number field accepts as it is typed: digits (and ':' for a duration), one decimal
+ * separator unless `integer`, and a leading minus when `allowNegative`. Letters and anything pasted
+ * that is not part of a number are dropped.
+ */
+export function sanitizeNumberInput(text: string, options: { clock?: boolean; integer?: boolean; allowNegative?: boolean } = {}): string {
+  if (options.clock) return text.replace(/[^\d:]/g, "");
+  const negative = options.allowNegative && text.trimStart().startsWith("-");
+  let body = text.replace(options.integer ? /\D/g : /[^\d.,]/g, "");
+  if (!options.integer) {
+    const separator = body.search(/[.,]/);
+    if (separator >= 0) body = body.slice(0, separator + 1) + body.slice(separator + 1).replace(/[.,]/g, "");
+  }
+  return (negative ? "-" : "") + body;
+}
+
 export function parseNumberInput(text: string, clock = false): number | null {
   const trimmed = text.trim().replace(",", ".");
   if (trimmed === "") return null;

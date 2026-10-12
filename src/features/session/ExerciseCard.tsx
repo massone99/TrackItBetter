@@ -255,6 +255,7 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
                     value={stored}
                     display={value}
                     label={`${t('logger.editValue', { number: set.index })} ${sideLabel}`}
+                    integer={field === 'reps'}
                     onCommit={(next) => onSetValue(set, field, field === 'reps' ? Math.round(next) : next)}
                     onControl={(control) => { controls.current.set(`${set.id}:${field}`, control); }}
                     onLongPress={openMenu}

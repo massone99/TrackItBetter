@@ -2,6 +2,10 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.30.1 - 2026-10-12
+
+- Number fields accept numbers only, whatever the keyboard or a paste offers: reps and sets (and other whole-number fields) open the plain number pad without a decimal separator; kg fields (set load, bodyweight, band kg) take digits with one decimal separator, and a minus only where a negative load is allowed.
+
 ## 0.30.0 - 2026-10-12
 
 - Starting a program workout prefills each set with what you did the last time you did that same workout: reps, time or distance and load, set by set (and side by side for unilateral exercises). Extra sets the plan now has repeat the last one done. A workout never done before still starts from the plan's targets and loads. The same applies to mobility routines started as a regular workout.

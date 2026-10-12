@@ -12,7 +12,7 @@ import { MIN_TOUCH_TARGET, elevation, radii, spacing, typeScale } from "../theme
 import { Icon, IconName } from "./Icon";
 import { Text } from "./Text";
 import { useScaledStyles } from "../theme/useScaledStyles";
-import { parseNumberInput } from "../utils/format";
+import { parseNumberInput, sanitizeNumberInput } from "../utils/format";
 import { MAX_FONT_SCALE } from '../theme/scale';
 
 export { Text } from "./Text";
@@ -406,7 +406,7 @@ export function Stepper({ label, value, display, step = 1, min = 0, max = 999, l
         <View style={styles.stepperControls}>
           <StepperButton icon="remove" label={`${label} −`} disabled={value <= min} onStep={(multiplier) => change(-step * multiplier)} />
           {editable ? (
-            <NumberEdit value={value} display={shown} initialDraft={value < 0 ? "" : undefined} clock={clock} label={label} onControl={(control) => { editor.current = control; }} onCommit={(next) => onChange(clamp(next))} style={styles.stepperValue} />
+            <NumberEdit value={value} display={shown} initialDraft={value < 0 ? "" : undefined} clock={clock} integer={!clock && Number.isInteger(step) && Number.isInteger(min)} allowNegative={min < 0} label={label} onControl={(control) => { editor.current = control; }} onCommit={(next) => onChange(clamp(next))} style={styles.stepperValue} />
           ) : (
             <Text style={styles.stepperValue}>{shown}</Text>
           )}
@@ -668,7 +668,7 @@ function clockDigits(seconds: number): string {
   return total < 60 ? String(total) : `${Math.floor(total / 60)}${String(total % 60).padStart(2, "0")}`;
 }
 
-export function NumberEdit({ value, display, label, onCommit, onLongPress, initialDraft, clock = false, allowNegative = false, disabled = false, style, onControl }: {
+export function NumberEdit({ value, display, label, onCommit, onLongPress, initialDraft, clock = false, integer = false, allowNegative = false, disabled = false, style, onControl }: {
   value: number;
   /** Text shown while not editing, e.g. "1:05". */
   display: string;
@@ -680,6 +680,8 @@ export function NumberEdit({ value, display, label, onCommit, onLongPress, initi
   /** What the field starts with when tapped, when that differs from the value (e.g. a placeholder value). */
   initialDraft?: string;
   clock?: boolean;
+  /** Whole numbers only (reps, sets): the number pad without a decimal separator. */
+  integer?: boolean;
   allowNegative?: boolean;
   disabled?: boolean;
   style?: TextProps["style"];
@@ -737,11 +739,12 @@ export function NumberEdit({ value, display, label, onCommit, onLongPress, initi
         autoFocus
         selectTextOnFocus
         // Durations get the plain number pad: digits only, read like a kitchen timer (see parseNumberInput).
-        keyboardType={clock ? "number-pad" : allowNegative ? "numbers-and-punctuation" : "decimal-pad"}
+        keyboardType={clock || integer ? "number-pad" : allowNegative ? "numbers-and-punctuation" : "decimal-pad"}
         value={draft}
         // Saved shortly after typing stops, so a value counts even if the field is never confirmed.
         onChangeText={(input) => {
-          const text = clock ? input.replace(/[^\d:]/g, "") : input;
+          // Only numbers get in, whatever the keyboard or a paste offers.
+          const text = sanitizeNumberInput(input, { clock, integer, allowNegative });
           setDraft(text);
           const parsed = parseNumberInput(text, clock);
           if (pending.current) clearTimeout(pending.current.timer);
