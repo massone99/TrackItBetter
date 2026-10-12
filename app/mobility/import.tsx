@@ -72,13 +72,15 @@ export default function MobilityImportScreen() {
   const selected = mode === 'workout' ? rows.find((row) => row.session.id === sessionId && row.summary.mobility > 0) : undefined;
 
   const create = async () => {
-    if (!info || busy) return;
+    if (!info || !source || busy) return;
     setBusy(true);
     setFailed(false);
     try {
       const prepSec = readNarrationPrepSec();
       const make = (session: Source['sessions'][number]) => saveMobilityRoutine({
         name: session.name.slice(0, MAX_NAME),
+        programId: source.id,
+        programName: source.name.slice(0, 80),
         transitionSec: 10,
         prepSec,
         steps: stepsFromWorkout(session.exercises, info, () => Crypto.randomUUID()).slice(0, 40),

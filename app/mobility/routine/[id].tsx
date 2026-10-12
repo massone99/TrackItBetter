@@ -1,5 +1,5 @@
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
 import { DEFAULT_PREP_SEC, estimateRoutineSeconds, type MobilityStep } from '../../../src/domain/mobilityPlan';
@@ -34,6 +34,11 @@ import { formatClock } from '../../../src/shared/utils/format';
 
 type ExerciseInfo = { name: string; metric: string };
 
+/** The most drills a routine can hold (see the routine schema). */
+const MAX_STEPS = 40;
+const AUTOSAVE_MS = 1500;
+const TOAST_MS = 5000;
+
 export default function RoutineBuilderScreen() {
   const styles = useScaledStyles(baseStyles);
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -56,10 +61,15 @@ export default function RoutineBuilderScreen() {
   const [lastAdded, setLastAdded] = useState<{ stepId: string; name: string } | null>(null);
   const [recent, setRecent] = useState<MobilityStep[]>([]);
   // The id once stored, so a routine that started as "new" is saved in place from then on.
-  const savedId = useRef<string | null>(isNew ? null : id);
-  const [savedSnapshot, setSavedSnapshot] = useState(() => JSON.stringify({ name: '', transitionSec: 10, prepSec: DEFAULT_PREP_SEC, steps: [] }));
-  const snapshot = JSON.stringify({ name, transitionSec, prepSec, steps });
+  const [savedId, setSavedId] = useState<string | null>(isNew ? null : id);
+  const idRef = useRef<string | null>(isNew ? null : id);
+  // Saves run one after another, so autosave and Start can never create the routine twice.
+  const queue = useRef<Promise<boolean>>(Promise.resolve(true));
+  const [saveState, setSaveState] = useState<'idle' | 'saving' | 'error'>('idle');
+  const [savedSnapshot, setSavedSnapshot] = useState(() => JSON.stringify({ name: '', favourite: false, transitionSec: 10, prepSec: DEFAULT_PREP_SEC, steps: [] }));
+  const snapshot = JSON.stringify({ name, favourite, transitionSec, prepSec, steps });
   const dirty = loaded && snapshot !== savedSnapshot;
+  const atLimit = steps.length >= MAX_STEPS;
 
   // Exercise names are reloaded on focus so drills created from the picker show up by name.
   useFocusEffect(useCallback(() => {
@@ -81,7 +91,7 @@ export default function RoutineBuilderScreen() {
           setPrepSec(routine.prepSec);
           setSteps(routine.steps);
           setFavourite(routine.favourite);
-          setSavedSnapshot(JSON.stringify({ name: routine.name, transitionSec: routine.transitionSec, prepSec: routine.prepSec, steps: routine.steps }));
+          setSavedSnapshot(JSON.stringify({ name: routine.name, favourite: routine.favourite, transitionSec: routine.transitionSec, prepSec: routine.prepSec, steps: routine.steps }));
         }
         setLoaded(true);
       }
@@ -91,6 +101,12 @@ export default function RoutineBuilderScreen() {
 
   const updateStep = (stepId: string, patch: Partial<MobilityStep>) => {
     setSteps((current) => current.map((step) => step.id === stepId ? { ...step, ...patch } : step));
+  };
+  const duplicateStep = (index: number) => {
+    if (atLimit) { setError(t('mobilityHub.limitReached')); return; }
+    const copy = { ...steps[index], id: newStep(steps[index].exerciseId, steps[index].mode).id };
+    setSteps((current) => [...current.slice(0, index + 1), copy, ...current.slice(index + 1)]);
+    setExpanded(copy.id);
   };
   const moveStep = (index: number, delta: number) => {
     setSteps((current) => {
@@ -102,6 +118,7 @@ export default function RoutineBuilderScreen() {
   };
 
   const addDrill = (exerciseId: string, mode: MobilityStep['mode'], template?: MobilityStep) => {
+    if (atLimit) { setError(t('mobilityHub.limitReached')); return; }
     const step = template ? { ...template, id: newStep(exerciseId, mode).id } : newStep(exerciseId, mode);
     setSteps((current) => [...current, step]);
     setExpanded(template ? null : step.id);
@@ -109,26 +126,50 @@ export default function RoutineBuilderScreen() {
     setError(null);
   };
 
-  /** Stores the routine; false while it still lacks a name or a drill. */
-  const persist = async (): Promise<boolean> => {
-    if (!name.trim() || steps.length === 0) return false;
-    try {
-      const saved = await saveMobilityRoutine({ id: savedId.current ?? undefined, name, transitionSec, prepSec, steps, favourite });
-      savedId.current = saved.id;
-      setSavedSnapshot(snapshot);
-      return true;
-    } catch {
-      return false;
-    }
+  /** Stores the routine; false while it still lacks a drill (a missing name becomes the first drill's name) or when saving fails. */
+  const persist = (): Promise<boolean> => {
+    const job = queue.current.catch(() => false).then(async () => {
+      const title = name.trim() || (steps[0] ? exerciseInfo.get(steps[0].exerciseId)?.name.slice(0, 60) ?? '' : '');
+      if (!title || steps.length === 0) return false;
+      setSaveState('saving');
+      try {
+        const saved = await saveMobilityRoutine({ id: idRef.current ?? undefined, name: title, transitionSec, prepSec, steps, favourite });
+        idRef.current = saved.id;
+        setSavedId(saved.id);
+        if (!name.trim()) setName(title);
+        setSavedSnapshot(JSON.stringify({ name: title, favourite, transitionSec, prepSec, steps }));
+        setSaveState('idle');
+        return true;
+      } catch {
+        setSaveState('error');
+        return false;
+      }
+    });
+    queue.current = job;
+    return job;
   };
+  // Saves by itself after a pause in editing, once the routine has a drill.
+  const latestPersist = useRef(persist);
+  useEffect(() => { latestPersist.current = persist; });
+  useEffect(() => {
+    if (!dirty || steps.length === 0) return;
+    const timer = setTimeout(() => { void latestPersist.current(); }, AUTOSAVE_MS);
+    return () => clearTimeout(timer);
+  }, [dirty, snapshot, steps.length]);
+  // The "added" message fades by itself.
+  useEffect(() => {
+    if (!lastAdded) return;
+    const timer = setTimeout(() => setLastAdded(null), TOAST_MS);
+    return () => clearTimeout(timer);
+  }, [lastAdded]);
   const { allowLeave } = useSaveOnLeave({
     dirty,
     save: persist,
     onInvalid: (resume) => setDiscardResume(() => resume),
   });
   const start = async (voice: boolean) => {
-    if (!(await persist()) || !savedId.current) { setError(t('mobilityHub.needsDrill')); return; }
-    router.push({ pathname: '/mobility/play/[id]', params: { id: savedId.current, voice: voice ? '1' : '0' } });
+    if (!(await persist()) || !idRef.current) { setError(steps.length === 0 ? t('mobilityHub.needsDrill') : t('mobilityHub.saveError')); return; }
+    router.push({ pathname: '/mobility/play/[id]', params: { id: idRef.current, voice: voice ? '1' : '0' } });
   };
 
   const drillSummary = (step: MobilityStep) => [
@@ -149,7 +190,9 @@ export default function RoutineBuilderScreen() {
         <FooterAction icon="mic-outline" secondary label={t('mobilityHub.startVoice')} onPress={() => void start(true)} />
       </>
     ) : undefined}>
-      <PageHeading title={isNew && !name ? t('mobility.builderNew') : name || t('mobility.builderTitle')} subtitle={steps.length ? `${t('mobility.estimated', { count: minutes })}${dirty ? '' : ` · ${t('mobilityHub.saved')}`}` : undefined} />
+      <PageHeading title={isNew && !name ? t('mobility.builderNew') : name || t('mobility.builderTitle')} subtitle={steps.length ? `${t('mobility.estimated', { count: minutes })}${saveState === 'saving' ? ` · ${t('mobilityHub.saving')}` : saveState === 'error' ? ` · ${t('mobilityHub.saveError')}` : dirty ? '' : ` · ${t('mobilityHub.saved')}`}` : undefined}
+        action={<IconButton icon={favourite ? 'star' : 'star-outline'} tone="plain" size={48} color={favourite ? palette.record : palette.textMuted} label={favourite ? t('mobilityHub.unfavourite') : t('mobilityHub.favourite')} onPress={() => setFavourite((value) => !value)} />}
+      />
       <TextField label={t('mobility.name')} value={name} onChangeText={(value) => { setName(value); setError(null); }} placeholder={t('mobility.namePlaceholder')} maxLength={60} />
       <Card style={styles.transitionCard}>
         <DurationField label={t('mobility.prep')} value={prepSec} format={(seconds) => seconds === 0 ? t('mobility.prepOff') : formatClock(seconds)} step={1} min={0} max={30} presets={[0, 3, 5, 10]} onChange={setPrepSec} />
@@ -157,8 +200,8 @@ export default function RoutineBuilderScreen() {
         <DurationField label={t('mobility.transition')} value={transitionSec} format={formatClock} step={5} min={0} max={60} presets={[0, 5, 10, 15]} onChange={setTransitionSec} />
       </Card>
 
-      <SectionTitle title={t('mobility.drillsTitle')} />
-      {suggestions.length > 0 ? (
+      <SectionTitle title={`${t('mobility.drillsTitle')} · ${steps.length}/${MAX_STEPS}`} />
+      {suggestions.length > 0 && !atLimit ? (
         <View style={styles.chips}>
           {suggestions.map((step) => (
             <Chip key={step.exerciseId} icon="add" label={exerciseInfo.get(step.exerciseId)?.name ?? ''} onPress={() => addDrill(step.exerciseId, step.mode, step)} />
@@ -186,6 +229,7 @@ export default function RoutineBuilderScreen() {
             </Pressable>
             <IconButton icon="chevron-up" label={t('mobility.moveUp')} tone="plain" size={34} onPress={() => { if (index > 0) moveStep(index, -1); }} />
             <IconButton icon="chevron-down" label={t('mobility.moveDown')} tone="plain" size={34} onPress={() => { if (index < steps.length - 1) moveStep(index, 1); }} />
+            <IconButton icon="copy-outline" label={t('mobilityHub.duplicateDrill')} tone="plain" size={34} onPress={() => duplicateStep(index)} />
             <IconButton icon="trash-outline" label={t('mobility.removeDrill')} tone="plain" size={34} onPress={() => setSteps((current) => current.filter((item) => item.id !== step.id))} />
           </View>
           {expanded === step.id ? <>
@@ -209,7 +253,7 @@ export default function RoutineBuilderScreen() {
           </> : null}
         </Card>
       ))}
-      <ActionButton icon="add" label={t('mobility.addDrill')} secondary onPress={() => setPickerOpen(true)} />
+      <ActionButton icon="add" label={t('mobility.addDrill')} secondary disabled={atLimit} onPress={() => setPickerOpen(true)} />
 
       {lastAdded && steps.some((step) => step.id === lastAdded.stepId) ? (
         <View style={[styles.toast, { backgroundColor: palette.successSoft }]} accessibilityLiveRegion="polite">
@@ -219,8 +263,9 @@ export default function RoutineBuilderScreen() {
           </Pressable>
         </View>
       ) : null}
+      {saveState === 'error' ? <ActionButton icon="refresh" secondary label={t('mobilityHub.retry')} onPress={() => void persist()} /> : null}
       {error ? <Text style={[styles.error, { color: palette.warning }]}>{error}</Text> : null}
-      {isNew ? null : <ActionButton icon="trash-outline" label={t('mobility.delete')} variant="danger" onPress={() => setConfirmDelete(true)} />}
+      {savedId === null ? null : <ActionButton icon="trash-outline" label={t('mobility.delete')} variant="danger" onPress={() => setConfirmDelete(true)} />}
 
       <ExercisePicker
         visible={pickerOpen}
@@ -240,7 +285,7 @@ export default function RoutineBuilderScreen() {
         <ActionButton label={t('mobility.endDiscard')} variant="danger" onPress={() => { const resume = discardResume; setDiscardResume(null); resume?.(); }} />
       </Sheet>
       <Sheet visible={confirmDelete} onClose={() => setConfirmDelete(false)} title={t('mobility.delete')} body={t('mobility.deleteBody')}>
-        <ActionButton icon="trash-outline" label={t('logger.confirmRemove')} variant="danger" onPress={() => { allowLeave(); void deleteMobilityRoutine(savedId.current ?? id).then(() => goBack('/mobility')); }} />
+        <ActionButton icon="trash-outline" label={t('logger.confirmRemove')} variant="danger" onPress={() => { allowLeave(); void deleteMobilityRoutine(savedId ?? id).then(() => goBack('/mobility')); }} />
         <ActionButton label={t('common.cancel')} secondary onPress={() => setConfirmDelete(false)} />
       </Sheet>
     </Screen>

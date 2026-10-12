@@ -2,6 +2,12 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.27.0 - 2026-10-12
+
+- Mobility home: routines are grouped by program, in sections you can collapse (the choice is remembered). A routine made from a program workout is filed under that program; older ones are matched by the name of the workout, otherwise they sit under "No program". The menu has "Move to a program".
+- Compact routine rows: Narrated, Start and a menu in 48 dp buttons, with a "Create" button at the bottom right (new routine, from a workout, convert a program). The exercise cycles are folded by default under the routines.
+- Routine builder: saves by itself after a pause; a routine without a name takes the name of its first drill instead of being lost; Start and autosave can no longer create it twice; duplicate a drill; star as favourite; 40-drill limit explained; the "added" message fades; save errors show Try again.
+
 ## 0.26.0 - 2026-10-12
 
 - Home: "Choose a workout" under the main card opens a list of all programs (yours first, then the built-in ones) and, one tap further, their workouts, so you can start any of them without going through the suggested one or an empty workout. "Empty workout" stays next to it.

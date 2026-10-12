@@ -16,6 +16,11 @@ export interface MobilityRoutine {
   favourite: boolean;
   /** When a run of this routine was last saved; absent for a routine never run (or run before this was kept). */
   lastDoneAt?: string;
+  /** Program the routine was made from (or moved to); its name is kept so the group survives the program. */
+  programId?: string;
+  programName?: string;
+  /** Set when the user took the routine out of any program, so its name is not matched to one again. */
+  ungrouped?: boolean;
   updatedAt: string;
 }
 
@@ -41,6 +46,9 @@ const routineSchema = z.object({
   steps: z.array(stepSchema).min(1).max(40),
   favourite: z.boolean().default(false),
   lastDoneAt: z.string().optional(),
+  programId: z.string().min(1).optional(),
+  programName: z.string().min(1).max(80).optional(),
+  ungrouped: z.boolean().optional(),
   updatedAt: z.string(),
 });
 
@@ -70,11 +78,11 @@ export async function getMobilityRoutine(id: string): Promise<MobilityRoutine | 
 }
 
 /** Validates and stores a routine; throws a ZodError when it is incomplete. */
-export async function saveMobilityRoutine(input: Omit<MobilityRoutine, 'id' | 'updatedAt' | 'favourite' | 'lastDoneAt'> & { id?: string; favourite?: boolean; lastDoneAt?: string }): Promise<MobilityRoutine> {
+export async function saveMobilityRoutine(input: Omit<MobilityRoutine, 'id' | 'updatedAt' | 'favourite' | 'lastDoneAt' | 'programId' | 'programName'> & { id?: string; favourite?: boolean; lastDoneAt?: string; programId?: string; programName?: string }): Promise<MobilityRoutine> {
   const all = await listMobilityRoutines();
   const previous = all.find((item) => item.id === input.id);
   // Editing keeps what the editor does not know about: the favourite star and the last run.
-  const routine = routineSchema.parse({ ...input, favourite: input.favourite ?? previous?.favourite ?? false, lastDoneAt: input.lastDoneAt ?? previous?.lastDoneAt, id: input.id ?? Crypto.randomUUID(), updatedAt: new Date().toISOString() });
+  const routine = routineSchema.parse({ ...input, favourite: input.favourite ?? previous?.favourite ?? false, lastDoneAt: input.lastDoneAt ?? previous?.lastDoneAt, programId: input.programId ?? previous?.programId, programName: input.programName ?? previous?.programName, ungrouped: input.programId ? undefined : previous?.ungrouped, id: input.id ?? Crypto.randomUUID(), updatedAt: new Date().toISOString() });
   const others = all.filter((item) => item.id !== routine.id);
   await writeAll([routine, ...others]);
   return routine;
@@ -84,6 +92,16 @@ export async function saveMobilityRoutine(input: Omit<MobilityRoutine, 'id' | 'u
 export async function setMobilityFavourite(id: string, favourite: boolean): Promise<void> {
   const all = await listMobilityRoutines();
   await writeAll(all.map((routine) => (routine.id === id ? { ...routine, favourite } : routine)));
+}
+
+/** Files a routine under a program, or under none with null; its position in the list does not change. */
+export async function moveMobilityRoutine(id: string, program: { id: string; name: string } | null): Promise<void> {
+  const all = await listMobilityRoutines();
+  await writeAll(all.map((routine) => {
+    if (routine.id !== id) return routine;
+    const { programId: _id, programName: _name, ungrouped: _flag, ...rest } = routine;
+    return program ? { ...rest, programId: program.id, programName: program.name.slice(0, 80) } : { ...rest, ungrouped: true };
+  }));
 }
 
 /** Remembers a finished run, without changing the routine's position in the list. */
