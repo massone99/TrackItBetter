@@ -3,17 +3,17 @@
     "name": "TrackItBetter",
     "slug": "track-it-better",
     "scheme": "trackitbetter",
-    "version": "0.29.1",
+    "version": "0.29.2",
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.trackitbetter.app",
-      "buildNumber": "100"
+      "buildNumber": "101"
     },
     "android": {
       "package": "com.trackitbetter.app",
-      "versionCode": 110,
+      "versionCode": 111,
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#2F45C8"

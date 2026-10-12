@@ -97,6 +97,16 @@ export async function saveBandSet(set: Omit<BandSet, 'id'> & { id?: string }): P
   return next;
 }
 
+/** Renames one band wherever it is; its id, and so every set that used it, stays the same. */
+export async function renameBand(bandId: string, name: string): Promise<void> {
+  const trimmed = name.trim();
+  if (!trimmed) return;
+  const catalog = await getEquipment();
+  const set = catalog.bandSets.find((item) => item.bands.some((band) => band.id === bandId));
+  if (!set) return;
+  await saveBandSet({ ...set, bands: set.bands.map((band) => (band.id === bandId ? { ...band, name: trimmed } : band)) });
+}
+
 /** Saves the strength order of every band, lightest first, across band sets. */
 export async function saveBandOrder(bandOrder: string[]): Promise<void> {
   const catalog = await getEquipment();

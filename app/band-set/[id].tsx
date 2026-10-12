@@ -7,7 +7,7 @@ import { moveItem } from '../../src/domain/userProgram';
 import { newBand, saveBandSet, setBandSetArchived } from '../../src/features/equipment/repository';
 import { bandRange, useEquipment } from '../../src/features/equipment/useEquipment';
 import { ReorderableList } from '../../src/shared/components/ReorderableList';
-import { ActionButton, Body, Card, EmptyState, IconButton, Label, PageHeading, Screen, Sheet, tapFeedback, Text, TextField } from '../../src/shared/components/ui';
+import { ActionButton, Body, Card, EmptyState, Icon, IconButton, Label, PageHeading, Screen, Sheet, tapFeedback, Text, TextField } from '../../src/shared/components/ui';
 import { goBack } from '../../src/shared/navigation/goBack';
 import { useTheme } from '../../src/shared/theme/ThemeProvider';
 import { fonts } from '../../src/shared/theme/typography';
@@ -55,12 +55,13 @@ export default function BandSetScreen() {
         renderRow={(band, _index, row) => (
           <Card style={styles.bandRow}>
             {set.bands.length > 1 ? row.handle : null}
-            <Pressable accessibilityRole="button" accessibilityLabel={`${band.name} ${bandRange(band)}`.trim()} onPress={() => setEditing(band)} style={styles.bandMain}>
+            <Pressable accessibilityRole="button" accessibilityLabel={`${t('equipment.renameBandLabel', { name: band.name })} ${bandRange(band)}`.trim()} onPress={() => setEditing(band)} style={styles.bandMain}>
               <View style={[styles.swatch, { backgroundColor: band.color, borderColor: palette.border }]} />
               <View style={styles.flex}>
                 <Text style={styles.bandName}>{band.name}</Text>
                 <Text style={[styles.bandKg, { color: palette.textMuted }]}>{bandRange(band) || t('equipment.kgUnknown')}</Text>
               </View>
+              <Icon name="create-outline" size={20} color={palette.textMuted} />
             </Pressable>
           </Card>
         )}

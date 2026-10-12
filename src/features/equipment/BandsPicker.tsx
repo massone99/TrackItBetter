@@ -8,6 +8,7 @@ import { useTheme } from '../../shared/theme/ThemeProvider';
 import { fonts } from '../../shared/theme/typography';
 import { useScaledStyles } from '../../shared/theme/useScaledStyles';
 import { formatNumber } from '../../shared/utils/format';
+import { RenameBandSheet } from './RenameBandSheet';
 import { bandRange, bandsById, useEquipment } from './useEquipment';
 
 const TENSIONS: Tension[] = [1, 2, 3];
@@ -21,7 +22,8 @@ export function BandsPicker({ bands, onChange, children }: { bands: readonly Set
   const { t } = useTranslation();
   const { palette } = useTheme();
   const styles = useScaledStyles(baseStyles);
-  const { catalog } = useEquipment();
+  const { catalog, reload } = useEquipment();
+  const [renaming, setRenaming] = useState<{ id: string; name: string } | null>(null);
   const [picking, setPicking] = useState(false);
   const [bandSetId, setBandSetId] = useState<string | null>(null);
   if (!catalog) return null;
@@ -52,6 +54,7 @@ export function BandsPicker({ bands, onChange, children }: { bands: readonly Set
                 <Text style={styles.bandName}>{band ? band.name : t('bands.unknown')}</Text>
                 <Text style={[styles.bandMeta, { color: palette.textMuted }]}>{band ? [band.setName, bandRange(band) || t('equipment.kgUnknown')].join(' · ') : ''}</Text>
               </View>
+              {band ? <IconButton icon="create-outline" label={t('equipment.renameBandLabel', { name: band.name })} tone="plain" onPress={() => setRenaming({ id: band.id, name: band.name })} /> : null}
               <IconButton icon="close" label={t('bands.remove', { name: band?.name ?? '' })} tone="plain" onPress={() => save(bands.filter((_, index) => index !== position))} />
             </View>
             <Label>{t('bands.tension')}</Label>
@@ -93,6 +96,7 @@ export function BandsPicker({ bands, onChange, children }: { bands: readonly Set
       ) : null}
       {!picking && sets.length > 0 ? <ActionButton icon="add" label={bands.length === 0 ? t('bands.add') : t('bands.addAnother')} secondary onPress={() => setPicking(true)} /> : null}
       {children}
+      <RenameBandSheet band={renaming} onClose={() => setRenaming(null)} onDone={() => void reload()} />
     </MenuGroup>
   );
 }

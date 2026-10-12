@@ -2,6 +2,10 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.29.2 - 2026-10-12
+
+- Bands can be renamed where they are used: a pencil next to each band in the workout's band picker and in the band order opens "Rename band". In a band set the rows show a pencil too (tap opens the band's name, colour and kg). The band keeps its id, so sets already logged with it show the new name.
+
 ## 0.29.1 - 2026-10-12
 
 - Rest countdown notification: the time left is now shown large in the body of the notification and ticks every second with the app in the background or closed (the system draws it). Before, only the small header clock counted down, which some phones hide.

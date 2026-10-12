@@ -7,7 +7,8 @@ import { moveItem } from '../src/domain/userProgram';
 import { saveBandOrder } from '../src/features/equipment/repository';
 import { bandRange, useEquipment } from '../src/features/equipment/useEquipment';
 import { ReorderableList } from '../src/shared/components/ReorderableList';
-import { Body, Card, PageHeading, Screen, Text } from '../src/shared/components/ui';
+import { Body, Card, IconButton, PageHeading, Screen, Text } from '../src/shared/components/ui';
+import { RenameBandSheet } from '../src/features/equipment/RenameBandSheet';
 import { useTheme } from '../src/shared/theme/ThemeProvider';
 import { fonts } from '../src/shared/theme/typography';
 import { useScaledStyles } from '../src/shared/theme/useScaledStyles';
@@ -19,6 +20,7 @@ export default function BandOrderScreen() {
   const styles = useScaledStyles(baseStyles);
   const { catalog, reload } = useEquipment();
   const [error, setError] = useState<string | null>(null);
+  const [renaming, setRenaming] = useState<{ id: string; name: string } | null>(null);
   useFocusEffect(useCallback(() => { void reload(); }, [reload]));
   if (!catalog) return <Screen><ActivityIndicator color={palette.accentStrong} /></Screen>;
 
@@ -53,9 +55,11 @@ export default function BandOrderScreen() {
               <Text style={styles.name}>{band.name}</Text>
               <Text style={[styles.meta, { color: palette.textMuted }]}>{[band.setName, bandRange(band) || t('equipment.kgUnknown')].join(' · ')}</Text>
             </View>
+            <IconButton icon="create-outline" tone="plain" label={t('equipment.renameBandLabel', { name: band.name })} onPress={() => setRenaming({ id: band.id, name: band.name })} />
           </Card>
         )}
       />
+      <RenameBandSheet band={renaming} onClose={() => setRenaming(null)} onDone={() => void reload()} />
     </Screen>
   );
 }
