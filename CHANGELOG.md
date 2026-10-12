@@ -2,6 +2,11 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.28.2 - 2026-10-12
+
+- Mobility: the play button of a routine (in the list, the suggested card and the builder) now always starts the narrated player with the voice on; the silent start is gone (the voice can still be turned off inside the player). The second button opens the routine as a regular workout.
+- Narrated player: when the phone's text-to-speech reports an error, the player says so on screen instead of staying silent.
+
 ## 0.28.1 - 2026-10-12
 
 - Narrated player: an announcement that does not start within 1.5 s is spoken once more, so the voice is not lost when the speech engine drops the first request (in 0.27.0 only the beeps of the last three seconds were audible).

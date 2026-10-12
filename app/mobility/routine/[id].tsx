@@ -28,6 +28,11 @@ import { useTheme } from '../../../src/shared/theme/ThemeProvider';
 import { fonts } from '../../../src/shared/theme/typography';
 import { useScaledStyles } from '../../../src/shared/theme/useScaledStyles';
 import { goBack } from '../../../src/shared/navigation/goBack';
+import * as Crypto from 'expo-crypto';
+import { prescriptionsFromSteps } from '../../../src/domain/mobilityImport';
+import { startPrescribedWorkout } from '../../../src/features/programs/startUserSession';
+import { getActiveWorkout } from '../../../src/features/session/repository';
+import { WorkoutInProgressSheet } from '../../../src/features/session/WorkoutInProgressSheet';
 import { useSaveOnLeave } from '../../../src/shared/forms/useSaveOnLeave';
 import { DurationField, HoldDurationField } from '../../../src/shared/components/DateTimePickers';
 import { formatClock } from '../../../src/shared/utils/format';
@@ -55,6 +60,7 @@ export default function RoutineBuilderScreen() {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // Set while leaving with an incomplete routine: confirming drops the edits and goes on.
+  const [blockedBy, setBlockedBy] = useState<{ id: string; name: string } | null>(null);
   const [discardResume, setDiscardResume] = useState<(() => void) | null>(null);
   const [favourite, setFavourite] = useState(false);
   const [expanded, setExpanded] = useState<string | null>(null);
@@ -172,6 +178,19 @@ export default function RoutineBuilderScreen() {
     router.push({ pathname: '/mobility/play/[id]', params: { id: idRef.current, voice: voice ? '1' : '0' } });
   };
 
+  /** Saves, then opens the routine as a regular workout with its sets prefilled. */
+  const startAsWorkout = async () => {
+    if (!(await persist()) || !idRef.current) { setError(steps.length === 0 ? t('mobilityHub.needsDrill') : t('mobilityHub.saveError')); return; }
+    try {
+      const open = await getActiveWorkout();
+      if (open) { setBlockedBy({ id: open.id, name: open.name }); return; }
+      const workoutId = await startPrescribedWorkout(name.trim() || t('mobility.builderTitle'), prescriptionsFromSteps(steps, () => Crypto.randomUUID()));
+      router.push({ pathname: '/workout/[id]', params: { id: workoutId } });
+    } catch {
+      setError(t('startFrom.error'));
+    }
+  };
+
   const drillSummary = (step: MobilityStep) => [
     step.mode === 'hold' ? t('mobilityHub.drillSummaryHold', { value: step.seconds }) : t('mobilityHub.drillSummaryReps', { value: step.reps }),
     t('mobilityHub.drillSummaryRounds', { count: step.rounds }),
@@ -186,8 +205,8 @@ export default function RoutineBuilderScreen() {
   return (
     <Screen footer={steps.length > 0 ? (
       <>
-        <FooterAction icon="play" label={t('mobilityHub.startNow')} onPress={() => void start(false)} />
-        <FooterAction icon="mic-outline" secondary label={t('mobilityHub.startVoice')} onPress={() => void start(true)} />
+        <FooterAction icon="play" label={t('mobilityHub.startNarrated')} onPress={() => void start(true)} />
+        <FooterAction icon="barbell-outline" secondary label={t('mobilityHub.startAsWorkoutShort')} onPress={() => void startAsWorkout()} />
       </>
     ) : undefined}>
       <PageHeading title={isNew && !name ? t('mobility.builderNew') : name || t('mobility.builderTitle')} subtitle={steps.length ? `${t('mobility.estimated', { count: minutes })}${saveState === 'saving' ? ` · ${t('mobilityHub.saving')}` : saveState === 'error' ? ` · ${t('mobilityHub.saveError')}` : dirty ? '' : ` · ${t('mobilityHub.saved')}`}` : undefined}
@@ -280,6 +299,7 @@ export default function RoutineBuilderScreen() {
         onClose={() => setPickerOpen(false)}
       />
 
+      <WorkoutInProgressSheet active={blockedBy} onClose={() => setBlockedBy(null)} />
       <Sheet visible={discardResume !== null} onClose={() => setDiscardResume(null)} title={t('mobility.invalid')}>
         <ActionButton label={t('logger.keepGoing')} secondary onPress={() => setDiscardResume(null)} />
         <ActionButton label={t('mobility.endDiscard')} variant="danger" onPress={() => { const resume = discardResume; setDiscardResume(null); resume?.(); }} />

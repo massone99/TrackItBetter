@@ -169,7 +169,7 @@ export default function MobilityHubScreen() {
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={`${t('mobility.start')} ${recommended.name}`}
-            onPress={() => play(recommended)}
+            onPress={() => play(recommended, true)}
             style={({ pressed }) => [styles.suggestedPlay, { backgroundColor: palette.heroText, opacity: pressed ? 0.8 : 1 }]}
           >
             <Icon name="play" size={24} color={palette.hero} />
@@ -268,8 +268,8 @@ export default function MobilityHubScreen() {
                         {t('mobility.drills', { count: routine.steps.length })} · {t('mobility.minutes', { count: minutesOf(routine) })} · {lastRun(routine)}
                       </Text>
                     </Pressable>
-                    <IconButton icon="mic-outline" tone="plain" size={48} color={palette.accentStrong} label={`${t('mobilityHub.startNarrated')} ${routine.name}`} onPress={() => play(routine, true)} />
-                    <IconButton icon="play" tone="accent" size={48} label={`${t('mobilityHub.startSilent')} ${routine.name}`} onPress={() => play(routine, false)} />
+                    <IconButton icon="barbell-outline" tone="plain" size={48} color={palette.accentStrong} label={`${t('mobilityHub.startAsWorkout')}: ${routine.name}`} onPress={() => void startAsWorkout(routine)} />
+                    <IconButton icon="play" tone="accent" size={48} label={`${t('mobilityHub.startNarrated')}: ${routine.name}`} onPress={() => play(routine, true)} />
                     <IconButton icon="ellipsis-vertical" tone="plain" size={48} label={t('mobilityHub.more', { name: routine.name })} onPress={() => setMenuFor(routine)} />
                   </View>
                 ))}

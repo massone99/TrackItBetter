@@ -58,6 +58,8 @@ export function NarrationPlayer({ draftKey, title, segments, drills, exitHref, i
   const [endsAt, setEndsAt] = useState<number | null>(null);
   const [pausedRemaining, setPausedRemaining] = useState<number | null>(null);
   // Full length of a timed segment whose announcement is still being spoken; its countdown starts after it.
+  // Set when the speech engine reports an error, so a silent player says why.
+  const [voiceFailed, setVoiceFailed] = useState(false);
   const [announcingMs, setAnnouncingMs] = useState<number | null>(null);
   const announceToken = useRef(0);
   const [now, setNow] = useState(() => Date.now());
@@ -100,9 +102,9 @@ export function NarrationPlayer({ draftKey, title, segments, drills, exitHref, i
     const language = i18n.resolvedLanguage === 'it' ? 'it-IT' : 'en-US';
     let started = false;
     const say = () => {
-      Speech.speak(text, { language, rate: 0.98, onStart: () => { started = true; }, onDone: settle, onStopped: settle, onError: settle });
+      Speech.speak(text, { language, rate: 0.98, onStart: () => { started = true; }, onDone: settle, onStopped: settle, onError: () => { setVoiceFailed(true); settle(); } });
       // An utterance that never starts (flushed by a stop in flight) is spoken once more.
-      setTimeout(() => { if (!started && !settled) Speech.speak(text, { language, rate: 0.98, onStart: () => { started = true; }, onDone: settle, onStopped: settle, onError: settle }); }, RETRY_AFTER_MS);
+      setTimeout(() => { if (!started && !settled) Speech.speak(text, { language, rate: 0.98, onStart: () => { started = true; setVoiceFailed(false); }, onDone: settle, onStopped: settle, onError: () => { setVoiceFailed(true); settle(); } }); }, RETRY_AFTER_MS);
     };
     Speech.stop().then(say, say);
   }, [voice, i18n.resolvedLanguage]);
@@ -313,6 +315,7 @@ export function NarrationPlayer({ draftKey, title, segments, drills, exitHref, i
         ) : null}
       </ScrollView>
 
+      {voice && voiceFailed ? <Text accessibilityLiveRegion="polite" style={[styles.nextUp, { color: palette.warning }]}>{t('narration.voiceUnavailable')}</Text> : null}
       <Text style={[styles.nextUp, { color: soft }]}>{nextName ? t('mobility.nextUp', { name: nextName }) : !nextWork ? t('mobility.lastOne') : ' '}</Text>
 
       <View style={styles.controls}>
