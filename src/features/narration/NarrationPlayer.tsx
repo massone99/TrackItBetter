@@ -191,7 +191,8 @@ export function NarrationPlayer({ draftKey, title, segments, drills, exitHref, o
   useEffect(() => {
     if (secondsLeft === null || secondsLeft <= 0 || secondsLeft > 3 || paused || announcingMs !== null) return;
     playBeep('tick');
-    if (countingIn) speak(String(secondsLeft));
+    // A spoken number never cuts an announcement still in progress.
+    if (countingIn) void Speech.isSpeakingAsync().then((speaking) => { if (!speaking) speak(String(secondsLeft)); }, () => speak(String(secondsLeft)));
   }, [secondsLeft, paused, announcingMs, countingIn, speak]);
 
   const togglePause = () => {

@@ -2,6 +2,10 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.23.4 - 2026-10-12
+
+- Narrated player: the spoken countdown numbers (3, 2, 1) no longer cut an announcement that is still being spoken.
+
 ## 0.23.3 - 2026-10-12
 
 - Narrated player: the countdown of a set, preparation, switch or rest now starts when its announcement has finished, so the voice no longer eats into the time (at most 8 s of waiting). Without voice it starts at once; pausing during the announcement skips the rest of it.
