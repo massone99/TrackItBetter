@@ -2,6 +2,10 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.27.1 - 2026-10-12
+
+- Narrated player: the announcement of the exercise before the preparation countdown is no longer lost. The player now waits for the previous speech to be stopped before speaking, so a late stop cannot flush the new announcement and start the countdown in silence.
+
 ## 0.27.0 - 2026-10-12
 
 - Mobility home: routines are grouped by program, in sections you can collapse (the choice is remembered). A routine made from a program workout is filed under that program; older ones are matched by the name of the workout, otherwise they sit under "No program". The menu has "Move to a program".

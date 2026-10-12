@@ -93,8 +93,11 @@ export function NarrationPlayer({ draftKey, title, segments, drills, exitHref, i
     };
     const fallback = setTimeout(settle, ANNOUNCEMENT_TIMEOUT_MS);
     if (!voice || !text) { settle(); return; }
-    void Speech.stop();
-    Speech.speak(text, { language: i18n.resolvedLanguage === 'it' ? 'it-IT' : 'en-US', rate: 0.98, onDone: settle, onStopped: settle, onError: settle });
+    // Stop and speak are separate native calls: speaking only once the stop has finished keeps a late
+    // stop from flushing the new announcement, which would start the countdown in silence.
+    const language = i18n.resolvedLanguage === 'it' ? 'it-IT' : 'en-US';
+    const say = () => Speech.speak(text, { language, rate: 0.98, onDone: settle, onStopped: settle, onError: settle });
+    Speech.stop().then(say, say);
   }, [voice, i18n.resolvedLanguage]);
 
   const finish = useCallback(async (records: Map<number, Performed>) => {
