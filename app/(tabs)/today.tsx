@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { Pressable, StyleSheet, View } from "react-native";
 import { getProgressSnapshot } from "../../src/features/analytics/repository";
 import { estimateSessionSeconds, programsByRecentUse, sessionSetCount, type UserProgram, type UserProgramSession } from "../../src/domain/userProgram";
+import { WorkoutInProgressSheet } from "../../src/features/session/WorkoutInProgressSheet";
 import { StartFromProgramSheet } from "../../src/features/programs/StartFromProgramSheet";
 import { startUserProgramSession } from "../../src/features/programs/startUserSession";
 import { listUserPrograms } from "../../src/features/programs/userPrograms";
@@ -66,6 +67,7 @@ export default function TodayScreen() {
   const [starting, setStarting] = useState<string | null>(null);
   const [repeating, setRepeating] = useState(false);
   const [chooserOpen, setChooserOpen] = useState(false);
+  const [blockedBy, setBlockedBy] = useState<{ id: string; name: string } | null>(null);
   const [notice, setNotice] = useState<{ message: string; programId?: string } | null>(null);
 
   // Refocusing keeps the previous data on screen while the new one loads, so nothing flashes.
@@ -220,10 +222,12 @@ export default function TodayScreen() {
         )}
       </View>
 
+      <WorkoutInProgressSheet active={blockedBy} onClose={() => setBlockedBy(null)} />
       <StartFromProgramSheet
         visible={chooserOpen}
         onClose={() => setChooserOpen(false)}
         onStarted={(workoutId) => { setChooserOpen(false); router.push({ pathname: "/workout/[id]", params: { id: workoutId } }); }}
+        onBlocked={(open) => { setChooserOpen(false); setBlockedBy(open); }}
         onError={(message) => { setChooserOpen(false); setNotice({ message }); }}
       />
 

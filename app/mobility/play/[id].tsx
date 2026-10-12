@@ -3,21 +3,13 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ActivityIndicator } from 'react-native';
 import { expandRoutine } from '../../../src/domain/mobilityPlan';
+import { firstCue } from '../../../src/features/exercises/cues';
 import { getExerciseById } from '../../../src/features/exercises/repository';
 import { getMobilityRoutine, markMobilityRoutineDone, type MobilityRoutine } from '../../../src/features/mobility/routines';
 import { NarrationPlayer, type NarrationDrill, type NarrationRecord } from '../../../src/features/narration/NarrationPlayer';
 import { logCompletedWorkout, type LoggedSetInput } from '../../../src/features/session/repository';
 import { PageHeading, Screen } from '../../../src/shared/components/ui';
 import { useTheme } from '../../../src/shared/theme/ThemeProvider';
-
-function readCues(value: string): string | null {
-  try {
-    const parsed: unknown = JSON.parse(value);
-    return Array.isArray(parsed) && typeof parsed[0] === 'string' ? parsed[0] : null;
-  } catch {
-    return null;
-  }
-}
 
 export default function MobilityPlayerScreen() {
   const { id, voice } = useLocalSearchParams<{ id: string; voice?: string }>();
@@ -40,7 +32,7 @@ export default function MobilityPlayerScreen() {
       });
       setDrills(found.steps.map((step, position) => {
         const exercise = exercises[position];
-        return { name: exercise?.name ?? '—', cue: exercise ? readCues(exercise.cues) : null, demoUrl: exercise?.demoUrl ?? null, rounds: step.rounds };
+        return { name: exercise?.name ?? '—', cue: exercise ? firstCue(exercise.cues) : null, demoUrl: exercise?.demoUrl ?? null, rounds: step.rounds };
       }));
     })();
     return () => { mounted = false; };

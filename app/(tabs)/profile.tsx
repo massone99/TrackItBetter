@@ -6,7 +6,7 @@ import Constants from "expo-constants";
 import { Body, Card, Icon, Label, ListGroup, ListRow, PageHeading, Screen, SectionTitle, SegmentedControl, SwitchRow, Text } from "../../src/shared/components/ui";
 import { fonts } from "../../src/shared/theme/typography";
 import { DurationField } from "../../src/shared/components/DateTimePickers";
-import { MAX_NARRATION_PREP_SEC, readNarrationPrepSec, readNarrationVoice, writeNarrationPrepSec, writeNarrationVoice } from "../../src/features/narration/settings";
+import { MAX_NARRATION_PREP_SEC, readNarrationPrepSec, writeNarrationPrepSec } from "../../src/features/narration/settings";
 import { readDefaultRest, writeDefaultRest } from "../../src/features/session/restDefaults";
 import { readBooleanPreference, RPE_PROMPT_KEY, writePreference } from "../../src/shared/settings/preferences";
 import { UI_SCALES, type UiScale } from "../../src/shared/theme/scale";
@@ -21,7 +21,6 @@ export default function ProfileScreen() {
   const { preference, setMode, palette, scale, setScale } = useTheme();
   const { speed, setSpeed, reducedMotion } = useAnimationSettings();
   const [rpePrompt, setRpePrompt] = useState(() => readBooleanPreference(RPE_PROMPT_KEY, true));
-  const [voice, setVoice] = useState(readNarrationVoice);
   const [prepSec, setPrepSec] = useState(readNarrationPrepSec);
   const [rest, setRest] = useState(() => ({ working: readDefaultRest("working"), warmup: readDefaultRest("warmup") }));
   const changeRest = (kind: "working" | "warmup", seconds: number) => { setRest((current) => ({ ...current, [kind]: seconds })); writeDefaultRest(kind, seconds); };
@@ -89,7 +88,6 @@ export default function ProfileScreen() {
 
       <SectionTitle title={t("narration.title")} />
       <Card>
-        <SwitchRow icon="volume-high" title={t("narration.voice")} subtitle={t("narration.voiceHint")} value={voice} onChange={(next) => { setVoice(next); writeNarrationVoice(next); }} />
         <DurationField label={t("narration.prep")} value={prepSec} min={0} max={MAX_NARRATION_PREP_SEC} step={1} presets={[0, 3, 5, 10]} format={(seconds) => seconds === 0 ? t("narration.prepOff") : t("userProgram.secondsValue", { value: seconds })} onChange={(value) => { setPrepSec(value); writeNarrationPrepSec(value); }} />
         <Body>{t("narration.prepHint")}</Body>
       </Card>

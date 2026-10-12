@@ -2,17 +2,14 @@ import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Platform, Pressable, StyleSheet, View } from 'react-native';
-import { prescriptionsFromSteps } from '../../src/domain/mobilityImport';
 import { estimateRoutineSeconds } from '../../src/domain/mobilityPlan';
 import { groupRoutinesByProgram, type GroupProgram } from '../../src/domain/mobilityGroups';
 import { daysSinceRun, recommendRoutine } from '../../src/domain/mobilityRecommend';
 import { GOAL_PRESETS_MIN, readWeeklyGoalMin, writeWeeklyGoalMin } from '../../src/features/mobility/goal';
 import { deleteMobilityRoutine, duplicateMobilityRoutine, listMobilityRoutines, moveMobilityRoutine, setMobilityFavourite, type MobilityRoutine } from '../../src/features/mobility/routines';
 import { programTemplates } from '../../src/features/programs/catalog';
-import { startPrescribedWorkout } from '../../src/features/programs/startUserSession';
-import { getActiveWorkout } from '../../src/features/session/repository';
+import { startRoutineAsWorkout } from '../../src/features/mobility/startAsWorkout';
 import { WorkoutInProgressSheet } from '../../src/features/session/WorkoutInProgressSheet';
-import * as Crypto from 'expo-crypto';
 import { listUserPrograms } from '../../src/features/programs/userPrograms';
 import { getMobilityCycles, getMobilityWeek } from '../../src/features/analytics/repository';
 import type { ExerciseCycle, MobilityWeek } from '../../src/features/analytics/mobility';
@@ -91,10 +88,9 @@ export default function MobilityHubScreen() {
     setMenuFor(null);
     setFailed(false);
     try {
-      const open = await getActiveWorkout();
-      if (open) { setBlockedBy({ id: open.id, name: open.name }); return; }
-      const workoutId = await startPrescribedWorkout(routine.name, prescriptionsFromSteps(routine.steps, () => Crypto.randomUUID()));
-      router.push({ pathname: '/workout/[id]', params: { id: workoutId } });
+      const result = await startRoutineAsWorkout(routine.id);
+      if ('active' in result) setBlockedBy(result.active);
+      else router.push({ pathname: '/workout/[id]', params: { id: result.workoutId } });
     } catch {
       setFailed(true);
     }

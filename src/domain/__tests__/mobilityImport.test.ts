@@ -32,14 +32,14 @@ describe('mobility import', () => {
 });
 
 describe('prescriptionsFromSteps', () => {
-  it('turns drills into prescribed exercises: rounds to sets, hold seconds or reps as target', () => {
+  it('turns drills into prescribed exercises: rounds to sets, target in the exercise measure', () => {
     let n = 0;
+    const metric = (id: string) => ({ pigeon: 'time', catcow: 'reps', walk: 'distance' } as Record<string, string>)[id];
     expect(prescriptionsFromSteps([
       { id: 'a', exerciseId: 'pigeon', mode: 'hold', seconds: 45, reps: 10, perSide: true, rounds: 3, restSec: 20 },
       { id: 'b', exerciseId: 'catcow', mode: 'reps', seconds: 30, reps: 12, perSide: false, rounds: 2, restSec: 0 },
-    ], () => `p${n++}`)).toEqual([
-      { id: 'p0', exerciseId: 'pigeon', sets: 3, target: 45, restSeconds: 20 },
-      { id: 'p1', exerciseId: 'catcow', sets: 2, target: 12, restSeconds: 0 },
-    ]);
+      { id: 'c', exerciseId: 'catcow', mode: 'hold', seconds: 30, reps: 12, perSide: false, rounds: 1, restSec: 0 },
+      { id: 'd', exerciseId: 'walk', mode: 'reps', seconds: 30, reps: 12, perSide: false, rounds: 1, restSec: 0 },
+    ], metric, () => `p${n++}`).map((p) => p.target)).toEqual([45, 12, null, null]);
   });
 });

@@ -37,3 +37,11 @@ describe('buildNarrationPlan', () => {
     expect(plan).toEqual([{ kind: 'work', stepIndex: 0, round: 2, side: null, mode: 'reps', durationSec: null, reps: 8, setIds: ['2'] }]);
   });
 });
+
+describe('buildNarrationPlan with a half-done pair', () => {
+  it('narrates only the side still open', () => {
+    const left = set('1', { pairId: 'p', side: 'left', done: true });
+    const right = set('2', { pairId: 'p', side: 'right' });
+    expect(kinds(buildNarrationPlan([exercise('a', [left, right])], 0))).toEqual(['work0:1r']);
+  });
+});

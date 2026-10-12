@@ -35,7 +35,8 @@ interface Unit { exerciseIndex: number; sets: NarrationSet[]; setNumber: number;
 function orderUnits(exercises: readonly NarrationExercise[]): Unit[] {
   const perExercise = exercises.map((exercise) => {
     const all = groupSets(exercise.sets);
-    return all.map((sets, position) => ({ sets, setNumber: position + 1 })).filter(({ sets }) => !sets.every((set) => set.done));
+    // Only the open sides of a pair are done again; a fully done set or pair is skipped.
+    return all.map((sets, position) => ({ sets: sets.filter((set) => !set.done), setNumber: position + 1 })).filter(({ sets }) => sets.length > 0);
   });
   const units: Unit[] = [];
   const doneGroups = new Set<string>();

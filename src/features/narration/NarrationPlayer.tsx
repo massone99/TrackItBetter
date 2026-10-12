@@ -7,7 +7,6 @@ import { useAppInsets } from '../../shared/layout/useAppInsets';
 import { type MobilitySegment, type MobilitySide } from '../../domain/mobilityPlan';
 import { openReferenceVideo } from '../exercises/ReferenceLinkSheet';
 import { WorkoutStopwatch } from '../session/WorkoutStopwatch';
-import { readNarrationVoice, writeNarrationVoice } from './settings';
 import { ActionButton, Icon, IconButton, PageHeading, Screen, Sheet, tapFeedback, Text } from '../../shared/components/ui';
 import { readPreference, writePreference } from '../../shared/settings/preferences';
 import { useTheme } from '../../shared/theme/ThemeProvider';
@@ -40,10 +39,15 @@ export interface NarrationPlayerProps {
   onSave: (records: NarrationRecord[], startedAt: Date) => Promise<void>;
 }
 
-function readDraft(key: string): { records: [number, Performed][]; index: number; startedAt: number } | null {
+/** Identifies a plan, so a saved position is only resumed on the very plan it was saved for. */
+function planSignature(segments: readonly MobilitySegment[]): string {
+  return segments.map((s) => (s.kind === 'work' ? `w${s.stepIndex}.${s.round}.${s.side ?? ''}.${s.setIds?.join('+') ?? ''}` : `${s.kind}${s.stepIndex}.${s.durationSec}`)).join('|');
+}
+
+function readDraft(key: string, signature: string): { records: [number, Performed][]; index: number; startedAt: number } | null {
   try {
     const value = JSON.parse(readPreference(key) ?? 'null');
-    if (!value || !Array.isArray(value.records)) return null;
+    if (!value || !Array.isArray(value.records) || value.signature !== signature) return null;
     return { ...value, records: value.records.map(([key, row]: [number, Performed]) => [key, { ...row, completedAt: new Date(row.completedAt) }]) };
   } catch { return null; }
 }
@@ -54,7 +58,8 @@ export function NarrationPlayer({ draftKey, title, segments, drills, exitHref, i
   const { t, i18n } = useTranslation();
   const { palette } = useTheme();
   const insets = useAppInsets();
-  const [index, setIndex] = useState(() => readDraft(draftKey)?.index ?? 0);
+  const [signature] = useState(() => planSignature(segments));
+  const [index, setIndex] = useState(() => readDraft(draftKey, signature)?.index ?? 0);
   const [endsAt, setEndsAt] = useState<number | null>(null);
   const [pausedRemaining, setPausedRemaining] = useState<number | null>(null);
   // Full length of a timed segment whose announcement is still being spoken; its countdown starts after it.
@@ -62,19 +67,20 @@ export function NarrationPlayer({ draftKey, title, segments, drills, exitHref, i
   const [voiceFailed, setVoiceFailed] = useState(false);
   const [announcingMs, setAnnouncingMs] = useState<number | null>(null);
   const announceToken = useRef(0);
+  const speechGeneration = useRef(0);
   const [now, setNow] = useState(() => Date.now());
-  const [performed, setPerformed] = useState<Map<number, Performed>>(() => new Map(readDraft(draftKey)?.records ?? []));
+  const [performed, setPerformed] = useState<Map<number, Performed>>(() => new Map(readDraft(draftKey, signature)?.records ?? []));
   const [ending, setEnding] = useState(false);
-  const [voice, setVoice] = useState(() => initialVoice ?? readNarrationVoice());
-  const [initialStart] = useState(() => new Date(readDraft(draftKey)?.startedAt ?? Date.now()));
+  const [voice, setVoice] = useState(() => initialVoice ?? true);
+  const [initialStart] = useState(() => new Date(readDraft(draftKey, signature)?.startedAt ?? Date.now()));
   const startedAt = useRef(initialStart);
   const finished = useRef(false);
   const started = useRef(false);
   useEffect(() => {
-    if (!finished.current) writePreference(draftKey, JSON.stringify({ records: [...performed], index, startedAt: startedAt.current.getTime() }));
-  }, [draftKey, performed, index]);
+    if (!finished.current) writePreference(draftKey, JSON.stringify({ records: [...performed], index, startedAt: startedAt.current.getTime(), signature }));
+  }, [draftKey, performed, index, signature]);
 
-  useEffect(() => () => { announceToken.current += 1; void Speech.stop(); }, []);
+  useEffect(() => () => { announceToken.current += 1; speechGeneration.current += 1; void Speech.stop(); }, []);
 
   const segment = segments[index] as MobilitySegment | undefined;
   const paused = pausedRemaining !== null;
@@ -101,10 +107,18 @@ export function NarrationPlayer({ draftKey, title, segments, drills, exitHref, i
     // stop from flushing the new announcement, which would start the countdown in silence.
     const language = i18n.resolvedLanguage === 'it' ? 'it-IT' : 'en-US';
     let started = false;
+    // Every new utterance (or leaving the player) makes the pending retry of an older one obsolete.
+    const generation = ++speechGeneration.current;
+    const options = { language, rate: 0.98, onStart: () => { started = true; setVoiceFailed(false); }, onDone: settle, onStopped: settle, onError: () => { setVoiceFailed(true); settle(); } };
     const say = () => {
-      Speech.speak(text, { language, rate: 0.98, onStart: () => { started = true; }, onDone: settle, onStopped: settle, onError: () => { setVoiceFailed(true); settle(); } });
-      // An utterance that never starts (flushed by a stop in flight) is spoken once more.
-      setTimeout(() => { if (!started && !settled) Speech.speak(text, { language, rate: 0.98, onStart: () => { started = true; setVoiceFailed(false); }, onDone: settle, onStopped: settle, onError: () => { setVoiceFailed(true); settle(); } }); }, RETRY_AFTER_MS);
+      Speech.speak(text, options);
+      // An utterance that never starts (flushed by a stop in flight) is spoken once more, unless speech is under way.
+      setTimeout(() => {
+        if (started || settled || speechGeneration.current !== generation) return;
+        void Speech.isSpeakingAsync().then((speaking) => {
+          if (!speaking && !started && !settled && speechGeneration.current === generation) Speech.speak(text, options);
+        }, () => undefined);
+      }, RETRY_AFTER_MS);
     };
     Speech.stop().then(say, say);
   }, [voice, i18n.resolvedLanguage]);
@@ -187,7 +201,7 @@ export function NarrationPlayer({ draftKey, title, segments, drills, exitHref, i
     if (!segment) return records;
     if (segment.kind !== 'work') return records;
     const next = new Map(records);
-    next.set(index, { stepIndex: segment.stepIndex, round: segment.round, side: segment.side, seconds: segment.durationSec, reps: segment.reps, completedAt: new Date() });
+    next.set(index, { stepIndex: segment.stepIndex, round: segment.round, side: segment.side, seconds: segment.durationSec, reps: segment.reps, completedAt: new Date(), setIds: segment.setIds });
     return next;
   }, [segment, index]);
 
@@ -248,7 +262,6 @@ export function NarrationPlayer({ draftKey, title, segments, drills, exitHref, i
   const toggleVoice = () => {
     const next = !voice;
     setVoice(next);
-    writeNarrationVoice(next);
     if (!next) void Speech.stop();
   };
 

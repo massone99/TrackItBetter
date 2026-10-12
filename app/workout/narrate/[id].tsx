@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { ActivityIndicator } from 'react-native';
 import { buildNarrationPlan, type NarrationExercise } from '../../../src/domain/narration';
 import { groupSets } from '../../../src/domain/setPairs';
+import { firstCue } from '../../../src/features/exercises/cues';
 import { getExerciseById } from '../../../src/features/exercises/repository';
 import { NarrationPlayer, type NarrationDrill, type NarrationRecord } from '../../../src/features/narration/NarrationPlayer';
 import { readNarrationPrepSec } from '../../../src/features/narration/settings';
@@ -11,15 +12,6 @@ import { restForSet } from '../../../src/features/session/restDefaults';
 import { completeSet, getActiveWorkout, type ActiveWorkout } from '../../../src/features/session/repository';
 import { PageHeading, Screen } from '../../../src/shared/components/ui';
 import { useTheme } from '../../../src/shared/theme/ThemeProvider';
-
-function firstCue(value: string): string | null {
-  try {
-    const parsed: unknown = JSON.parse(value);
-    return Array.isArray(parsed) && typeof parsed[0] === 'string' ? parsed[0] : null;
-  } catch {
-    return null;
-  }
-}
 
 /** Hands-free session over a workout's open sets: announces, counts down, rests, and marks each set done. */
 export default function NarratedWorkoutScreen() {
@@ -67,7 +59,7 @@ export default function NarratedWorkoutScreen() {
 
   const save = useCallback(async (records: NarrationRecord[]) => {
     for (const record of records) {
-      for (const setId of record.setIds ?? []) await completeSet(setId);
+      for (const setId of record.setIds ?? []) await completeSet(setId, record.completedAt);
     }
     router.replace({ pathname: '/workout/[id]', params: { id } });
   }, [id]);

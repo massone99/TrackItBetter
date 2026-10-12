@@ -57,23 +57,25 @@ export function stepsFromWorkout(exercises: readonly ImportExercise[], info: Rea
 }
 
 /**
- * A routine's drills as the prescriptions a regular workout is started from: rounds become sets, a
- * hold its seconds, a rep drill its reps, and the rest between rounds carries over.
+ * A routine's drills as the prescriptions a regular workout is started from: rounds become sets and the
+ * rest between rounds carries over. The target follows the exercise's measure: a hold gives seconds to
+ * a timed exercise, a rep drill reps to a rep exercise; when the drill and the measure disagree (or the
+ * exercise is measured in distance) the target is left open rather than logged in the wrong unit.
  */
-export function prescriptionsFromSteps(steps: readonly MobilityStep[], newId: () => string): ImportPrescription[] {
-  return steps.map((step) => ({
-    id: newId(),
-    exerciseId: step.exerciseId,
-    sets: step.rounds,
-    target: step.mode === 'hold' ? step.seconds : step.reps,
-    restSeconds: step.restSec,
-  }));
+export function prescriptionsFromSteps(steps: readonly MobilityStep[], metricOf: (exerciseId: string) => string | undefined, newId: () => string): ImportPrescription[] {
+  return steps.map((step) => {
+    const metric = metricOf(step.exerciseId);
+    const timed = metric === 'time' || metric === 'time_load';
+    const counted = metric === 'reps' || metric === 'reps_load';
+    const target = timed && step.mode === 'hold' ? step.seconds : counted && step.mode === 'reps' ? step.reps : null;
+    return { id: newId(), exerciseId: step.exerciseId, sets: step.rounds, target, restSeconds: step.restSec };
+  });
 }
 
 export interface ImportPrescription {
   id: string;
   exerciseId: string;
   sets: number;
-  target: number;
+  target: number | null;
   restSeconds: number;
 }

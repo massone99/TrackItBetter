@@ -28,10 +28,7 @@ import { useTheme } from '../../../src/shared/theme/ThemeProvider';
 import { fonts } from '../../../src/shared/theme/typography';
 import { useScaledStyles } from '../../../src/shared/theme/useScaledStyles';
 import { goBack } from '../../../src/shared/navigation/goBack';
-import * as Crypto from 'expo-crypto';
-import { prescriptionsFromSteps } from '../../../src/domain/mobilityImport';
-import { startPrescribedWorkout } from '../../../src/features/programs/startUserSession';
-import { getActiveWorkout } from '../../../src/features/session/repository';
+import { startRoutineAsWorkout } from '../../../src/features/mobility/startAsWorkout';
 import { WorkoutInProgressSheet } from '../../../src/features/session/WorkoutInProgressSheet';
 import { useSaveOnLeave } from '../../../src/shared/forms/useSaveOnLeave';
 import { DurationField, HoldDurationField } from '../../../src/shared/components/DateTimePickers';
@@ -71,6 +68,8 @@ export default function RoutineBuilderScreen() {
   const idRef = useRef<string | null>(isNew ? null : id);
   // Saves run one after another, so autosave and Start can never create the routine twice.
   const queue = useRef<Promise<boolean>>(Promise.resolve(true));
+  // Once deleting, no queued or later save may write the routine back.
+  const deleting = useRef(false);
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'error'>('idle');
   const [savedSnapshot, setSavedSnapshot] = useState(() => JSON.stringify({ name: '', favourite: false, transitionSec: 10, prepSec: DEFAULT_PREP_SEC, steps: [] }));
   const snapshot = JSON.stringify({ name, favourite, transitionSec, prepSec, steps });
@@ -135,6 +134,7 @@ export default function RoutineBuilderScreen() {
   /** Stores the routine; false while it still lacks a drill (a missing name becomes the first drill's name) or when saving fails. */
   const persist = (): Promise<boolean> => {
     const job = queue.current.catch(() => false).then(async () => {
+      if (deleting.current) return true;
       const title = name.trim() || (steps[0] ? exerciseInfo.get(steps[0].exerciseId)?.name.slice(0, 60) ?? '' : '');
       if (!title || steps.length === 0) return false;
       setSaveState('saving');
@@ -182,10 +182,9 @@ export default function RoutineBuilderScreen() {
   const startAsWorkout = async () => {
     if (!(await persist()) || !idRef.current) { setError(steps.length === 0 ? t('mobilityHub.needsDrill') : t('mobilityHub.saveError')); return; }
     try {
-      const open = await getActiveWorkout();
-      if (open) { setBlockedBy({ id: open.id, name: open.name }); return; }
-      const workoutId = await startPrescribedWorkout(name.trim() || t('mobility.builderTitle'), prescriptionsFromSteps(steps, () => Crypto.randomUUID()));
-      router.push({ pathname: '/workout/[id]', params: { id: workoutId } });
+      const result = await startRoutineAsWorkout(idRef.current);
+      if ('active' in result) setBlockedBy(result.active);
+      else router.push({ pathname: '/workout/[id]', params: { id: result.workoutId } });
     } catch {
       setError(t('startFrom.error'));
     }
@@ -305,7 +304,7 @@ export default function RoutineBuilderScreen() {
         <ActionButton label={t('mobility.endDiscard')} variant="danger" onPress={() => { const resume = discardResume; setDiscardResume(null); resume?.(); }} />
       </Sheet>
       <Sheet visible={confirmDelete} onClose={() => setConfirmDelete(false)} title={t('mobility.delete')} body={t('mobility.deleteBody')}>
-        <ActionButton icon="trash-outline" label={t('logger.confirmRemove')} variant="danger" onPress={() => { allowLeave(); void deleteMobilityRoutine(savedId ?? id).then(() => goBack('/mobility')); }} />
+        <ActionButton icon="trash-outline" label={t('logger.confirmRemove')} variant="danger" onPress={() => { allowLeave(); deleting.current = true; const target = savedId ?? id; void queue.current.catch(() => false).then(() => deleteMobilityRoutine(target)).then(() => goBack('/mobility')); }} />
         <ActionButton label={t('common.cancel')} secondary onPress={() => setConfirmDelete(false)} />
       </Sheet>
     </Screen>

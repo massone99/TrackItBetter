@@ -2,6 +2,14 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.28.3 - 2026-10-12
+
+- Narrated mode always starts with the voice on (routines and workouts); the speaker button in the player turns it off for that session only. The voice switch in You is gone.
+- Narrated workout: finishing now marks the sets done, each with the time it was done (before, no set was saved). A unilateral pair with one side already done narrates only the other side.
+- Narrated player: a pending repeat of an announcement is dropped after Skip, Back or leaving, and is not repeated while speech is under way; an interrupted session resumes only if the plan is unchanged.
+- "Regular workout" from a routine uses the routine's saved name and fills the target in the exercise's own measure (left open when they disagree).
+- Home "Choose a workout" offers to resume the open workout instead of starting a second one. Deleting a routine while it is saving no longer brings it back.
+
 ## 0.28.2 - 2026-10-12
 
 - Mobility: the play button of a routine (in the list, the suggested card and the builder) now always starts the narrated player with the voice on; the silent start is gone (the voice can still be turned off inside the player). The second button opens the routine as a regular workout.

@@ -1,3 +1,4 @@
+import { isMobilityExercise } from '../exercises/categories';
 import { and, asc, count, desc, eq, gt, gte, inArray, isNotNull, isNull, lt, max, ne, or, sql } from 'drizzle-orm';
 import * as Crypto from 'expo-crypto';
 import { db, initializeDatabase } from '../../db/client';
@@ -310,7 +311,7 @@ async function loadSessionExercises(workoutId: string): Promise<SessionExercise[
       name: exercise.name,
       metric: exercise.metric,
       unilateral: exercise.unilateral,
-      mobility: exercise.category === 'mobility' || exercise.extraCategories.includes('"mobility"'),
+      mobility: isMobilityExercise(exercise),
       unilateralRestMode: entry.unilateralRestMode ?? exercise.unilateralRestMode,
       unilateralRestOverride: entry.unilateralRestMode,
       demoUrl: exercise.demoUrl,
@@ -556,10 +557,11 @@ export async function setEntryBands(entryId: string, bands: readonly SetBand[], 
   await bumpIfFinished({ entryId });
 }
 
-export async function completeSet(setId: string): Promise<void> {
+/** Marks a set done, now or at `at` (a narrated session saves each set with the time it was done). */
+export async function completeSet(setId: string, at: Date = new Date()): Promise<void> {
   await initializeDatabase();
   await requireActiveSet(setId);
-  await db.update(trainingSets).set({ completedAt: new Date() }).where(eq(trainingSets.id, setId));
+  await db.update(trainingSets).set({ completedAt: at }).where(eq(trainingSets.id, setId));
 }
 
 /** Rounds of an EMOM already recorded: completed working sets of the entry since round 1 began (a pair counts once). */

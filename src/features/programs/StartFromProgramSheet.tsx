@@ -4,6 +4,7 @@ import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { estimateSessionSeconds, sessionSetCount, type UserProgram, type UserProgramSession } from '../../domain/userProgram';
 import { ActionButton, Body, ListGroup, ListRow, Sheet } from '../../shared/components/ui';
 import { formatMinutes } from '../../shared/utils/format';
+import { getActiveWorkout } from '../session/repository';
 import { readDefaultRest } from '../session/restDefaults';
 import { listExercises } from '../exercises/repository';
 import { programTemplates } from './catalog';
@@ -23,10 +24,12 @@ interface Choice {
  * Starts any workout of any program: pick a program (yours first, then the built-in ones), then one of
  * its workouts. A failure part-way leaves nothing behind (see `startPrescribedWorkout`).
  */
-export function StartFromProgramSheet({ visible, onClose, onStarted, onError }: {
+export function StartFromProgramSheet({ visible, onClose, onStarted, onBlocked, onError }: {
   visible: boolean;
   onClose: () => void;
   onStarted: (workoutId: string) => void;
+  /** Another workout is still open: only one can be in progress. */
+  onBlocked: (active: { id: string; name: string }) => void;
   onError: (message: string) => void;
 }) {
   const { t, i18n } = useTranslation();
@@ -70,6 +73,8 @@ export function StartFromProgramSheet({ visible, onClose, onStarted, onError }: 
     if (starting) return;
     setStarting(session.id);
     try {
+      const open = await getActiveWorkout();
+      if (open) { setPicked(null); onBlocked({ id: open.id, name: open.name }); return; }
       const workoutId = await session.start();
       setPicked(null);
       onStarted(workoutId);

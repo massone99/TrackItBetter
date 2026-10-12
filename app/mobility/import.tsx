@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { stepsFromWorkout, summarizeImport, type ImportCompatibility, type ImportExercise, type ImportExerciseInfo } from '../../src/domain/mobilityImport';
+import { isMobilityExercise } from '../../src/features/exercises/categories';
 import { listExercises } from '../../src/features/exercises/repository';
 import { saveMobilityRoutine } from '../../src/features/mobility/routines';
 import { readNarrationPrepSec } from '../../src/features/narration/settings';
@@ -48,7 +49,7 @@ export default function MobilityImportScreen() {
           exercises: session.exercises.map((exercise) => ({ exerciseId: exercise.exerciseId, sets: exercise.sets, target: exercise.target, restSeconds: exercise.restSeconds ?? null })),
         })),
       })));
-      setInfo(new Map(exercises.map((exercise) => [exercise.id, { mobility: exercise.category === 'mobility' || exercise.extraCategories.includes('"mobility"'), metric: exercise.metric, unilateral: exercise.unilateral }])));
+      setInfo(new Map(exercises.map((exercise) => [exercise.id, { mobility: isMobilityExercise(exercise), metric: exercise.metric, unilateral: exercise.unilateral }])));
       setNames(new Map(exercises.map((exercise) => [exercise.id, exercise.name])));
     })();
     return () => { mounted = false; };
