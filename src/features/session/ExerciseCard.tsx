@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next';
 import { Pressable, StyleSheet, View } from 'react-native';
 import Animated, { FadeInDown, FadeOutLeft, LinearTransition, ZoomIn } from 'react-native-reanimated';
-import { useRef, type ReactNode } from 'react';
+import { useRef, useState, type ReactNode } from 'react';
 import { compareWithLast } from '../../domain/lastTime';
 import { formatRpe } from '../../domain/rpe';
 import { completedSetCount, groupSets } from '../../domain/setPairs';
@@ -131,6 +131,11 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
     : null;
   // The set to do next carries the filled button, so the eye lands on it; later sets stay quiet.
   const nextSetId = exercise.sets.find((set) => !set.completedAt)?.id ?? null;
+  // Large text opens one set at a time: the one being held, else the one tapped (until it is done or
+  // reopened), else the next to do.
+  const [picked, setPicked] = useState<{ id: string; done: boolean } | null>(null);
+  const pickedSet = picked ? exercise.sets.find((set) => set.id === picked.id && Boolean(set.completedAt) === picked.done) : undefined;
+  const focusedId = hold && exercise.sets.some((set) => set.id === hold.setId) ? hold.setId : pickedSet?.id ?? nextSetId;
 
   return (
     <View style={[styles.exerciseSection, { borderTopColor: palette.border }]}>
@@ -202,9 +207,12 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
         const done = Boolean(set.completedAt);
         // In a running EMOM a recorded round stays editable in place and keeps its check, so the round count holds.
         const emomLocked = done && Boolean(emomBadgeLabel);
+        // Very large text: the set in hand opens as a one-column block, the others fold to one line.
+        const open = !largeText || set.id === focusedId;
+        const editing = largeText && open;
         // Done rows drop − and +: a running EMOM or a long workout would otherwise be a wall of buttons.
-        const showSteps = !done || editDone;
-        const editableDone = editDone || typeDone || emomLocked;
+        const showSteps = !done || editDone || editing;
+        const editableDone = editDone || typeDone || emomLocked || editing;
         const workingNumber = groupSets(exercise.sets.filter((item) => item.kind === 'working' && item.index <= set.index)).length;
         const sideLabel = set.side === 'left' ? t('logger.sideLeft') : set.side === 'right' ? t('logger.sideRight') : '';
         const holding = hold?.setId === set.id;
@@ -213,10 +221,75 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
         const stored = timed ? set.durationSec ?? 0 : distance ? set.distanceM ?? 0 : set.reps ?? 0;
         const value = holding && hold ? holdDisplay(hold) : timed ? formatClock(stored) : distance ? formatNumber(stored) : String(stored);
         const loadText = set.addedLoadKg === 0 ? '0' : formatLoad(set.addedLoadKg).replace(' kg', '');
-        const rpeRow = showRpe && set.kind === 'working' && !emomBadgeLabel;
+        const rpeRow = open && showRpe && set.kind === 'working' && !emomBadgeLabel;
+        const title = `${set.kind === 'warmup' ? t('workout.blocks.warmup') : t('logger.setTitle', { number: workingNumber })}${set.side === 'left' ? ' · L' : set.side === 'right' ? ' · R' : ''}`;
+        const valueDown = showSteps ? <StepButton large={largeText} icon="remove" label={t('logger.stepDown', { field: fieldLabel, number: workingNumber, side: sideLabel }).trim()} onPress={(multiplier) => step(set, field, (distance ? -0.5 : timed ? -5 : -1) * multiplier)} /> : null;
+        const valueUp = showSteps ? <StepButton large={largeText} icon="add" label={t('logger.stepUp', { field: fieldLabel, number: workingNumber, side: sideLabel }).trim()} onPress={(multiplier) => step(set, field, (distance ? 0.5 : timed ? 5 : 1) * multiplier)} /> : null;
+        const valueField = (done && !editableDone) || holding ? (
+          <Text style={[styles.setValue, { color: holding ? palette.accentStrong : palette.text }]}>{value}</Text>
+        ) : timed ? (
+          <HoldDurationField compact value={stored} label={`${t('logger.holdCol')} · ${t('logger.editValue', { number: set.index })}`} onChange={(next) => onSetValue(set, 'durationSec', next)} />
+        ) : (
+          <NumberEdit
+            value={stored}
+            display={value}
+            label={`${t('logger.editValue', { number: set.index })} ${sideLabel}`}
+            integer={field === 'reps'}
+            onCommit={(next) => onSetValue(set, field, field === 'reps' ? Math.round(next) : next)}
+            onControl={(control) => { controls.current.set(`${set.id}:${field}`, control); }}
+            onLongPress={openMenu}
+            style={[styles.setValue, { color: palette.text }]}
+          />
+        );
+        const loadDown = showSteps ? <StepButton large={largeText} icon="remove" label={t('logger.stepDown', { field: t('history.addedLoad'), number: workingNumber, side: sideLabel }).trim()} onPress={(multiplier) => step(set, 'addedLoadKg', -LOAD_STEP_KG * multiplier)} /> : null;
+        const loadUp = showSteps ? <StepButton large={largeText} icon="add" label={t('logger.stepUp', { field: t('history.addedLoad'), number: workingNumber, side: sideLabel }).trim()} onPress={(multiplier) => step(set, 'addedLoadKg', LOAD_STEP_KG * multiplier)} /> : null;
+        const loadField = done && !editableDone ? (
+          <Text style={[styles.loadValue, { color: set.addedLoadKg === 0 ? palette.textMuted : palette.text }]}>{loadText}</Text>
+        ) : (
+          <NumberEdit
+            value={set.addedLoadKg}
+            display={loadText}
+            allowNegative
+            label={`${t('history.addedLoad')} ${sideLabel}`}
+            onCommit={(next) => onSetValue(set, 'addedLoadKg', next)}
+            onControl={(control) => { controls.current.set(`${set.id}:addedLoadKg`, control); }}
+            onLongPress={openMenu}
+            style={[styles.loadValue, { color: set.addedLoadKg === 0 ? palette.textMuted : palette.text }]}
+          />
+        );
+        const badge = (
+          <PopOnActivate active={done}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={set.kind === 'warmup' ? t('logger.warmupOn') : t('logger.warmupOff', { number: workingNumber })}
+              accessibilityHint={t('logger.warmupHint')}
+              hitSlop={8}
+              onPress={() => onToggleWarmup(set)}
+              onLongPress={openMenu}
+              delayLongPress={450}
+              style={[styles.setBadge, { backgroundColor: palette.surfaceMuted }, set.kind === 'warmup' && { borderWidth: 1, borderStyle: 'dashed', borderColor: palette.textMuted }]}
+            >
+              <Text style={[styles.setBadgeText, { color: set.kind === 'warmup' ? palette.textMuted : palette.text }]}>{set.kind === 'warmup' ? 'W' : workingNumber}</Text>
+              {set.side === 'left' || set.side === 'right' ? <Text style={[styles.setBadgeSide, { color: palette.textMuted }]}>{set.side === 'left' ? 'L' : 'R'}</Text> : null}
+            </Pressable>
+          </PopOnActivate>
+        );
+        const menu = (
+          // The touch area grows only towards the screen edge, never over the done button beside it.
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={t('logger.setOptions', { number: set.index })}
+            hitSlop={{ top: 0, bottom: 0, left: 0, right: 12 }}
+            onPress={() => { tapFeedback(); onSetOptions(set); }}
+            style={({ pressed }) => [styles.menuButton, pressed && { opacity: 0.6 }]}
+          >
+            <Icon name="ellipsis-vertical" size={18} color={palette.textMuted} />
+          </Pressable>
+        );
+        const summary = [title, timed ? value : distance ? `${value} m` : `${value} ${t('history.units.reps')}`, withLoad ? `${loadText} kg` : null, done && set.rpe !== null ? t('logger.rpeTag', { value: formatRpe(set.rpe) }) : null].filter(Boolean).join(' · ');
         return (
-          <Animated.View key={set.id} entering={setEntering} exiting={itemExiting} layout={rowLayout} style={styles.setBlock}>
-            <DoneTint done={done} color={palette.accentSoft} />
+          <Animated.View key={set.id} entering={setEntering} exiting={itemExiting} layout={rowLayout} style={[styles.setBlock, editing && [styles.largeBlock, { borderColor: palette.border }]]}>
+            {editing ? null : <DoneTint done={done} color={palette.accentSoft} />}
             <SwipeableSetRow
               done={done}
               onPage
@@ -226,68 +299,13 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
               onSwipeRight={() => { onSwiped?.(); if (done) onUncomplete(set); else onComplete(set); }}
               onSwipeLeft={() => { onSwiped?.(); onRemoveSet(set); }}
             >
-            {/* Row 1: set, reps (or time, or distance), load, done, menu. */}
-            <Pressable accessible={false} accessibilityRole="none" onLongPress={openMenu} delayLongPress={450} style={[styles.setRow, largeText && styles.setRowLarge]}>
-              <View style={styles.colSet}>
-                <PopOnActivate active={done}>
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel={set.kind === 'warmup' ? t('logger.warmupOn') : t('logger.warmupOff', { number: workingNumber })}
-                    accessibilityHint={t('logger.warmupHint')}
-                    hitSlop={8}
-                    onPress={() => onToggleWarmup(set)}
-                    onLongPress={openMenu}
-                    delayLongPress={450}
-                    style={[styles.setBadge, { backgroundColor: palette.surfaceMuted }, set.kind === 'warmup' && { borderWidth: 1, borderStyle: 'dashed', borderColor: palette.textMuted }]}
-                  >
-                    <Text style={[styles.setBadgeText, { color: set.kind === 'warmup' ? palette.textMuted : palette.text }]}>{set.kind === 'warmup' ? 'W' : workingNumber}</Text>
-                    {set.side === 'left' || set.side === 'right' ? <Text style={[styles.setBadgeSide, { color: palette.textMuted }]}>{set.side === 'left' ? 'L' : 'R'}</Text> : null}
-                  </Pressable>
-                </PopOnActivate>
-              </View>
-              <View style={[styles.colValue, styles.stepper, largeText && styles.cellLarge]}>
-                {largeText ? <Label style={styles.cellLabel}>{fieldLabel}</Label> : null}
-                {showSteps ? <StepButton icon="remove" label={t('logger.stepDown', { field: fieldLabel, number: workingNumber, side: sideLabel }).trim()} onPress={(multiplier) => step(set, field, (distance ? -0.5 : timed ? -5 : -1) * multiplier)} /> : null}
-                {(done && !editableDone) || holding ? (
-                  <Text style={[styles.setValue, { color: holding ? palette.accentStrong : palette.text }]}>{value}</Text>
-                ) : timed ? (
-                  <HoldDurationField compact value={stored} label={`${t('logger.holdCol')} · ${t('logger.editValue', { number: set.index })}`} onChange={(next) => onSetValue(set, 'durationSec', next)} />
-                ) : (
-                  <NumberEdit
-                    value={stored}
-                    display={value}
-                    label={`${t('logger.editValue', { number: set.index })} ${sideLabel}`}
-                    integer={field === 'reps'}
-                    onCommit={(next) => onSetValue(set, field, field === 'reps' ? Math.round(next) : next)}
-                    onControl={(control) => { controls.current.set(`${set.id}:${field}`, control); }}
-                    onLongPress={openMenu}
-                    style={[styles.setValue, { color: palette.text }]}
-                  />
-                )}
-                {showSteps ? <StepButton icon="add" label={t('logger.stepUp', { field: fieldLabel, number: workingNumber, side: sideLabel }).trim()} onPress={(multiplier) => step(set, field, (distance ? 0.5 : timed ? 5 : 1) * multiplier)} /> : null}
-              </View>
-              {withLoad ? (
-                <View style={[styles.colLoad, styles.stepper, largeText && styles.cellLargeFull]}>
-                  {largeText ? <Label style={styles.cellLabel}>{t('logger.kgCol')}</Label> : null}
-                  {showSteps ? <StepButton icon="remove" label={t('logger.stepDown', { field: t('history.addedLoad'), number: workingNumber, side: sideLabel }).trim()} onPress={(multiplier) => step(set, 'addedLoadKg', -LOAD_STEP_KG * multiplier)} /> : null}
-                  {done && !editableDone ? (
-                    <Text style={[styles.loadValue, { color: set.addedLoadKg === 0 ? palette.textMuted : palette.text }]}>{loadText}</Text>
-                  ) : (
-                    <NumberEdit
-                      value={set.addedLoadKg}
-                      display={loadText}
-                      allowNegative
-                      label={`${t('history.addedLoad')} ${sideLabel}`}
-                      onCommit={(next) => onSetValue(set, 'addedLoadKg', next)}
-                      onControl={(control) => { controls.current.set(`${set.id}:addedLoadKg`, control); }}
-                      onLongPress={openMenu}
-                      style={[styles.loadValue, { color: set.addedLoadKg === 0 ? palette.textMuted : palette.text }]}
-                    />
-                  )}
-                  {showSteps ? <StepButton icon="add" label={t('logger.stepUp', { field: t('history.addedLoad'), number: workingNumber, side: sideLabel }).trim()} onPress={(multiplier) => step(set, 'addedLoadKg', LOAD_STEP_KG * multiplier)} /> : null}
-                </View>
-              ) : null}
-              <View style={[styles.colAction, largeText && styles.actionLarge]}>
+            {!largeText ? (
+            /* Row 1: set, reps (or time, or distance), load, done, menu. */
+            <Pressable accessible={false} accessibilityRole="none" onLongPress={openMenu} delayLongPress={450} style={styles.setRow}>
+              <View style={styles.colSet}>{badge}</View>
+              <View style={[styles.colValue, styles.stepper]}>{valueDown}{valueField}{valueUp}</View>
+              {withLoad ? <View style={[styles.colLoad, styles.stepper]}>{loadDown}{loadField}{loadUp}</View> : null}
+              <View style={styles.colAction}>
                 {done ? (
                   <Animated.View entering={checkEntering}>
                     <Pressable
@@ -334,22 +352,91 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
                   </Pressable>
                 )}
               </View>
-              <View style={styles.colMenu}>
-                {/* The touch area grows only towards the screen edge, never over the done button beside it. */}
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel={t('logger.setOptions', { number: set.index })}
-                  hitSlop={{ top: 0, bottom: 0, left: 0, right: 12 }}
-                  onPress={() => { tapFeedback(); onSetOptions(set); }}
-                  style={({ pressed }) => [styles.menuButton, pressed && { opacity: 0.6 }]}
-                >
-                  <Icon name="ellipsis-vertical" size={18} color={palette.textMuted} />
-                </Pressable>
-              </View>
+              <View style={styles.colMenu}>{menu}</View>
             </Pressable>
+            ) : open ? (
+            /* Large text, the set in hand: title, then each field on its own line with big − and +. */
+            <Pressable accessible={false} accessibilityRole="none" onLongPress={openMenu} delayLongPress={450} style={styles.largeFields}>
+              <View style={styles.largeHeader}>
+                {badge}
+                <Text style={[styles.largeTitle, { color: palette.text }]}>{title}</Text>
+                {menu}
+              </View>
+              <View style={styles.largeField}>
+                <Label>{fieldLabel}</Label>
+                <View style={styles.largeStepper}>{valueDown}<View style={styles.largeValue}>{valueField}</View>{valueUp}</View>
+              </View>
+              {withLoad ? (
+                <View style={styles.largeField}>
+                  <Label>{t('logger.loadCol')}</Label>
+                  <View style={styles.largeStepper}>{loadDown}<View style={styles.largeValue}>{loadField}</View>{loadUp}</View>
+                </View>
+              ) : null}
+            </Pressable>
+            ) : (
+            /* Large text, any other set: one line; a tap opens it. */
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`${summary}${done ? `, ${t('history.setCompleted')}` : ''}`}
+              accessibilityHint={t('logger.openSetHint')}
+              onPress={() => setPicked({ id: set.id, done })}
+              onLongPress={openMenu}
+              delayLongPress={450}
+              style={styles.summaryRow}
+            >
+              <View style={[styles.summaryDot, done ? { backgroundColor: palette.success } : { borderColor: palette.border, borderWidth: 2 }]}>
+                {done ? <Icon name="checkmark" size={18} color={palette.successText} /> : <Text style={[styles.setBadgeText, { color: palette.textMuted }]}>{set.kind === 'warmup' ? 'W' : workingNumber}</Text>}
+              </View>
+              <Text style={[styles.summaryText, { color: done ? palette.text : palette.textMuted }]}>{summary}</Text>
+              {menu}
+            </Pressable>
+            )}
             </SwipeableSetRow>
             {/* Row 2: how hard it was. */}
-            {rpeRow ? <RpePicker compact sideLabel={sideLabel} value={set.rpe} target={set.targetRpe} onChange={(rpe) => onRpe(set, rpe)} /> : null}
+            {rpeRow ? <RpePicker compact grid={largeText} sideLabel={sideLabel} value={set.rpe} target={set.targetRpe} onChange={(rpe) => onRpe(set, rpe)} /> : null}
+            {/* Large text: one wide button finishes the set (or runs its hold). */}
+            {editing ? (
+              done ? (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityState={{ checked: true, disabled: emomLocked }}
+                  accessibilityHint={emomLocked ? t('emom.editHint') : t('logger.swipeReopen')}
+                  disabled={emomLocked}
+                  onPress={() => onUncomplete(set)}
+                  onLongPress={openMenu}
+                  delayLongPress={450}
+                  style={({ pressed }) => [styles.largeAction, { backgroundColor: palette.success }, pressed && styles.checkPressed]}
+                >
+                  <Icon name="checkmark" size={22} color={palette.successText} />
+                  <Text style={[styles.largeActionText, { color: palette.successText }]}>{t('workout.setCompleted')}</Text>
+                </Pressable>
+              ) : timed && onStartHold ? (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityHint={holding ? undefined : t('logger.holdLongPressHint')}
+                  accessibilityActions={holding ? undefined : [{ name: 'longpress', label: t('logger.markDoneNoTimer') }]}
+                  onAccessibilityAction={(event) => { if (event.nativeEvent.actionName === 'longpress') onComplete(set); }}
+                  onPress={() => holding ? onFinishHold?.() : onStartHold(set)}
+                  onLongPress={holding ? undefined : () => { tapFeedback(); onComplete(set); }}
+                  delayLongPress={400}
+                  style={({ pressed }) => [styles.largeAction, { backgroundColor: palette.accent }, pressed && styles.checkPressed]}
+                >
+                  <Icon name={holding ? 'stop' : 'play'} size={22} color={palette.accentText} />
+                  <Text style={[styles.largeActionText, { color: palette.accentText }]}>{holding ? t('logger.doneHold') : `${t('logger.startHold')} ${formatClock(stored)}`}</Text>
+                </Pressable>
+              ) : (
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={() => onComplete(set)}
+                  onLongPress={openMenu}
+                  delayLongPress={450}
+                  style={({ pressed }) => [styles.largeAction, { backgroundColor: palette.accent }, pressed && styles.checkPressed]}
+                >
+                  <Icon name="checkmark" size={22} color={palette.accentText} />
+                  <Text style={[styles.largeActionText, { color: palette.accentText }]}>{t('workout.completeSet')}</Text>
+                </Pressable>
+              )
+            ) : null}
             {/* Row 3, once the set is done: how clean the form was. The exercise folds only after the last rating. */}
             {done && set.kind === 'working' && !emomBadgeLabel ? <FormRating value={set.formRating} sideLabel={sideLabel} onChange={(rating) => onFormRating(set, rating)} /> : null}
             {/* Only when there is something to show: PR, clips, note (and RPE when its row is hidden). */}
@@ -399,13 +486,13 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
         );
       })}
 
-      {collapsed ? null : <View style={styles.addRow}>
-        <Pressable accessibilityRole="button" onPress={() => { tapFeedback(); onAddSet(); }} style={({ pressed }) => [styles.addSet, { opacity: pressed ? 0.6 : 1 }]}>
+      {collapsed ? null : <View style={[styles.addRow, largeText && styles.addRowLarge]}>
+        <Pressable accessibilityRole="button" onPress={() => { tapFeedback(); onAddSet(); }} style={({ pressed }) => [styles.addSet, largeText && [styles.addSetLarge, { borderColor: palette.border }], { opacity: pressed ? 0.6 : 1 }]}>
           <Icon name="add" size={18} color={palette.accentStrong} />
           <Text style={[styles.addSetText, { color: palette.accentStrong }]}>{t('logger.addSet')}</Text>
         </Pressable>
         {onAddWarmup ? (
-          <Pressable accessibilityRole="button" accessibilityHint={t('logger.warmupHint')} onPress={() => { tapFeedback(); onAddWarmup(); }} style={({ pressed }) => [styles.addSet, { opacity: pressed ? 0.6 : 1 }]}>
+          <Pressable accessibilityRole="button" accessibilityHint={t('logger.warmupHint')} onPress={() => { tapFeedback(); onAddWarmup(); }} style={({ pressed }) => [styles.addSet, largeText && [styles.addSetLarge, { borderColor: palette.border }], { opacity: pressed ? 0.6 : 1 }]}>
             <Icon name="flame-outline" size={18} color={palette.textMuted} />
             <Text style={[styles.addSetText, { color: palette.textMuted }]}>{t('logger.addWarmup')}</Text>
           </Pressable>
@@ -467,12 +554,21 @@ const baseStyles = StyleSheet.create({
   colMenu: { width: 36, alignItems: 'center' },
   menuButton: { width: 36, minHeight: 48, alignItems: 'center', justifyContent: 'center' },
   setBlock: { borderRadius: 10, overflow: 'hidden', marginBottom: 8 },
-  // Large text: badge and value on the first line, kg on its own line, done and menu at the right below.
-  setRowLarge: { flexWrap: 'wrap', rowGap: 6, paddingBottom: 6 },
-  cellLarge: { flexGrow: 1, flexBasis: '70%', justifyContent: 'flex-start' },
-  cellLargeFull: { flexBasis: '100%', justifyContent: 'flex-start', paddingLeft: 40 },
-  cellLabel: { minWidth: 56 },
-  actionLarge: { marginLeft: 'auto' },
+  // Large text: the open set is a card of one-column fields; the other sets are one line each.
+  largeBlock: { borderRadius: 16, borderWidth: 1, paddingHorizontal: 12, paddingBottom: 12, marginBottom: 12 },
+  largeFields: { gap: 16, paddingTop: 8, paddingBottom: 8 },
+  largeHeader: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  largeTitle: { flex: 1, fontFamily: fonts.display, fontSize: 22 },
+  largeField: { gap: 8 },
+  largeStepper: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  largeValue: { flex: 1, alignItems: 'center' },
+  largeAction: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, minHeight: 56, paddingHorizontal: 16, paddingVertical: 8, borderRadius: 16, marginTop: 4 },
+  largeActionText: { flexShrink: 1, fontFamily: fonts.semibold, fontSize: 17, textAlign: 'center' },
+  summaryRow: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 56, paddingVertical: 4, paddingLeft: 4 },
+  summaryDot: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
+  summaryText: { flex: 1, fontFamily: fonts.semibold, fontSize: 15 },
+  addRowLarge: { flexDirection: 'column', flexWrap: 'nowrap', alignItems: 'stretch', gap: 8, marginTop: 4 },
+  addSetLarge: { justifyContent: 'center', borderWidth: 1, borderRadius: 14, paddingHorizontal: 12 },
   setRow: { flexDirection: 'row', alignItems: 'center', minHeight: 56, paddingTop: 4, paddingLeft: 2 },
   recordChip: { flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-start', borderRadius: 10, paddingHorizontal: 8, paddingVertical: 3, marginTop: 4 },
   setMeta: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingLeft: 40, paddingRight: 12, paddingBottom: 8 },

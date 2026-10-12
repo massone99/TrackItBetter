@@ -19,7 +19,7 @@ export function loadCell(kg: number): string {
 }
 
 /** Tap to step once, hold to repeat (faster after a moment). */
-export function StepButton({ icon, label, onPress }: { icon: 'add' | 'remove'; label: string; onPress: (multiplier: number) => void }) {
+export function StepButton({ icon, label, onPress, large = false }: { icon: 'add' | 'remove'; label: string; onPress: (multiplier: number) => void; large?: boolean }) {
   const styles = useScaledStyles(setEntryStyles);
   const { palette } = useTheme();
   const handlers = useRepeatPress(onPress);
@@ -28,11 +28,11 @@ export function StepButton({ icon, label, onPress }: { icon: 'add' | 'remove'; l
       accessibilityRole="button"
       accessibilityLabel={label}
       // 28 dp button + 10 dp on each side = the 48 dp touch target.
-      hitSlop={10}
+      hitSlop={large ? 0 : 10}
       {...handlers}
-      style={({ pressed }) => [styles.stepButton, { backgroundColor: palette.surfaceMuted, opacity: pressed ? 0.6 : 1 }]}
+      style={({ pressed }) => [styles.stepButton, large && styles.stepButtonLarge, { backgroundColor: palette.surfaceMuted, opacity: pressed ? 0.6 : 1 }]}
     >
-      <Icon name={icon} size={16} color={palette.text} />
+      <Icon name={icon} size={large ? 24 : 16} color={palette.text} />
     </Pressable>
   );
 }
@@ -56,5 +56,7 @@ export const setEntryStyles = StyleSheet.create({
   value: { fontFamily: fonts.display, fontSize: 24, lineHeight: 30, minWidth: 36, textAlign: 'center', fontVariant: ['tabular-nums'] },
   loadValue: { fontFamily: fonts.display, fontSize: 20, lineHeight: 26, minWidth: 44, textAlign: 'center', fontVariant: ['tabular-nums'] },
   stepButton: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
+  // Very large text: a full 56 dp key on each side of the value.
+  stepButtonLarge: { width: 56, height: 56, borderRadius: 14 },
   checkButton: { width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
 });

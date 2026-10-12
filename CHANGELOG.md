@@ -2,6 +2,10 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.30.4 - 2026-10-12
+
+- Very large text: the workout shows one set at a time as a clean one-column card (labelled fields with big − and +, RPE in rows, one wide Complete / Start hold button); the other sets fold to a single line you tap to open. Add set and Add warm-up become full-width buttons.
+
 ## 0.30.3 - 2026-10-12
 
 - With very large text, each set in a workout stacks vertically: reps on one line, kg on the next (both labelled), done and menu below.

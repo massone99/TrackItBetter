@@ -11,7 +11,7 @@ import { useScaledStyles } from '../../shared/theme/useScaledStyles';
  * RPE chips from 6 to 10. `inline` is the one-line strip shown under a just-completed set;
  * otherwise it wraps, for sheets.
  */
-export function RpePicker({ value, onChange, inline = false, compact = false, onDismiss, sideLabel = '', target = null, label }: {
+export function RpePicker({ value, onChange, inline = false, compact = false, grid = false, onDismiss, sideLabel = '', target = null, label }: {
   sideLabel?: string;
   /** Compact only: replaces "RPE" in the label column (e.g. "1" for set 1 in the program editor). */
   label?: string;
@@ -19,6 +19,8 @@ export function RpePicker({ value, onChange, inline = false, compact = false, on
   target?: number | null;
   /** The always-visible second row of a set in the workout: small chips, no dismiss. */
   compact?: boolean;
+  /** With `compact`: the values wrap in rows (very large text) instead of scrolling sideways. */
+  grid?: boolean;
   value: number | null;
   onChange: (value: number | null) => void;
   inline?: boolean;
@@ -41,7 +43,7 @@ export function RpePicker({ value, onChange, inline = false, compact = false, on
         hitSlop={compact ? { top: 6, bottom: 6, left: 4, right: 4 } : 6}
         onPress={() => { tapFeedback(); onChange(selected ? null : rpe); }}
         style={[
-          compact ? styles.compactChip : inline ? styles.stripChip : styles.chip,
+          grid ? styles.gridChip : compact ? styles.compactChip : inline ? styles.stripChip : styles.chip,
           { backgroundColor: selected ? palette.accent : compact ? 'transparent' : palette.surface, borderColor: over ? palette.warning : selected ? palette.accent : planned ? palette.accentStrong : palette.border },
           planned && !selected ? styles.plannedChip : null,
           over ? styles.overChip : null,
@@ -51,6 +53,15 @@ export function RpePicker({ value, onChange, inline = false, compact = false, on
       </Pressable>
     );
   });
+
+  if (compact && grid) {
+    return (
+      <View style={styles.gridBlock}>
+        <Label>{t('logger.rpeLabel')}</Label>
+        <View style={styles.gridWrap}>{chips}</View>
+      </View>
+    );
+  }
 
   if (compact) {
     return <CompactRpe value={value ?? target} sideLabel={sideLabel} chips={chips} label={label} />;
@@ -134,6 +145,10 @@ const baseStyles = StyleSheet.create({
   compactChips: { gap: 8, paddingRight: 8 },
   // Width grows with the text (large system fonts); the strip scrolls sideways.
   compactChip: { minWidth: 40, minHeight: 36, paddingHorizontal: 4, borderRadius: 10, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  gridBlock: { gap: 8, paddingBottom: 12 },
+  gridWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  // Five to a row: every value in view, none cut at the edge.
+  gridChip: { width: '17.5%', minHeight: 48, borderRadius: 12, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
   plannedChip: { borderStyle: 'dashed', borderWidth: 1.5 },
   overChip: { borderWidth: 2 },
   compactChipText: { fontFamily: fonts.semibold, fontSize: 14, fontVariant: ['tabular-nums'] },
