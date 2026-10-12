@@ -1,7 +1,7 @@
 import * as Haptics from "expo-haptics";
 import { router, useSegments } from "expo-router";
 import { Children, PropsWithChildren, ReactNode, Ref, createContext, useContext, useEffect, useImperativeHandle, useRef, useState } from "react";
-import { Modal, Platform, Pressable, ScrollView, StyleSheet, Switch, TextInput, TextInputProps, TextProps, View, ViewProps } from "react-native";
+import { Modal, Platform, Pressable, ScrollView, StyleSheet, Switch, TextInput, TextInputProps, TextProps, useWindowDimensions, View, ViewProps } from "react-native";
 import { KeyboardLift, KeyboardScroll, useKeyboardVisible, type ScrollHandle } from "./keyboard";
 import { useAppInsets } from "../layout/useAppInsets";
 import { useTranslation } from "react-i18next";
@@ -45,6 +45,7 @@ export function Screen({ children, contentContainerStyle, overlay, footer, foote
 }>) {
   const styles = useScaledStyles(baseStyles);
   const { palette, largeText } = useTheme();
+  const { height: windowHeight } = useWindowDimensions();
   const insets = useAppInsets();
   const keyboardVisible = useKeyboardVisible();
   const showFooter = Boolean(footer || footerAccessory) && !keyboardVisible;
@@ -69,9 +70,15 @@ export function Screen({ children, contentContainerStyle, overlay, footer, foote
         <ScrollControlContext.Provider value={control}><View style={styles.column}>{children}</View></ScrollControlContext.Provider>
       </KeyboardScroll>
       {showFooter ? (
-        <View style={[styles.footer, { backgroundColor: palette.background, borderTopColor: palette.border, paddingBottom: insets.bottom + spacing.md }]}>
-          {footerAccessory ? <View style={styles.footerAccessory}>{footerAccessory}</View> : null}
-          {footer ? <View style={[styles.footerColumn, largeText && styles.footerStacked]}>{footer}</View> : null}
+        <View style={[styles.footer, { backgroundColor: palette.background, borderTopColor: palette.border, paddingBottom: insets.bottom + spacing.md, maxHeight: Math.round(windowHeight * FOOTER_MAX_SHARE) }]}>
+          {/* With very large text the footer could outgrow the screen: it never takes more than about
+              half of it, and scrolls inside, so every action (e.g. Finish) stays reachable. */}
+          <ScrollView style={styles.footerScroll} contentContainerStyle={styles.footerContent} showsVerticalScrollIndicator={largeText} bounces={false}>
+            {/* Large text: the actions come first, so Finish shows even when a rest timer fills the rest. */}
+            {largeText && footer ? <View style={[styles.footerColumn, footerAccessory ? styles.footerColumnFirst : null]}>{footer}</View> : null}
+            {footerAccessory ? <View style={[styles.footerAccessory, largeText ? styles.footerAccessoryLast : null]}>{footerAccessory}</View> : null}
+            {!largeText && footer ? <View style={styles.footerColumn}>{footer}</View> : null}
+          </ScrollView>
         </View>
       ) : null}
       {/* The status bar is transparent: this strip keeps scrolled content from showing under its icons. */}
@@ -80,6 +87,9 @@ export function Screen({ children, contentContainerStyle, overlay, footer, foote
     </View>
   );
 }
+
+/** Largest share of the screen height the footer (actions and live status) may take. */
+const FOOTER_MAX_SHARE = 0.5;
 
 /** One action in a `Screen` footer; cells share the row equally. */
 export function FooterAction(props: Parameters<typeof ActionButton>[0]) {
@@ -850,8 +860,10 @@ const baseStyles = StyleSheet.create({
   footer: { borderTopWidth: StyleSheet.hairlineWidth, paddingTop: spacing.md, paddingHorizontal: spacing.page, alignItems: "center" },
   footerColumn: { width: "100%", maxWidth: 640, flexDirection: "row", gap: spacing.md },
   footerCell: { flex: 1 },
-  // Large text: each footer action gets the full width, one above the other.
-  footerStacked: { flexDirection: "column", gap: spacing.sm },
+  footerScroll: { width: "100%", flexGrow: 0 },
+  footerColumnFirst: { marginBottom: spacing.md },
+  footerAccessoryLast: { marginBottom: 0 },
+  footerContent: { alignItems: "center" },
   footerAccessory: { width: "100%", maxWidth: 640, marginBottom: spacing.md },
   stepper: { gap: 4, alignItems: "center" },
   stepperLabel: { fontFamily: fonts.medium, fontSize: 12 },

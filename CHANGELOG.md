@@ -2,6 +2,10 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.30.2 - 2026-10-12
+
+- Very large text: the bottom bar of a screen (e.g. Add exercise and Finish workout with the rest timer) no longer pushes its buttons off the screen. The buttons stay side by side and wrap their labels, come before the rest timer, and the bar never takes more than half the screen (it scrolls inside if needed).
+
 ## 0.30.1 - 2026-10-12
 
 - Number fields accept numbers only, whatever the keyboard or a paste offers: reps and sets (and other whole-number fields) open the plain number pad without a decimal separator; kg fields (set load, bodyweight, band kg) take digits with one decimal separator, and a minus only where a negative load is allowed.
