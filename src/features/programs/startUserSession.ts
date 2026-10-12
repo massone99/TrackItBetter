@@ -1,6 +1,6 @@
 import { isLoadMetric, isTimedMetric, plannedLoads, programSessionWorkoutName, targetRpeFor, type UserProgram, type UserProgramSession } from '../../domain/userProgram';
 import { getExerciseById } from '../exercises/repository';
-import { addPlannedEntries, convertToPastWorkout, deleteWorkout, getPreviousPerformance, startWorkout, type PlannedEntry, type PlannedSet } from '../session/repository';
+import { addPlannedEntries, convertToPastWorkout, deleteWorkout, getLastSameWorkoutSets, getPreviousPerformance, startWorkout, type PlannedEntry, type PlannedSet } from '../session/repository';
 
 type PreviousProgramSet = {
   reps: number | null;
@@ -38,9 +38,10 @@ async function knownPrescriptions(prescriptions: readonly Prescription[]): Promi
 
 /**
  * Starts a workout named `name` from a list of prescriptions (a day of a self-made program or of a
- * template): every movement gets exactly the planned number of sets, prefilled with the target and
- * rest. Weighted movements take the planned load, or the load used last time when the plan leaves it
- * open. Movements that no longer exist in the library are skipped. If the workout cannot be built,
+ * template): every movement gets exactly the planned number of sets and rest. When the same workout
+ * (same name) was done before, each set starts from what was done in it at the same position and
+ * side: reps, time or distance and load. Otherwise sets take the target, and weighted movements the
+ * planned load, or the load used last time when the plan leaves it open. Movements that no longer exist in the library are skipped. If the workout cannot be built,
  * nothing is left behind: a half-made workout would stay open and block starting any other. Returns
  * the new workout id.
  */
@@ -48,7 +49,7 @@ export async function startPrescribedWorkout(name: string, prescriptions: readon
   const known = await knownPrescriptions(prescriptions);
   const workoutId = await startWorkout(name, notes);
   try {
-    await fillWorkout(workoutId, known);
+    await fillWorkout(workoutId, known, name);
   } catch (error) {
     await deleteWorkout(workoutId).catch(() => undefined);
     throw error;
@@ -69,7 +70,7 @@ export async function logPastUserProgramSession(program: UserProgram, session: U
   const known = await knownPrescriptions(session.exercises);
   const workoutId = await startWorkout(programSessionWorkoutName(program, session), session.notes);
   try {
-    await fillWorkout(workoutId, known);
+    await fillWorkout(workoutId, known, programSessionWorkoutName(program, session));
     await convertToPastWorkout(workoutId, startedAt, minutes);
   } catch (error) {
     await deleteWorkout(workoutId).catch(() => undefined);
@@ -86,8 +87,9 @@ function initialValues(metric: string): Pick<PlannedSet[number], 'reps' | 'durat
 }
 
 /** Builds every set in memory from the plan and last time, then writes them in one transaction. */
-async function fillWorkout(workoutId: string, known: readonly KnownPrescription[]): Promise<void> {
+async function fillWorkout(workoutId: string, known: readonly KnownPrescription[], name?: string): Promise<void> {
   const previous = await getPreviousPerformance(known.map(({ prescription }) => prescription.exerciseId), workoutId);
+  const sameWorkout = name ? await getLastSameWorkoutSets(name, workoutId) : new Map<string, PreviousProgramSet[]>();
   const planned: PlannedEntry[] = known.map(({ prescription, metric, unilateral }) => {
     const previousSets = (previous.get(prescription.exerciseId)?.sets ?? []) as PreviousProgramSet[];
     const loads = isLoadMetric(metric) ? plannedLoads(prescription, previousSets.map((set) => set.addedLoadKg)) : [];
@@ -106,7 +108,17 @@ async function fillWorkout(workoutId: string, known: readonly KnownPrescription[
         else if (metric === 'distance' && last.distanceM != null) values.distanceM = last.distanceM;
         else if (!isTimedMetric(metric) && metric !== 'distance' && last.reps != null) values.reps = last.reps;
       }
-      const load = prescription.loadKg != null ? prescription.loadKg : (last?.addedLoadKg ?? (loads.length > 0 ? loads[setIndex] : undefined));
+      // Last time this very workout was done wins over the plan: the set at the same position and
+      // side, else the last one logged for that side (the plan may now have more sets).
+      const sameSets = (sameWorkout.get(prescription.exerciseId) ?? []) as PreviousProgramSet[];
+      const sideSets = unilateral && sameSets.some((set) => set.side === side) ? sameSets.filter((set) => set.side === side) : sameSets;
+      const repeat = previousForSide(sameSets, setIndex, unilateral ? side : undefined, unilateral) ?? sideSets[sideSets.length - 1];
+      if (repeat) {
+        if (isTimedMetric(metric) && repeat.durationSec != null) values.durationSec = repeat.durationSec;
+        else if (metric === 'distance' && repeat.distanceM != null) values.distanceM = repeat.distanceM;
+        else if (!isTimedMetric(metric) && metric !== 'distance' && repeat.reps != null) values.reps = repeat.reps;
+      }
+      const load = repeat && loads.length > 0 ? repeat.addedLoadKg : prescription.loadKg != null ? prescription.loadKg : (last?.addedLoadKg ?? (loads.length > 0 ? loads[setIndex] : undefined));
       return {
         side,
         ...values,

@@ -1190,6 +1190,35 @@ export async function addPlannedEntries(workoutId: string, planned: readonly Pla
  * `apparatusOf`, an exercise whose apparatus changes the difficulty only looks at workouts done on
  * the apparatus given for it (a past workout without one counts as the exercise default).
  */
+/**
+ * The done working sets of the latest finished workout with this name (a program day is recognised
+ * by its name), by exercise, in the order they were logged; empty when it was never done.
+ */
+export async function getLastSameWorkoutSets(name: string, excludeWorkoutId: string): Promise<Map<string, PreviousSetValues[]>> {
+  await initializeDatabase();
+  const result = new Map<string, PreviousSetValues[]>();
+  const [last] = await db.select({ id: workouts.id }).from(workouts)
+    .where(and(eq(workouts.name, name), isNotNull(workouts.endedAt), ne(workouts.id, excludeWorkoutId)))
+    .orderBy(desc(workouts.startedAt)).limit(1);
+  if (!last) return result;
+  const rows = await db
+    .select({
+      exerciseId: exerciseEntries.exerciseId, side: trainingSets.side, pairId: trainingSets.pairId, reps: trainingSets.reps,
+      durationSec: trainingSets.durationSec, distanceM: trainingSets.distanceM, addedLoadKg: trainingSets.addedLoadKg,
+      rpe: trainingSets.rpe, note: trainingSets.note, restSec: trainingSets.restSec,
+    })
+    .from(trainingSets)
+    .innerJoin(exerciseEntries, eq(trainingSets.entryId, exerciseEntries.id))
+    .where(and(eq(exerciseEntries.workoutId, last.id), isNotNull(trainingSets.completedAt), eq(trainingSets.kind, 'working')))
+    .orderBy(asc(exerciseEntries.order), asc(trainingSets.index));
+  for (const row of rows) {
+    const sets = result.get(row.exerciseId) ?? [];
+    sets.push({ side: row.side, pairId: row.pairId, reps: row.reps, durationSec: row.durationSec, distanceM: row.distanceM, addedLoadKg: row.addedLoadKg, rpe: row.rpe, note: row.note, restSec: row.restSec });
+    result.set(row.exerciseId, sets);
+  }
+  return result;
+}
+
 export async function getPreviousPerformance(exerciseIds: string[], excludeWorkoutId: string, apparatusOf?: ReadonlyMap<string, string | null>): Promise<Map<string, PreviousPerformance>> {
   await initializeDatabase();
   const result = new Map<string, PreviousPerformance>();

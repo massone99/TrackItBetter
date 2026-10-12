@@ -1,7 +1,7 @@
 import { migrateDatabase } from '../../../db/migrations';
 import { seedCatalogIfEmpty } from '../../../db/seed/import';
 import { createCustomExercise } from '../../exercises/customRepository';
-import { completeSet, finishWorkout, getActiveWorkout, getCompletedWorkout, getPreviousPerformance, setSetFormRating, updateWorkoutDetails } from '../../session/repository';
+import { completeSet, finishWorkout, updateSet, getActiveWorkout, getCompletedWorkout, getPreviousPerformance, setSetFormRating, updateWorkoutDetails } from '../../session/repository';
 import { logPastUserProgramSession, startUserProgramSession } from '../startUserSession';
 import { getUserProgram, saveUserProgram } from '../userPrograms';
 
@@ -52,6 +52,27 @@ describe('starting a workout from a program', () => {
     expect(workout.exercises).toHaveLength(4);
     expect(workout.exercises.every((exercise) => exercise.sets.length === 3)).toBe(true);
     expect(workout.exercises[0].sets[0]).toMatchObject({ addedLoadKg: 20, restSec: 90 });
+    real.sqlite.prepare('DELETE FROM workout').run();
+  });
+
+  it('starts the sets from what was done the last time the same workout was done', async () => {
+    const press = await custom('Repeat press', 'reps_load');
+    const saved = await saveUserProgram({ name: 'Repeat', sessions: [{ id: 's1', name: 'Day', exercises: [{ id: 'e', exerciseId: press, sets: 3, target: 8, loadKg: 20 }] }] });
+    const program = (await getUserProgram(saved.id))!;
+
+    const first = await startUserProgramSession(program, program.sessions[0]);
+    const firstSets = (await getActiveWorkout(first))!.exercises[0].sets;
+    expect(firstSets.map((set) => [set.reps, set.addedLoadKg])).toEqual([[8, 20], [8, 20], [8, 20]]);
+    await updateSet(firstSets[0].id, 'reps', 10);
+    await updateSet(firstSets[0].id, 'addedLoadKg', 22.5);
+    await updateSet(firstSets[1].id, 'reps', 9);
+    await completeSet(firstSets[0].id);
+    await completeSet(firstSets[1].id);
+    await finishWorkout(first);
+
+    const second = await startUserProgramSession(program, program.sessions[0]);
+    // Two sets were done last time: the third repeats the last one done.
+    expect((await getActiveWorkout(second))!.exercises[0].sets.map((set) => [set.reps, set.addedLoadKg])).toEqual([[10, 22.5], [9, 20], [9, 20]]);
     real.sqlite.prepare('DELETE FROM workout').run();
   });
 

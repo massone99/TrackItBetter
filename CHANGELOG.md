@@ -2,6 +2,10 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.30.0 - 2026-10-12
+
+- Starting a program workout prefills each set with what you did the last time you did that same workout: reps, time or distance and load, set by set (and side by side for unilateral exercises). Extra sets the plan now has repeat the last one done. A workout never done before still starts from the plan's targets and loads. The same applies to mobility routines started as a regular workout.
+
 ## 0.29.3 - 2026-10-12
 
 - Duration fields (holds, rests, timed sets, the estimator) open the plain number pad and accept digits only. They read like a kitchen timer: up to two digits are seconds (45 is 0:45, 90 is 1:30), longer entries end with the seconds (130 is 1:30, 1000 is 10:00). Editing starts from the current value in the same form.
