@@ -16,8 +16,25 @@ const LAYOUT_KEYS = new Set([
   "top", "bottom", "left", "right",
 ]);
 
-/** Largest factor the system font size may add on top of the interface size: beyond it layouts break before text helps. */
-export const MAX_FONT_SCALE = 1.4;
+/** Text inputs follow the system font size up to this factor (single-line fields stay usable). */
+export const MAX_FONT_SCALE = 1.6;
+
+/** How far the app follows the phone's font size: up to 140 % (compact) or up to 200 % (full). */
+export type TextScaleMode = 'limited' | 'full';
+export const TEXT_SCALE_CAPS: Record<TextScaleMode, number> = { limited: 1.4, full: 2 };
+/** From this font scale on, shared layouts stack rows that would no longer fit side by side. */
+export const LARGE_TEXT_SCALE = 1.5;
+
+/**
+ * Growth applied to one text size for a system font scale. Body text follows it fully; headings grow
+ * less and large numbers (timers, titles) least, as on iOS Dynamic Type: they are already readable and
+ * would otherwise push everything else off the screen.
+ */
+export function textGrowth(fontSize: number, fontScale: number): number {
+  if (fontScale <= 1) return 1;
+  const share = fontSize >= 28 ? 0.4 : fontSize >= 20 ? 0.7 : 1;
+  return 1 + (fontScale - 1) * share;
+}
 
 /**
  * The interface size actually used for layout: the chosen one, tightened a little on narrow phones so

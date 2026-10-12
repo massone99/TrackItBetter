@@ -1,4 +1,5 @@
 import { useKeepAwake } from 'expo-keep-awake';
+import type { Href } from 'expo-router';
 import * as Speech from 'expo-speech';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -32,7 +33,7 @@ export interface NarrationPlayerProps {
   segments: MobilitySegment[];
   drills: NarrationDrill[];
   /** Where to go when the session is discarded. */
-  exitHref: string;
+  exitHref: Href;
   /** Voice for this run; without it the saved preference decides. */
   initialVoice?: boolean;
   /** Saves what was done; rejecting shows the save error and lets the user retry. */

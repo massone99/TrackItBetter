@@ -130,9 +130,10 @@ const baseStyles = StyleSheet.create({
   compactRow: { flexDirection: 'row', alignItems: 'center', paddingLeft: 2, paddingTop: 4, paddingBottom: 12 },
   // Spans the reps and kg columns; the done and menu columns (44 + 32) stay clear.
   compactStrip: { flex: 1, marginRight: 76 },
-  compactLabel: { width: 40, alignItems: 'center' },
+  compactLabel: { minWidth: 40, paddingRight: 4, alignItems: 'center' },
   compactChips: { gap: 8, paddingRight: 8 },
-  compactChip: { width: 40, minHeight: 36, paddingHorizontal: 0, borderRadius: 10, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  // Width grows with the text (large system fonts); the strip scrolls sideways.
+  compactChip: { minWidth: 40, minHeight: 36, paddingHorizontal: 4, borderRadius: 10, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
   plannedChip: { borderStyle: 'dashed', borderWidth: 1.5 },
   overChip: { borderWidth: 2 },
   compactChipText: { fontFamily: fonts.semibold, fontSize: 14, fontVariant: ['tabular-nums'] },

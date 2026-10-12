@@ -171,6 +171,6 @@ const baseStyles = StyleSheet.create({
   formLabel: { width: 40, alignItems: 'center' },
   formLabelText: { fontFamily: fonts.semibold, fontSize: 12 },
   formChips: { flexDirection: 'row', gap: 8 },
-  chip: { width: 40, minHeight: 36, borderRadius: 10, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  chip: { minWidth: 40, paddingHorizontal: 4, minHeight: 36, borderRadius: 10, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
   chipText: { fontFamily: fonts.semibold, fontSize: 14, fontVariant: ['tabular-nums'] },
 });

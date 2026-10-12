@@ -1,4 +1,4 @@
-import { FONT_KEYS, scaleStyle, scaleStyles, toUiScale } from '../scale';
+import { FONT_KEYS, MAX_FONT_SCALE, scaleStyle, scaleStyles, TEXT_SCALE_CAPS, textGrowth, toUiScale } from '../scale';
 
 describe('scaleStyle', () => {
   it('scales layout sizes and leaves fonts, colors and percentages alone', () => {
@@ -25,7 +25,7 @@ describe('toUiScale', () => {
 });
 
 describe('effectiveScale', () => {
-  const { effectiveScale, MAX_FONT_SCALE } = jest.requireActual('../scale');
+  const { effectiveScale } = jest.requireActual('../scale');
   it('keeps the chosen size on normal screens and tightens it on narrow ones', () => {
     expect(effectiveScale(1, 390)).toBe(1);
     expect(effectiveScale(1.1, 360)).toBe(1.1);
@@ -33,8 +33,17 @@ describe('effectiveScale', () => {
     expect(effectiveScale(1.1, 320)).toBe(0.99);
     expect(effectiveScale(1, 0)).toBe(1);
   });
-  it('caps what the system font size adds', () => {
+  it('caps what the system font size adds to text inputs', () => {
     expect(MAX_FONT_SCALE).toBeGreaterThan(1);
-    expect(MAX_FONT_SCALE).toBeLessThanOrEqual(1.5);
+    expect(MAX_FONT_SCALE).toBeLessThanOrEqual(TEXT_SCALE_CAPS.full);
+  });
+});
+
+describe('textGrowth', () => {
+  it('lets body text follow the phone fully and large text grow less', () => {
+    expect(textGrowth(16, 1)).toBe(1);
+    expect(textGrowth(16, 2)).toBe(2);
+    expect(textGrowth(22, 2)).toBeCloseTo(1.7);
+    expect(textGrowth(104, 2)).toBeCloseTo(1.4);
   });
 });

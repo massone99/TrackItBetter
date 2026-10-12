@@ -2,6 +2,11 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.29.0 - 2026-10-12
+
+- Text follows the phone's font size up to 200% (was 140%). You → Appearance → "System text size" can keep the old limit (up to 140%). Body text grows fully; headings grow less and large numbers (timers, titles) least, so they stay on screen.
+- Layouts adapt from 150% text: footer actions stack, a heading's action moves under the title, stepper labels go above their controls, segmented choices wrap two per row, menu tiles go two per row. Tab labels grow up to 130% so the bar keeps five tabs. The RPE and "last time" chips widen with their text.
+
 ## 0.28.4 - 2026-10-12
 
 - Rest timer outside the app: the end-of-rest alert now rings on the alarm channel, so it is heard with the app closed and the phone on silent, and it is scheduled before (and independently of) the live countdown, so a failing countdown can no longer cost the sound.

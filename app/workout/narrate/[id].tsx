@@ -66,5 +66,5 @@ export default function NarratedWorkoutScreen() {
 
   if (workout === undefined) return <Screen><ActivityIndicator color={palette.accentStrong} /></Screen>;
   if (workout === null) return <Screen><PageHeading title={t('workout.unavailable')} subtitle={t('workout.finished')} /></Screen>;
-  return <NarrationPlayer draftKey={`narration.draft.${id}`} title={workout.name} segments={segments} drills={drills} exitHref={`/workout/${id}`} onSave={save} />;
+  return <NarrationPlayer draftKey={`narration.draft.${id}`} title={workout.name} segments={segments} drills={drills} exitHref={{ pathname: '/workout/[id]', params: { id } }} onSave={save} />;
 }

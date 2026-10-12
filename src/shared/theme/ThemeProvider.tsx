@@ -2,7 +2,7 @@ import { createContext, PropsWithChildren, useCallback, useContext, useMemo, use
 import { useColorScheme, useWindowDimensions } from "react-native";
 import { readPreference, writePreference } from "../settings/preferences";
 import { Palette, palettes, ThemeMode } from "./palette";
-import { effectiveScale, toUiScale, type UiScale } from "./scale";
+import { effectiveScale, LARGE_TEXT_SCALE, TEXT_SCALE_CAPS, toUiScale, type TextScaleMode, type UiScale } from "./scale";
 
 type ThemePreference = ThemeMode | "system";
 
@@ -16,10 +16,17 @@ type ThemeContextValue = {
   /** `scale` adjusted to the window width: what layouts and text are multiplied by. */
   layoutScale: number;
   setScale: (scale: UiScale) => void;
+  /** The phone's font size factor, capped by `textScaleMode`; text is multiplied by it (see textGrowth). */
+  fontScale: number;
+  /** True from 150 % text on: shared layouts stack what no longer fits in a row. */
+  largeText: boolean;
+  textScaleMode: TextScaleMode;
+  setTextScaleMode: (mode: TextScaleMode) => void;
 };
 
 const THEME_KEY = "appearance.theme";
 const SCALE_KEY = "appearance.scale";
+const TEXT_SCALE_KEY = "appearance.textScale";
 const ThemeContext = createContext<ThemeContextValue | null>(null);
 
 function initialPreference(): ThemePreference {
@@ -31,7 +38,12 @@ export function ThemeProvider({ children }: PropsWithChildren) {
   const systemScheme = useColorScheme();
   const [preference, setPreference] = useState<ThemePreference>(initialPreference);
   const [scale, setScaleState] = useState<UiScale>(() => toUiScale(readPreference(SCALE_KEY)));
-  const { width } = useWindowDimensions();
+  const [textScaleMode, setTextScaleModeState] = useState<TextScaleMode>(() => (readPreference(TEXT_SCALE_KEY) === "limited" ? "limited" : "full"));
+  const { width, fontScale: systemFontScale } = useWindowDimensions();
+  // Development builds on web can simulate a phone font size with globalThis.__fontScale.
+  const simulated = (globalThis as { __fontScale?: number }).__fontScale;
+  const fontScale = Math.round(Math.min(Math.max(1, simulated ?? systemFontScale ?? 1), TEXT_SCALE_CAPS[textScaleMode]) * 100) / 100;
+  const largeText = fontScale >= LARGE_TEXT_SCALE;
   const layoutScale = effectiveScale(scale, width);
   const mode = preference === "system" ? (systemScheme === "dark" ? "dark" : "light") : preference;
   const setMode = useCallback((next: ThemePreference) => {
@@ -42,9 +54,13 @@ export function ThemeProvider({ children }: PropsWithChildren) {
     setScaleState(next);
     writePreference(SCALE_KEY, String(next));
   }, []);
+  const setTextScaleMode = useCallback((next: TextScaleMode) => {
+    setTextScaleModeState(next);
+    writePreference(TEXT_SCALE_KEY, next);
+  }, []);
   const value = useMemo(
-    () => ({ mode, preference, palette: palettes[mode], setMode, scale, layoutScale, setScale }),
-    [mode, preference, setMode, scale, layoutScale, setScale],
+    () => ({ mode, preference, palette: palettes[mode], setMode, scale, layoutScale, setScale, fontScale, largeText, textScaleMode, setTextScaleMode }),
+    [mode, preference, setMode, scale, layoutScale, setScale, fontScale, largeText, textScaleMode, setTextScaleMode],
   );
 
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;

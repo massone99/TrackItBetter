@@ -9,7 +9,7 @@ import { DurationField } from "../../src/shared/components/DateTimePickers";
 import { MAX_NARRATION_PREP_SEC, readNarrationPrepSec, writeNarrationPrepSec } from "../../src/features/narration/settings";
 import { readDefaultRest, writeDefaultRest } from "../../src/features/session/restDefaults";
 import { readBooleanPreference, RPE_PROMPT_KEY, writePreference } from "../../src/shared/settings/preferences";
-import { UI_SCALES, type UiScale } from "../../src/shared/theme/scale";
+import { UI_SCALES, type TextScaleMode, type UiScale } from "../../src/shared/theme/scale";
 import i18n, { setAppLanguage } from "../../src/shared/i18n";
 import { useTheme } from "../../src/shared/theme/ThemeProvider";
 import { useScaledStyles } from "../../src/shared/theme/useScaledStyles";
@@ -18,7 +18,7 @@ import { useAnimationSettings } from "../../src/shared/settings/AnimationProvide
 export default function ProfileScreen() {
   const styles = useScaledStyles(baseStyles);
   const { t } = useTranslation();
-  const { preference, setMode, palette, scale, setScale } = useTheme();
+  const { preference, setMode, palette, scale, setScale, textScaleMode, setTextScaleMode } = useTheme();
   const { speed, setSpeed, reducedMotion } = useAnimationSettings();
   const [rpePrompt, setRpePrompt] = useState(() => readBooleanPreference(RPE_PROMPT_KEY, true));
   const [prepSec, setPrepSec] = useState(readNarrationPrepSec);
@@ -58,6 +58,13 @@ export default function ProfileScreen() {
           options={UI_SCALES.map((value, index) => ({ value: String(value), label: sizeLabels[index] }))}
         />
         <Body>{t("profile.interfaceSizeHint")}</Body>
+        <Label style={styles.spaced}>{t("profile.textScale")}</Label>
+        <SegmentedControl<TextScaleMode>
+          value={textScaleMode}
+          onChange={setTextScaleMode}
+          options={[{ value: "full", label: t("profile.textScaleFull") }, { value: "limited", label: t("profile.textScaleLimited") }]}
+        />
+        <Body>{t("profile.textScaleHint")}</Body>
         <Label style={styles.spaced}>{t("profile.animation")}</Label>
         <SegmentedControl<string>
           value={speed}

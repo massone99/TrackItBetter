@@ -44,7 +44,7 @@ export function Screen({ children, contentContainerStyle, overlay, footer, foote
   scrollRef?: Ref<ScrollHandle>;
 }>) {
   const styles = useScaledStyles(baseStyles);
-  const { palette } = useTheme();
+  const { palette, largeText } = useTheme();
   const insets = useAppInsets();
   const keyboardVisible = useKeyboardVisible();
   const showFooter = Boolean(footer || footerAccessory) && !keyboardVisible;
@@ -71,7 +71,7 @@ export function Screen({ children, contentContainerStyle, overlay, footer, foote
       {showFooter ? (
         <View style={[styles.footer, { backgroundColor: palette.background, borderTopColor: palette.border, paddingBottom: insets.bottom + spacing.md }]}>
           {footerAccessory ? <View style={styles.footerAccessory}>{footerAccessory}</View> : null}
-          {footer ? <View style={styles.footerColumn}>{footer}</View> : null}
+          {footer ? <View style={[styles.footerColumn, largeText && styles.footerStacked]}>{footer}</View> : null}
         </View>
       ) : null}
       {/* The status bar is transparent: this strip keeps scrolled content from showing under its icons. */}
@@ -244,6 +244,7 @@ export function IconButton({ icon, onPress, label, tone = "muted", size = 40, co
 /** Page title with an automatic back button on every non-tab screen. */
 export function PageHeading({ title, subtitle, action, onTitleLongPress, titleLongPressLabel }: { title: string; subtitle?: string; action?: ReactNode; onTitleLongPress?: () => void; titleLongPressLabel?: string }) {
   const styles = useScaledStyles(baseStyles);
+  const { largeText } = useTheme();
   const segments = useSegments();
   const { t } = useTranslation();
   const showBack = segments[0] !== "(tabs)";
@@ -256,7 +257,7 @@ export function PageHeading({ title, subtitle, action, onTitleLongPress, titleLo
           <IconButton icon="arrow-back" tone="plain" label={t("common.back")} onPress={goBack} />
         </View>
       ) : null}
-      <View style={styles.pageTitleRow}>
+      <View style={[styles.pageTitleRow, largeText && action ? styles.pageTitleStacked : null]}>
         {onTitleLongPress ? (
           <Pressable
             accessibilityRole="button"
@@ -386,7 +387,7 @@ export function Stepper({ label, value, display, step = 1, min = 0, max = 999, l
   onChange: (value: number) => void;
 }) {
   const styles = useScaledStyles(baseStyles);
-  const { palette } = useTheme();
+  const { palette, largeText } = useTheme();
   const clamp = (next: number) => Math.min(max, Math.max(min, Math.round(next * 100) / 100));
   const editor = useRef<NumberEditControl | null>(null);
   // While the number is being typed, buttons step what is typed, and the field shows the result.
@@ -400,7 +401,7 @@ export function Stepper({ label, value, display, step = 1, min = 0, max = 999, l
   const shown = display ?? String(value);
   return (
     <View>
-      <View style={layout === "row" ? styles.stepperRow : styles.stepper}>
+      <View style={layout === "row" ? [styles.stepperRow, largeText && styles.stepperRowStacked] : styles.stepper}>
         <Text style={[layout === "row" ? styles.stepperRowLabel : styles.stepperLabel, { color: layout === "row" ? palette.text : palette.textMuted }]}>{label}</Text>
         <View style={styles.stepperControls}>
           <StepperButton icon="remove" label={`${label} −`} disabled={value <= min} onStep={(multiplier) => change(-step * multiplier)} />
@@ -533,9 +534,11 @@ export function EmptyState({ icon, title, body, action }: { icon: IconName; titl
 
 export function SegmentedControl<T extends string>({ value, options, onChange }: { value: T; options: { value: T; label: string }[]; onChange: (value: T) => void }) {
   const styles = useScaledStyles(baseStyles);
-  const { palette } = useTheme();
+  const { palette, largeText } = useTheme();
+  // Large text: options wrap two per row (or one per row when only two) and their labels may wrap too.
+  const stacked = largeText && options.length > 1;
   return (
-    <View style={[styles.segment, { backgroundColor: palette.surfaceMuted }]}>
+    <View style={[styles.segment, stacked && styles.segmentWrap, { backgroundColor: palette.surfaceMuted }]}>
       {options.map((option) => {
         const selected = option.value === value;
         return (
@@ -544,9 +547,9 @@ export function SegmentedControl<T extends string>({ value, options, onChange }:
             accessibilityRole="button"
             accessibilityState={{ selected }}
             onPress={() => { tapFeedback(); onChange(option.value); }}
-            style={({ pressed }) => [styles.segmentOption, { minHeight: MIN_TOUCH_TARGET, opacity: pressed ? 0.75 : 1 }, selected && { backgroundColor: palette.surface }]}
+            style={({ pressed }) => [styles.segmentOption, stacked && (options.length === 2 ? styles.segmentFull : styles.segmentHalf), { minHeight: MIN_TOUCH_TARGET, opacity: pressed ? 0.75 : 1 }, selected && { backgroundColor: palette.surface }]}
           >
-            <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7} style={[styles.segmentText, { color: selected ? palette.accentStrong : palette.textMuted }]}>{option.label}</Text>
+            <Text numberOfLines={stacked ? 2 : 1} adjustsFontSizeToFit={!stacked} minimumFontScale={0.7} style={[styles.segmentText, { color: selected ? palette.accentStrong : palette.textMuted }]}>{option.label}</Text>
           </Pressable>
         );
       })}
@@ -598,14 +601,14 @@ export function MenuGrid({ children }: PropsWithChildren) {
 
 export function MenuTile({ icon, label, onPress }: { icon: IconName; label: string; onPress: () => void }) {
   const styles = useScaledStyles(baseStyles);
-  const { palette } = useTheme();
+  const { palette, largeText } = useTheme();
   const pressScale = usePressScale(0.97);
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={label}
       onPress={() => { tapFeedback(); onPress(); }}
-      style={({ pressed }) => [styles.menuTile, { backgroundColor: palette.surfaceMuted, opacity: pressed ? 0.8 : 1 }, pressScale(pressed)]}
+      style={({ pressed }) => [styles.menuTile, largeText && styles.menuTileLarge, { backgroundColor: palette.surfaceMuted, opacity: pressed ? 0.8 : 1 }, pressScale(pressed)]}
     >
       <Icon name={icon} size={22} color={palette.accentStrong} />
       <Text style={[styles.menuTileLabel, { color: palette.text }]}>{label}</Text>
@@ -836,10 +839,14 @@ const baseStyles = StyleSheet.create({
   footer: { borderTopWidth: StyleSheet.hairlineWidth, paddingTop: spacing.md, paddingHorizontal: spacing.page, alignItems: "center" },
   footerColumn: { width: "100%", maxWidth: 640, flexDirection: "row", gap: spacing.md },
   footerCell: { flex: 1 },
+  // Large text: each footer action gets the full width, one above the other.
+  footerStacked: { flexDirection: "column", gap: spacing.sm },
   footerAccessory: { width: "100%", maxWidth: 640, marginBottom: spacing.md },
   stepper: { gap: 4, alignItems: "center" },
   stepperLabel: { fontFamily: fonts.medium, fontSize: 12 },
   stepperRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12, minHeight: 40 },
+  // Large text: the label takes its own line above the − value + controls.
+  stepperRowStacked: { flexDirection: "column", alignItems: "flex-start", gap: 6 },
   stepperRowLabel: { flex: 1, fontFamily: fonts.medium, fontSize: 15 },
   stepperControls: { flexDirection: "row", alignItems: "center", gap: 6 },
   stepperButton: { width: 44, height: 44, borderRadius: radii.control, alignItems: "center", justifyContent: "center" },
@@ -861,6 +868,7 @@ const baseStyles = StyleSheet.create({
   menuRowLabel: { flex: 1, fontFamily: fonts.medium, fontSize: 16, lineHeight: 22 },
   menuGrid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
   menuTile: { flexGrow: 0, flexBasis: "31.5%", minHeight: 76, borderRadius: radii.surface, paddingHorizontal: spacing.sm, paddingVertical: spacing.md, alignItems: "center", justifyContent: "center", gap: spacing.xs },
+  menuTileLarge: { flexBasis: "48%" },
   menuTileLabel: { fontFamily: fonts.medium, fontSize: 13, lineHeight: 17, textAlign: "center" },
   sheetContent: { gap: 10 },
   sheetActions: { gap: 10, marginTop: 8 },
@@ -870,6 +878,8 @@ const baseStyles = StyleSheet.create({
   pageTopBar: { flexDirection: "row", alignItems: "center", marginLeft: -12, marginTop: -8 },
   pageTitleRow: { flexDirection: "row", alignItems: "center", gap: spacing.md },
   pageTitle: { flex: 1 },
+  // Large text: the heading's action moves under the title instead of squeezing it.
+  pageTitleStacked: { flexDirection: "column", alignItems: "flex-start" },
   pageTitlePress: { flex: 1 },
   pageSubtitle: { fontSize: 15, lineHeight: 22 },
   title: { fontFamily: fonts.display, ...typeScale.title },
@@ -905,5 +915,8 @@ const baseStyles = StyleSheet.create({
   center: { textAlign: "center" },
   segment: { flexDirection: "row", borderRadius: radii.surface, padding: 4, gap: 4 },
   segmentOption: { flex: 1, minWidth: 0, minHeight: 44, paddingHorizontal: 6, paddingVertical: 10, alignItems: "center", justifyContent: "center", borderRadius: radii.control },
+  segmentWrap: { flexWrap: "wrap" },
+  segmentHalf: { flexBasis: "47%", flexGrow: 1 },
+  segmentFull: { flexBasis: "100%" },
   segmentText: { fontFamily: fonts.semibold, fontSize: 14, lineHeight: 20, textAlign: "center" },
 });
