@@ -134,6 +134,8 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
   // Large text opens one set at a time: the one being held, else the one tapped (until it is done or
   // reopened), else the next to do.
   const [picked, setPicked] = useState<{ id: string; done: boolean } | null>(null);
+  // Sets where "+ kg" was tapped: a set with no load shows only that chip until then.
+  const [loadShown, setLoadShown] = useState<ReadonlySet<string>>(() => new Set());
   const pickedSet = picked ? exercise.sets.find((set) => set.id === picked.id && Boolean(set.completedAt) === picked.done) : undefined;
   const focusedId = hold && exercise.sets.some((set) => set.id === hold.setId) ? hold.setId : pickedSet?.id ?? nextSetId;
 
@@ -195,14 +197,6 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
         />
       ) : null}
 
-      {collapsed || largeText ? null : <View style={styles.columns}>
-        <Label style={[styles.colSet, styles.colHeader]}>{t('logger.setCol')}</Label>
-        <Label style={[styles.colValue, styles.colHeader]}>{timed ? t('logger.holdCol') : distance ? t('logger.distanceCol') : t('logger.repsCol')}</Label>
-        {withLoad ? <Label style={[styles.colLoad, styles.colHeader]}>{t('logger.kgCol')}</Label> : null}
-        <View style={styles.colAction} />
-        <View style={styles.colMenu} />
-      </View>}
-
       {(collapsed ? [] : exercise.sets).map((set) => {
         const done = Boolean(set.completedAt);
         // In a running EMOM a recorded round stays editable in place and keeps its check, so the round count holds.
@@ -221,7 +215,8 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
         const stored = timed ? set.durationSec ?? 0 : distance ? set.distanceM ?? 0 : set.reps ?? 0;
         const value = holding && hold ? holdDisplay(hold) : timed ? formatClock(stored) : distance ? formatNumber(stored) : String(stored);
         const loadText = set.addedLoadKg === 0 ? '0' : formatLoad(set.addedLoadKg).replace(' kg', '');
-        const rpeRow = open && showRpe && set.kind === 'working' && !emomBadgeLabel;
+        // RPE is asked once the set is done (always open with large text, where the set is edited in place).
+        const rpeRow = open && showRpe && set.kind === 'working' && !emomBadgeLabel && (done || largeText);
         const title = `${set.kind === 'warmup' ? t('workout.blocks.warmup') : t('logger.setTitle', { number: workingNumber })}${set.side === 'left' ? ' · L' : set.side === 'right' ? ' · R' : ''}`;
         const valueDown = showSteps ? <StepButton large={largeText} icon="remove" label={t('logger.stepDown', { field: fieldLabel, number: workingNumber, side: sideLabel }).trim()} onPress={(multiplier) => step(set, field, (distance ? -0.5 : timed ? -5 : -1) * multiplier)} /> : null;
         const valueUp = showSteps ? <StepButton large={largeText} icon="add" label={t('logger.stepUp', { field: fieldLabel, number: workingNumber, side: sideLabel }).trim()} onPress={(multiplier) => step(set, field, (distance ? 0.5 : timed ? 5 : 1) * multiplier)} /> : null;
@@ -303,8 +298,28 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
             /* Row 1: set, reps (or time, or distance), load, done, menu. */
             <Pressable accessible={false} accessibilityRole="none" onLongPress={openMenu} delayLongPress={450} style={styles.setRow}>
               <View style={styles.colSet}>{badge}</View>
-              <View style={[styles.colValue, styles.stepper]}>{valueDown}{valueField}{valueUp}</View>
-              {withLoad ? <View style={[styles.colLoad, styles.stepper]}>{loadDown}{loadField}{loadUp}</View> : null}
+              <View style={[styles.colValue, styles.stepper]}>
+                {valueDown}
+                <View style={styles.valueStack}>
+                  {valueField}
+                  {set.id === exercise.sets[0]?.id ? <Text style={[styles.valueCaption, { color: palette.textMuted }]}>{fieldLabel.toLowerCase()}</Text> : null}
+                </View>
+                {valueUp}
+              </View>
+              {!withLoad ? null : set.addedLoadKg !== 0 || loadShown.has(set.id) ? (
+                <View style={[styles.colLoad, styles.stepper]}>{loadDown}{loadField}{loadUp}</View>
+              ) : done ? <View style={styles.colLoad} /> : (
+                <View style={[styles.colLoad, styles.stepper]}>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={t('logger.addLoad')}
+                    onPress={() => { tapFeedback(); setLoadShown((shown) => new Set(shown).add(set.id)); }}
+                    style={({ pressed }) => [styles.addLoad, { borderColor: palette.border, opacity: pressed ? 0.6 : 1 }]}
+                  >
+                    <Text style={[styles.addLoadText, { color: palette.textMuted }]}>+ kg</Text>
+                  </Pressable>
+                </View>
+              )}
               <View style={styles.colAction}>
                 {done ? (
                   <Animated.View entering={checkEntering}>
@@ -393,7 +408,7 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
             )}
             </SwipeableSetRow>
             {/* Row 2: how hard it was. */}
-            {rpeRow ? <RpePicker compact grid={largeText} sideLabel={sideLabel} value={set.rpe} target={set.targetRpe} onChange={(rpe) => onRpe(set, rpe)} /> : null}
+            {rpeRow ? <View style={largeText ? undefined : styles.rpeIndent}><RpePicker compact grid integers={!largeText} sideLabel={sideLabel} value={set.rpe} target={set.targetRpe} onChange={(rpe) => onRpe(set, rpe)} /></View> : null}
             {/* Large text: one wide button finishes the set (or runs its hold). */}
             {editing ? (
               done ? (
@@ -554,6 +569,12 @@ const baseStyles = StyleSheet.create({
   colMenu: { width: 36, alignItems: 'center' },
   menuButton: { width: 36, minHeight: 48, alignItems: 'center', justifyContent: 'center' },
   setBlock: { borderRadius: 10, overflow: 'hidden', marginBottom: 8 },
+  valueStack: { alignItems: 'center' },
+  // Under the values, clear of the set number column.
+  rpeIndent: { paddingLeft: 40, paddingRight: 12 },
+  valueCaption: { fontFamily: fonts.body, fontSize: 12, lineHeight: 14 },
+  addLoad: { minWidth: 56, minHeight: 48, paddingHorizontal: 10, borderRadius: 12, borderWidth: 1, borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center' },
+  addLoadText: { fontFamily: fonts.semibold, fontSize: 15 },
   // Large text: the open set is a card of one-column fields; the other sets are one line each.
   largeBlock: { borderRadius: 16, borderWidth: 1, paddingHorizontal: 12, paddingBottom: 12, marginBottom: 12 },
   largeFields: { gap: 16, paddingTop: 8, paddingBottom: 8 },

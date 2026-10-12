@@ -155,6 +155,7 @@ export default function WorkoutScreen() {
   const [saveOpen, setSaveOpen] = useState(false);
   const [savedTo, setSavedTo] = useState<{ id: string; name: string } | null>(null);
   const [discardOpen, setDiscardOpen] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
   const [optionsFor, setOptionsFor] = useState<SessionExercise | null>(null);
   const [emomSetupFor, setEmomSetupFor] = useState<SessionExercise | null>(null);
   const [emomNotice, setEmomNotice] = useState<string | null>(null);
@@ -601,7 +602,6 @@ export default function WorkoutScreen() {
   const allCollapsed = workout.exercises.every((exercise) => collapsedEntries.get(exercise.entryId) ?? exerciseFinished(exercise.sets));
   const totalSets = groupSets(allSets).length;
   const showBlocks = usesBlocks(workout.exercises);
-  const finishedExercises = workout.exercises.filter((exercise) => exercise.sets.length > 0 && exercise.sets.every((set) => set.completedAt)).length;
   const volumeKg = allSets.reduce((sum, set) => (set.completedAt && set.kind === 'working' && set.reps && set.addedLoadKg > 0 ? sum + set.reps * set.addedLoadKg : sum), 0);
   const readinessCount = [workout.sleep, workout.energy, workout.soreness].filter((value) => value !== null).length;
   const timerRunning = hold.active !== null || restEndsAt !== null || Boolean(emom.plan && emom.phase);
@@ -638,7 +638,7 @@ export default function WorkoutScreen() {
         // Add and Finish stay in reach however long the workout gets.
         footer={workout.exercises.length > 0 ? (
           <>
-            <FooterAction icon="add" label={t('workout.addExercise')} secondary onPress={() => setPickerOpen(true)} />
+            <IconButton icon="add" label={t('workout.addExercise')} size={56} onPress={() => setPickerOpen(true)} />
             <FooterAction icon="flag-outline" label={t('workout.finish')} onPress={() => setFinishOpen(true)} />
           </>
         ) : undefined}
@@ -647,50 +647,21 @@ export default function WorkoutScreen() {
           onTitleLongPress={() => setDetailsOpen(true)}
           titleLongPressLabel={t('workoutDetails.editHint')}
           title={displayWorkoutName(workout.name, t('log.pastName'))}
-          subtitle={[
-            totalSets > 0 ? t('logger.setsProgress', { done: completedCount, total: totalSets }) : null,
-            totalSets > 0 ? t('logger.exercisesProgress', { done: finishedExercises, total: workout.exercises.length }) : null,
-            volumeKg > 0 ? `${formatNumber(Math.round(volumeKg))} kg` : null,
-          ].filter(Boolean).join(' · ')}
-          action={
-            <View style={styles.headingActions}>
-              {narratable ? (
-                <Chip icon="mic-outline" label={t('narration.start')} accessibilityLabel={t('narration.startHint')} onPress={() => router.push({ pathname: '/workout/narrate/[id]', params: { id: workout.id } })} />
-              ) : null}
-              <Chip
-                icon={voiceCues ? 'volume-high' : 'volume-mute-outline'}
-                label={t('logger.voiceChip')}
-                accessibilityLabel={voiceCues ? t('logger.voiceOn') : t('logger.voiceOff')}
-                selected={voiceCues}
-                onPress={toggleVoiceCues}
-              />
-        <WorkoutStopwatch startedAt={workout.startedAt} />
-            </View>
-          }
+          subtitle={volumeKg > 0 ? `${formatNumber(Math.round(volumeKg))} kg` : undefined}
+          action={<WorkoutStopwatch startedAt={workout.startedAt} size={26} />}
         />
 
         {workout.notes ? <Body>{workout.notes}</Body> : null}
 
         {totalSets > 0 ? (
           <View style={styles.summary}>
-            <ProgressMeter value={completedCount} total={totalSets} label={t('logger.setsProgress', { done: completedCount, total: totalSets })} tone={completedCount === totalSets ? 'success' : 'accent'} />
+            <View style={styles.flex}><ProgressMeter value={completedCount} total={totalSets} label={t('logger.setsProgress', { done: completedCount, total: totalSets })} tone={completedCount === totalSets ? 'success' : 'accent'} /></View>
+            <Label importantForAccessibility="no-hide-descendants">{t('logger.setsProgress', { done: completedCount, total: totalSets })}</Label>
           </View>
         ) : null}
 
+        {/* One quiet row: fold all on the left; narration, voice and the rest of the actions on the right. */}
         <View style={styles.toolbar}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityState={{ expanded: readinessOpen }}
-            onPress={() => setReadinessOpen((open) => !open)}
-            style={styles.readinessToggle}
-          >
-            <Icon name={readinessCount === 3 ? 'checkmark-circle' : 'pulse-outline'} size={20} color={readinessCount === 3 ? palette.success : palette.accentStrong} />
-            <View style={styles.shrink}>
-              <Text style={[styles.readinessTitle, { color: palette.textMuted }]}>{t('workout.readinessTitle')}</Text>
-              {lowReadiness ? <Text style={[styles.readinessHint, { color: palette.warning }]}>{t('workout.readinessSuggestion')}</Text> : null}
-            </View>
-            <Icon name={readinessOpen ? 'chevron-up' : 'chevron-down'} size={18} color={palette.textMuted} />
-          </Pressable>
           {workout.exercises.length > 1 ? <Pressable
             accessibilityRole="button" accessibilityState={{ expanded: !allCollapsed }}
             onPress={() => { tapFeedback(); setCollapsedEntries(new Map(workout.exercises.map((exercise) => [exercise.entryId, !allCollapsed]))); }}
@@ -698,8 +669,16 @@ export default function WorkoutScreen() {
           >
             <Icon name={allCollapsed ? 'chevron-down' : 'chevron-up'} size={18} color={palette.accentStrong} />
             <Text style={[styles.foldAllText, { color: palette.accentStrong }]}>{t(allCollapsed ? 'common.expandAll' : 'common.collapseAll')}</Text>
-          </Pressable> : null}
+          </Pressable> : <View />}
+          <View style={styles.headingActions}>
+            {narratable ? (
+              <Chip icon="mic-outline" label={t('narration.start')} accessibilityLabel={t('narration.startHint')} onPress={() => router.push({ pathname: '/workout/narrate/[id]', params: { id: workout.id } })} />
+            ) : null}
+            <IconButton icon={voiceCues ? 'volume-high' : 'volume-mute-outline'} label={voiceCues ? t('logger.voiceOn') : t('logger.voiceOff')} tone="plain" color={voiceCues ? palette.accentStrong : palette.textMuted} onPress={toggleVoiceCues} />
+            <IconButton icon="ellipsis-vertical" label={t('logger.moreActions')} tone="plain" color={palette.textMuted} onPress={() => setMoreOpen(true)} />
+          </View>
         </View>
+        {lowReadiness ? <Text style={[styles.readinessHint, { color: palette.warning }]}>{t('workout.readinessSuggestion')}</Text> : null}
         {readinessOpen ? (
           <Card style={styles.readinessCard}>
             <Body>{t('workout.readinessHelp')}</Body>
@@ -785,14 +764,6 @@ export default function WorkoutScreen() {
         </LayoutAnimationConfig>
         </View>
 
-        {workout.exercises.length > 0 ? (
-          <Animated.View layout={rowLayout} style={styles.footerActions}>
-            <View style={styles.footerRow}>
-              <View style={styles.footerCellWide}><ActionButton icon="bookmark-outline" label={t('saveToProgram.action')} variant="ghost" onPress={() => setSaveOpen(true)} /></View>
-              <View style={styles.footerCellWide}><ActionButton icon="close-circle-outline" label={t('workout.discard')} variant="ghost" onPress={() => setDiscardOpen(true)} /></View>
-            </View>
-          </Animated.View>
-        ) : null}
       </Screen>
 
 
@@ -850,6 +821,11 @@ export default function WorkoutScreen() {
         ) : null}
       </Sheet>
 
+      <Sheet visible={moreOpen} onClose={() => setMoreOpen(false)} title={t('logger.moreActions')}>
+        <MenuRow icon={readinessCount === 3 ? 'checkmark-circle' : 'pulse-outline'} label={t('workout.readinessTitle')} onPress={() => { setMoreOpen(false); setReadinessOpen((open) => !open); }} />
+        <MenuRow icon="bookmark-outline" label={t('saveToProgram.action')} onPress={() => { setMoreOpen(false); setSaveOpen(true); }} />
+        <MenuRow icon="close-circle-outline" label={t('workout.discard')} tone="danger" onPress={() => { setMoreOpen(false); setDiscardOpen(true); }} />
+      </Sheet>
       <Sheet
         visible={discardOpen}
         onClose={() => setDiscardOpen(false)}
@@ -1206,7 +1182,7 @@ const baseStyles = StyleSheet.create({
   toolbar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
   foldAll: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: MIN_TOUCH_TARGET, paddingHorizontal: 8 },
   foldAllText: { fontFamily: fonts.semibold, fontSize: 14 },
-  summary: { marginTop: -8 },
+  summary: { marginTop: -8, flexDirection: 'row', alignItems: 'center', gap: 12 },
   footerRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   // Long labels: side by side only when each gets room for one line.
   footerCellWide: { flex: 1, minWidth: 220 },

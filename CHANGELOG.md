@@ -2,6 +2,11 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.30.5 - 2026-10-12
+
+- Tidier workout screen: the title stays on one line with the stopwatch beside it; voice and a ⋮ menu (How are you feeling?, Save as program workout, Discard) sit in one quiet row; the bottom bar is a compact + and a wide Finish.
+- Set rows lose the column headers (the first row labels its value), a set with no load shows a single "+ kg" until tapped, and RPE (whole values; halves in the set menu) appears once the set is done.
+
 ## 0.30.4 - 2026-10-12
 
 - Very large text: the workout shows one set at a time as a clean one-column card (labelled fields with big − and +, RPE in rows, one wide Complete / Start hold button); the other sets fold to a single line you tap to open. Add set and Add warm-up become full-width buttons.

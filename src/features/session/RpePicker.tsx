@@ -11,7 +11,7 @@ import { useScaledStyles } from '../../shared/theme/useScaledStyles';
  * RPE chips from 6 to 10. `inline` is the one-line strip shown under a just-completed set;
  * otherwise it wraps, for sheets.
  */
-export function RpePicker({ value, onChange, inline = false, compact = false, grid = false, onDismiss, sideLabel = '', target = null, label }: {
+export function RpePicker({ value, onChange, inline = false, compact = false, grid = false, integers = false, onDismiss, sideLabel = '', target = null, label }: {
   sideLabel?: string;
   /** Compact only: replaces "RPE" in the label column (e.g. "1" for set 1 in the program editor). */
   label?: string;
@@ -21,6 +21,8 @@ export function RpePicker({ value, onChange, inline = false, compact = false, gr
   compact?: boolean;
   /** With `compact`: the values wrap in rows (very large text) instead of scrolling sideways. */
   grid?: boolean;
+  /** Whole values only (6–10), plus the chosen one if it is a half point; halves stay in the set's sheet. */
+  integers?: boolean;
   value: number | null;
   onChange: (value: number | null) => void;
   inline?: boolean;
@@ -29,7 +31,7 @@ export function RpePicker({ value, onChange, inline = false, compact = false, gr
   const { t } = useTranslation();
   const { palette } = useTheme();
   const styles = useScaledStyles(baseStyles);
-  const chips = RPE_VALUES.map((rpe) => {
+  const chips = RPE_VALUES.filter((rpe) => !integers || Number.isInteger(rpe) || rpe === value).map((rpe) => {
     const selected = value === rpe;
     const planned = target === rpe;
     // Harder than planned keeps its fill but gets the warning edge: a gentle cue, not an error.
