@@ -2,12 +2,17 @@ import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Platform, Pressable, StyleSheet, View } from 'react-native';
+import { prescriptionsFromSteps } from '../../src/domain/mobilityImport';
 import { estimateRoutineSeconds } from '../../src/domain/mobilityPlan';
 import { groupRoutinesByProgram, type GroupProgram } from '../../src/domain/mobilityGroups';
 import { daysSinceRun, recommendRoutine } from '../../src/domain/mobilityRecommend';
 import { GOAL_PRESETS_MIN, readWeeklyGoalMin, writeWeeklyGoalMin } from '../../src/features/mobility/goal';
 import { deleteMobilityRoutine, duplicateMobilityRoutine, listMobilityRoutines, moveMobilityRoutine, setMobilityFavourite, type MobilityRoutine } from '../../src/features/mobility/routines';
 import { programTemplates } from '../../src/features/programs/catalog';
+import { startPrescribedWorkout } from '../../src/features/programs/startUserSession';
+import { getActiveWorkout } from '../../src/features/session/repository';
+import { WorkoutInProgressSheet } from '../../src/features/session/WorkoutInProgressSheet';
+import * as Crypto from 'expo-crypto';
 import { listUserPrograms } from '../../src/features/programs/userPrograms';
 import { getMobilityCycles, getMobilityWeek } from '../../src/features/analytics/repository';
 import type { ExerciseCycle, MobilityWeek } from '../../src/features/analytics/mobility';
@@ -50,6 +55,7 @@ export default function MobilityHubScreen() {
   const [moveFor, setMoveFor] = useState<MobilityRoutine | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<MobilityRoutine | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
+  const [blockedBy, setBlockedBy] = useState<{ id: string; name: string } | null>(null);
   const [failed, setFailed] = useState(false);
   const [goalMin, setGoalMin] = useState(readWeeklyGoalMin);
   const [goalOpen, setGoalOpen] = useState(false);
@@ -79,6 +85,19 @@ export default function MobilityHubScreen() {
     const next = allCollapsed ? [] : keys;
     setCollapsed(next);
     writePreference(COLLAPSED_KEY, JSON.stringify(next));
+  };
+  /** Starts the routine as a regular workout (sets to log in the usual screen) instead of the guided player. */
+  const startAsWorkout = async (routine: MobilityRoutine) => {
+    setMenuFor(null);
+    setFailed(false);
+    try {
+      const open = await getActiveWorkout();
+      if (open) { setBlockedBy({ id: open.id, name: open.name }); return; }
+      const workoutId = await startPrescribedWorkout(routine.name, prescriptionsFromSteps(routine.steps, () => Crypto.randomUUID()));
+      router.push({ pathname: '/workout/[id]', params: { id: workoutId } });
+    } catch {
+      setFailed(true);
+    }
   };
   const play = (routine: MobilityRoutine, voice?: boolean) => router.push({ pathname: '/mobility/play/[id]', params: voice === undefined ? { id: routine.id } : { id: routine.id, voice: voice ? '1' : '0' } });
 
@@ -302,6 +321,7 @@ export default function MobilityHubScreen() {
       </ListGroup>
       <View style={styles.fabSpace} />
 
+      <WorkoutInProgressSheet active={blockedBy} onClose={() => setBlockedBy(null)} />
       <Sheet visible={goalOpen} onClose={() => setGoalOpen(false)} title={t('mobilityHub.goalTitle')} body={`${t('mobilityHub.goalSheetBody')} ${t('mobilityHub.goalHint')}`}>
         <View style={styles.chips}>
           {GOAL_PRESETS_MIN.map((minutes) => (
@@ -314,6 +334,7 @@ export default function MobilityHubScreen() {
         {menuFor ? (
           <>
             <ActionButton icon="create-outline" secondary label={t('mobilityHub.edit')} onPress={() => { const id = menuFor.id; setMenuFor(null); router.push({ pathname: '/mobility/routine/[id]', params: { id } }); }} />
+            <ActionButton icon="barbell-outline" secondary label={t('mobilityHub.startAsWorkout')} onPress={() => void startAsWorkout(menuFor)} />
             <ActionButton icon="copy-outline" secondary label={t('mobilityHub.duplicate')} onPress={() => run(() => duplicateMobilityRoutine(menuFor.id, t('mobilityHub.copyName', { name: menuFor.name }).slice(0, 60)))} />
             <ActionButton icon={menuFor.favourite ? 'star' : 'star-outline'} secondary label={menuFor.favourite ? t('mobilityHub.unfavourite') : t('mobilityHub.favourite')} onPress={() => run(() => setMobilityFavourite(menuFor.id, !menuFor.favourite))} />
             <ActionButton icon="folder-outline" secondary label={t('mobilityHub.moveTo')} onPress={() => { setMoveFor(menuFor); setMenuFor(null); }} />

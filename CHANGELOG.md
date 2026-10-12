@@ -2,6 +2,10 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.28.0 - 2026-10-12
+
+- A mobility routine can now be done as a regular workout too: its menu has "Start as a regular workout", which opens the usual workout screen with the sets prefilled (rounds as sets, hold seconds or reps as target, rests carried over), next to the guided player and the narrated mode. It asks to resume first if a workout is already open.
+
 ## 0.27.1 - 2026-10-12
 
 - Narrated player: the announcement of the exercise before the preparation countdown is no longer lost. The player now waits for the previous speech to be stopped before speaking, so a late stop cannot flush the new announcement and start the countdown in silence.

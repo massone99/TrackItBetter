@@ -55,3 +55,25 @@ export function stepsFromWorkout(exercises: readonly ImportExercise[], info: Rea
     } satisfies MobilityStep];
   });
 }
+
+/**
+ * A routine's drills as the prescriptions a regular workout is started from: rounds become sets, a
+ * hold its seconds, a rep drill its reps, and the rest between rounds carries over.
+ */
+export function prescriptionsFromSteps(steps: readonly MobilityStep[], newId: () => string): ImportPrescription[] {
+  return steps.map((step) => ({
+    id: newId(),
+    exerciseId: step.exerciseId,
+    sets: step.rounds,
+    target: step.mode === 'hold' ? step.seconds : step.reps,
+    restSeconds: step.restSec,
+  }));
+}
+
+export interface ImportPrescription {
+  id: string;
+  exerciseId: string;
+  sets: number;
+  target: number;
+  restSeconds: number;
+}
