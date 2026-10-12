@@ -79,7 +79,8 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
 }) {
   const styles = useScaledStyles(baseStyles);
   const { t, i18n } = useTranslation();
-  const { palette } = useTheme();
+  // Very large text: each set stacks its fields (reps, then kg, then done) instead of one tight row.
+  const { palette, largeText } = useTheme();
   // The number fields that are open, so − and + step what is typed rather than the saved value.
   const controls = useRef(new Map<string, NumberEditControl>());
   const step = (set: SessionSet, field: Parameters<typeof onChange>[1], delta: number) => {
@@ -189,7 +190,7 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
         />
       ) : null}
 
-      {collapsed ? null : <View style={styles.columns}>
+      {collapsed || largeText ? null : <View style={styles.columns}>
         <Label style={[styles.colSet, styles.colHeader]}>{t('logger.setCol')}</Label>
         <Label style={[styles.colValue, styles.colHeader]}>{timed ? t('logger.holdCol') : distance ? t('logger.distanceCol') : t('logger.repsCol')}</Label>
         {withLoad ? <Label style={[styles.colLoad, styles.colHeader]}>{t('logger.kgCol')}</Label> : null}
@@ -226,7 +227,7 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
               onSwipeLeft={() => { onSwiped?.(); onRemoveSet(set); }}
             >
             {/* Row 1: set, reps (or time, or distance), load, done, menu. */}
-            <Pressable accessible={false} accessibilityRole="none" onLongPress={openMenu} delayLongPress={450} style={styles.setRow}>
+            <Pressable accessible={false} accessibilityRole="none" onLongPress={openMenu} delayLongPress={450} style={[styles.setRow, largeText && styles.setRowLarge]}>
               <View style={styles.colSet}>
                 <PopOnActivate active={done}>
                   <Pressable
@@ -244,7 +245,8 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
                   </Pressable>
                 </PopOnActivate>
               </View>
-              <View style={[styles.colValue, styles.stepper]}>
+              <View style={[styles.colValue, styles.stepper, largeText && styles.cellLarge]}>
+                {largeText ? <Label style={styles.cellLabel}>{fieldLabel}</Label> : null}
                 {showSteps ? <StepButton icon="remove" label={t('logger.stepDown', { field: fieldLabel, number: workingNumber, side: sideLabel }).trim()} onPress={(multiplier) => step(set, field, (distance ? -0.5 : timed ? -5 : -1) * multiplier)} /> : null}
                 {(done && !editableDone) || holding ? (
                   <Text style={[styles.setValue, { color: holding ? palette.accentStrong : palette.text }]}>{value}</Text>
@@ -265,7 +267,8 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
                 {showSteps ? <StepButton icon="add" label={t('logger.stepUp', { field: fieldLabel, number: workingNumber, side: sideLabel }).trim()} onPress={(multiplier) => step(set, field, (distance ? 0.5 : timed ? 5 : 1) * multiplier)} /> : null}
               </View>
               {withLoad ? (
-                <View style={[styles.colLoad, styles.stepper]}>
+                <View style={[styles.colLoad, styles.stepper, largeText && styles.cellLargeFull]}>
+                  {largeText ? <Label style={styles.cellLabel}>{t('logger.kgCol')}</Label> : null}
                   {showSteps ? <StepButton icon="remove" label={t('logger.stepDown', { field: t('history.addedLoad'), number: workingNumber, side: sideLabel }).trim()} onPress={(multiplier) => step(set, 'addedLoadKg', -LOAD_STEP_KG * multiplier)} /> : null}
                   {done && !editableDone ? (
                     <Text style={[styles.loadValue, { color: set.addedLoadKg === 0 ? palette.textMuted : palette.text }]}>{loadText}</Text>
@@ -284,7 +287,7 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
                   {showSteps ? <StepButton icon="add" label={t('logger.stepUp', { field: t('history.addedLoad'), number: workingNumber, side: sideLabel }).trim()} onPress={(multiplier) => step(set, 'addedLoadKg', LOAD_STEP_KG * multiplier)} /> : null}
                 </View>
               ) : null}
-              <View style={styles.colAction}>
+              <View style={[styles.colAction, largeText && styles.actionLarge]}>
                 {done ? (
                   <Animated.View entering={checkEntering}>
                     <Pressable
@@ -464,6 +467,12 @@ const baseStyles = StyleSheet.create({
   colMenu: { width: 36, alignItems: 'center' },
   menuButton: { width: 36, minHeight: 48, alignItems: 'center', justifyContent: 'center' },
   setBlock: { borderRadius: 10, overflow: 'hidden', marginBottom: 8 },
+  // Large text: badge and value on the first line, kg on its own line, done and menu at the right below.
+  setRowLarge: { flexWrap: 'wrap', rowGap: 6, paddingBottom: 6 },
+  cellLarge: { flexGrow: 1, flexBasis: '70%', justifyContent: 'flex-start' },
+  cellLargeFull: { flexBasis: '100%', justifyContent: 'flex-start', paddingLeft: 40 },
+  cellLabel: { minWidth: 56 },
+  actionLarge: { marginLeft: 'auto' },
   setRow: { flexDirection: 'row', alignItems: 'center', minHeight: 56, paddingTop: 4, paddingLeft: 2 },
   recordChip: { flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-start', borderRadius: 10, paddingHorizontal: 8, paddingVertical: 3, marginTop: 4 },
   setMeta: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingLeft: 40, paddingRight: 12, paddingBottom: 8 },
