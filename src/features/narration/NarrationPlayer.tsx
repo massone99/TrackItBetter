@@ -19,6 +19,8 @@ import { goBack } from '../../shared/navigation/goBack';
 
 /** Longest wait for an announcement to end before the countdown starts anyway. */
 const ANNOUNCEMENT_TIMEOUT_MS = 8000;
+/** How long an announcement may take to start before it is spoken again. */
+const RETRY_AFTER_MS = 1500;
 
 export interface NarrationDrill { name: string; cue: string | null; demoUrl: string | null; rounds: number }
 export interface NarrationRecord { stepIndex: number; round?: number; side: MobilitySide | null; seconds: number | null; reps: number | null; completedAt: Date; setIds?: string[] }
@@ -96,7 +98,12 @@ export function NarrationPlayer({ draftKey, title, segments, drills, exitHref, i
     // Stop and speak are separate native calls: speaking only once the stop has finished keeps a late
     // stop from flushing the new announcement, which would start the countdown in silence.
     const language = i18n.resolvedLanguage === 'it' ? 'it-IT' : 'en-US';
-    const say = () => Speech.speak(text, { language, rate: 0.98, onDone: settle, onStopped: settle, onError: settle });
+    let started = false;
+    const say = () => {
+      Speech.speak(text, { language, rate: 0.98, onStart: () => { started = true; }, onDone: settle, onStopped: settle, onError: settle });
+      // An utterance that never starts (flushed by a stop in flight) is spoken once more.
+      setTimeout(() => { if (!started && !settled) Speech.speak(text, { language, rate: 0.98, onStart: () => { started = true; }, onDone: settle, onStopped: settle, onError: settle }); }, RETRY_AFTER_MS);
+    };
     Speech.stop().then(say, say);
   }, [voice, i18n.resolvedLanguage]);
 
