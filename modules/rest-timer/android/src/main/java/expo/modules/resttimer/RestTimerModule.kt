@@ -5,6 +5,8 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.os.Build
+import android.os.SystemClock
+import android.widget.RemoteViews
 import androidx.core.app.NotificationCompat
 import expo.modules.kotlin.exception.Exceptions
 import expo.modules.kotlin.modules.Module
@@ -55,9 +57,20 @@ class RestTimerModule : Module() {
     val openApp = context.packageManager.getLaunchIntentForPackage(context.packageName)?.let { intent ->
       PendingIntent.getActivity(context, 0, intent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
     }
+    // The time left, large, in the notification body: the header chronometer alone is tiny and some
+    // phones hide it. Chronometer bases are on the elapsed-realtime clock, not the wall clock.
+    val base = SystemClock.elapsedRealtime() + remainingMs
+    val body = RemoteViews(context.packageName, R.layout.rest_timer_notification).apply {
+      setTextViewText(R.id.rest_timer_title, title)
+      setChronometer(R.id.rest_timer_clock, base, null, true)
+      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) setChronometerCountDown(R.id.rest_timer_clock, true)
+    }
     val notification = NotificationCompat.Builder(context, CHANNEL_ID)
       .setSmallIcon(smallIcon())
       .setContentTitle(title)
+      .setCustomContentView(body)
+      .setCustomBigContentView(body)
+      .setStyle(NotificationCompat.DecoratedCustomViewStyle())
       .setWhen(endsAtMs)
       .setShowWhen(true)
       .setUsesChronometer(true)

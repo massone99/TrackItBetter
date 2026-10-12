@@ -2,6 +2,10 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.29.1 - 2026-10-12
+
+- Rest countdown notification: the time left is now shown large in the body of the notification and ticks every second with the app in the background or closed (the system draws it). Before, only the small header clock counted down, which some phones hide.
+
 ## 0.29.0 - 2026-10-12
 
 - Text follows the phone's font size up to 200% (was 140%). You → Appearance → "System text size" can keep the old limit (up to 140%). Body text grows fully; headings grow less and large numbers (timers, titles) least, so they stay on screen.
