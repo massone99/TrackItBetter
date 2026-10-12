@@ -108,6 +108,7 @@ function AppNavigator() {
         <Stack.Screen name="measurements" />
         <Stack.Screen name="mobility/index" />
         <Stack.Screen name="mobility/tests" />
+        <Stack.Screen name="mobility/import" />
         <Stack.Screen name="mobility/routine/[id]" />
         <Stack.Screen name="mobility/play/[id]" options={{ gestureEnabled: false }} />
         <Stack.Screen name="pose/index" />

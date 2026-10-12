@@ -32,6 +32,8 @@ export interface NarrationPlayerProps {
   drills: NarrationDrill[];
   /** Where to go when the session is discarded. */
   exitHref: string;
+  /** Voice for this run; without it the saved preference decides. */
+  initialVoice?: boolean;
   /** Saves what was done; rejecting shows the save error and lets the user retry. */
   onSave: (records: NarrationRecord[], startedAt: Date) => Promise<void>;
 }
@@ -44,7 +46,7 @@ function readDraft(key: string): { records: [number, Performed][]; index: number
   } catch { return null; }
 }
 
-export function NarrationPlayer({ draftKey, title, segments, drills, exitHref, onSave }: NarrationPlayerProps) {
+export function NarrationPlayer({ draftKey, title, segments, drills, exitHref, initialVoice, onSave }: NarrationPlayerProps) {
   useKeepAwake();
   const styles = useScaledStyles(baseStyles);
   const { t, i18n } = useTranslation();
@@ -59,7 +61,7 @@ export function NarrationPlayer({ draftKey, title, segments, drills, exitHref, o
   const [now, setNow] = useState(() => Date.now());
   const [performed, setPerformed] = useState<Map<number, Performed>>(() => new Map(readDraft(draftKey)?.records ?? []));
   const [ending, setEnding] = useState(false);
-  const [voice, setVoice] = useState(() => readNarrationVoice());
+  const [voice, setVoice] = useState(() => initialVoice ?? readNarrationVoice());
   const [initialStart] = useState(() => new Date(readDraft(draftKey)?.startedAt ?? Date.now()));
   const startedAt = useRef(initialStart);
   const finished = useRef(false);

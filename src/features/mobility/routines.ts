@@ -13,6 +13,7 @@ export interface MobilityRoutine {
   /** Countdown before every drill starts. */
   prepSec: number;
   steps: MobilityStep[];
+  favourite: boolean;
   updatedAt: string;
 }
 
@@ -36,6 +37,7 @@ const routineSchema = z.object({
   // Routines saved before the countdown existed get the default one.
   prepSec: z.number().int().min(0).max(30).default(DEFAULT_PREP_SEC),
   steps: z.array(stepSchema).min(1).max(40),
+  favourite: z.boolean().default(false),
   updatedAt: z.string(),
 });
 
@@ -65,11 +67,29 @@ export async function getMobilityRoutine(id: string): Promise<MobilityRoutine | 
 }
 
 /** Validates and stores a routine; throws a ZodError when it is incomplete. */
-export async function saveMobilityRoutine(input: Omit<MobilityRoutine, 'id' | 'updatedAt'> & { id?: string }): Promise<MobilityRoutine> {
-  const routine = routineSchema.parse({ ...input, id: input.id ?? Crypto.randomUUID(), updatedAt: new Date().toISOString() });
+export async function saveMobilityRoutine(input: Omit<MobilityRoutine, 'id' | 'updatedAt' | 'favourite'> & { id?: string; favourite?: boolean }): Promise<MobilityRoutine> {
+  const routine = routineSchema.parse({ ...input, favourite: input.favourite ?? false, id: input.id ?? Crypto.randomUUID(), updatedAt: new Date().toISOString() });
   const others = (await listMobilityRoutines()).filter((item) => item.id !== routine.id);
   await writeAll([routine, ...others]);
   return routine;
+}
+
+/** Stars or unstars a routine without touching its order in the list. */
+export async function setMobilityFavourite(id: string, favourite: boolean): Promise<void> {
+  const all = await listMobilityRoutines();
+  await writeAll(all.map((routine) => (routine.id === id ? { ...routine, favourite } : routine)));
+}
+
+/** A copy of a routine under a new name, with fresh ids. */
+export async function duplicateMobilityRoutine(id: string, name: string): Promise<MobilityRoutine | null> {
+  const source = await getMobilityRoutine(id);
+  if (!source) return null;
+  return saveMobilityRoutine({
+    name,
+    transitionSec: source.transitionSec,
+    prepSec: source.prepSec,
+    steps: source.steps.map((step) => ({ ...step, id: Crypto.randomUUID() })),
+  });
 }
 
 export async function deleteMobilityRoutine(id: string): Promise<void> {

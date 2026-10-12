@@ -2,6 +2,12 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.24.0 - 2026-10-12
+
+- Mobility home redesigned: a Create row (new routine, from a workout, convert a program), All/Favourites filter, and one card per routine with Start (silent) and Narrated buttons plus a menu to edit, duplicate, favourite or delete.
+- New "From a program" screen: pick one of your programs or a built-in one and turn a single workout, or every compatible workout, into mobility routines. Each workout is rated Compatible, Partial or Not compatible; only the mobility exercises are copied (sets become rounds, targets become holds or reps, rests carry over). The program does not change.
+- Routine builder: drills used in other routines appear as one-tap chips (with the settings last used) and an Undo toast; drill cards fold to a one-line summary; the routine saves itself when you leave, and Start / Narrated sit in the footer.
+
 ## 0.23.4 - 2026-10-12
 
 - Narrated player: the spoken countdown numbers (3, 2, 1) no longer cut an announcement that is still being spoken.

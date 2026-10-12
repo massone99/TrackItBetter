@@ -20,7 +20,7 @@ function readCues(value: string): string | null {
 }
 
 export default function MobilityPlayerScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, voice } = useLocalSearchParams<{ id: string; voice?: string }>();
   const { t } = useTranslation();
   const { palette } = useTheme();
   const [routine, setRoutine] = useState<MobilityRoutine | null | undefined>(undefined);
@@ -68,5 +68,5 @@ export default function MobilityPlayerScreen() {
 
   if (routine === undefined || (routine && drills.length === 0)) return <Screen><ActivityIndicator color={palette.accentStrong} /></Screen>;
   if (routine === null) return <Screen><PageHeading title={t('mobility.title')} subtitle={t('mobility.notFound')} /></Screen>;
-  return <NarrationPlayer draftKey={`mobility.draft.${id}`} title={routine.name} segments={segments} drills={drills} exitHref="/mobility" onSave={save} />;
+  return <NarrationPlayer draftKey={`mobility.draft.${id}`} title={routine.name} segments={segments} drills={drills} exitHref="/mobility" initialVoice={voice === undefined ? undefined : voice === '1'} onSave={save} />;
 }

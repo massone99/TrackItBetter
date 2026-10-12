@@ -1,16 +1,18 @@
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ActivityIndicator, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
 import { DEFAULT_PREP_SEC, estimateRoutineSeconds, type MobilityStep } from '../../../src/domain/mobilityPlan';
 import { ExercisePicker } from '../../../src/features/exercises/ExercisePicker';
 import { listExercises } from '../../../src/features/exercises/repository';
-import { deleteMobilityRoutine, getMobilityRoutine, newStep, saveMobilityRoutine } from '../../../src/features/mobility/routines';
+import { deleteMobilityRoutine, getMobilityRoutine, listMobilityRoutines, newStep, saveMobilityRoutine } from '../../../src/features/mobility/routines';
 import {
   ActionButton,
   Body,
   Card,
+  Chip,
   EmptyState,
+  FooterAction,
   IconButton,
   PageHeading,
   Screen,
@@ -26,6 +28,7 @@ import { useTheme } from '../../../src/shared/theme/ThemeProvider';
 import { fonts } from '../../../src/shared/theme/typography';
 import { useScaledStyles } from '../../../src/shared/theme/useScaledStyles';
 import { goBack } from '../../../src/shared/navigation/goBack';
+import { useSaveOnLeave } from '../../../src/shared/forms/useSaveOnLeave';
 import { DurationField, HoldDurationField } from '../../../src/shared/components/DateTimePickers';
 import { formatClock } from '../../../src/shared/utils/format';
 
@@ -46,6 +49,17 @@ export default function RoutineBuilderScreen() {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Set while leaving with an incomplete routine: confirming drops the edits and goes on.
+  const [discardResume, setDiscardResume] = useState<(() => void) | null>(null);
+  const [favourite, setFavourite] = useState(false);
+  const [expanded, setExpanded] = useState<string | null>(null);
+  const [lastAdded, setLastAdded] = useState<{ stepId: string; name: string } | null>(null);
+  const [recent, setRecent] = useState<MobilityStep[]>([]);
+  // The id once stored, so a routine that started as "new" is saved in place from then on.
+  const savedId = useRef<string | null>(isNew ? null : id);
+  const [savedSnapshot, setSavedSnapshot] = useState(() => JSON.stringify({ name: '', transitionSec: 10, prepSec: DEFAULT_PREP_SEC, steps: [] }));
+  const snapshot = JSON.stringify({ name, transitionSec, prepSec, steps });
+  const dirty = loaded && snapshot !== savedSnapshot;
 
   // Exercise names are reloaded on focus so drills created from the picker show up by name.
   useFocusEffect(useCallback(() => {
@@ -54,6 +68,10 @@ export default function RoutineBuilderScreen() {
       const exercises = await listExercises();
       if (!mounted) return;
       setExerciseInfo(new Map(exercises.map((exercise) => [exercise.id, { name: exercise.name, metric: exercise.metric }])));
+      // Drills used in other routines come back as one-tap chips, with the settings last used.
+      const seen = new Set<string>();
+      const used = (await listMobilityRoutines()).flatMap((routine) => routine.steps).filter((step) => !seen.has(step.exerciseId) && seen.add(step.exerciseId));
+      if (mounted) setRecent(used.slice(0, 8));
       if (!isNew && !loaded) {
         const routine = await getMobilityRoutine(id);
         if (!mounted) return;
@@ -62,6 +80,8 @@ export default function RoutineBuilderScreen() {
           setTransitionSec(routine.transitionSec);
           setPrepSec(routine.prepSec);
           setSteps(routine.steps);
+          setFavourite(routine.favourite);
+          setSavedSnapshot(JSON.stringify({ name: routine.name, transitionSec: routine.transitionSec, prepSec: routine.prepSec, steps: routine.steps }));
         }
         setLoaded(true);
       }
@@ -81,22 +101,55 @@ export default function RoutineBuilderScreen() {
     });
   };
 
-  const save = async () => {
-    if (!name.trim() || steps.length === 0) { setError(t('mobility.invalid')); return; }
+  const addDrill = (exerciseId: string, mode: MobilityStep['mode'], template?: MobilityStep) => {
+    const step = template ? { ...template, id: newStep(exerciseId, mode).id } : newStep(exerciseId, mode);
+    setSteps((current) => [...current, step]);
+    setExpanded(template ? null : step.id);
+    setLastAdded({ stepId: step.id, name: exerciseInfo.get(exerciseId)?.name ?? '' });
+    setError(null);
+  };
+
+  /** Stores the routine; false while it still lacks a name or a drill. */
+  const persist = async (): Promise<boolean> => {
+    if (!name.trim() || steps.length === 0) return false;
     try {
-      await saveMobilityRoutine({ id: isNew ? undefined : id, name, transitionSec, prepSec, steps });
-      goBack('/mobility');
+      const saved = await saveMobilityRoutine({ id: savedId.current ?? undefined, name, transitionSec, prepSec, steps, favourite });
+      savedId.current = saved.id;
+      setSavedSnapshot(snapshot);
+      return true;
     } catch {
-      setError(t('mobility.invalid'));
+      return false;
     }
   };
+  const { allowLeave } = useSaveOnLeave({
+    dirty,
+    save: persist,
+    onInvalid: (resume) => setDiscardResume(() => resume),
+  });
+  const start = async (voice: boolean) => {
+    if (!(await persist()) || !savedId.current) { setError(t('mobilityHub.needsDrill')); return; }
+    router.push({ pathname: '/mobility/play/[id]', params: { id: savedId.current, voice: voice ? '1' : '0' } });
+  };
+
+  const drillSummary = (step: MobilityStep) => [
+    step.mode === 'hold' ? t('mobilityHub.drillSummaryHold', { value: step.seconds }) : t('mobilityHub.drillSummaryReps', { value: step.reps }),
+    t('mobilityHub.drillSummaryRounds', { count: step.rounds }),
+    step.perSide ? t('mobilityHub.drillSummarySides') : null,
+  ].filter(Boolean).join(' · ');
+  const inRoutine = useMemo(() => new Set(steps.map((step) => step.exerciseId)), [steps]);
+  const suggestions = recent.filter((step) => !inRoutine.has(step.exerciseId) && exerciseInfo.has(step.exerciseId)).slice(0, 4);
 
   if (!loaded) return <Screen><ActivityIndicator color={palette.accentStrong} /></Screen>;
 
   const minutes = Math.max(1, Math.round(estimateRoutineSeconds({ transitionSec, prepSec, steps }) / 60));
   return (
-    <Screen>
-      <PageHeading title={isNew ? t('mobility.builderNew') : name || t('mobility.builderTitle')} subtitle={steps.length ? t('mobility.estimated', { count: minutes }) : undefined} />
+    <Screen footer={steps.length > 0 ? (
+      <>
+        <FooterAction icon="play" label={t('mobilityHub.startNow')} onPress={() => void start(false)} />
+        <FooterAction icon="mic-outline" secondary label={t('mobilityHub.startVoice')} onPress={() => void start(true)} />
+      </>
+    ) : undefined}>
+      <PageHeading title={isNew && !name ? t('mobility.builderNew') : name || t('mobility.builderTitle')} subtitle={steps.length ? `${t('mobility.estimated', { count: minutes })}${dirty ? '' : ` · ${t('mobilityHub.saved')}`}` : undefined} />
       <TextField label={t('mobility.name')} value={name} onChangeText={(value) => { setName(value); setError(null); }} placeholder={t('mobility.namePlaceholder')} maxLength={60} />
       <Card style={styles.transitionCard}>
         <DurationField label={t('mobility.prep')} value={prepSec} format={(seconds) => seconds === 0 ? t('mobility.prepOff') : formatClock(seconds)} step={1} min={0} max={30} presets={[0, 3, 5, 10]} onChange={setPrepSec} />
@@ -105,6 +158,13 @@ export default function RoutineBuilderScreen() {
       </Card>
 
       <SectionTitle title={t('mobility.drillsTitle')} />
+      {suggestions.length > 0 ? (
+        <View style={styles.chips}>
+          {suggestions.map((step) => (
+            <Chip key={step.exerciseId} icon="add" label={exerciseInfo.get(step.exerciseId)?.name ?? ''} onPress={() => addDrill(step.exerciseId, step.mode, step)} />
+          ))}
+        </View>
+      ) : null}
       {steps.length === 0 ? (
         <EmptyState icon="list-outline" title={t('mobility.addDrill')} body={t('mobility.emptyBody')} />
       ) : null}
@@ -114,11 +174,21 @@ export default function RoutineBuilderScreen() {
             <View style={[styles.stepNumber, { backgroundColor: palette.accentSoft }]}>
               <Text style={[styles.stepNumberText, { color: palette.accentStrong }]}>{index + 1}</Text>
             </View>
-            <Text style={styles.stepName} numberOfLines={2}>{exerciseInfo.get(step.exerciseId)?.name ?? '…'}</Text>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityState={{ expanded: expanded === step.id }}
+              accessibilityLabel={t(expanded === step.id ? 'mobilityHub.collapse' : 'mobilityHub.expand', { name: exerciseInfo.get(step.exerciseId)?.name ?? '' })}
+              onPress={() => setExpanded(expanded === step.id ? null : step.id)}
+              style={styles.stepTitle}
+            >
+              <Text style={styles.stepName} numberOfLines={2}>{exerciseInfo.get(step.exerciseId)?.name ?? '…'}</Text>
+              {expanded === step.id ? null : <Text style={[styles.stepSummary, { color: palette.textMuted }]}>{drillSummary(step)}</Text>}
+            </Pressable>
             <IconButton icon="chevron-up" label={t('mobility.moveUp')} tone="plain" size={34} onPress={() => { if (index > 0) moveStep(index, -1); }} />
             <IconButton icon="chevron-down" label={t('mobility.moveDown')} tone="plain" size={34} onPress={() => { if (index < steps.length - 1) moveStep(index, 1); }} />
             <IconButton icon="trash-outline" label={t('mobility.removeDrill')} tone="plain" size={34} onPress={() => setSteps((current) => current.filter((item) => item.id !== step.id))} />
           </View>
+          {expanded === step.id ? <>
           <SegmentedControl
             value={step.mode}
             onChange={(mode) => updateStep(step.id, { mode })}
@@ -136,12 +206,20 @@ export default function RoutineBuilderScreen() {
           <View style={[styles.sideRow, { borderTopColor: palette.border }]}>
             <SwitchRow title={t('mobility.perSide')} value={step.perSide} onChange={(perSide) => updateStep(step.id, { perSide })} />
           </View>
+          </> : null}
         </Card>
       ))}
       <ActionButton icon="add" label={t('mobility.addDrill')} secondary onPress={() => setPickerOpen(true)} />
 
+      {lastAdded && steps.some((step) => step.id === lastAdded.stepId) ? (
+        <View style={[styles.toast, { backgroundColor: palette.successSoft }]} accessibilityLiveRegion="polite">
+          <Text style={[styles.toastText, { color: palette.success }]}>{t('mobilityHub.added', { name: lastAdded.name })}</Text>
+          <Pressable accessibilityRole="button" hitSlop={8} onPress={() => { setSteps((current) => current.filter((step) => step.id !== lastAdded.stepId)); setLastAdded(null); }} style={styles.toastAction}>
+            <Text style={styles.toastUndo}>{t('mobilityHub.undo')}</Text>
+          </Pressable>
+        </View>
+      ) : null}
       {error ? <Text style={[styles.error, { color: palette.warning }]}>{error}</Text> : null}
-      <ActionButton icon="checkmark" label={t('mobility.save')} onPress={() => void save()} />
       {isNew ? null : <ActionButton icon="trash-outline" label={t('mobility.delete')} variant="danger" onPress={() => setConfirmDelete(true)} />}
 
       <ExercisePicker
@@ -151,14 +229,18 @@ export default function RoutineBuilderScreen() {
         onChoose={(choice) => {
           setPickerOpen(false);
           setError(null);
-          setSteps((current) => [...current, newStep(choice.id, choice.metric === 'time' || choice.metric === 'time_load' ? 'hold' : 'reps')]);
+          addDrill(choice.id, choice.metric === 'time' || choice.metric === 'time_load' ? 'hold' : 'reps');
         }}
         onCreate={(name) => { setPickerOpen(false); router.push({ pathname: '/exercise/new', params: name ? { name } : {} }); }}
         onClose={() => setPickerOpen(false)}
       />
 
+      <Sheet visible={discardResume !== null} onClose={() => setDiscardResume(null)} title={t('mobility.invalid')}>
+        <ActionButton label={t('logger.keepGoing')} secondary onPress={() => setDiscardResume(null)} />
+        <ActionButton label={t('mobility.endDiscard')} variant="danger" onPress={() => { const resume = discardResume; setDiscardResume(null); resume?.(); }} />
+      </Sheet>
       <Sheet visible={confirmDelete} onClose={() => setConfirmDelete(false)} title={t('mobility.delete')} body={t('mobility.deleteBody')}>
-        <ActionButton icon="trash-outline" label={t('logger.confirmRemove')} variant="danger" onPress={() => void deleteMobilityRoutine(id).then(() => goBack('/mobility'))} />
+        <ActionButton icon="trash-outline" label={t('logger.confirmRemove')} variant="danger" onPress={() => { allowLeave(); void deleteMobilityRoutine(savedId.current ?? id).then(() => goBack('/mobility')); }} />
         <ActionButton label={t('common.cancel')} secondary onPress={() => setConfirmDelete(false)} />
       </Sheet>
     </Screen>
@@ -173,7 +255,14 @@ const baseStyles = StyleSheet.create({
   stepHeader: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   stepNumber: { width: 28, height: 28, borderRadius: 9, alignItems: 'center', justifyContent: 'center', marginRight: 4 },
   stepNumberText: { fontFamily: fonts.display, fontSize: 16 },
-  stepName: { flex: 1, fontFamily: fonts.display, fontSize: 24, lineHeight: 28 },
+  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  stepTitle: { flex: 1, minHeight: 48, justifyContent: 'center' },
+  stepSummary: { fontFamily: fonts.body, fontSize: 14, lineHeight: 20 },
+  toast: { flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 14, paddingLeft: 16, paddingRight: 4, minHeight: 48 },
+  toastText: { flex: 1, fontFamily: fonts.medium, fontSize: 15, lineHeight: 20 },
+  toastAction: { minHeight: 48, paddingHorizontal: 14, justifyContent: 'center' },
+  toastUndo: { fontFamily: fonts.semibold, fontSize: 15 },
+  stepName: { fontFamily: fonts.display, fontSize: 24, lineHeight: 28 },
   steppers: { gap: 2 },
   sideRow: { borderTopWidth: StyleSheet.hairlineWidth, marginHorizontal: -16 },
   error: { fontFamily: fonts.medium, fontSize: 14 },
