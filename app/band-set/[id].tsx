@@ -12,6 +12,7 @@ import { goBack } from '../../src/shared/navigation/goBack';
 import { useTheme } from '../../src/shared/theme/ThemeProvider';
 import { fonts } from '../../src/shared/theme/typography';
 import { useScaledStyles } from '../../src/shared/theme/useScaledStyles';
+import { useSaveOnLeave } from '../../src/shared/forms/useSaveOnLeave';
 import { parseNumberInput, sanitizeNumberInput } from '../../src/shared/utils/format';
 
 /** A band set: its name and its bands, lightest first. */
@@ -25,6 +26,16 @@ export default function BandSetScreen() {
   const [error, setError] = useState<string | null>(null);
   const set = catalog?.bandSets.find((item) => item.id === id) ?? null;
   const [name, setName] = useState<string | null>(null);
+  // A name typed but not yet saved is saved on the way out (back pressed with the keyboard open never blurs the field).
+  const typedName = name?.trim() ?? '';
+  const { allowLeave } = useSaveOnLeave({
+    dirty: set !== null && typedName !== '' && typedName !== set.name,
+    save: async () => {
+      if (!set) return true;
+      try { await saveBandSet({ ...set, name: typedName }); return true; } catch { return false; }
+    },
+  });
+  void allowLeave;
 
   if (!catalog) return <Screen><ActivityIndicator color={palette.accentStrong} /></Screen>;
   if (!set) return <Screen><PageHeading title={t('equipment.bandSetMissing')} /></Screen>;

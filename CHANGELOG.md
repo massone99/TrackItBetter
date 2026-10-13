@@ -2,6 +2,10 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.31.1 - 2026-10-13
+
+- Equipment: renaming a band set and going straight back (keyboard still open) now keeps the new name; it is saved on the way out.
+
 ## 0.31.0 - 2026-10-13
 
 - Workout recap: opening a workout from the Log (or Stats, or an exercise's history) shows its recap first: duration, sets, exercises, reps, kg lifted, average RPE and form, the records, what beat last time and every exercise with its trend. Edit opens the editable workout as before; Repeat starts it again; Share is at the top. The screen after finishing uses the same recap.
