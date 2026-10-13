@@ -86,7 +86,7 @@ import { apparatusName, bandComparer, bandsById, describeSetBands, useEquipment 
 import { LoadError } from '../../src/shared/components/LoadError';
 import { SetSheet } from '../../src/features/session/SetSheet';
 import { ExerciseCard, holdDisplay } from '../../src/features/session/ExerciseCard';
-import Animated, { FadeInDown, FadeOutLeft, LayoutAnimationConfig, LinearTransition } from 'react-native-reanimated';
+import Animated, { FadeInDown, FadeOutLeft, LayoutAnimationConfig } from 'react-native-reanimated';
 import { readBooleanPreference, RPE_PROMPT_KEY, writePreference } from '../../src/shared/settings/preferences';
 
 import { MIN_TOUCH_TARGET } from '../../src/shared/theme/tokens';
@@ -115,7 +115,6 @@ export default function WorkoutScreen() {
   const { duration } = useAnimationSettings();
   const exerciseEntering = duration(260) ? FadeInDown.duration(duration(260)) : undefined;
   const itemExiting = duration(200) ? FadeOutLeft.duration(duration(200)) : undefined;
-  const rowLayout = duration(240) ? LinearTransition.duration(duration(240)) : undefined;
   const [workout, setWorkout] = useState<ActiveWorkout | null>(null);
   const workoutRef = useRef<ActiveWorkout | null>(null);
   useEffect(() => { workoutRef.current = workout; }, [workout]);
@@ -155,7 +154,6 @@ export default function WorkoutScreen() {
   const [saveOpen, setSaveOpen] = useState(false);
   const [savedTo, setSavedTo] = useState<{ id: string; name: string } | null>(null);
   const [discardOpen, setDiscardOpen] = useState(false);
-  const [moreOpen, setMoreOpen] = useState(false);
   const [optionsFor, setOptionsFor] = useState<SessionExercise | null>(null);
   const [emomSetupFor, setEmomSetupFor] = useState<SessionExercise | null>(null);
   const [emomNotice, setEmomNotice] = useState<string | null>(null);
@@ -660,8 +658,21 @@ export default function WorkoutScreen() {
           </View>
         ) : null}
 
-        {/* One quiet row: fold all on the left; narration, voice and the rest of the actions on the right. */}
+        {/* Check-in and fold all on the left; narration and voice on the right. */}
         <View style={styles.toolbar}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityState={{ expanded: readinessOpen }}
+            onPress={() => setReadinessOpen((open) => !open)}
+            style={styles.readinessToggle}
+          >
+            <Icon name={readinessCount === 3 ? 'checkmark-circle' : 'pulse-outline'} size={20} color={readinessCount === 3 ? palette.success : palette.accentStrong} />
+            <View style={styles.shrink}>
+              <Text style={[styles.readinessTitle, { color: palette.textMuted }]}>{t('workout.readinessTitle')}</Text>
+              {lowReadiness ? <Text style={[styles.readinessHint, { color: palette.warning }]}>{t('workout.readinessSuggestion')}</Text> : null}
+            </View>
+            <Icon name={readinessOpen ? 'chevron-up' : 'chevron-down'} size={18} color={palette.textMuted} />
+          </Pressable>
           {workout.exercises.length > 1 ? <Pressable
             accessibilityRole="button" accessibilityState={{ expanded: !allCollapsed }}
             onPress={() => { tapFeedback(); setCollapsedEntries(new Map(workout.exercises.map((exercise) => [exercise.entryId, !allCollapsed]))); }}
@@ -669,16 +680,20 @@ export default function WorkoutScreen() {
           >
             <Icon name={allCollapsed ? 'chevron-down' : 'chevron-up'} size={18} color={palette.accentStrong} />
             <Text style={[styles.foldAllText, { color: palette.accentStrong }]}>{t(allCollapsed ? 'common.expandAll' : 'common.collapseAll')}</Text>
-          </Pressable> : <View />}
+          </Pressable> : null}
           <View style={styles.headingActions}>
             {narratable ? (
               <Chip icon="mic-outline" label={t('narration.start')} accessibilityLabel={t('narration.startHint')} onPress={() => router.push({ pathname: '/workout/narrate/[id]', params: { id: workout.id } })} />
             ) : null}
-            <IconButton icon={voiceCues ? 'volume-high' : 'volume-mute-outline'} label={voiceCues ? t('logger.voiceOn') : t('logger.voiceOff')} tone="plain" color={voiceCues ? palette.accentStrong : palette.textMuted} onPress={toggleVoiceCues} />
-            <IconButton icon="ellipsis-vertical" label={t('logger.moreActions')} tone="plain" color={palette.textMuted} onPress={() => setMoreOpen(true)} />
+            <Chip
+              icon={voiceCues ? 'volume-high' : 'volume-mute-outline'}
+              label={t('logger.voiceChip')}
+              accessibilityLabel={voiceCues ? t('logger.voiceOn') : t('logger.voiceOff')}
+              selected={voiceCues}
+              onPress={toggleVoiceCues}
+            />
           </View>
         </View>
-        {lowReadiness ? <Text style={[styles.readinessHint, { color: palette.warning }]}>{t('workout.readinessSuggestion')}</Text> : null}
         {readinessOpen ? (
           <Card style={styles.readinessCard}>
             <Body>{t('workout.readinessHelp')}</Body>
@@ -720,7 +735,7 @@ export default function WorkoutScreen() {
           onMove={(from, to) => void moveExerciseEntry(workout.id, workout.exercises[from].entryId, to).then(() => refresh(workout.id))}
           onRowLayout={(key, top) => { cardTops.current.set(key, listTop.current + top); }}
           renderRow={(exercise, index, row) => (
-            <Animated.View entering={exerciseEntering} exiting={itemExiting} layout={rowLayout}>
+            <Animated.View entering={exerciseEntering} exiting={itemExiting}>
           {showBlocks && (index === 0 || blockOf(workout.exercises[index - 1].block) !== exercise.block) ? (
             <BlockHeader block={exercise.block} exercises={workout.exercises.filter((item) => item.block === exercise.block)} />
           ) : null}
@@ -764,6 +779,14 @@ export default function WorkoutScreen() {
         </LayoutAnimationConfig>
         </View>
 
+        {workout.exercises.length > 0 ? (
+          <View style={styles.footerActions}>
+            <View style={styles.footerRow}>
+              <View style={styles.footerCellWide}><ActionButton icon="bookmark-outline" label={t('saveToProgram.action')} variant="ghost" onPress={() => setSaveOpen(true)} /></View>
+              <View style={styles.footerCellWide}><ActionButton icon="close-circle-outline" label={t('workout.discard')} variant="ghost" onPress={() => setDiscardOpen(true)} /></View>
+            </View>
+          </View>
+        ) : null}
       </Screen>
 
 
@@ -821,11 +844,6 @@ export default function WorkoutScreen() {
         ) : null}
       </Sheet>
 
-      <Sheet visible={moreOpen} onClose={() => setMoreOpen(false)} title={t('logger.moreActions')}>
-        <MenuRow icon={readinessCount === 3 ? 'checkmark-circle' : 'pulse-outline'} label={t('workout.readinessTitle')} onPress={() => { setMoreOpen(false); setReadinessOpen((open) => !open); }} />
-        <MenuRow icon="bookmark-outline" label={t('saveToProgram.action')} onPress={() => { setMoreOpen(false); setSaveOpen(true); }} />
-        <MenuRow icon="close-circle-outline" label={t('workout.discard')} tone="danger" onPress={() => { setMoreOpen(false); setDiscardOpen(true); }} />
-      </Sheet>
       <Sheet
         visible={discardOpen}
         onClose={() => setDiscardOpen(false)}
@@ -1179,7 +1197,7 @@ const baseStyles = StyleSheet.create({
   blockHeader: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: 12, paddingBottom: 6, marginBottom: 10, borderBottomWidth: StyleSheet.hairlineWidth },
   blockTitle: { fontFamily: fonts.semibold, fontSize: 16 },
   blockCount: { fontFamily: fonts.medium, fontSize: 13 },
-  toolbar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
+  toolbar: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
   foldAll: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: MIN_TOUCH_TARGET, paddingHorizontal: 8 },
   foldAllText: { fontFamily: fonts.semibold, fontSize: 14 },
   summary: { marginTop: -8, flexDirection: 'row', alignItems: 'center', gap: 12 },

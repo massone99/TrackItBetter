@@ -66,7 +66,7 @@ export function RpePicker({ value, onChange, inline = false, compact = false, gr
   }
 
   if (compact) {
-    return <CompactRpe value={value ?? target} sideLabel={sideLabel} chips={chips} label={label} />;
+    return <CompactRpe value={value ?? target} sideLabel={sideLabel} chips={chips} label={label} fits={integers} />;
   }
 
   if (!inline) {
@@ -102,7 +102,7 @@ const COMPACT_STEP = 40 + 8;
  * that it scrolls sideways). It opens on the chosen value, or around 7–8 (where most working sets
  * land), so the likely values are in view.
  */
-function CompactRpe({ value, sideLabel, chips, label }: { value: number | null; sideLabel: string; chips: ReactNode[]; label?: string }) {
+function CompactRpe({ value, sideLabel, chips, label, fits = false }: { value: number | null; sideLabel: string; chips: ReactNode[]; label?: string; fits?: boolean }) {
   const { t } = useTranslation();
   const { palette } = useTheme();
   const styles = useScaledStyles(baseStyles);
@@ -114,7 +114,8 @@ function CompactRpe({ value, sideLabel, chips, label }: { value: number | null; 
       <View style={styles.compactLabel}>
         <Text accessibilityLabel={`${label ?? t('logger.rpe')} ${sideLabel}`.trim()} style={[styles.stripLabel, { color: palette.textMuted }]}>{label ?? t('logger.rpe')}</Text>
       </View>
-      <ScrollView
+      {/* Five whole values fit the row: no sideways scrolling, nothing cut at the edge. */}
+      {fits ? <View style={[styles.compactStrip, styles.compactFit]}>{chips}</View> : <ScrollView
         ref={scroll}
         horizontal
         style={styles.compactStrip}
@@ -124,7 +125,7 @@ function CompactRpe({ value, sideLabel, chips, label }: { value: number | null; 
         onLayout={() => scroll.current?.scrollTo({ x: focus * COMPACT_STEP, animated: false })}
       >
         {chips}
-      </ScrollView>
+      </ScrollView>}
     </View>
   );
 }
@@ -143,6 +144,7 @@ const baseStyles = StyleSheet.create({
   compactRow: { flexDirection: 'row', alignItems: 'center', paddingLeft: 2, paddingTop: 4, paddingBottom: 12 },
   // Spans the reps and kg columns; the done and menu columns (44 + 32) stay clear.
   compactStrip: { flex: 1, marginRight: 76 },
+  compactFit: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   compactLabel: { minWidth: 40, paddingRight: 4, alignItems: 'center' },
   compactChips: { gap: 8, paddingRight: 8 },
   // Width grows with the text (large system fonts); the strip scrolls sideways.

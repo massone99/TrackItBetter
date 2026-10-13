@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next';
 import { Pressable, StyleSheet, View } from 'react-native';
-import Animated, { FadeInDown, FadeOutLeft, LinearTransition, ZoomIn } from 'react-native-reanimated';
+import Animated, { FadeIn, ZoomIn } from 'react-native-reanimated';
 import { useRef, useState, type ReactNode } from 'react';
 import { compareWithLast } from '../../domain/lastTime';
 import { formatRpe } from '../../domain/rpe';
@@ -92,9 +92,9 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
     onSetValue(set, field, value);
   };
   const { duration } = useAnimationSettings();
-  const setEntering = duration(220) ? FadeInDown.duration(duration(220)) : undefined;
-  const itemExiting = duration(200) ? FadeOutLeft.duration(duration(200)) : undefined;
-  const rowLayout = duration(240) ? LinearTransition.duration(duration(240)) : undefined;
+  // Sets only fade in when added: no layout or exit animations, which made rows flicker and vanish
+  // while the card above or around them changed height.
+  const setEntering = duration(180) ? FadeIn.duration(duration(180)) : undefined;
   const checkEntering = duration(180) ? ZoomIn.duration(duration(180)) : undefined;
   const timed = exercise.metric === 'time' || exercise.metric === 'time_load';
   const distance = exercise.metric === 'distance';
@@ -215,8 +215,8 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
         const stored = timed ? set.durationSec ?? 0 : distance ? set.distanceM ?? 0 : set.reps ?? 0;
         const value = holding && hold ? holdDisplay(hold) : timed ? formatClock(stored) : distance ? formatNumber(stored) : String(stored);
         const loadText = set.addedLoadKg === 0 ? '0' : formatLoad(set.addedLoadKg).replace(' kg', '');
-        // RPE is asked once the set is done (always open with large text, where the set is edited in place).
-        const rpeRow = open && showRpe && set.kind === 'working' && !emomBadgeLabel && (done || largeText);
+        // RPE for the set in hand and the done ones (all five whole values in one row); later sets wait.
+        const rpeRow = open && showRpe && set.kind === 'working' && !emomBadgeLabel && (done || largeText || set.id === nextSetId);
         const title = `${set.kind === 'warmup' ? t('workout.blocks.warmup') : t('logger.setTitle', { number: workingNumber })}${set.side === 'left' ? ' · L' : set.side === 'right' ? ' · R' : ''}`;
         const valueDown = showSteps ? <StepButton large={largeText} icon="remove" label={t('logger.stepDown', { field: fieldLabel, number: workingNumber, side: sideLabel }).trim()} onPress={(multiplier) => step(set, field, (distance ? -0.5 : timed ? -5 : -1) * multiplier)} /> : null;
         const valueUp = showSteps ? <StepButton large={largeText} icon="add" label={t('logger.stepUp', { field: fieldLabel, number: workingNumber, side: sideLabel }).trim()} onPress={(multiplier) => step(set, field, (distance ? 0.5 : timed ? 5 : 1) * multiplier)} /> : null;
@@ -283,7 +283,7 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
         );
         const summary = [title, timed ? value : distance ? `${value} m` : `${value} ${t('history.units.reps')}`, withLoad ? `${loadText} kg` : null, done && set.rpe !== null ? t('logger.rpeTag', { value: formatRpe(set.rpe) }) : null].filter(Boolean).join(' · ');
         return (
-          <Animated.View key={set.id} entering={setEntering} exiting={itemExiting} layout={rowLayout} style={[styles.setBlock, editing && [styles.largeBlock, { borderColor: palette.border }]]}>
+          <Animated.View key={set.id} entering={setEntering} style={[styles.setBlock, editing && [styles.largeBlock, { borderColor: palette.border }]]}>
             {editing ? null : <DoneTint done={done} color={palette.accentSoft} />}
             <SwipeableSetRow
               done={done}
@@ -408,7 +408,7 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
             )}
             </SwipeableSetRow>
             {/* Row 2: how hard it was. */}
-            {rpeRow ? <View style={largeText ? undefined : styles.rpeIndent}><RpePicker compact grid integers={!largeText} sideLabel={sideLabel} value={set.rpe} target={set.targetRpe} onChange={(rpe) => onRpe(set, rpe)} /></View> : null}
+            {rpeRow ? <RpePicker compact grid={largeText} integers={!largeText} sideLabel={sideLabel} value={set.rpe} target={set.targetRpe} onChange={(rpe) => onRpe(set, rpe)} /> : null}
             {/* Large text: one wide button finishes the set (or runs its hold). */}
             {editing ? (
               done ? (
@@ -570,8 +570,6 @@ const baseStyles = StyleSheet.create({
   menuButton: { width: 36, minHeight: 48, alignItems: 'center', justifyContent: 'center' },
   setBlock: { borderRadius: 10, overflow: 'hidden', marginBottom: 8 },
   valueStack: { alignItems: 'center' },
-  // Under the values, clear of the set number column.
-  rpeIndent: { paddingLeft: 40, paddingRight: 12 },
   valueCaption: { fontFamily: fonts.body, fontSize: 12, lineHeight: 14 },
   addLoad: { minWidth: 56, minHeight: 48, paddingHorizontal: 10, borderRadius: 12, borderWidth: 1, borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center' },
   addLoadText: { fontFamily: fonts.semibold, fontSize: 15 },

@@ -2,6 +2,12 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.30.6 - 2026-10-13
+
+- Workout: Discard workout, Save as program workout, How are you feeling? and the Voice chip are visible again (no hidden menu).
+- RPE is back before you complete a set (the set in hand and the done ones), as five whole values in one row aligned with Form; halves stay in the set menu. An exercise still folds only after its form is rated.
+- No more flicker or vanishing sets: set rows and exercise cards no longer run layout and exit animations.
+
 ## 0.30.5 - 2026-10-12
 
 - Tidier workout screen: the title stays on one line with the stopwatch beside it; voice and a ⋮ menu (How are you feeling?, Save as program workout, Discard) sit in one quiet row; the bottom bar is a compact + and a wide Finish.
