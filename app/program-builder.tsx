@@ -277,7 +277,8 @@ export default function ProgramEditorScreen() {
               const metric = info?.metric ?? 'reps';
               const exerciseName = info?.name ?? t('userProgram.exerciseMissing');
               const invalid = errors.some((error) => error.exerciseId === prescription.id);
-              const isOpen = openExercises.has(prescription.id) || invalid;
+              // The editor folds while the row is dragged, so the lifted row is only its header.
+              const isOpen = (openExercises.has(prescription.id) || invalid) && !row.dragging;
               const suffix = isTimedMetric(metric) ? 's' : metric === 'distance' ? ' m' : '';
               const summary = [
                 prescription.target === null ? t('userProgram.setsOnly', { count: prescription.sets }) : `${prescription.sets} × ${prescription.target}${suffix}`,
@@ -464,7 +465,7 @@ function newSession(name: string): UserProgramSession {
 
 const baseStyles = StyleSheet.create({
   rpeBlock: { gap: 8 },
-  flex: { flex: 1, gap: 2 },
+  flex: { flex: 1, gap: 4 },
   dayCard: { gap: 16 },
   header: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   number: { width: 28, height: 28, borderRadius: 9, alignItems: 'center', justifyContent: 'center', marginRight: 6 },
@@ -473,7 +474,7 @@ const baseStyles = StyleSheet.create({
   field: { gap: 8 },
   dayActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 4, marginTop: -6 },
   exerciseActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 4 },
-  exercise: { borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 16, gap: 8 },
+  exercise: { borderTopWidth: StyleSheet.hairlineWidth, paddingVertical: 16, gap: 16 },
   exerciseName: { fontFamily: fonts.semibold, fontSize: 16 },
   error: { fontFamily: fonts.medium, fontSize: 14 },
 });

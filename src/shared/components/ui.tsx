@@ -931,7 +931,7 @@ const baseStyles = StyleSheet.create({
   listTitleSelected: { fontFamily: fonts.semibold },
   listCheck: { width: 22, alignItems: "center" },
   listSubtitle: { fontFamily: fonts.body, fontSize: 14, lineHeight: 20 },
-  chip: { minHeight: 44, paddingHorizontal: 14, paddingVertical: 10, borderRadius: radii.control, borderWidth: 1, flexDirection: "row", alignItems: "center", gap: 6 },
+  chip: { minHeight: 44, paddingHorizontal: 14, paddingVertical: 10, borderRadius: radii.control, borderWidth: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6 },
   chipText: { flexShrink: 1, fontFamily: fonts.semibold, fontSize: 14, lineHeight: 20 },
   empty: { borderWidth: 1, borderRadius: radii.surface, padding: spacing.section, alignItems: "center", gap: spacing.md },
   emptyIcon: { width: 52, height: 52, borderRadius: 16, alignItems: "center", justifyContent: "center", marginBottom: 4 },

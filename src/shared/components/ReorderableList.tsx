@@ -122,6 +122,7 @@ export function ReorderableList<T>({ items, keyOf, nameOf, gap = 12, onMove, onR
             onLayout={(event) => {
               const { height, y } = event.nativeEvent.layout;
               heights.current.set(key, height);
+              if (pointer.current.from === index) motion.travel.value = height + gap;
               onRowLayout?.(key, y);
             }}
           >
@@ -167,7 +168,9 @@ function Row({ index, motion, shiftMs, dragged, onLayout, children }: {
       : over < from && index < from && index >= over ? motion.travel.value : 0;
     return { transform: [{ translateY: withTiming(shift, { duration: shiftMs }) }] };
   });
-  return <Animated.View onLayout={onLayout} style={[dragged && styles.lifted, animated]}>{children}</Animated.View>;
+  const { palette } = useTheme();
+  // The lifted row is opaque and edged, so it never shows the rows under it through its text.
+  return <Animated.View onLayout={onLayout} style={[dragged && [styles.lifted, { backgroundColor: palette.surface, borderColor: palette.border }], animated]}>{children}</Animated.View>;
 }
 
 /** The six-dot drag grip (two columns of three), drawn so it reads as "drag me" rather than as a menu. */
@@ -229,5 +232,5 @@ const styles = StyleSheet.create({
   dots: { gap: 4 },
   dotRow: { flexDirection: 'row', gap: 4 },
   dot: { width: 4, height: 4, borderRadius: 2 },
-  lifted: { zIndex: 10, elevation: 8, shadowColor: '#000', shadowOpacity: 0.18, shadowRadius: 14, shadowOffset: { width: 0, height: 8 } },
+  lifted: { zIndex: 10, borderWidth: StyleSheet.hairlineWidth, borderRadius: 12, marginHorizontal: -8, paddingHorizontal: 7, elevation: 8, shadowColor: '#000', shadowOpacity: 0.18, shadowRadius: 14, shadowOffset: { width: 0, height: 8 } },
 });

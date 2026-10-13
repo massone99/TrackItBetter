@@ -2,6 +2,10 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.31.2 - 2026-10-14
+
+- Program builder: the dragged exercise is opaque with an edge (no more overlapping text), its editor folds while you drag, quick values (hold, rest) sit in an even grid, and the rest value no longer wraps onto two lines.
+
 ## 0.31.1 - 2026-10-13
 
 - Equipment: renaming a band set and going straight back (keyboard still open) now keeps the new name; it is saved on the way out.

@@ -146,7 +146,7 @@ export function TimeField({ label, hour, minute, locale, minuteStep = 5, default
 const baseStyles = StyleSheet.create({
   row: { minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
   rowLabel: { flex: 1, fontFamily: fonts.medium, fontSize: 15 },
-  rowValue: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8, paddingHorizontal: 12, paddingVertical: 8, minHeight: 48, borderRadius: 12 },
+  rowValue: { flexDirection: 'row', alignItems: 'center', flexShrink: 0, gap: 8, paddingHorizontal: 12, paddingVertical: 8, minHeight: 48, borderRadius: 12 },
   rowValueText: { fontFamily: fonts.semibold, fontSize: 16, fontVariant: ['tabular-nums'] },
   panel: { borderWidth: StyleSheet.hairlineWidth, borderRadius: 16, padding: 12, gap: 8, marginBottom: 6 },
   monthHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
@@ -158,6 +158,8 @@ const baseStyles = StyleSheet.create({
   shortcuts: { flexDirection: 'row', gap: 8 },
   wheels: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4 },
   presets: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingBottom: 8 },
+  // Quick values in an even grid, four to a row, instead of a ragged line.
+  presetCell: { flexBasis: '22%', flexGrow: 1, minWidth: 64 },
   colon: { fontFamily: fonts.display, fontSize: 26 },
   durationInputs: { flexDirection: 'row', gap: 12 },
   durationInput: { flex: 1 },
@@ -217,7 +219,7 @@ export function DurationField({ label, value, min = 0, max = 600, step = 5, pres
       </Pressable> : <FieldRow label={label} icon="timer-outline" open={open} disabled={disabled} value={format(value)} onToggle={show} />}
       {!compact && !disabled && presets && presets.length > 0 ? (
         <View style={styles.presets}>
-          {presets.map((preset) => <Chip key={preset} label={format(preset)} selected={value === preset} onPress={() => onChange(Math.min(upperBound, Math.max(min, preset)))} />)}
+          {presets.map((preset) => <View key={preset} style={styles.presetCell}><Chip label={format(preset)} selected={value === preset} onPress={() => onChange(Math.min(upperBound, Math.max(min, preset)))} /></View>)}
         </View>
       ) : null}
       {open ? <Sheet visible onClose={() => setOpen(false)} title={label}>
@@ -227,7 +229,7 @@ export function DurationField({ label, value, min = 0, max = 600, step = 5, pres
           <NumberEdit value={draft} display={formatClock(draft)} label={`${label} · ${t('durationPicker.typeHint')}`} clock onCommit={setDraft} style={[styles.durationValue, { color: palette.text }]} />
           <IconButton icon="add" label={t('durationPicker.increase')} disabled={draft >= upperBound} onPress={() => setDraft(draft + step)} />
         </View>
-        {presets?.length ? <View style={styles.presets}>{presets.filter((preset) => preset >= min && preset <= upperBound).map((preset) => <Chip key={preset} label={formatClock(preset)} selected={value === preset} onPress={() => choose(preset)} />)}</View> : null}
+        {presets?.length ? <View style={styles.presets}>{presets.filter((preset) => preset >= min && preset <= upperBound).map((preset) => <View key={preset} style={styles.presetCell}><Chip label={formatClock(preset)} selected={value === preset} onPress={() => choose(preset)} /></View>)}</View> : null}
         <View style={styles.wheels}>
           <Wheel label={t('picker.minutes')} items={minuteItems} value={Math.floor(draft / 60)} width={96} onChange={(minute) => setDraft(minute * 60 + (draft % 60))} />
           <Text style={[styles.colon, { color: palette.textMuted }]}>:</Text>
