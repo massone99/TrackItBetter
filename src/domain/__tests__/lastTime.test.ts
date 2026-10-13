@@ -1,5 +1,5 @@
 import { bandRanks, compareBandHelp, orderAfterSetEdit, parseHexColor, type SetBand } from '../equipment';
-import { compareWithLast, type ComparableSet } from '../lastTime';
+import { compareWithLast, sessionStats, type ComparableSet } from '../lastTime';
 
 const set = (reps: number, extra: Partial<ComparableSet> = {}): ComparableSet => ({ reps, durationSec: null, distanceM: null, completedAt: new Date(), ...extra });
 const options = { defaultRest: 90 };
@@ -113,5 +113,22 @@ describe('parseHexColor', () => {
     expect(parseHexColor(' #abc ')).toBe('#AABBCC');
     expect(parseHexColor('#12')).toBeNull();
     expect(parseHexColor('blue')).toBeNull();
+  });
+});
+
+describe('sessionStats', () => {
+  const base = { pairId: null, durationSec: null, distanceM: null, addedLoadKg: 0, completedAt: new Date(), bands: [] };
+  it('sums working sets, counts warm-ups apart and averages what was rated', () => {
+    const stats = sessionStats([
+      { ...base, kind: 'warmup', reps: 3, restSec: 60, rpe: null, formRating: null },
+      { ...base, kind: 'working', reps: 5, restSec: 120, rpe: 8, formRating: 4 },
+      { ...base, kind: 'working', reps: 4, restSec: null, rpe: null, formRating: 3 },
+      { ...base, kind: 'working', reps: 6, restSec: 120, rpe: 9, formRating: null, completedAt: null },
+    ], 'reps', 90);
+    expect(stats).toEqual({ total: 9, best: 5, sets: 2, warmups: 1, rest: 105, rpe: 8, form: 3.5, volumeKg: null });
+  });
+  it('reports volume only for loaded rep work', () => {
+    const stats = sessionStats([{ ...base, kind: 'working', reps: 5, restSec: 60, rpe: null, formRating: null, addedLoadKg: 10 }], 'reps', 60);
+    expect(stats.volumeKg).toBe(50);
   });
 });

@@ -16,7 +16,7 @@ export function HistoryRow({ session, metric, locale, first }: { session: Exerci
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={`${date}, ${session.workoutName}: ${describeSets(session.sets, metric)}`}
-      onPress={() => router.push({ pathname: '/workout/history/[id]', params: { id: session.workoutId } })}
+      onPress={() => router.push({ pathname: '/workout/recap/[id]', params: { id: session.workoutId } })}
       style={({ pressed }) => [styles.historyRow, !first && { borderTopColor: palette.border, borderTopWidth: StyleSheet.hairlineWidth }, { opacity: pressed ? 0.6 : 1 }]}
     >
       <View style={styles.historyDate}>

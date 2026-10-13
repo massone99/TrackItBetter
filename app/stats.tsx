@@ -396,7 +396,7 @@ export default function StatsScreen() {
                   icon="barbell-outline"
                   title={displayWorkoutName(workout.name, t('log.pastName'))}
                   subtitle={dateFormat({ weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }, workout.startedAt)}
-                  onPress={() => router.push({ pathname: '/workout/history/[id]', params: { id: workout.id } })}
+                  onPress={() => router.push({ pathname: '/workout/recap/[id]', params: { id: workout.id } })}
                 />
               ))}</Paged>
             </ListGroup>

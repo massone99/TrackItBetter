@@ -90,6 +90,8 @@ function AppNavigator() {
         <Stack.Screen name="form-check/[setId]" />
         <Stack.Screen name="workout/summary/[id]" options={{ gestureEnabled: false }} />
         <Stack.Screen name="workout/history/[id]" />
+        <Stack.Screen name="workout/recap/[id]" />
+        <Stack.Screen name="workout/entry/[entryId]" />
         <Stack.Screen name="workout/share/[id]" />
         <Stack.Screen name="exercise/[id]" />
         <Stack.Screen name="exercise/new" />

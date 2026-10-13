@@ -27,7 +27,7 @@ export function WorkoutLogRow({ workout, locale, first }: { workout: WorkoutHist
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={`${t('log.openWorkout', { name })}, ${meta}`}
-      onPress={() => router.push({ pathname: '/workout/history/[id]', params: { id: workout.id } })}
+      onPress={() => router.push({ pathname: '/workout/recap/[id]', params: { id: workout.id } })}
       style={({ pressed }) => [styles.row, !first && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: palette.border }, pressed && { backgroundColor: palette.surfaceMuted }]}
     >
       <View style={styles.copy}>

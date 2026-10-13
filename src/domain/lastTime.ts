@@ -143,3 +143,36 @@ export function compareWithLast(
 }
 
 const round = (value: number) => Math.round(value * 10) / 10;
+
+/** The numbers of one exercise in one session, over its completed working sets (an L/R pair counts once). */
+export interface SessionStats {
+  /** Reps, seconds or metres summed. */
+  total: number | null;
+  /** The biggest single set (reps, seconds or metres). */
+  best: number | null;
+  sets: number;
+  warmups: number;
+  /** Average rest in seconds, a set without its own rest using `defaultRest`. */
+  rest: number | null;
+  /** Averages of the sets that have a value. */
+  rpe: number | null;
+  form: number | null;
+  /** Reps × added load, for loaded rep work; null without load. */
+  volumeKg: number | null;
+}
+
+export function sessionStats(sets: readonly ComparableSet[], metric: string, defaultRest: number): SessionStats {
+  const done = sets.filter((set) => set.completedAt !== null);
+  const amounts = perSet(done, (set) => amountOf(set, metric));
+  const loaded = metric !== 'time' && metric !== 'time_load' && metric !== 'distance' && done.some((set) => set.kind !== 'warmup' && (set.addedLoadKg ?? 0) > 0);
+  return {
+    total: amounts.length ? round(sum(amounts)) : null,
+    best: amounts.length ? round(Math.max(...amounts)) : null,
+    sets: groupSets(done.filter((set) => set.kind !== 'warmup')).length,
+    warmups: groupSets(done.filter((set) => set.kind === 'warmup')).length,
+    rest: (() => { const value = mean(perSet(done, (set) => set.restSec ?? defaultRest)); return value === null ? null : Math.round(value); })(),
+    rpe: (() => { const value = mean(perSet(done, (set) => set.rpe)); return value === null ? null : round(value); })(),
+    form: (() => { const value = mean(perSet(done, (set) => set.formRating)); return value === null ? null : round(value); })(),
+    volumeKg: loaded ? round(sum(perSet(done, (set) => (set.reps ?? 0) * Math.max(0, set.addedLoadKg ?? 0)))) : null,
+  };
+}

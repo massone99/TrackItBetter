@@ -2,6 +2,11 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.31.0 - 2026-10-13
+
+- Workout recap: opening a workout from the Log (or Stats, or an exercise's history) shows its recap first: duration, sets, exercises, reps, kg lifted, average RPE and form, the records, what beat last time and every exercise with its trend. Edit opens the editable workout as before; Repeat starts it again; Share is at the top. The screen after finishing uses the same recap.
+- Exercise in a workout: tap an exercise in the recap for all its numbers in that workout: totals and averages, every set (RPE, form, rest, notes, record sets highlighted), a today-vs-last-time table and the records it set.
+
 ## 0.30.6 - 2026-10-13
 
 - Workout: Discard workout, Save as program workout, How are you feeling? and the Voice chip are visible again (no hidden menu).
