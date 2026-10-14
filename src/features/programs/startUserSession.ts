@@ -95,7 +95,8 @@ async function fillWorkout(workoutId: string, known: readonly KnownPrescription[
     const loads = isLoadMetric(metric) ? plannedLoads(prescription, previousSets.map((set) => set.addedLoadKg)) : [];
     const sides = unilateral ? (['left', 'right'] as const) : (['both'] as const);
     // At least one set, as an exercise added to a workout always has.
-    const sets = Array.from({ length: Math.max(1, prescription.sets) }, (_, setIndex): PlannedSet => sides.map((side) => {
+    // A total goal starts with one set; the next ones are added as the sets get done.
+    const sets = Array.from({ length: prescription.totalTarget != null ? 1 : Math.max(1, prescription.sets) }, (_, setIndex): PlannedSet => sides.map((side) => {
       const values = { ...initialValues(metric) };
       const last = previousForSide(previousSets, setIndex, unilateral ? side : undefined, unilateral);
       if (prescription.target !== null) {
@@ -128,7 +129,7 @@ async function fillWorkout(workoutId: string, known: readonly KnownPrescription[
         targetRpe: targetRpeFor(prescription, setIndex),
       };
     }));
-    return { exerciseId: prescription.exerciseId, notes: prescription.note, sets };
+    return { exerciseId: prescription.exerciseId, notes: prescription.note, totalTarget: prescription.totalTarget ?? null, sets };
   });
   await addPlannedEntries(workoutId, planned);
 }

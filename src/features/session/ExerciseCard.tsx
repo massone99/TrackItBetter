@@ -9,7 +9,8 @@ import type { RecordKind } from '../analytics/records';
 import { openExercisePage } from '../exercises/openExercise';
 import { openReferenceVideo } from '../exercises/ReferenceLinkSheet';
 import { HoldDurationField } from '../../shared/components/DateTimePickers';
-import { Heading, Icon, IconButton, Label, NumberEdit, tapFeedback, Text, type NumberEditControl } from '../../shared/components/ui';
+import { Heading, Icon, IconButton, Label, NumberEdit, ProgressMeter, tapFeedback, Text, type NumberEditControl } from '../../shared/components/ui';
+import { totalProgress } from '../../domain/totalGoal';
 import { useAnimationSettings } from '../../shared/settings/AnimationProvider';
 import { useTheme } from '../../shared/theme/ThemeProvider';
 import { fonts } from '../../shared/theme/typography';
@@ -131,6 +132,10 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
     : null;
   // The set to do next carries the filled button, so the eye lands on it; later sets stay quiet.
   const nextSetId = exercise.sets.find((set) => !set.completedAt)?.id ?? null;
+  // A total goal: how much of it the done sets cover, shown as "32 / 50 reps".
+  const goal = exercise.totalTarget != null ? totalProgress(exercise.sets, exercise.metric, exercise.totalTarget) : null;
+  const goalAmount = (value: number) => (timed ? formatClock(Math.round(value)) : distance ? `${formatNumber(value)} m` : formatNumber(value));
+  const goalUnit = timed || distance ? '' : ` ${t('history.units.reps')}`;
   // Large text opens one set at a time: the one being held, else the one tapped (until it is done or
   // reopened), else the next to do.
   const [picked, setPicked] = useState<{ id: string; done: boolean } | null>(null);
@@ -159,7 +164,11 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
           </View>
           <View style={styles.progressRow}>
             <Icon name={allDone ? 'checkmark-circle' : 'ellipse-outline'} size={14} color={allDone ? palette.success : palette.textMuted} />
-            <Label style={allDone ? { color: palette.success } : undefined}>{t('logger.setsProgress', { done: doneSets, total: totalSets })}</Label>
+            {goal ? (
+              <Label style={goal.reached ? { color: palette.success } : undefined}>{`${t('totalGoal.label')} · ${t('totalGoal.setsDone', { count: doneSets })}`}</Label>
+            ) : (
+              <Label style={allDone ? { color: palette.success } : undefined}>{t('logger.setsProgress', { done: doneSets, total: totalSets })}</Label>
+            )}
             {targetText ? <Label>{`· @ ${t('logger.rpeTag', { value: targetText })}`}</Label> : null}
             {apparatusLabel ? <Label>{`· ${apparatusLabel}`}</Label> : null}
             {supersetLabel ? <Label style={{ color: palette.accentStrong }}>{`· ${supersetLabel}`}</Label> : null}
@@ -187,6 +196,21 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
         ) : null}
         <IconButton icon="ellipsis-vertical" label={t('logger.options')} tone="plain" onPress={onOptions} />
       </View>
+      {goal ? (
+        <View style={[styles.goalCard, { backgroundColor: goal.reached ? palette.successSoft : palette.surface, borderColor: goal.reached ? palette.success : palette.border }]}>
+          <View style={styles.goalRow}>
+            {goal.reached ? <Icon name="checkmark-circle" size={20} color={palette.success} /> : null}
+            <Text style={[styles.goalDone, { color: palette.text }]}>{goalAmount(goal.done)}</Text>
+            <Text style={[styles.goalTarget, { color: palette.textMuted }]}>{`/ ${goalAmount(goal.target)}${goalUnit}`}</Text>
+            <View style={styles.flex} />
+            <Text style={[styles.goalState, { color: goal.reached ? palette.success : palette.accentStrong }]}>
+              {goal.reached ? (goal.over > 0 ? t('totalGoal.reachedOver', { over: goalAmount(goal.over) }) : t('totalGoal.reached')) : t('totalGoal.remaining', { value: goalAmount(goal.remaining) })}
+            </Text>
+          </View>
+          <ProgressMeter value={goal.done} total={goal.target} label={`${goalAmount(goal.done)} / ${goalAmount(goal.target)}${goalUnit}`} tone={goal.reached ? 'success' : 'accent'} />
+        </View>
+      ) : null}
+
       {!collapsed && hasComparison && previous ? (
         <LastTimeStrip
           comparison={comparison}
@@ -568,6 +592,11 @@ const baseStyles = StyleSheet.create({
   colAction: { width: 44, alignItems: 'center' },
   colMenu: { width: 36, alignItems: 'center' },
   menuButton: { width: 36, minHeight: 48, alignItems: 'center', justifyContent: 'center' },
+  goalCard: { borderWidth: 1, borderRadius: 16, padding: 12, gap: 8, marginBottom: 8 },
+  goalRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'baseline', columnGap: 8 },
+  goalDone: { fontFamily: fonts.display, fontSize: 32, lineHeight: 36, fontVariant: ['tabular-nums'] },
+  goalTarget: { fontFamily: fonts.medium, fontSize: 16 },
+  goalState: { fontFamily: fonts.semibold, fontSize: 15 },
   setBlock: { borderRadius: 10, overflow: 'hidden', marginBottom: 8 },
   valueStack: { alignItems: 'center' },
   valueCaption: { fontFamily: fonts.body, fontSize: 12, lineHeight: 14 },

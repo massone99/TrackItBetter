@@ -43,6 +43,7 @@ import {
   updateSetRpe,
   updateWorkoutReadiness,
   updateSet,
+  setEntryTotalTarget,
 } from '../../src/features/session/repository';
 import type { ActiveWorkout, PreviousPerformance, PreviousSetValues, RemovedRows, SessionExercise, SessionSet } from '../../src/features/session/repository';
 import { defaultHoldMode, rememberHoldMode, useHoldTimer, type ActiveHold } from '../../src/features/session/useHoldTimer';
@@ -79,6 +80,9 @@ import {
   tapFeedback,
 } from '../../src/shared/components/ui';
 import { ReorderableList } from '../../src/shared/components/ReorderableList';
+import { FreeRestBar } from '../../src/features/session/FreeRestBar';
+import { TotalGoalSheet } from '../../src/features/session/TotalGoalSheet';
+import { nextSetValue, totalProgress } from '../../src/domain/totalGoal';
 import { SaveToProgramSheet } from '../../src/features/programs/SaveToProgramSheet';
 import { ExerciseNoteField } from '../../src/features/session/ExerciseNoteField';
 import { WorkoutDetailsSheet } from '../../src/features/session/WorkoutDetailsSheet';
@@ -154,6 +158,9 @@ export default function WorkoutScreen() {
   const [saveOpen, setSaveOpen] = useState(false);
   const [savedTo, setSavedTo] = useState<{ id: string; name: string } | null>(null);
   const [discardOpen, setDiscardOpen] = useState(false);
+  // Self-regulated rest under a total goal: when the clock started, and the rest offered on demand.
+  const [freeRest, setFreeRest] = useState<{ since: number; restSec: number } | null>(null);
+  const [totalFor, setTotalFor] = useState<SessionExercise | null>(null);
   const [optionsFor, setOptionsFor] = useState<SessionExercise | null>(null);
   const [emomSetupFor, setEmomSetupFor] = useState<SessionExercise | null>(null);
   const [emomNotice, setEmomNotice] = useState<string | null>(null);
@@ -298,6 +305,7 @@ export default function WorkoutScreen() {
   };
 
   const startRestTimer = (seconds: number) => {
+    setFreeRest(null);
     const duration = Math.max(1, Math.floor(seconds));
     const endsAt = Date.now() + duration * 1000;
     setRestEndsAt(endsAt);
@@ -317,6 +325,7 @@ export default function WorkoutScreen() {
   };
 
   const skipRest = () => {
+    setFreeRest(null);
     setRestEndsAt(null);
     if (id) runningRests.delete(id);
     void cancelRestFinishedNotification().catch(() => undefined);
@@ -401,6 +410,14 @@ export default function WorkoutScreen() {
     const exercise = workout?.exercises.find((item) => item.sets.some((set) => set.id === setId));
     // While an EMOM runs its clock is the rest: no rest timer on top of it.
     if (emomEntryId) return;
+    // A total goal: self-regulated rest (a clock counting up), and the next set until the total is reached.
+    if (exercise?.totalTarget != null) {
+      setRestEndsAt(null);
+      void cancelRestFinishedNotification().catch(() => undefined);
+      setFreeRest({ since: nowMs(), restSec: restAfter(setId) });
+      void continueTotalGoal(exercise, setId);
+      return;
+    }
     const marked = workout?.exercises.map((item) => ({ ...item, sets: item.sets.map((set) => set.id === setId ? { ...set, completedAt: new Date() } : set) })) ?? [];
     const finished = exercise?.sets.find((s) => s.id === setId);
     if (finished?.pairId && exercise?.sets.some((s) => s.pairId === finished.pairId && s.id !== setId && !s.completedAt)) {
@@ -415,6 +432,22 @@ export default function WorkoutScreen() {
     // A working set still to be rated keeps the screen where it is; rating it moves on (see saveFormRating).
     const rated = finished?.kind !== 'working' || finished.formRating !== null || !!emomEntryId;
     if (rated) scrollToNextExercise(setId);
+  };
+
+  /** Under a total goal, adds the next set (the last value, at most what is left) once every set is done and the total is not reached. */
+  const continueTotalGoal = async (exercise: SessionExercise, setId: string) => {
+    if (exercise.totalTarget == null || !workout) return;
+    const sets = exercise.sets.map((set) => (set.id === setId ? { ...set, completedAt: set.completedAt ?? new Date() } : set));
+    if (sets.some((set) => !set.completedAt)) return;
+    const progress = totalProgress(sets, exercise.metric, exercise.totalTarget);
+    if (progress.reached) return;
+    const field = exercise.metric === 'time' || exercise.metric === 'time_load' ? 'durationSec' : exercise.metric === 'distance' ? 'distanceM' : 'reps';
+    const last = [...sets].reverse().find((set) => set.kind === 'working');
+    try {
+      const newId = await addSet(exercise.entryId);
+      if (!exercise.unilateral) await updateSet(newId, field, nextSetValue(last ? last[field] : null, progress.remaining));
+      await refresh(workout.id);
+    } catch { /* The set can still be added by hand. */ }
   };
 
   /** In a superset, scrolls to the exercise that comes after the one this set belongs to. */
@@ -610,7 +643,9 @@ export default function WorkoutScreen() {
       <Screen
         scrollRef={scrollRef}
         // The running clock sits right above Add and Finish, so both stay in reach during rest.
-        footerAccessory={timerRunning ? (
+        footerAccessory={!timerRunning && freeRest ? (
+          <FreeRestBar since={freeRest.since} restSec={freeRest.restSec} onStartRest={() => startRestTimer(freeRest.restSec)} onClose={() => setFreeRest(null)} />
+        ) : timerRunning ? (
           <TimerBar
             emom={emom.plan && emom.phase ? {
               label: emomBarLabel(emom.phase, emom.plan, t),
@@ -905,6 +940,7 @@ export default function WorkoutScreen() {
                   }}
                 />
               ) : null}
+              <MenuTile icon="flag-outline" label={optionsFor.totalTarget != null ? t('totalGoal.edit') : t('totalGoal.set')} onPress={() => { setTotalFor(optionsFor); setOptionsFor(null); }} />
               <MenuTile icon="swap-horizontal" label={t('logger.replaceExercise')} onPress={() => { setReplacing(optionsFor); setOptionsFor(null); setPickerOpen(true); }} />
               <MenuTile
                 icon="construct-outline"
@@ -923,6 +959,16 @@ export default function WorkoutScreen() {
           </>
         ) : null}
       </Sheet>
+
+      <TotalGoalSheet
+        exercise={totalFor}
+        onClose={() => setTotalFor(null)}
+        onSave={(value) => {
+          const target = totalFor;
+          setTotalFor(null);
+          if (target) void setEntryTotalTarget(target.entryId, value).then(() => refresh(workout.id));
+        }}
+      />
 
       <Sheet
         visible={removeExerciseFor !== null}

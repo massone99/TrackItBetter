@@ -24,6 +24,11 @@ export interface UserProgramExercise {
   rpe?: number | null;
   /** Target RPE set by set (index 0 is set 1); when present it wins over `rpe`. */
   rpePerSet?: (number | null)[] | null;
+  /**
+   * A total to reach (reps, seconds or meters, like `target`) in as many sets as it takes, with
+   * self-regulated rest. When set, `sets` is ignored and `target`, if any, is where each set starts.
+   */
+  totalTarget?: number | null;
 }
 
 /** One workout of a program; programs rotate through them in order, on whatever days suit the user. */
@@ -82,7 +87,8 @@ export function isValidPrescription(exercise: Partial<UserProgramExercise>): exe
     && (exercise.restSeconds === undefined || exercise.restSeconds === null || (Number.isInteger(exercise.restSeconds) && exercise.restSeconds >= 0))
     && (exercise.loadKg === undefined || exercise.loadKg === null || (Number.isFinite(exercise.loadKg) && exercise.loadKg >= 0))
     && (exercise.rpe === undefined || exercise.rpe === null || isValidRpe(exercise.rpe))
-    && (exercise.rpePerSet === undefined || exercise.rpePerSet === null || (Array.isArray(exercise.rpePerSet) && exercise.rpePerSet.every((value) => value === null || isValidRpe(value))));
+    && (exercise.rpePerSet === undefined || exercise.rpePerSet === null || (Array.isArray(exercise.rpePerSet) && exercise.rpePerSet.every((value) => value === null || isValidRpe(value))))
+    && (exercise.totalTarget === undefined || exercise.totalTarget === null || (Number.isFinite(exercise.totalTarget) && exercise.totalTarget > 0));
 }
 
 /** The planned RPE of set `setIndex` (0-based): the per-set target when the program has one, else the shared one. */
@@ -131,6 +137,7 @@ export function replaceExercise(prescription: UserProgramExercise, exerciseId: s
     ...prescription,
     exerciseId,
     target: prescription.target !== null && sameMeasure ? prescription.target : null,
+    ...(prescription.totalTarget != null ? { totalTarget: sameMeasure ? prescription.totalTarget : null } : {}),
     loadKg: isLoadMetric(newMetric) ? prescription.loadKg ?? null : null,
   };
 }
@@ -187,6 +194,14 @@ export function estimateSessionSeconds(session: Pick<UserProgramSession, 'exerci
     const target = exercise.target ?? DEFAULT_TARGET[measureOf(metric)];
     const work = isTimedMetric(metric) ? target : metric === 'distance' ? 60 : target * ESTIMATED_SEC_PER_REP;
     const rest = exercise.restSeconds ?? defaultRestSec;
+    if (exercise.totalTarget != null) {
+      // A total goal: the whole amount of work, in as many sets as one set's value fits into it.
+      const sets = Math.max(1, Math.ceil(exercise.totalTarget / Math.max(1, target)));
+      const totalWork = isTimedMetric(metric) ? exercise.totalTarget : metric === 'distance' ? sets * 60 : exercise.totalTarget * ESTIMATED_SEC_PER_REP;
+      total += totalWork + sets * rest;
+      lastRest = rest;
+      continue;
+    }
     total += exercise.sets * (work + rest);
     lastRest = rest;
   }
@@ -219,6 +234,7 @@ export interface WorkoutExerciseLike {
   exerciseId: string;
   metric: string;
   notes: string | null;
+  totalTarget?: number | null;
   sets: readonly WorkoutSetLike[];
 }
 
@@ -254,6 +270,7 @@ export function sessionFromWorkout(name: string, exercises: readonly WorkoutExer
         restSeconds: first?.restSec != null && first.restSec >= 0 ? Math.round(first.restSec) : null,
         loadKg: load,
         ...rpeTargetsOf(groups.map((group) => group[0]?.targetRpe ?? null)),
+        ...(exercise.totalTarget != null && exercise.totalTarget > 0 ? { totalTarget: exercise.totalTarget, sets: 1 } : {}),
       };
     }),
   };

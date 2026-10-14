@@ -103,6 +103,8 @@ export const exerciseEntries = sqliteTable(
     apparatusId: text('apparatus_id'),
     /** Per-exercise form rating from 0.13.0; ratings now live on the sets (see trainingSets.formRating). */
     formRating: integer('form_rating'),
+    /** A total to reach in as many sets as it takes (reps, seconds or meters); null for ordinary sets. */
+    totalTarget: real('total_target'),
   },
   (table) => [index('entry_workout_order_idx').on(table.workoutId, table.order)],
 );

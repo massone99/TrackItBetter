@@ -12,6 +12,7 @@ describe('schema v15: form rated per set', () => {
       ALTER TABLE exercise DROP COLUMN default_apparatus_id;
       ALTER TABLE exercise DROP COLUMN apparatus_affects_difficulty;
       ALTER TABLE exercise_entry DROP COLUMN apparatus_id;
+      ALTER TABLE exercise_entry DROP COLUMN total_target;
       ALTER TABLE training_set DROP COLUMN bands;
       ALTER TABLE training_set DROP COLUMN assist_kg;
       ALTER TABLE training_set DROP COLUMN form_rating;
@@ -26,5 +27,22 @@ describe('schema v15: form rated per set', () => {
     await migrateDatabase(legacy.expo);
     const rows = legacy.sqlite.prepare('SELECT id, form_rating FROM training_set WHERE entry_id = ? ORDER BY set_index').all('e');
     expect(rows).toEqual([{ id: 'done', form_rating: 4 }, { id: 'warm', form_rating: null }, { id: 'open', form_rating: null }]);
+  });
+});
+
+describe('schema v18: total goal', () => {
+  it('adds an empty total goal to existing workout exercises', async () => {
+    const legacy = createRealDatabase();
+    await migrateDatabase(legacy.expo);
+    await seedCatalogIfEmpty(legacy.db as unknown as Parameters<typeof seedCatalogIfEmpty>[0]);
+    legacy.sqlite.exec(`
+      ALTER TABLE exercise_entry DROP COLUMN total_target;
+      PRAGMA user_version = 17;
+      INSERT INTO workout (id, name, started_at, ended_at) VALUES ('w', 'Old', 10, 20);
+      INSERT INTO exercise_entry (id, workout_id, exercise_id, "order") VALUES ('e', 'w', 'push-up', 1);
+    `);
+    await migrateDatabase(legacy.expo);
+    expect(legacy.sqlite.prepare('SELECT total_target FROM exercise_entry WHERE id = ?').get('e')).toEqual({ total_target: null });
+    expect(legacy.sqlite.prepare('PRAGMA user_version').get()).toEqual({ user_version: 18 });
   });
 });

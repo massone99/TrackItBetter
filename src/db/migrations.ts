@@ -239,6 +239,12 @@ UPDATE training_set SET note = CASE WHEN note IS NULL OR trim(note) = '' THEN ba
 PRAGMA user_version = 17;
 `;
 
+/** A total goal per exercise in a workout (reps, seconds or meters), reached in as many sets as it takes. */
+export const totalGoalSchema = `
+ALTER TABLE exercise_entry ADD COLUMN total_target REAL;
+PRAGMA user_version = 18;
+`;
+
 /** Applies numbered, local-first SQLite schema migrations once per database. */
 export async function migrateDatabase(database: SQLiteDatabase): Promise<void> {
   await database.execAsync('PRAGMA foreign_keys = ON;');
@@ -355,6 +361,12 @@ export async function migrateDatabase(database: SQLiteDatabase): Promise<void> {
   if (version < 17) {
     await database.withTransactionAsync(async () => {
       await database.execAsync(equipmentSchema);
+    });
+  }
+
+  if (version < 18) {
+    await database.withTransactionAsync(async () => {
+      await database.execAsync(totalGoalSchema);
     });
   }
 }

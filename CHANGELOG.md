@@ -2,6 +2,13 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.33.0 - 2026-10-14
+
+- Total goal per exercise: reach a total of reps, time or metres in as many sets as it takes. Set it in a program (Fixed sets | Total goal in the exercise sheet, with an optional per-set start) or during a workout from the exercise menu.
+- In the workout the card shows "32 / 50 reps · 18 to go", turning green when reached (with any extra). Each completed set adds the next one, filled with the last value but never more than what is left.
+- Self-regulated rest: after a set under a total goal a clock counts the rest up, with the usual rest timer one tap away.
+- The exercise detail in the recap shows whether the goal was reached.
+
 ## 0.32.0 - 2026-10-14
 
 - Program builder: each exercise is now one compact row (grip, name, chips for sets, load, rest, RPE) and opens in a sheet to edit sets, target, rest, RPE, load and note, with move up/down, replace and remove. Dragging no longer fights an open editor.

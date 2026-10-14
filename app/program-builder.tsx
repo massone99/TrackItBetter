@@ -53,7 +53,8 @@ import {
 import { useTheme } from '../src/shared/theme/ThemeProvider';
 import { fonts } from '../src/shared/theme/typography';
 import { useScaledStyles } from '../src/shared/theme/useScaledStyles';
-import { formatMinutes } from '../src/shared/utils/format';
+import { formatClock, formatMinutes } from '../src/shared/utils/format';
+import { TotalTargetField, totalDefaultFor } from '../src/features/programs/TotalTargetField';
 
 type ExerciseInfo = { name: string; metric: string };
 type Draft = { name: string; sessions: UserProgramSession[] };
@@ -290,7 +291,9 @@ export default function ProgramEditorScreen() {
               const invalid = errors.some((error) => error.exerciseId === prescription.id);
               const suffix = isTimedMetric(metric) ? ' s' : metric === 'distance' ? ' m' : '';
               const chips = [
-                prescription.target === null ? t('userProgram.setsOnly', { count: prescription.sets }) : `${prescription.sets} × ${prescription.target}${suffix}`,
+                prescription.totalTarget != null
+                  ? t('programBuilder.totalChip', { value: isTimedMetric(metric) ? formatClock(prescription.totalTarget) : `${prescription.totalTarget}${suffix}` })
+                  : prescription.target === null ? t('userProgram.setsOnly', { count: prescription.sets }) : `${prescription.sets} × ${prescription.target}${suffix}`,
                 isLoadMetric(metric) && prescription.loadKg != null ? `${prescription.loadKg} kg` : null,
                 prescription.restSeconds == null ? null : t('programBuilder.restChip', { value: prescription.restSeconds }),
                 rpeTargetText(prescription) ? t('logger.rpeTag', { value: rpeTargetText(prescription) }) : null,
@@ -368,7 +371,27 @@ export default function ProgramEditorScreen() {
               <IconButton icon="arrow-up" label={t('programBuilder.moveExerciseUp')} tone="plain" size={44} disabled={editIndex === 0} onPress={() => updateSession(editSession.id, { exercises: moveItem(editSession.exercises, editIndex, -1) })} />
               <IconButton icon="arrow-down" label={t('programBuilder.moveExerciseDown')} tone="plain" size={44} disabled={editIndex === editSession.exercises.length - 1} onPress={() => updateSession(editSession.id, { exercises: moveItem(editSession.exercises, editIndex, 1) })} />
             </View>
-            <Stepper layout="row" label={t('programBuilder.sets')} value={editPrescription.sets} step={1} min={1} max={20} editable onChange={(sets) => updateExercise(editSession.id, editPrescription.id, { sets: Math.max(1, Math.round(sets)), ...(editPrescription.rpePerSet ? { rpePerSet: fitRpePerSet(editPrescription.rpePerSet, Math.max(1, Math.round(sets))) } : {}) })} />
+            <SegmentedControl<'sets' | 'total'>
+              value={editPrescription.totalTarget != null ? 'total' : 'sets'}
+              onChange={(mode) => updateExercise(editSession.id, editPrescription.id, mode === 'total'
+                ? { totalTarget: totalDefaultFor(editMetric, editPrescription.target, editPrescription.sets), rpePerSet: null, rpe: editPrescription.rpePerSet?.find((value) => value !== null) ?? editPrescription.rpe ?? null }
+                : { totalTarget: null })}
+              options={[{ value: 'sets', label: t('programBuilder.modeSets') }, { value: 'total', label: t('programBuilder.modeTotal') }]}
+            />
+            {editPrescription.totalTarget != null ? (
+              <>
+                <TotalTargetField metric={editMetric} value={editPrescription.totalTarget} onChange={(totalTarget) => updateExercise(editSession.id, editPrescription.id, { totalTarget })} />
+                <View style={[styles.totalHint, { backgroundColor: palette.surfaceMuted }]}>
+                  <Icon name="timer-outline" size={18} color={palette.accentStrong} />
+                  <View style={styles.flex}>
+                    <Text style={styles.exerciseName}>{t('programBuilder.freeRestTitle')}</Text>
+                    <Label>{t('programBuilder.freeRestBody')}</Label>
+                  </View>
+                </View>
+              </>
+            ) : null}
+            {editPrescription.totalTarget != null ? null : <Stepper layout="row" label={t('programBuilder.sets')} value={editPrescription.sets} step={1} min={1} max={20} editable onChange={(sets) => updateExercise(editSession.id, editPrescription.id, { sets: Math.max(1, Math.round(sets)), ...(editPrescription.rpePerSet ? { rpePerSet: fitRpePerSet(editPrescription.rpePerSet, Math.max(1, Math.round(sets))) } : {}) })} />}
+            {editPrescription.totalTarget != null ? <Label>{t('programBuilder.perSetHint')}</Label> : null}
             <TargetStepper metric={editMetric} value={editPrescription.target} onChange={(target) => updateExercise(editSession.id, editPrescription.id, { target })} />
             <DurationField
               label={t('userProgram.rest')}
@@ -382,13 +405,13 @@ export default function ProgramEditorScreen() {
             />
             <View style={styles.rpeBlock}>
               <Label>{t('programBuilder.rpeTarget')}</Label>
-              <SegmentedControl<'same' | 'perSet'>
+              {editPrescription.totalTarget != null ? null : <SegmentedControl<'same' | 'perSet'>
                 value={editPrescription.rpePerSet ? 'perSet' : 'same'}
                 onChange={(mode) => updateExercise(editSession.id, editPrescription.id, mode === 'perSet'
                   ? { rpePerSet: fitRpePerSet([editPrescription.rpe ?? null], editPrescription.sets), rpe: null }
                   : { rpe: editPrescription.rpePerSet?.find((value) => value !== null) ?? null, rpePerSet: null })}
                 options={[{ value: 'same', label: t('programBuilder.rpeSame') }, { value: 'perSet', label: t('programBuilder.rpePerSet') }]}
-              />
+              />}
               {editPrescription.rpePerSet ? editPrescription.rpePerSet.map((value, index) => (
                 <RpePicker
                   key={index}
@@ -492,6 +515,7 @@ function newSession(name: string): UserProgramSession {
 
 const baseStyles = StyleSheet.create({
   rpeBlock: { gap: 8 },
+  totalHint: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, borderRadius: 14, padding: 14 },
   moveRow: { flexDirection: 'row', justifyContent: 'flex-end', gap: 4, marginTop: -8 },
   sheetButtons: { gap: 8 },
   exerciseRow: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 56 },

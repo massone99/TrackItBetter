@@ -46,11 +46,11 @@ export interface LastTimeComparison {
   worse: { form: boolean };
 }
 
-const amountOf = (set: ComparableSet, metric: string) =>
+export const amountOf = (set: ComparableSet, metric: string) =>
   metric === 'time' || metric === 'time_load' ? set.durationSec : metric === 'distance' ? set.distanceM : set.reps;
 
 /** One value per working set; an L/R pair counts once, as the mean of its sides (like the statistics). */
-function perSet(sets: readonly ComparableSet[], value: (set: ComparableSet) => number | null | undefined): number[] {
+export function perSet(sets: readonly ComparableSet[], value: (set: ComparableSet) => number | null | undefined): number[] {
   return groupSets(sets.filter((set) => set.kind !== 'warmup')).flatMap((group) => {
     const values = group.map(value).filter((item): item is number => item != null && Number.isFinite(item));
     return values.length ? [values.reduce((sum, item) => sum + item, 0) / values.length] : [];

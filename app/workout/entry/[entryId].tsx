@@ -10,6 +10,7 @@ import { restForSet } from '../../../src/features/session/restDefaults';
 import { displayWorkoutName } from '../../../src/features/session/workoutName';
 import { describeSetToken } from '../../../src/features/exercises/describeSets';
 import { openExercisePage } from '../../../src/features/exercises/openExercise';
+import { totalProgress } from '../../../src/domain/totalGoal';
 import { sessionStats, type SessionStats } from '../../../src/domain/lastTime';
 import { formatRpe } from '../../../src/domain/rpe';
 import { groupSets } from '../../../src/domain/setPairs';
@@ -99,6 +100,14 @@ export default function WorkoutEntryScreen() {
         </View>
         <Label>{`${displayWorkoutName(workout.name, t('log.pastName'))} · ${workout.startedAt.toLocaleDateString(i18n.language, { weekday: 'short', day: 'numeric', month: 'short' })}`}</Label>
         <Title>{exercise.name}</Title>
+        {exercise.totalTarget != null ? (() => {
+          const goal = totalProgress(exercise.sets, metric, exercise.totalTarget);
+          return (
+            <Text style={[styles.goalLine, { color: goal.reached ? palette.success : palette.warning }]}>
+              {t('totalGoal.recap', { value: amount(goal.target), state: goal.reached ? t('totalGoal.recapReached') : t('totalGoal.recapMissed', { value: amount(goal.remaining) }) })}
+            </Text>
+          );
+        })() : null}
         {exercise.notes ? <Body>{exercise.notes}</Body> : null}
       </View>
 
@@ -188,6 +197,7 @@ export default function WorkoutEntryScreen() {
 
 const baseStyles = StyleSheet.create({
   header: { gap: 6 },
+  goalLine: { fontFamily: fonts.semibold, fontSize: 15 },
   topBar: { flexDirection: 'row', marginLeft: -8 },
   tiles: { flexDirection: 'row', flexWrap: 'wrap', borderRadius: 20, paddingVertical: 12, paddingHorizontal: 8, rowGap: 12 },
   tile: { width: '33.3%', minWidth: 96, flexGrow: 1, gap: 2, paddingHorizontal: 8 },

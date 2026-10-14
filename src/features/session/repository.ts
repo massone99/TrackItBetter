@@ -69,6 +69,8 @@ export interface SessionExercise {
   /** Exercises sharing a group id form a superset; the type holds its rest mode (see superset.ts). */
   groupId: string | null;
   groupType: string | null;
+  /** A total to reach in as many sets as it takes (reps, seconds or meters); null for ordinary sets. */
+  totalTarget?: number | null;
   sets: SessionSet[];
 }
 
@@ -322,6 +324,7 @@ async function loadSessionExercises(workoutId: string): Promise<SessionExercise[
       block: blockOf(entry.block),
       groupId: entry.groupId,
       groupType: entry.groupType,
+      totalTarget: entry.totalTarget ?? null,
       sets: sets.map((set) => ({
         id: set.id,
         pairId: set.pairId,
@@ -427,6 +430,14 @@ async function normalizeBlockOrder(workoutId: string): Promise<void> {
       if (entry.order !== position + 1) await tx.update(exerciseEntries).set({ order: position + 1 }).where(eq(exerciseEntries.id, entry.id));
     }
   });
+}
+
+/** Sets or clears (null) an exercise's total goal in a workout. */
+export async function setEntryTotalTarget(entryId: string, totalTarget: number | null): Promise<void> {
+  await initializeDatabase();
+  if (totalTarget !== null && (!Number.isFinite(totalTarget) || totalTarget <= 0 || totalTarget > 100_000)) throw new RangeError('Invalid total goal');
+  await db.update(exerciseEntries).set({ totalTarget }).where(eq(exerciseEntries.id, entryId));
+  await bumpIfFinished({ entryId });
 }
 
 /** Puts an exercise in a block of its workout; the exercises are kept grouped by block. */
@@ -1089,7 +1100,7 @@ export async function repeatWorkout(sourceId: string): Promise<string> {
     if (sets.length === 0) continue;
     validatePairs(sets, true);
     const entryId = id();
-    newEntries.push({ id: entryId, workoutId, exerciseId: entry.exerciseId, order: newEntries.length + 1, notes: entry.notes, groupId: entry.groupId, groupType: entry.groupType, unilateralRestMode: entry.unilateralRestMode, block: entry.block, apparatusId: entry.apparatusId });
+    newEntries.push({ id: entryId, workoutId, exerciseId: entry.exerciseId, order: newEntries.length + 1, notes: entry.notes, groupId: entry.groupId, groupType: entry.groupType, unilateralRestMode: entry.unilateralRestMode, block: entry.block, apparatusId: entry.apparatusId, totalTarget: entry.totalTarget });
     const pairIds = new Map(sets.filter((s) => s.pairId).map((s) => [s.pairId, id()]));
     newSets.push(...sets.map((set) => ({
       // How hard and how clean it was belong to that day: the copy starts without them.
@@ -1123,6 +1134,7 @@ export type PlannedSet = {
 export interface PlannedEntry {
   exerciseId: string;
   notes?: string | null;
+  totalTarget?: number | null;
   sets: PlannedSet[];
 }
 
@@ -1163,7 +1175,7 @@ export async function addPlannedEntries(workoutId: string, planned: readonly Pla
     const mobility = isMobility(exercise);
     const entryId = id();
     order += 1;
-    newEntries.push({ id: entryId, workoutId, exerciseId: entry.exerciseId, order, block: mobility && anyOther ? 'mobility' : null, notes: entry.notes?.trim().slice(0, 1000) || null });
+    newEntries.push({ id: entryId, workoutId, exerciseId: entry.exerciseId, order, block: mobility && anyOther ? 'mobility' : null, notes: entry.notes?.trim().slice(0, 1000) || null, totalTarget: entry.totalTarget != null && entry.totalTarget > 0 ? entry.totalTarget : null });
     if (!mobility) anyOther = true;
     for (const [position, set] of entry.sets.entries()) {
       const pairId = set.length === 2 ? id() : null;

@@ -261,3 +261,15 @@ describe('RPE targets', () => {
     expect(varied.exercises[0]).toMatchObject({ rpePerSet: [7, 9] });
   });
 });
+
+describe('total goal', () => {
+  it('accepts a positive total and rejects zero', () => {
+    expect(isValidPrescription({ id: 'a', exerciseId: 'pull-up', sets: 1, target: null, totalTarget: 50 })).toBe(true);
+    expect(isValidPrescription({ id: 'a', exerciseId: 'pull-up', sets: 1, target: null, totalTarget: 0 })).toBe(false);
+  });
+  it('estimates the whole total of work plus a rest per set', () => {
+    const seconds = estimateSessionSeconds({ exercises: [{ id: 'a', exerciseId: 'plank', sets: 1, target: 30, totalTarget: 120, restSeconds: 60 }] }, new Map([['plank', 'time']]));
+    // 120 s of holds in 4 sets of 30 s, with 60 s of rest after each set but the last.
+    expect(seconds).toBe(120 + 4 * 60 - 60);
+  });
+});
