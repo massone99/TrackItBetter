@@ -49,7 +49,7 @@ export default function ExerciseHistoryRoute() {
         <View key={month} style={styles.month}>
           <SectionTitle title={month.charAt(0).toUpperCase() + month.slice(1)} />
           <View style={[styles.card, { backgroundColor: palette.surface, borderColor: palette.border }]}>
-            {items.map((session, index) => <HistoryRow key={session.workoutId} session={session} metric={exercise.metric} locale={i18n.language} first={index === 0} />)}
+            {items.map((session, index) => <HistoryRow key={session.workoutId} session={session} older={sessions[sessions.indexOf(session) + 1]} exerciseId={exercise.id} metric={exercise.metric} locale={i18n.language} first={index === 0} />)}
           </View>
         </View>
       ))}

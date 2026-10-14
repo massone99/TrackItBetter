@@ -257,6 +257,17 @@ export default function ExerciseRoute() {
         ) : null}
       </ListGroup>
 
+      {history.length > 0 ? (
+        <ListGroup>
+          <ListRow
+            icon="time-outline"
+            title={t('exerciseManage.history')}
+            subtitle={`${t('exerciseManage.allHistory', { count: sessionCount })} · ${t('exerciseManage.lastTrained', { date: history[0].startedAt.toLocaleDateString(i18n.language, { day: 'numeric', month: 'short' }) })}`}
+            onPress={() => router.push({ pathname: '/exercise/history/[id]', params: { id: exercise.id } })}
+          />
+        </ListGroup>
+      ) : null}
+
       {lateral ? <View style={styles.section}>
         <SectionTitle title={scopeTitle} />
         <SegmentedControl<PairScope>
@@ -452,7 +463,7 @@ export default function ExerciseRoute() {
         {history.length > 0 ? (
           <View style={[styles.history, { backgroundColor: palette.surface, borderColor: palette.border }]}>
             {history.slice(0, HISTORY_SHOWN).map((session, index) => (
-              <HistoryRow key={session.workoutId} session={session} metric={exercise.metric} locale={i18n.language} first={index === 0} />
+              <HistoryRow key={session.workoutId} session={session} older={history[index + 1]} exerciseId={exercise.id} metric={exercise.metric} locale={i18n.language} first={index === 0} />
             ))}
             {sessionCount > HISTORY_SHOWN ? (
               <Pressable

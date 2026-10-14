@@ -275,9 +275,12 @@ export interface ExerciseHistorySet {
   /** Names are not stored on the set: the number of bands tells there were some. */
   bandCount?: number;
   rpe: number | null;
+  formRating?: number | null;
 }
 
 export interface ExerciseHistorySession {
+  /** The exercise's entry in that workout (the first one, when it appears twice). */
+  entryId: string;
   workoutId: string;
   workoutName: string;
   startedAt: Date;
@@ -336,6 +339,7 @@ export async function getExerciseHistory(exerciseId: string, limit?: number): Pr
     assistKg: trainingSets.assistKg,
     bands: trainingSets.bands,
     rpe: trainingSets.rpe,
+    formRating: trainingSets.formRating,
   }).from(exerciseEntries)
     .innerJoin(workouts, eq(workouts.id, exerciseEntries.workoutId))
     .innerJoin(trainingSets, eq(trainingSets.entryId, exerciseEntries.id))
@@ -346,10 +350,10 @@ export async function getExerciseHistory(exerciseId: string, limit?: number): Pr
     let session = sessions.get(row.workoutId);
     if (!session) {
       if (limit !== undefined && sessions.size >= limit) break;
-      session = { workoutId: row.workoutId, workoutName: row.workoutName, startedAt: row.startedAt, notes: row.notes, sets: [] };
+      session = { entryId: row.entryId, workoutId: row.workoutId, workoutName: row.workoutName, startedAt: row.startedAt, notes: row.notes, sets: [] };
       sessions.set(row.workoutId, session);
     }
-    session.sets.push({ id: row.setId, pairId: row.pairId, side: row.side, kind: row.kind, reps: row.reps, durationSec: row.durationSec, distanceM: row.distanceM, addedLoadKg: row.addedLoadKg, assistKg: row.assistKg, bandCount: parseSetBands(row.bands).length, rpe: row.rpe });
+    session.sets.push({ id: row.setId, pairId: row.pairId, side: row.side, kind: row.kind, reps: row.reps, durationSec: row.durationSec, distanceM: row.distanceM, addedLoadKg: row.addedLoadKg, assistKg: row.assistKg, bandCount: parseSetBands(row.bands).length, rpe: row.rpe, formRating: row.formRating });
   }
   return [...sessions.values()];
 }

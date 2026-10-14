@@ -2,6 +2,11 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.34.0 - 2026-10-15
+
+- Exercise page: a History row near the top (number of sessions and the last date) opens every session of that exercise, newest first, grouped by month.
+- Each history row shows the sets, average RPE and form, and how the total compares with the previous session (↑ / = / ↓). Tapping it opens that exercise in that workout, where ◀ ▶ step to the older or newer session (3 of 24), with Whole workout and Edit one tap away.
+
 ## 0.33.5 - 2026-10-14
 
 - Workout: the RPE and form rows are one line each that scrolls sideways to reveal every value (half points included); they open on the chosen value, or on 7–8 and 3,5. With very large text they still wrap.

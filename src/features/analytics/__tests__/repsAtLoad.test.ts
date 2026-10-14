@@ -5,7 +5,7 @@ const set = (id: string, reps: number, overrides: Partial<ExerciseHistorySession
   id, kind: 'working', reps, durationSec: null, distanceM: null, addedLoadKg: 0, rpe: null, ...overrides,
 });
 const session = (workoutId: string, day: number, sets: ExerciseHistorySession['sets']): ExerciseHistorySession =>
-  ({ workoutId, workoutName: workoutId, startedAt: new Date(2026, 9, day), notes: null, sets });
+  ({ entryId: workoutId, workoutId, workoutName: workoutId, startedAt: new Date(2026, 9, day), notes: null, sets });
 
 describe('repsAtLoadFromHistory', () => {
   it('groups by net load: added weight minus the help from bands, apart from plain bodyweight', () => {

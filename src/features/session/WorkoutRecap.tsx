@@ -267,7 +267,7 @@ export function WorkoutRecap({ mode }: { mode: 'finish' | 'log' }) {
               key={exercise.entryId}
               accessibilityRole="button"
               accessibilityLabel={`${exercise.name}, ${detail}${trend ? `, ${trend.text}` : ''}`}
-              onPress={() => { tapFeedback(); router.push({ pathname: '/workout/entry/[entryId]', params: { entryId: exercise.entryId, workout: workout.id } }); }}
+              onPress={() => { tapFeedback(); router.push({ pathname: '/workout/entry/[entryId]', params: { entryId: exercise.entryId, workout: workout.id, exercise: exercise.exerciseId } }); }}
               style={({ pressed }) => [styles.exerciseRow, index > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: palette.border }, pressed && { backgroundColor: palette.surfaceMuted }]}
             >
               <View style={styles.exerciseCopy}>

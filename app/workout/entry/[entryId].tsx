@@ -2,7 +2,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
-import { getSessionRecords } from '../../../src/features/analytics/repository';
+import { getExerciseHistory, getSessionRecords, type ExerciseHistorySession } from '../../../src/features/analytics/repository';
 import type { SetRecord, VolumeRecord } from '../../../src/features/analytics/records';
 import { formatRecordValue } from '../../../src/features/analytics/recordLabels';
 import { getCompletedWorkout, getPreviousPerformance, type CompletedWorkout, type PreviousPerformance } from '../../../src/features/session/repository';
@@ -26,7 +26,7 @@ type Measure = 'amount' | 'rest' | 'rpe' | 'form' | 'kg';
 /** Every number of one exercise in one finished workout: sets, averages, last time and records. */
 export default function WorkoutEntryScreen() {
   const styles = useScaledStyles(baseStyles);
-  const { entryId, workout: workoutId } = useLocalSearchParams<{ entryId: string; workout: string }>();
+  const { entryId, workout: workoutId, exercise: fromExercise } = useLocalSearchParams<{ entryId: string; workout: string; exercise?: string }>();
   const { t, i18n } = useTranslation();
   const { palette, largeText } = useTheme();
   const [workout, setWorkout] = useState<CompletedWorkout | null>(null);
@@ -35,9 +35,12 @@ export default function WorkoutEntryScreen() {
   const [loading, setLoading] = useState(true);
   const [loadFailed, setLoadFailed] = useState(false);
   const [attempt, setAttempt] = useState(0);
+  // Every finished session of this exercise (newest first), when opened from its history: to step through them.
+  const [runs, setRuns] = useState<ExerciseHistorySession[]>([]);
 
   useEffect(() => {
     let mounted = true;
+    if (fromExercise) void getExerciseHistory(fromExercise).then((found) => { if (mounted) setRuns(found); }).catch(() => undefined);
     void Promise.all([getCompletedWorkout(workoutId), getSessionRecords(workoutId)]).then(async ([completed, session]) => {
       const exercise = completed?.exercises.find((item) => item.entryId === entryId);
       const last = exercise ? await getPreviousPerformance([exercise.exerciseId], workoutId, new Map([[exercise.exerciseId, exercise.apparatusId ?? null]])) : null;
@@ -48,7 +51,7 @@ export default function WorkoutEntryScreen() {
       setLoading(false);
     }).catch(() => { if (mounted) { setLoadFailed(true); setLoading(false); } });
     return () => { mounted = false; };
-  }, [entryId, workoutId, attempt]);
+  }, [entryId, workoutId, fromExercise, attempt]);
 
   const back = () => (router.canGoBack() ? router.back() : router.replace({ pathname: '/workout/recap/[id]', params: { id: workoutId } }));
   if (loading) return <Screen><ActivityIndicator color={palette.accentStrong} /></Screen>;
@@ -57,6 +60,10 @@ export default function WorkoutEntryScreen() {
   if (!workout || !exercise) return <Screen><Title>{t('history.unavailable')}</Title><ActionButton label={t('common.back')} onPress={back} /></Screen>;
 
   const metric = exercise.metric;
+  const position = runs.findIndex((run) => run.workoutId === workoutId);
+  const older = position >= 0 ? runs[position + 1] : undefined;
+  const newer = position > 0 ? runs[position - 1] : undefined;
+  const openRun = (run: ExerciseHistorySession) => router.replace({ pathname: '/workout/entry/[entryId]', params: { entryId: run.entryId, workout: run.workoutId, exercise: fromExercise } });
   const timed = metric === 'time' || metric === 'time_load';
   const distance = metric === 'distance';
   const defaultRest = restForSet(exercise.exerciseId, { kind: 'working', restSec: null });
@@ -93,10 +100,22 @@ export default function WorkoutEntryScreen() {
   ];
 
   return (
-    <Screen footer={<FooterAction icon="stats-chart-outline" label={t('entryRecap.history')} secondary onPress={() => openExercisePage(exercise.exerciseId)} />}>
+    <Screen footer={(
+      <>
+        <FooterAction icon="pulse-outline" label={t('entryRecap.wholeWorkout')} secondary onPress={() => router.push({ pathname: '/workout/recap/[id]', params: { id: workoutId } })} />
+        <FooterAction icon="create-outline" label={t('recap.edit')} onPress={() => router.push({ pathname: '/workout/history/[id]', params: { id: workoutId } })} />
+      </>
+    )}>
       <View style={styles.header}>
         <View style={styles.topBar}>
           <IconButton icon="arrow-back" tone="plain" label={t('common.back')} onPress={back} />
+          {position >= 0 ? (
+            <View style={styles.stepper}>
+              <Text style={[styles.stepperText, { color: palette.textMuted }]}>{t('entryRecap.runOf', { number: runs.length - position, total: runs.length })}</Text>
+              <IconButton icon="chevron-back" tone="plain" label={t('entryRecap.olderRun')} disabled={!older} onPress={() => older && openRun(older)} />
+              <IconButton icon="chevron-forward" tone="plain" label={t('entryRecap.newerRun')} disabled={!newer} onPress={() => newer && openRun(newer)} />
+            </View>
+          ) : null}
         </View>
         <Label>{`${displayWorkoutName(workout.name, t('log.pastName'))} · ${workout.startedAt.toLocaleDateString(i18n.language, { weekday: 'short', day: 'numeric', month: 'short' })}`}</Label>
         <Title>{exercise.name}</Title>
@@ -191,6 +210,7 @@ export default function WorkoutEntryScreen() {
           </View>
         </>
       ) : null}
+      <ActionButton icon="stats-chart-outline" variant="ghost" label={t('entryRecap.history')} onPress={() => openExercisePage(exercise.exerciseId)} />
     </Screen>
   );
 }
@@ -198,7 +218,9 @@ export default function WorkoutEntryScreen() {
 const baseStyles = StyleSheet.create({
   header: { gap: 6 },
   goalLine: { fontFamily: fonts.semibold, fontSize: 15 },
-  topBar: { flexDirection: 'row', marginLeft: -8 },
+  topBar: { flexDirection: 'row', alignItems: 'center', marginLeft: -8 },
+  stepper: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end' },
+  stepperText: { fontFamily: fonts.medium, fontSize: 14, marginRight: 4 },
   tiles: { flexDirection: 'row', flexWrap: 'wrap', borderRadius: 20, paddingVertical: 12, paddingHorizontal: 8, rowGap: 12 },
   tile: { width: '33.3%', minWidth: 96, flexGrow: 1, gap: 2, paddingHorizontal: 8 },
   card: { borderRadius: 16, overflow: 'hidden' },
