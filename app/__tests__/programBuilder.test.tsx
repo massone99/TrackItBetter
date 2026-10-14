@@ -77,8 +77,9 @@ describe('program builder', () => {
     setPendingExercise({ sessionId: params.addToProgram, exerciseId: 'my-hold', metric: 'time' });
     renderScreen();
 
-    expect(await screen.findByText('My Hold')).toBeTruthy();
-    expect(screen.getByText(t('metric.time'))).toBeTruthy();
+    // The new exercise opens in its editor, so its name and metric show in the row and in the sheet.
+    expect((await screen.findAllByText('My Hold')).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(new RegExp(t('metric.time'))).length).toBeGreaterThan(0);
   });
 
   it('replaces a movement with the exercise created for it, keeping its place in the workout', async () => {

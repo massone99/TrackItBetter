@@ -81,9 +81,9 @@ export default function ProgramEditorScreen() {
   const [undo, setUndo] = useState<{ message: string; previous: UserProgramSession[] } | null>(null);
   // Resumes a navigation held back because the edits could not be saved.
   const [leaveAction, setLeaveAction] = useState<{ resume: () => void } | null>(null);
-  // Days folded to their summary, and exercises opened for editing; the rest show one line.
+  // Days folded to their summary; every exercise is one row, edited in a sheet.
   const [closedDays, setClosedDays] = useState<Set<string>>(new Set());
-  const [openExercises, setOpenExercises] = useState<Set<string>>(new Set());
+  const [editing, setEditing] = useState<{ sessionId: string; exerciseId: string } | null>(null);
   const flip = (set: Set<string>, key: string) => { const next = new Set(set); if (!next.delete(key)) next.add(key); return next; };
 
   const defaultRest = readDefaultRest('working');
@@ -96,7 +96,7 @@ export default function ProgramEditorScreen() {
   const addExercise = (sessionId: string, exerciseId: string, metric: string) => {
     const prescription = newPrescription(exerciseId, metric, () => Crypto.randomUUID());
     setSessions((current) => current.map((session) => (session.id === sessionId ? { ...session, exercises: [...session.exercises, prescription] } : session)));
-    setOpenExercises((current) => new Set(current).add(prescription.id));
+    setEditing({ sessionId, exerciseId: prescription.id });
     clearError((error) => error.sessionId === sessionId && error.code === 'sessionEmpty');
   };
 
@@ -158,7 +158,12 @@ export default function ProgramEditorScreen() {
   const persist = async (): Promise<boolean> => {
     const found = validateUserProgram({ name, sessions });
     setErrors(found);
-    if (found.length > 0) return false;
+    if (found.length > 0) {
+      // Opens the first exercise whose values are wrong.
+      const bad = found.find((error) => error.exerciseId && error.sessionId);
+      if (bad) setEditing({ sessionId: bad.sessionId!, exerciseId: bad.exerciseId! });
+      return false;
+    }
     const saved = await saveUserProgram({ id, name, sessions });
     setSnapshot(JSON.stringify({ name: saved.name, sessions: saved.sessions } satisfies Draft));
     savedId.current = saved.id;
@@ -194,6 +199,12 @@ export default function ProgramEditorScreen() {
   const pickerSession = sessions.find((session) => session.id === pickerFor);
   const replacingPrescription = replacing ? sessions.find((session) => session.id === replacing.sessionId)?.exercises.find((item) => item.id === replacing.exerciseId) : undefined;
   const replacingName = replacingPrescription ? exerciseInfo.get(replacingPrescription.exerciseId)?.name : undefined;
+  const editSession = editing ? sessions.find((session) => session.id === editing.sessionId) : undefined;
+  const editIndex = editSession && editing ? editSession.exercises.findIndex((item) => item.id === editing.exerciseId) : -1;
+  const editPrescription = editSession && editIndex >= 0 ? editSession.exercises[editIndex] : undefined;
+  const editInfo = editPrescription ? exerciseInfo.get(editPrescription.exerciseId) : undefined;
+  const editMetric = editInfo?.metric ?? 'reps';
+  const editName = editInfo?.name ?? t('userProgram.exerciseMissing');
 
   return (
     <Screen
@@ -277,103 +288,35 @@ export default function ProgramEditorScreen() {
               const metric = info?.metric ?? 'reps';
               const exerciseName = info?.name ?? t('userProgram.exerciseMissing');
               const invalid = errors.some((error) => error.exerciseId === prescription.id);
-              // The editor folds while the row is dragged, so the lifted row is only its header.
-              const isOpen = (openExercises.has(prescription.id) || invalid) && !row.dragging;
-              const suffix = isTimedMetric(metric) ? 's' : metric === 'distance' ? ' m' : '';
-              const summary = [
+              const suffix = isTimedMetric(metric) ? ' s' : metric === 'distance' ? ' m' : '';
+              const chips = [
                 prescription.target === null ? t('userProgram.setsOnly', { count: prescription.sets }) : `${prescription.sets} × ${prescription.target}${suffix}`,
-                isLoadMetric(metric) ? (prescription.loadKg == null ? null : `${prescription.loadKg} kg`) : null,
-                prescription.restSeconds == null ? null : `${prescription.restSeconds}s`,
-              ].filter(Boolean).join(' · ') + (rpeTargetText(prescription) ? ` @ ${t('logger.rpeTag', { value: rpeTargetText(prescription) })}` : '');
+                isLoadMetric(metric) && prescription.loadKg != null ? `${prescription.loadKg} kg` : null,
+                prescription.restSeconds == null ? null : t('programBuilder.restChip', { value: prescription.restSeconds }),
+                rpeTargetText(prescription) ? t('logger.rpeTag', { value: rpeTargetText(prescription) }) : null,
+              ].filter((chip): chip is string => chip !== null);
               return (
-                <View key={prescription.id} style={[styles.exercise, { borderTopColor: palette.border }]}>
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel={t(isOpen ? 'logger.collapse' : 'logger.expand', { name: exerciseName })}
-                    accessibilityState={{ expanded: isOpen }}
-                    onPress={() => setOpenExercises((current) => flip(current, prescription.id))}
-                    onLongPress={() => openExercisePage(prescription.exerciseId)}
-                    accessibilityActions={[{ name: 'longpress', label: t('logger.openExercise') }]}
-                    onAccessibilityAction={(event) => { if (event.nativeEvent.actionName === 'longpress') openExercisePage(prescription.exerciseId); }}
-                    style={styles.header}
-                  >
+                <View key={prescription.id} style={[styles.exercise, { borderTopColor: palette.border }, exerciseIndex === 0 && { borderTopWidth: 0 }]}>
+                  <View style={styles.exerciseRow}>
                     {row.handle}
-                    <View style={styles.flex}>
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel={t('programBuilder.editExercise', { name: exerciseName })}
+                      onPress={() => setEditing({ sessionId: session.id, exerciseId: prescription.id })}
+                      onLongPress={() => openExercisePage(prescription.exerciseId)}
+                      accessibilityActions={[{ name: 'longpress', label: t('logger.openExercise') }]}
+                      onAccessibilityAction={(event) => { if (event.nativeEvent.actionName === 'longpress') openExercisePage(prescription.exerciseId); }}
+                      style={styles.exerciseMain}
+                    >
                       <Text style={styles.exerciseName} numberOfLines={2}>{exerciseName}</Text>
-                      <Label>{t(`metric.${metric}`)}</Label>
-                      <Label>{summary}</Label>
-                      {prescription.note?.trim() ? <Label numberOfLines={1}>{prescription.note.trim()}</Label> : null}
-                    </View>
-                    <Icon name={isOpen ? 'chevron-up' : 'chevron-down'} size={18} color={palette.textMuted} />
-                  </Pressable>
-                  {isOpen ? (
-                    <>
-                  <Stepper layout="row" label={t('programBuilder.sets')} value={prescription.sets} step={1} min={1} max={20} editable onChange={(sets) => updateExercise(session.id, prescription.id, { sets: Math.max(1, Math.round(sets)), ...(prescription.rpePerSet ? { rpePerSet: fitRpePerSet(prescription.rpePerSet, Math.max(1, Math.round(sets))) } : {}) })} />
-                  <TargetStepper metric={metric} value={prescription.target} onChange={(target) => updateExercise(session.id, prescription.id, { target })} />
-                  <TextField
-                    label={t('userProgram.noteLabel')}
-                    value={prescription.note ?? ''}
-                    onChangeText={(note) => updateExercise(session.id, prescription.id, { note })}
-                    placeholder={t('userProgram.notePlaceholder')}
-                    multiline
-                    maxLength={NOTE_MAX}
-                  />
-                  <DurationField
-                    label={t('userProgram.rest')}
-                    // A rest of its own, else the app's default rest, shown as the selected value.
-                    value={prescription.restSeconds ?? defaultRest}
-                    max={600}
-                    step={5}
-                    presets={restPresets}
-                    format={(seconds) => t('userProgram.secondsValue', { value: seconds })}
-                    onChange={(restSeconds) => updateExercise(session.id, prescription.id, { restSeconds })}
-                  />
-                  <View style={styles.rpeBlock}>
-                    <Label>{t('programBuilder.rpeTarget')}</Label>
-                    <SegmentedControl<'same' | 'perSet'>
-                      value={prescription.rpePerSet ? 'perSet' : 'same'}
-                      onChange={(mode) => updateExercise(session.id, prescription.id, mode === 'perSet'
-                        ? { rpePerSet: fitRpePerSet([prescription.rpe ?? null], prescription.sets), rpe: null }
-                        : { rpe: prescription.rpePerSet?.find((value) => value !== null) ?? null, rpePerSet: null })}
-                      options={[{ value: 'same', label: t('programBuilder.rpeSame') }, { value: 'perSet', label: t('programBuilder.rpePerSet') }]}
-                    />
-                    {prescription.rpePerSet ? prescription.rpePerSet.map((value, index) => (
-                      <RpePicker
-                        key={index}
-                        compact
-                        label={String(index + 1)}
-                        sideLabel={t('programBuilder.rpeSet', { number: index + 1 })}
-                        value={value}
-                        onChange={(next) => updateExercise(session.id, prescription.id, { rpePerSet: prescription.rpePerSet!.map((item, position) => (position === index ? next : item)) })}
-                      />
-                    )) : (
-                      <RpePicker compact value={prescription.rpe ?? null} onChange={(rpe) => updateExercise(session.id, prescription.id, { rpe })} />
-                    )}
-                    {!rpeTargetText(prescription) ? <Label>{t('programBuilder.rpeNone')}</Label> : null}
+                      <View style={styles.summaryChips}>
+                        {chips.map((chip) => <View key={chip} style={[styles.summaryChip, { backgroundColor: palette.surfaceMuted }]}><Text style={[styles.summaryChipText, { color: palette.textMuted }]}>{chip}</Text></View>)}
+                        {prescription.note?.trim() ? <Icon name="chatbubble-ellipses-outline" size={14} color={palette.textMuted} /> : null}
+                      </View>
+                      {invalid ? <Text style={[styles.error, { color: palette.warning }]}>{t('userProgram.errors.invalidValue')}</Text> : null}
+                    </Pressable>
+                    <Icon name="chevron-forward" size={18} color={palette.textMuted} />
                   </View>
-                  {isLoadMetric(metric) ? (
-                    <Stepper
-                      layout="row"
-                      label={t('userProgram.load')}
-                      value={prescription.loadKg ?? LOAD_AUTO}
-                      display={prescription.loadKg === null || prescription.loadKg === undefined ? t('userProgram.loadAuto') : t('userProgram.kgValue', { value: prescription.loadKg })}
-                      step={2.5}
-                      min={LOAD_AUTO}
-                      max={300}
-                      editable
-                      onChange={(value) => updateExercise(session.id, prescription.id, { loadKg: value < 0 ? null : value })}
-                    />
-                  ) : null}
-                  <View style={styles.exerciseActions}>
-                    <IconButton icon="swap-horizontal" label={t('userProgram.replaceExercise', { name: exerciseName })} tone="plain" size={40} onPress={() => setReplacing({ sessionId: session.id, exerciseId: prescription.id })} />
-                    <IconButton icon="trash-outline" label={t('userProgram.removeExercise', { name: exerciseName })} tone="plain" size={40} onPress={() => removeWithUndo(
-                      t('userProgram.exerciseRemoved', { name: exerciseName }),
-                      sessions.map((item) => (item.id === session.id ? { ...item, exercises: item.exercises.filter((exercise) => exercise.id !== prescription.id) } : item)),
-                    )} />
-                  </View>
-                    </>
-                  ) : null}
-                  {invalid ? <Text style={[styles.error, { color: palette.warning }]}>{t('userProgram.errors.invalidValue')}</Text> : null}
                 </View>
               );
               }}
@@ -412,6 +355,90 @@ export default function ProgramEditorScreen() {
         }}
         onClose={() => { setPickerFor(null); setReplacing(null); }}
       />
+
+      <Sheet
+        visible={editPrescription !== undefined && editSession !== undefined}
+        onClose={() => setEditing(null)}
+        title={editName}
+        body={editSession && editPrescription ? `${t(`metric.${editMetric}`)} · ${t('programBuilder.exerciseOf', { number: editIndex + 1, total: editSession.exercises.length })}` : undefined}
+      >
+        {editSession && editPrescription ? (
+          <>
+            <View style={styles.moveRow}>
+              <IconButton icon="arrow-up" label={t('programBuilder.moveExerciseUp')} tone="plain" size={44} disabled={editIndex === 0} onPress={() => updateSession(editSession.id, { exercises: moveItem(editSession.exercises, editIndex, -1) })} />
+              <IconButton icon="arrow-down" label={t('programBuilder.moveExerciseDown')} tone="plain" size={44} disabled={editIndex === editSession.exercises.length - 1} onPress={() => updateSession(editSession.id, { exercises: moveItem(editSession.exercises, editIndex, 1) })} />
+            </View>
+            <Stepper layout="row" label={t('programBuilder.sets')} value={editPrescription.sets} step={1} min={1} max={20} editable onChange={(sets) => updateExercise(editSession.id, editPrescription.id, { sets: Math.max(1, Math.round(sets)), ...(editPrescription.rpePerSet ? { rpePerSet: fitRpePerSet(editPrescription.rpePerSet, Math.max(1, Math.round(sets))) } : {}) })} />
+            <TargetStepper metric={editMetric} value={editPrescription.target} onChange={(target) => updateExercise(editSession.id, editPrescription.id, { target })} />
+            <DurationField
+              label={t('userProgram.rest')}
+              // A rest of its own, else the app's default rest, shown as the selected value.
+              value={editPrescription.restSeconds ?? defaultRest}
+              max={600}
+              step={5}
+              presets={restPresets}
+              format={(seconds) => t('userProgram.secondsValue', { value: seconds })}
+              onChange={(restSeconds) => updateExercise(editSession.id, editPrescription.id, { restSeconds })}
+            />
+            <View style={styles.rpeBlock}>
+              <Label>{t('programBuilder.rpeTarget')}</Label>
+              <SegmentedControl<'same' | 'perSet'>
+                value={editPrescription.rpePerSet ? 'perSet' : 'same'}
+                onChange={(mode) => updateExercise(editSession.id, editPrescription.id, mode === 'perSet'
+                  ? { rpePerSet: fitRpePerSet([editPrescription.rpe ?? null], editPrescription.sets), rpe: null }
+                  : { rpe: editPrescription.rpePerSet?.find((value) => value !== null) ?? null, rpePerSet: null })}
+                options={[{ value: 'same', label: t('programBuilder.rpeSame') }, { value: 'perSet', label: t('programBuilder.rpePerSet') }]}
+              />
+              {editPrescription.rpePerSet ? editPrescription.rpePerSet.map((value, index) => (
+                <RpePicker
+                  key={index}
+                  compact
+                  label={String(index + 1)}
+                  sideLabel={t('programBuilder.rpeSet', { number: index + 1 })}
+                  value={value}
+                  onChange={(next) => updateExercise(editSession.id, editPrescription.id, { rpePerSet: editPrescription.rpePerSet!.map((item, position) => (position === index ? next : item)) })}
+                />
+              )) : (
+                <RpePicker compact grid value={editPrescription.rpe ?? null} onChange={(rpe) => updateExercise(editSession.id, editPrescription.id, { rpe })} />
+              )}
+              {!rpeTargetText(editPrescription) ? <Label>{t('programBuilder.rpeNone')}</Label> : null}
+            </View>
+            {isLoadMetric(editMetric) ? (
+              <Stepper
+                layout="row"
+                label={t('userProgram.load')}
+                value={editPrescription.loadKg ?? LOAD_AUTO}
+                display={editPrescription.loadKg === null || editPrescription.loadKg === undefined ? t('userProgram.loadAuto') : t('userProgram.kgValue', { value: editPrescription.loadKg })}
+                step={2.5}
+                min={LOAD_AUTO}
+                max={300}
+                editable
+                onChange={(value) => updateExercise(editSession.id, editPrescription.id, { loadKg: value < 0 ? null : value })}
+              />
+            ) : null}
+            <TextField
+              label={t('userProgram.noteLabel')}
+              value={editPrescription.note ?? ''}
+              onChangeText={(note) => updateExercise(editSession.id, editPrescription.id, { note })}
+              placeholder={t('userProgram.notePlaceholder')}
+              multiline
+              maxLength={NOTE_MAX}
+            />
+            <View style={styles.sheetButtons}>
+              <ActionButton icon="swap-horizontal" label={t('userProgram.replaceExercise', { name: editName })} secondary onPress={() => { setReplacing({ sessionId: editSession.id, exerciseId: editPrescription.id }); setEditing(null); }} />
+              <ActionButton icon="trash-outline" label={t('userProgram.removeExercise', { name: editName })} variant="danger" onPress={() => {
+                const target = editPrescription;
+                setEditing(null);
+                removeWithUndo(
+                  t('userProgram.exerciseRemoved', { name: editName }),
+                  sessions.map((item) => (item.id === editSession.id ? { ...item, exercises: item.exercises.filter((exercise) => exercise.id !== target.id) } : item)),
+                );
+              }} />
+            </View>
+            <ActionButton label={t('programBuilder.exerciseDone')} onPress={() => setEditing(null)} />
+          </>
+        ) : null}
+      </Sheet>
 
       <Sheet visible={leaveAction !== null} onClose={() => setLeaveAction(null)} title={t('userProgram.unsavedTitle')} body={t('userProgram.unsavedInvalidBody')}>
         <ActionButton icon="trash-outline" label={t('userProgram.discard')} variant="danger" onPress={() => {
@@ -465,6 +492,13 @@ function newSession(name: string): UserProgramSession {
 
 const baseStyles = StyleSheet.create({
   rpeBlock: { gap: 8 },
+  moveRow: { flexDirection: 'row', justifyContent: 'flex-end', gap: 4, marginTop: -8 },
+  sheetButtons: { gap: 8 },
+  exerciseRow: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 56 },
+  exerciseMain: { flex: 1, gap: 6, minHeight: 48, justifyContent: 'center' },
+  summaryChips: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 6 },
+  summaryChip: { paddingHorizontal: 10, paddingVertical: 3, borderRadius: 10 },
+  summaryChipText: { fontFamily: fonts.body, fontSize: 13 },
   flex: { flex: 1, gap: 4 },
   dayCard: { gap: 16 },
   header: { flexDirection: 'row', alignItems: 'center', gap: 8 },
@@ -474,7 +508,7 @@ const baseStyles = StyleSheet.create({
   field: { gap: 8 },
   dayActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 4, marginTop: -6 },
   exerciseActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 4 },
-  exercise: { borderTopWidth: StyleSheet.hairlineWidth, paddingVertical: 16, gap: 16 },
+  exercise: { borderTopWidth: StyleSheet.hairlineWidth, paddingVertical: 8 },
   exerciseName: { fontFamily: fonts.semibold, fontSize: 16 },
   error: { fontFamily: fonts.medium, fontSize: 14 },
 });

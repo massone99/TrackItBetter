@@ -2,6 +2,10 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.32.0 - 2026-10-14
+
+- Program builder: each exercise is now one compact row (grip, name, chips for sets, load, rest, RPE) and opens in a sheet to edit sets, target, rest, RPE, load and note, with move up/down, replace and remove. Dragging no longer fights an open editor.
+
 ## 0.31.2 - 2026-10-14
 
 - Program builder: the dragged exercise is opaque with an edge (no more overlapping text), its editor folds while you drag, quick values (hold, rest) sit in an even grid, and the rest value no longer wraps onto two lines.
