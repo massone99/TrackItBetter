@@ -1,7 +1,7 @@
 import { FORM_VALUES } from '../../domain/formRating';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import type { LastTimeComparison, Pairing } from '../../domain/lastTime';
 import { Icon, IconButton, Label, tapFeedback, Text } from '../../shared/components/ui';
 import { useTheme } from '../../shared/theme/ThemeProvider';
@@ -120,34 +120,51 @@ export function LastTimeStrip({ comparison, metric, date, detail, compact = fals
 }
 
 /** The "how clean was it" rating, 1–5 in half steps, in the same chip style as the RPE row; tap the chosen one again to clear. */
-export function FormRating({ value, onChange, sideLabel = '' }: { value: number | null; onChange: (value: number | null) => void; sideLabel?: string }) {
+export function FormRating({ value, onChange, sideLabel = '', scroll = false }: { value: number | null; onChange: (value: number | null) => void; sideLabel?: string; /** One line that scrolls sideways (like the RPE row) instead of wrapping. */ scroll?: boolean }) {
   const { t } = useTranslation();
   const { palette } = useTheme();
   const styles = useScaledStyles(baseStyles);
+  const strip = useRef<ScrollView>(null);
+  const chips = FORM_VALUES.map((rating) => {
+    const selected = value === rating;
+    return (
+      <Pressable
+        key={rating}
+        accessibilityRole="button"
+        accessibilityLabel={`${sideLabel} ${t('lastTime.formRating', { value: formatNumber(rating) })}`.trim()}
+        accessibilityState={{ selected }}
+        hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}
+        onPress={() => { tapFeedback(); onChange(selected ? null : rating); }}
+        style={[styles.chip, { backgroundColor: selected ? palette.accent : 'transparent', borderColor: selected ? palette.accent : palette.border }]}
+      >
+        <Text style={[styles.chipText, { color: selected ? palette.accentText : palette.text }]}>{formatNumber(rating)}</Text>
+      </Pressable>
+    );
+  });
+  // Opens on the chosen value, or around 3,5 where most ratings land.
+  const focus = Math.max(0, (value === null ? FORM_VALUES.indexOf(3.5) : FORM_VALUES.indexOf(value as (typeof FORM_VALUES)[number])) - 1);
   return (
     <View style={styles.formRow}>
       <View style={styles.formLabel}><Text style={[styles.formLabelText, { color: palette.textMuted }]}>{t('lastTime.form')}</Text></View>
-      <View style={styles.formChips}>
-        {FORM_VALUES.map((rating) => {
-          const selected = value === rating;
-          return (
-            <Pressable
-              key={rating}
-              accessibilityRole="button"
-              accessibilityLabel={`${sideLabel} ${t('lastTime.formRating', { value: formatNumber(rating) })}`.trim()}
-              accessibilityState={{ selected }}
-              hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}
-              onPress={() => { tapFeedback(); onChange(selected ? null : rating); }}
-              style={[styles.chip, { backgroundColor: selected ? palette.accent : 'transparent', borderColor: selected ? palette.accent : palette.border }]}
-            >
-              <Text style={[styles.chipText, { color: selected ? palette.accentText : palette.text }]}>{formatNumber(rating)}</Text>
-            </Pressable>
-          );
-        })}
-      </View>
+      {scroll ? (
+        <ScrollView
+          ref={strip}
+          horizontal
+          style={styles.formStrip}
+          showsHorizontalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          contentContainerStyle={styles.formScroll}
+          onLayout={() => strip.current?.scrollTo({ x: focus * FORM_STEP, animated: false })}
+        >
+          {chips}
+        </ScrollView>
+      ) : <View style={styles.formChips}>{chips}</View>}
     </View>
   );
 }
+
+/** Width of one chip plus the gap after it, so the strip can scroll to a value. */
+const FORM_STEP = 40 + 8;
 
 const baseStyles = StyleSheet.create({
   wrap: { gap: 6, marginTop: 8 },
@@ -172,6 +189,8 @@ const baseStyles = StyleSheet.create({
   formLabel: { minWidth: 40, minHeight: 36, paddingRight: 4, alignItems: 'center', justifyContent: 'center' },
   formLabelText: { fontFamily: fonts.semibold, fontSize: 12 },
   // Nine values (1 to 5 in half steps) wrap onto a second line on narrow screens.
+  formStrip: { flex: 1, marginRight: 76 },
+  formScroll: { gap: 8, paddingRight: 8 },
   formChips: { flex: 1, flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   chip: { minWidth: 40, paddingHorizontal: 4, minHeight: 36, borderRadius: 10, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
   chipText: { fontFamily: fonts.semibold, fontSize: 14, fontVariant: ['tabular-nums'] },

@@ -2,6 +2,10 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.33.5 - 2026-10-14
+
+- Workout: the RPE and form rows are one line each that scrolls sideways to reveal every value (half points included); they open on the chosen value, or on 7–8 and 3,5. With very large text they still wrap.
+
 ## 0.33.4 - 2026-10-14
 
 - Workout: RPE half points (6,5 · 7,5 · …) are back on the set row itself; all nine values show, wrapping onto a second line.

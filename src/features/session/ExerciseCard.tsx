@@ -445,7 +445,7 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
             </SwipeableSetRow>
             )}
             {/* Row 2: how hard it was. */}
-            {rpeRow ? <RpePicker compact grid={largeText} wrap sideLabel={sideLabel} value={set.rpe} target={set.targetRpe} onChange={(rpe) => onRpe(set, rpe)} /> : null}
+            {rpeRow ? <RpePicker compact grid={largeText} sideLabel={sideLabel} value={set.rpe} target={set.targetRpe} onChange={(rpe) => onRpe(set, rpe)} /> : null}
             {/* Large text: one wide button finishes the set (or runs its hold). */}
             {editing ? (
               done ? (
@@ -490,7 +490,7 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
               )
             ) : null}
             {/* Row 3, once the set is done: how clean the form was. The exercise folds only after the last rating. */}
-            {done && set.kind === 'working' && !emomBadgeLabel ? <FormRating value={set.formRating} sideLabel={sideLabel} onChange={(rating) => onFormRating(set, rating)} /> : null}
+            {done && set.kind === 'working' && !emomBadgeLabel ? <FormRating scroll={!largeText} value={set.formRating} sideLabel={sideLabel} onChange={(rating) => onFormRating(set, rating)} /> : null}
             {/* Only when there is something to show: PR, clips, note (and RPE when its row is hidden). */}
             {set.note || set.clipCount > 0 || (set.poseCount ?? 0) > 0 || (!rpeRow && set.rpe !== null) || setRecords.has(set.id) || set.bands.length > 0 ? (
               <Pressable accessibilityRole="button" onPress={() => onSetOptions(set)} style={styles.setMeta}>
