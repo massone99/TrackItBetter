@@ -1,3 +1,4 @@
+import { isValidFormRating } from '../../domain/formRating';
 import { isMobilityExercise } from '../exercises/categories';
 import { and, asc, count, desc, eq, gt, gte, inArray, isNotNull, isNull, lt, max, ne, or, sql } from 'drizzle-orm';
 import * as Crypto from 'expo-crypto';
@@ -845,10 +846,10 @@ export async function enableExerciseLoad(exerciseId: string): Promise<boolean> {
   return true;
 }
 
-/** Rates the form of one set, 1–5; null clears it. */
+/** Rates the form of one set, 1–5 in half steps; null clears it. */
 export async function setSetFormRating(setId: string, rating: number | null): Promise<void> {
   await initializeDatabase();
-  if (rating !== null && (!Number.isInteger(rating) || rating < 1 || rating > 5)) throw new RangeError('Form ratings are integers from 1 to 5');
+  if (rating !== null && !isValidFormRating(rating)) throw new RangeError('Form ratings go from 1 to 5 in half steps');
   await db.update(trainingSets).set({ formRating: rating }).where(eq(trainingSets.id, setId));
   await bumpIfFinished({ setId });
 }
@@ -860,7 +861,7 @@ export async function setSetFormRating(setId: string, rating: number | null): Pr
 export async function setEntryAverages(entryId: string, values: { rpe?: number | null; formRating?: number | null }): Promise<void> {
   await initializeDatabase();
   if (values.rpe != null && !isValidRpe(values.rpe)) throw new RangeError('RPE must be between 6 and 10 in half steps');
-  if (values.formRating != null && (!Number.isInteger(values.formRating) || values.formRating < 1 || values.formRating > 5)) throw new RangeError('Form ratings are integers from 1 to 5');
+  if (values.formRating != null && !isValidFormRating(values.formRating)) throw new RangeError('Form ratings go from 1 to 5 in half steps');
   const patch = { ...(values.rpe !== undefined ? { rpe: values.rpe } : {}), ...(values.formRating !== undefined ? { formRating: values.formRating } : {}) };
   if (Object.keys(patch).length === 0) return;
   await db.update(trainingSets).set(patch)

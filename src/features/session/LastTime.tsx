@@ -1,3 +1,4 @@
+import { FORM_VALUES } from '../../domain/formRating';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Pressable, StyleSheet, View } from 'react-native';
@@ -118,7 +119,7 @@ export function LastTimeStrip({ comparison, metric, date, detail, compact = fals
   );
 }
 
-/** The "how clean was it" rating, 1–5, in the same chip style as the RPE row; tap the chosen one again to clear. */
+/** The "how clean was it" rating, 1–5 in half steps, in the same chip style as the RPE row; tap the chosen one again to clear. */
 export function FormRating({ value, onChange, sideLabel = '' }: { value: number | null; onChange: (value: number | null) => void; sideLabel?: string }) {
   const { t } = useTranslation();
   const { palette } = useTheme();
@@ -127,19 +128,19 @@ export function FormRating({ value, onChange, sideLabel = '' }: { value: number 
     <View style={styles.formRow}>
       <View style={styles.formLabel}><Text style={[styles.formLabelText, { color: palette.textMuted }]}>{t('lastTime.form')}</Text></View>
       <View style={styles.formChips}>
-        {[1, 2, 3, 4, 5].map((rating) => {
+        {FORM_VALUES.map((rating) => {
           const selected = value === rating;
           return (
             <Pressable
               key={rating}
               accessibilityRole="button"
-              accessibilityLabel={`${sideLabel} ${t('lastTime.formRating', { value: rating })}`.trim()}
+              accessibilityLabel={`${sideLabel} ${t('lastTime.formRating', { value: formatNumber(rating) })}`.trim()}
               accessibilityState={{ selected }}
               hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}
               onPress={() => { tapFeedback(); onChange(selected ? null : rating); }}
               style={[styles.chip, { backgroundColor: selected ? palette.accent : 'transparent', borderColor: selected ? palette.accent : palette.border }]}
             >
-              <Text style={[styles.chipText, { color: selected ? palette.accentText : palette.text }]}>{rating}</Text>
+              <Text style={[styles.chipText, { color: selected ? palette.accentText : palette.text }]}>{formatNumber(rating)}</Text>
             </Pressable>
           );
         })}
@@ -167,10 +168,11 @@ const baseStyles = StyleSheet.create({
   delta: { fontFamily: fonts.semibold, fontSize: 12, fontVariant: ['tabular-nums'] },
   last: { fontFamily: fonts.medium, fontSize: 12, fontVariant: ['tabular-nums'] },
   detail: { marginTop: 2 },
-  formRow: { flexDirection: 'row', alignItems: 'center', paddingLeft: 2, paddingTop: 4, paddingBottom: 8 },
-  formLabel: { width: 40, alignItems: 'center' },
+  formRow: { flexDirection: 'row', alignItems: 'flex-start', paddingLeft: 2, paddingTop: 4, paddingBottom: 8 },
+  formLabel: { minWidth: 40, minHeight: 36, paddingRight: 4, alignItems: 'center', justifyContent: 'center' },
   formLabelText: { fontFamily: fonts.semibold, fontSize: 12 },
-  formChips: { flexDirection: 'row', gap: 8 },
+  // Nine values (1 to 5 in half steps) wrap onto a second line on narrow screens.
+  formChips: { flex: 1, flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   chip: { minWidth: 40, paddingHorizontal: 4, minHeight: 36, borderRadius: 10, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
   chipText: { fontFamily: fonts.semibold, fontSize: 14, fontVariant: ['tabular-nums'] },
 });

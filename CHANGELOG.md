@@ -2,6 +2,10 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.33.2 - 2026-10-14
+
+- Form ratings go from 1 to 5 in half steps (1,5 · 2,5 · …), in the workout, the exercise averages and backups.
+
 ## 0.33.1 - 2026-10-14
 
 - Very large text: completing a set always moves on to the next one, the set in hand can no longer be swiped by accident, and set rows no longer fade in (rows could stay invisible on some phones). The set menu is no longer nested inside the row button.
