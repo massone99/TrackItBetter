@@ -11,7 +11,7 @@ import { useScaledStyles } from '../../shared/theme/useScaledStyles';
  * RPE chips from 6 to 10. `inline` is the one-line strip shown under a just-completed set;
  * otherwise it wraps, for sheets.
  */
-export function RpePicker({ value, onChange, inline = false, compact = false, grid = false, integers = false, onDismiss, sideLabel = '', target = null, label }: {
+export function RpePicker({ value, onChange, inline = false, compact = false, grid = false, integers = false, wrap = false, onDismiss, sideLabel = '', target = null, label }: {
   sideLabel?: string;
   /** Compact only: replaces "RPE" in the label column (e.g. "1" for set 1 in the program editor). */
   label?: string;
@@ -23,6 +23,8 @@ export function RpePicker({ value, onChange, inline = false, compact = false, gr
   grid?: boolean;
   /** Whole values only (6–10), plus the chosen one if it is a half point; halves stay in the set's sheet. */
   integers?: boolean;
+  /** With `compact`: the values wrap onto further lines instead of scrolling sideways, all in view. */
+  wrap?: boolean;
   value: number | null;
   onChange: (value: number | null) => void;
   inline?: boolean;
@@ -66,7 +68,7 @@ export function RpePicker({ value, onChange, inline = false, compact = false, gr
   }
 
   if (compact) {
-    return <CompactRpe value={value ?? target} sideLabel={sideLabel} chips={chips} label={label} fits={integers} />;
+    return <CompactRpe value={value ?? target} sideLabel={sideLabel} chips={chips} label={label} fits={integers || wrap} />;
   }
 
   if (!inline) {
@@ -141,11 +143,11 @@ const baseStyles = StyleSheet.create({
   stripChip: { minWidth: 44, minHeight: 48, paddingHorizontal: 8, paddingVertical: 8, borderRadius: 12, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
   chip: { minWidth: 48, minHeight: 48, paddingHorizontal: 10, paddingVertical: 8, borderRadius: 12, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
   chipText: { fontFamily: fonts.display, fontSize: 20 },
-  compactRow: { flexDirection: 'row', alignItems: 'center', paddingLeft: 2, paddingTop: 4, paddingBottom: 12 },
+  compactRow: { flexDirection: 'row', alignItems: 'flex-start', paddingLeft: 2, paddingTop: 4, paddingBottom: 12 },
   // Spans the reps and kg columns; the done and menu columns (44 + 32) stay clear.
   compactStrip: { flex: 1, marginRight: 76 },
-  compactFit: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  compactLabel: { minWidth: 40, paddingRight: 4, alignItems: 'center' },
+  compactFit: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginRight: 0 },
+  compactLabel: { minWidth: 40, minHeight: 36, paddingRight: 4, alignItems: 'center', justifyContent: 'center' },
   compactChips: { gap: 8, paddingRight: 8 },
   // Width grows with the text (large system fonts); the strip scrolls sideways.
   compactChip: { minWidth: 40, minHeight: 36, paddingHorizontal: 4, borderRadius: 10, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },

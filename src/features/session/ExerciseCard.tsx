@@ -445,7 +445,7 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
             </SwipeableSetRow>
             )}
             {/* Row 2: how hard it was. */}
-            {rpeRow ? <RpePicker compact grid={largeText} integers={!largeText} sideLabel={sideLabel} value={set.rpe} target={set.targetRpe} onChange={(rpe) => onRpe(set, rpe)} /> : null}
+            {rpeRow ? <RpePicker compact grid={largeText} wrap sideLabel={sideLabel} value={set.rpe} target={set.targetRpe} onChange={(rpe) => onRpe(set, rpe)} /> : null}
             {/* Large text: one wide button finishes the set (or runs its hold). */}
             {editing ? (
               done ? (
