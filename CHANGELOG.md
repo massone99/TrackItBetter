@@ -2,6 +2,10 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.33.3 - 2026-10-14
+
+- Reps and kg fields always open the numeric keypad (never the full keyboard with symbols). A negative load (band assistance) is set with the − button.
+
 ## 0.33.2 - 2026-10-14
 
 - Form ratings go from 1 to 5 in half steps (1,5 · 2,5 · …), in the workout, the exercise averages and backups.

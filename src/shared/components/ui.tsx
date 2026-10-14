@@ -748,13 +748,14 @@ export function NumberEdit({ value, display, label, onCommit, onLongPress, initi
         accessibilityLabel={label}
         autoFocus
         selectTextOnFocus
-        // Durations get the plain number pad: digits only, read like a kitchen timer (see parseNumberInput).
-        keyboardType={clock || integer ? "number-pad" : allowNegative ? "numbers-and-punctuation" : "decimal-pad"}
+        // Digits only, never the full keyboard: durations and whole numbers get the plain number pad, the rest the decimal one.
+        // A negative value (band assistance) comes from the − button, as no number pad has a minus.
+        keyboardType={clock || integer ? "number-pad" : "decimal-pad"}
         value={draft}
         // Saved shortly after typing stops, so a value counts even if the field is never confirmed.
         onChangeText={(input) => {
           // Only numbers get in, whatever the keyboard or a paste offers.
-          const text = sanitizeNumberInput(input, { clock, integer, allowNegative });
+          const text = sanitizeNumberInput(input, { clock, integer });
           setDraft(text);
           const parsed = parseNumberInput(text, clock);
           if (pending.current) clearTimeout(pending.current.timer);
