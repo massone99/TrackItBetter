@@ -139,6 +139,9 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
   // Large text opens one set at a time: the one being held, else the one tapped (until it is done or
   // reopened), else the next to do.
   const [picked, setPicked] = useState<{ id: string; done: boolean } | null>(null);
+  // Completing or reopening a set lets the focus move to the next set to do.
+  const complete = (set: SessionSet) => { setPicked(null); onComplete(set); };
+  const uncomplete = (set: SessionSet) => { setPicked(null); onUncomplete(set); };
   // Sets where "+ kg" was tapped: a set with no load shows only that chip until then.
   const [loadShown, setLoadShown] = useState<ReadonlySet<string>>(() => new Set());
   const pickedSet = picked ? exercise.sets.find((set) => set.id === picked.id && Boolean(set.completedAt) === picked.done) : undefined;
@@ -306,18 +309,8 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
           </Pressable>
         );
         const summary = [title, timed ? value : distance ? `${value} m` : `${value} ${t('history.units.reps')}`, withLoad ? `${loadText} kg` : null, done && set.rpe !== null ? t('logger.rpeTag', { value: formatRpe(set.rpe) }) : null].filter(Boolean).join(' · ');
-        return (
-          <Animated.View key={set.id} entering={setEntering} style={[styles.setBlock, editing && [styles.largeBlock, { borderColor: palette.border }]]}>
-            {editing ? null : <DoneTint done={done} color={palette.accentSoft} />}
-            <SwipeableSetRow
-              done={done}
-              onPage
-              completeLabel={t('logger.swipeComplete')}
-              reopenLabel={t('logger.swipeReopen')}
-              removeLabel={t('logger.swipeRemove')}
-              onSwipeRight={() => { onSwiped?.(); if (done) onUncomplete(set); else onComplete(set); }}
-              onSwipeLeft={() => { onSwiped?.(); onRemoveSet(set); }}
-            >
+        const rowBody = (
+          <>
             {!largeText ? (
             /* Row 1: set, reps (or time, or distance), load, done, menu. */
             <Pressable accessible={false} accessibilityRole="none" onLongPress={openMenu} delayLongPress={450} style={styles.setRow}>
@@ -354,7 +347,7 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
                       accessibilityHint={emomLocked ? t('emom.editHint') : undefined}
                       disabled={emomLocked}
                       hitSlop={{ top: 4, bottom: 4, left: 4, right: 0 }}
-                      onPress={() => onUncomplete(set)}
+                      onPress={() => uncomplete(set)}
                       onLongPress={openMenu}
                       delayLongPress={450}
                       style={({ pressed }) => [styles.checkButton, { backgroundColor: palette.success }, pressed && styles.checkPressed]}
@@ -368,10 +361,10 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
                     accessibilityLabel={`${holding ? t('logger.doneHold') : t('logger.startHold')} ${sideLabel}`}
                     accessibilityHint={holding ? undefined : t('logger.holdLongPressHint')}
                     accessibilityActions={holding ? undefined : [{ name: 'longpress', label: t('logger.markDoneNoTimer') }]}
-                    onAccessibilityAction={(event) => { if (event.nativeEvent.actionName === 'longpress') onComplete(set); }}
+                    onAccessibilityAction={(event) => { if (event.nativeEvent.actionName === 'longpress') complete(set); }}
                     hitSlop={{ top: 4, bottom: 4, left: 4, right: 0 }}
                     onPress={() => holding ? onFinishHold?.() : onStartHold(set)}
-                    onLongPress={holding ? undefined : () => { tapFeedback(); onComplete(set); }}
+                    onLongPress={holding ? undefined : () => { tapFeedback(); complete(set); }}
                     delayLongPress={400}
                     style={({ pressed }) => [styles.checkButton, holding || set.id === nextSetId ? { backgroundColor: palette.accent } : { backgroundColor: palette.surfaceMuted }, pressed && styles.checkPressed]}
                   >
@@ -382,7 +375,7 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
                     accessibilityRole="button"
                     accessibilityLabel={`${t('workout.completeSet')} ${sideLabel}`}
                     hitSlop={{ top: 4, bottom: 4, left: 4, right: 0 }}
-                    onPress={() => onComplete(set)}
+                    onPress={() => complete(set)}
                     onLongPress={openMenu}
                     delayLongPress={450}
                     style={({ pressed }) => [styles.checkButton, set.id === nextSetId ? { backgroundColor: palette.accent } : { backgroundColor: palette.surfaceMuted, borderColor: palette.border, borderWidth: 1 }, pressed && styles.checkPressed]}
@@ -414,6 +407,7 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
             </Pressable>
             ) : (
             /* Large text, any other set: one line; a tap opens it. */
+            <View style={styles.summaryLine}>
             <Pressable
               accessibilityRole="button"
               accessibilityLabel={`${summary}${done ? `, ${t('history.setCompleted')}` : ''}`}
@@ -427,10 +421,29 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
                 {done ? <Icon name="checkmark" size={18} color={palette.successText} /> : <Text style={[styles.setBadgeText, { color: palette.textMuted }]}>{set.kind === 'warmup' ? 'W' : workingNumber}</Text>}
               </View>
               <Text style={[styles.summaryText, { color: done ? palette.text : palette.textMuted }]}>{summary}</Text>
-              {menu}
             </Pressable>
+            {menu}
+            </View>
             )}
+          </>
+        );
+        return (
+          <Animated.View key={set.id} entering={largeText ? undefined : setEntering} style={[styles.setBlock, editing && [styles.largeBlock, { borderColor: palette.border }]]}>
+            {editing ? null : <DoneTint done={done} color={palette.accentSoft} />}
+            {/* The set in hand with very large text is not swiped: its steppers and buttons own the gestures. */}
+            {editing ? rowBody : (
+            <SwipeableSetRow
+              done={done}
+              onPage
+              completeLabel={t('logger.swipeComplete')}
+              reopenLabel={t('logger.swipeReopen')}
+              removeLabel={t('logger.swipeRemove')}
+              onSwipeRight={() => { onSwiped?.(); if (done) uncomplete(set); else complete(set); }}
+              onSwipeLeft={() => { onSwiped?.(); onRemoveSet(set); }}
+            >
+              {rowBody}
             </SwipeableSetRow>
+            )}
             {/* Row 2: how hard it was. */}
             {rpeRow ? <RpePicker compact grid={largeText} integers={!largeText} sideLabel={sideLabel} value={set.rpe} target={set.targetRpe} onChange={(rpe) => onRpe(set, rpe)} /> : null}
             {/* Large text: one wide button finishes the set (or runs its hold). */}
@@ -441,7 +454,7 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
                   accessibilityState={{ checked: true, disabled: emomLocked }}
                   accessibilityHint={emomLocked ? t('emom.editHint') : t('logger.swipeReopen')}
                   disabled={emomLocked}
-                  onPress={() => onUncomplete(set)}
+                  onPress={() => uncomplete(set)}
                   onLongPress={openMenu}
                   delayLongPress={450}
                   style={({ pressed }) => [styles.largeAction, { backgroundColor: palette.success }, pressed && styles.checkPressed]}
@@ -454,9 +467,9 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
                   accessibilityRole="button"
                   accessibilityHint={holding ? undefined : t('logger.holdLongPressHint')}
                   accessibilityActions={holding ? undefined : [{ name: 'longpress', label: t('logger.markDoneNoTimer') }]}
-                  onAccessibilityAction={(event) => { if (event.nativeEvent.actionName === 'longpress') onComplete(set); }}
+                  onAccessibilityAction={(event) => { if (event.nativeEvent.actionName === 'longpress') complete(set); }}
                   onPress={() => holding ? onFinishHold?.() : onStartHold(set)}
-                  onLongPress={holding ? undefined : () => { tapFeedback(); onComplete(set); }}
+                  onLongPress={holding ? undefined : () => { tapFeedback(); complete(set); }}
                   delayLongPress={400}
                   style={({ pressed }) => [styles.largeAction, { backgroundColor: palette.accent }, pressed && styles.checkPressed]}
                 >
@@ -466,7 +479,7 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
               ) : (
                 <Pressable
                   accessibilityRole="button"
-                  onPress={() => onComplete(set)}
+                  onPress={() => complete(set)}
                   onLongPress={openMenu}
                   delayLongPress={450}
                   style={({ pressed }) => [styles.largeAction, { backgroundColor: palette.accent }, pressed && styles.checkPressed]}
@@ -612,7 +625,8 @@ const baseStyles = StyleSheet.create({
   largeValue: { flex: 1, alignItems: 'center' },
   largeAction: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, minHeight: 56, paddingHorizontal: 16, paddingVertical: 8, borderRadius: 16, marginTop: 4 },
   largeActionText: { flexShrink: 1, fontFamily: fonts.semibold, fontSize: 17, textAlign: 'center' },
-  summaryRow: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 56, paddingVertical: 4, paddingLeft: 4 },
+  summaryLine: { flexDirection: 'row', alignItems: 'center' },
+  summaryRow: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 56, paddingVertical: 4, paddingLeft: 4 },
   summaryDot: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
   summaryText: { flex: 1, fontFamily: fonts.semibold, fontSize: 15 },
   addRowLarge: { flexDirection: 'column', flexWrap: 'nowrap', alignItems: 'stretch', gap: 8, marginTop: 4 },

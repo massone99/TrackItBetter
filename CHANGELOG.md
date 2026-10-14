@@ -2,6 +2,10 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.33.1 - 2026-10-14
+
+- Very large text: completing a set always moves on to the next one, the set in hand can no longer be swiped by accident, and set rows no longer fade in (rows could stay invisible on some phones). The set menu is no longer nested inside the row button.
+
 ## 0.33.0 - 2026-10-14
 
 - Total goal per exercise: reach a total of reps, time or metres in as many sets as it takes. Set it in a program (Fixed sets | Total goal in the exercise sheet, with an optional per-set start) or during a workout from the exercise menu.
