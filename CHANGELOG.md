@@ -2,6 +2,10 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.36.1 - 2026-10-15
+
+- Micro-session: the exercise picker stays open and lets you tick several exercises at once (tap again to untick), then Done adds them all.
+
 ## 0.36.0 - 2026-10-15
 
 - Today's goals, more compact: a segment bar with one segment per goal replaces the big header, and every goal is one row (name, what it counts, today's amount, what is left or how far past it).

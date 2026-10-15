@@ -86,8 +86,8 @@ export default function MicroSessionScreen() {
         visible={pickerOpen}
         title={t('workout.addExercise')}
         subtitle={t('micro.subtitle')}
-        include={(choice: ExerciseChoice) => !included.has(choice.id)}
-        onChoose={(choice) => { setPickerOpen(false); toggle(choice); }}
+        selected={included}
+        onChoose={(choice: ExerciseChoice) => toggle(choice)}
         onClose={() => setPickerOpen(false)}
       />
     </Screen>

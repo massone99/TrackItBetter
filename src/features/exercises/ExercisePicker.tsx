@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Modal, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { useAppInsets } from '../../shared/layout/useAppInsets';
-import { Body, Chip, Heading, Icon, IconButton, Label, ListRow, tapFeedback } from '../../shared/components/ui';
+import { ActionButton, Body, Chip, Heading, Icon, IconButton, Label, ListRow, tapFeedback } from '../../shared/components/ui';
 import { KeyboardScroll } from '../../shared/components/keyboard';
 import { iconForCategory } from '../../shared/components/categoryIcons';
 import { useTheme } from '../../shared/theme/ThemeProvider';
@@ -27,13 +27,15 @@ export type ExerciseChoice = {
 const CATEGORIES = EXERCISE_CATEGORIES;
 
 /** Full-screen exercise search with category filters and an optional "create" entry. */
-export function ExercisePicker({ visible, title, subtitle, initialCategory = null, include, onChoose, onCreate, onClose }: {
+export function ExercisePicker({ visible, title, subtitle, initialCategory = null, include, selected, onChoose, onCreate, onClose }: {
   visible: boolean;
   title: string;
   subtitle?: string;
   initialCategory?: string | null;
   /** Limits the list, e.g. to exercises measured like another one. */
   include?: (choice: ExerciseChoice) => boolean;
+  /** Pick several: a tap toggles an exercise (marked when in this set) and the picker stays open until Done. */
+  selected?: ReadonlySet<string>;
   onChoose: (choice: ExerciseChoice) => void;
   /** Called with what was typed in the search, so the new exercise can start with that name. */
   onCreate?: (typed: string) => void;
@@ -63,6 +65,7 @@ export function ExercisePicker({ visible, title, subtitle, initialCategory = nul
   const filtered = useMemo(() => choices.filter((choice) => !include || include(choice)).filter((choice) => !category || choice.category === category || choice.extraCategories.includes(`"${category}"`)), [choices, include, category]);
   const sections = useMemo(() => groupExercises(filtered, grouping), [filtered, grouping]);
   // 40 exercises at a time; a new search or category starts from the top.
+  const describe = (exercise: ExerciseChoice) => [t(`library.category.${exercise.category}`), t(`metric.${exercise.metric}`), exercise.level ? t('progression.level', { number: exercise.level }) : null, exerciseMovementTags(exercise).map((tag) => movementTagLabel(tag, t)).join(', ')].filter(Boolean).join(' · ');
   const page = usePagedSections(sections, 40, `${query}:${category}:${JSON.stringify(grouping)}:${visible}`);
 
   return (
@@ -98,12 +101,21 @@ export function ExercisePicker({ visible, title, subtitle, initialCategory = nul
           </View>
           {page.shown.map((section) => <View key={section.id} style={styles.group}>
             {section.path.length ? <View style={styles.groupHeader}><ExerciseGroupingHeader path={section.path} count={section.total} /></View> : null}
-            {section.items.map((exercise) => (
+            {section.items.map((exercise) => selected ? (
             <ListRow
               key={exercise.id}
               icon={iconForCategory(exercise.category)}
               title={exercise.name}
-              subtitle={[t(`library.category.${exercise.category}`), t(`metric.${exercise.metric}`), exercise.level ? t('progression.level', { number: exercise.level }) : null, exerciseMovementTags(exercise).map((tag) => movementTagLabel(tag, t)).join(', ')].filter(Boolean).join(' · ')}
+              subtitle={describe(exercise)}
+              selected={selected.has(exercise.id)}
+              onPress={() => onChoose(exercise)}
+            />
+            ) : (
+            <ListRow
+              key={exercise.id}
+              icon={iconForCategory(exercise.category)}
+              title={exercise.name}
+              subtitle={describe(exercise)}
               onPress={leave(() => onChoose(exercise))}
               // Long press opens the exercise page; the picker closes so the page is not hidden behind it.
               onLongPress={leave(() => { onClose(); openExercisePage(exercise.id); })}
@@ -124,6 +136,11 @@ export function ExercisePicker({ visible, title, subtitle, initialCategory = nul
           </View>)}
           <ShowMore remaining={page.remaining} onPress={page.more} />
         </KeyboardScroll>
+        {selected ? (
+          <View style={[styles.done, { borderColor: palette.border, backgroundColor: palette.background, paddingBottom: insets.bottom + 12 }]}>
+            <ActionButton icon="checkmark" label={t('logger.doneCount', { count: selected.size })} onPress={leave(onClose)} />
+          </View>
+        ) : null}
       </View>
     </Modal>
   );
@@ -141,5 +158,6 @@ const baseStyles = StyleSheet.create({
   list: { paddingHorizontal: 8, paddingTop: 8 },
   controls: { paddingHorizontal: 12, paddingVertical: 12, gap: 12 },
   group: { marginBottom: 12 },
+  done: { borderTopWidth: StyleSheet.hairlineWidth, paddingHorizontal: 16, paddingTop: 12 },
   groupHeader: { paddingHorizontal: 12, paddingTop: 12, paddingBottom: 4 },
 });
