@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { goalMatches, type DailyGoalProgress } from '../../src/domain/dailyGoals';
 import { rowCategories } from '../../src/features/analytics/summary';
-import { getDailyGoalsSnapshot, putDailyGoal, removeDailyGoal } from '../../src/features/dailyGoals/repository';
+import { getDailyGoalsSnapshot, putDailyGoal } from '../../src/features/dailyGoals/repository';
 import { DailyGoalSheet, type GoalDraft } from '../../src/features/dailyGoals/DailyGoalSheet';
 import { useGoalText } from '../../src/features/dailyGoals/DailyGoalViews';
 import { goalAmount } from '../../src/features/dailyGoals/labels';
@@ -13,7 +13,7 @@ import { exerciseMovementTags } from '../../src/features/exercises/movementCatal
 import { openExercisePage } from '../../src/features/exercises/openExercise';
 import { startMicroSession } from '../../src/features/session/microSession';
 import { WorkoutInProgressSheet } from '../../src/features/session/WorkoutInProgressSheet';
-import { Body, Card, Chip, EmptyState, FooterAction, IconButton, Label, ListGroup, ListRow, PageHeading, ProgressMeter, Screen, SectionTitle, Text } from '../../src/shared/components/ui';
+import { Body, Chip, EmptyState, FooterAction, IconButton, Label, ListGroup, ListRow, PageHeading, ProgressMeter, Screen, SectionTitle, Text } from '../../src/shared/components/ui';
 import { ShowMore, usePaged } from '../../src/shared/components/paging';
 import { useTheme } from '../../src/shared/theme/ThemeProvider';
 import { useScaledStyles } from '../../src/shared/theme/useScaledStyles';
@@ -57,11 +57,6 @@ export default function DailyGoalScreen() {
     try { await putDailyGoal(draft); } catch { setError(t('dailyGoals.saveError')); }
     load();
   };
-  const remove = async () => {
-    setEditing(false);
-    await removeDailyGoal(id);
-    router.back();
-  };
   const start = async () => {
     if (starting) return;
     setStarting(true);
@@ -93,22 +88,22 @@ export default function DailyGoalScreen() {
       <WorkoutInProgressSheet active={blockedBy} onClose={() => setBlockedBy(null)} />
       <PageHeading
         title={text.name}
-        subtitle={`${text.scope} · ${t(`dailyGoals.measure.${goal.measure}`)}`}
+        subtitle={text.kind}
         action={<IconButton icon="create-outline" label={t('dailyGoals.editTitle')} onPress={() => setEditing(true)} />}
       />
       {error ? <Body style={{ color: palette.warning }}>{error}</Body> : null}
-      <Card style={styles.total}>
+      <View style={styles.total}>
         <View style={styles.totalRow}>
           <Text style={[styles.done, { color: progress.reached ? palette.success : palette.text }]}>{goalAmount(goal.measure, progress.done)}</Text>
           <Text style={[styles.of, { color: palette.textMuted }]}>{t('dailyGoals.of', { amount: `${goalAmount(goal.measure, goal.target)}${unit}` })}</Text>
+          <Text style={[styles.status, { color: progress.reached ? palette.success : palette.accentStrong }]}>
+            {progress.reached
+              ? progress.done > goal.target ? t('dailyGoals.reachedOver', { amount: `${goalAmount(goal.measure, progress.done - goal.target)}${unit}` }) : t('dailyGoals.reachedShort')
+              : text.remaining}
+          </Text>
         </View>
         <ProgressMeter value={progress.done} total={goal.target} label={text.amount} tone={progress.reached ? 'success' : 'accent'} />
-        <Text style={[styles.status, { color: progress.reached ? palette.success : palette.accentStrong }]}>
-          {progress.reached
-            ? progress.done > goal.target ? t('dailyGoals.reachedOver', { amount: `${goalAmount(goal.measure, progress.done - goal.target)}${unit}` }) : t('dailyGoals.reachedShort')
-            : text.remaining}
-        </Text>
-      </Card>
+      </View>
 
       <SectionTitle title={t('dailyGoals.fromWhere')} />
       {progress.contributions.length === 0 ? (
@@ -136,17 +131,17 @@ export default function DailyGoalScreen() {
           <ShowMore remaining={page.remaining} onPress={page.more} />
         </View>
       )}
-      <DailyGoalSheet key={editing ? `edit-${goal.id}` : 'closed'} visible={editing} initial={goal} onSave={(draft) => void save(draft)} onRemove={() => void remove()} onClose={() => setEditing(false)} />
+      <DailyGoalSheet key={editing ? `edit-${goal.id}` : 'closed'} visible={editing} initial={goal} onSave={(draft) => void save(draft)} onClose={() => setEditing(false)} />
     </Screen>
   );
 }
 
 const baseStyles = StyleSheet.create({
-  total: { gap: 10 },
-  totalRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'baseline', gap: 8 },
-  done: { fontFamily: fonts.display, fontSize: 48 },
-  of: { fontSize: 18 },
-  status: { fontSize: 15, fontFamily: fonts.semibold },
+  total: { gap: 8 },
+  totalRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'baseline', columnGap: 8 },
+  done: { fontFamily: fonts.display, fontSize: 36 },
+  of: { fontSize: 16 },
+  status: { flexGrow: 1, textAlign: 'right', fontSize: 14, fontFamily: fonts.semibold },
   group: { gap: 8 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
 });

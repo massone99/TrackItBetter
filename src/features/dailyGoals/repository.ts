@@ -29,9 +29,41 @@ export async function putDailyGoal(goal: Omit<DailyGoal, 'id'> & { id?: string }
   return saved;
 }
 
-export async function removeDailyGoal(id: string): Promise<void> {
+/** Removes a goal and returns it with its place, so the removal can be undone. */
+export async function removeDailyGoal(id: string): Promise<{ goal: DailyGoal; index: number } | null> {
   const goals = await listDailyGoals();
+  const index = goals.findIndex((goal) => goal.id === id);
+  if (index < 0) return null;
   await saveDailyGoals(goals.filter((goal) => goal.id !== id));
+  return { goal: goals[index], index };
+}
+
+/** Puts a removed goal back where it was. */
+export async function restoreDailyGoal(goal: DailyGoal, index: number): Promise<void> {
+  const goals = (await listDailyGoals()).filter((item) => item.id !== goal.id);
+  goals.splice(Math.min(Math.max(0, index), goals.length), 0, goal);
+  await saveDailyGoals(goals);
+}
+
+/** A copy of a goal right after it. */
+export async function duplicateDailyGoal(id: string): Promise<DailyGoal | null> {
+  const goals = await listDailyGoals();
+  const index = goals.findIndex((goal) => goal.id === id);
+  if (index < 0 || goals.length >= MAX_DAILY_GOALS) return null;
+  const copy = { ...goals[index], id: Crypto.randomUUID() };
+  goals.splice(index + 1, 0, copy);
+  await saveDailyGoals(goals);
+  return copy;
+}
+
+/** Moves a goal one place up (-1) or down (+1); goals keep this order every day. */
+export async function moveDailyGoal(id: string, delta: -1 | 1): Promise<void> {
+  const goals = await listDailyGoals();
+  const index = goals.findIndex((goal) => goal.id === id);
+  const target = index + delta;
+  if (index < 0 || target < 0 || target >= goals.length) return;
+  [goals[index], goals[target]] = [goals[target], goals[index]];
+  await saveDailyGoals(goals);
 }
 
 /** Working sets completed since midnight, in any workout (finished or still going). */

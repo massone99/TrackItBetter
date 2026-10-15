@@ -2,6 +2,12 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.36.0 - 2026-10-15
+
+- Today's goals, more compact: a segment bar with one segment per goal replaces the big header, and every goal is one row (name, what it counts, today's amount, what is left or how far past it).
+- Tap a goal to open it in place: change its daily total with − and +, open its details, edit, duplicate, move it up or down, or delete it (with Undo). Goals stay the same every day until you change them.
+- The Today card is one compact block (reached count, segment bar, what is still missing); the goal details show the total next to the title.
+
 ## 0.35.0 - 2026-10-15
 
 - Today's goals: set totals to reach today by main category (push, pull…), movement group (vertical pull…) or movement tag (hip flexion…), in minutes (timed sets) or reps. Every working set done today counts, mini sessions included.

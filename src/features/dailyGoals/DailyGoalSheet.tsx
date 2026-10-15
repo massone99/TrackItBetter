@@ -9,13 +9,14 @@ import { MAX_FONT_SCALE } from '../../shared/theme/scale';
 import { EXERCISE_CATEGORIES } from '../exercises/categories';
 import { movementTagLabel } from '../exercises/ClassificationChoices';
 import { MOVEMENT_GROUPS, MOVEMENT_TAG_SECTIONS } from '../exercises/movementCatalog';
-import { goalAmount } from './labels';
+import { goalAmount, goalKeyLabel } from './labels';
+import { GOAL_STEPS } from './DailyGoalViews';
 
 export type GoalDraft = Omit<DailyGoal, 'id'> & { id?: string };
 
 const DEFAULTS: Record<DailyGoalMeasure, number> = { minutes: 60, reps: 30 };
 const PRESETS: Record<DailyGoalMeasure, number[]> = { minutes: [30, 60, 120, 300], reps: [10, 20, 30, 50] };
-const STEPS: Record<DailyGoalMeasure, number> = { minutes: 15, reps: 5 };
+const STEPS: Record<DailyGoalMeasure, number> = GOAL_STEPS;
 const TAG_RESULTS = 12;
 
 /**
@@ -111,6 +112,7 @@ export function DailyGoalSheet({ visible, initial, onSave, onRemove, onClose }: 
       </View>
       <Stepper
         label={t('dailyGoals.totalTitle')}
+        layout="row"
         value={target}
         display={goalAmount(measure, target)}
         step={STEPS[measure]}
@@ -124,7 +126,7 @@ export function DailyGoalSheet({ visible, initial, onSave, onRemove, onClose }: 
       />
       <ActionButton
         icon="checkmark"
-        label={t(initial?.id ? 'common.save' : 'dailyGoals.add')}
+        label={key === null ? t('dailyGoals.pickFirst') : t(initial?.id ? 'dailyGoals.saveSummary' : 'dailyGoals.addSummary', { name: goalKeyLabel({ scope, key }, t), amount: `${goalAmount(measure, target)}${measure === 'reps' ? ` ${t('dailyGoals.repsUnit')}` : ''}` })}
         disabled={key === null}
         onPress={() => { if (key !== null) onSave({ id: initial?.id, scope, key, measure, target }); }}
       />

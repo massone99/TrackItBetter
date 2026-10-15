@@ -1,13 +1,17 @@
 import { useTranslation } from 'react-i18next';
 import { Pressable, StyleSheet, View } from 'react-native';
 import type { DailyGoalProgress } from '../../domain/dailyGoals';
-import { Card, Icon, ListRow, ProgressMeter, Text, tapFeedback } from '../../shared/components/ui';
+import { Card, Icon, type IconName, Stepper, Text, tapFeedback } from '../../shared/components/ui';
 import { useTheme } from '../../shared/theme/ThemeProvider';
 import { useScaledStyles } from '../../shared/theme/useScaledStyles';
 import { fonts } from '../../shared/theme/typography';
+import { MIN_TOUCH_TARGET } from '../../shared/theme/tokens';
+import { DAILY_TARGET_MAX } from '../../domain/dailyGoals';
 import { goalAmount, goalKeyLabel } from './labels';
 
-/** "0:35 / 1:00" or "18 / 30 reps". */
+export const GOAL_STEPS = { minutes: 15, reps: 5 } as const;
+
+/** "0:35 / 1:00" or "18 / 30 reps", what is left and how far past the goal. */
 export function useGoalText() {
   const { t } = useTranslation();
   return (progress: DailyGoalProgress) => {
@@ -15,53 +19,132 @@ export function useGoalText() {
     const unit = goal.measure === 'reps' ? ` ${t('dailyGoals.repsUnit')}` : '';
     return {
       name: goalKeyLabel(goal, t),
-      scope: t(`dailyGoals.scope.${goal.scope}`),
+      kind: `${t(`dailyGoals.scope.${goal.scope}`)} · ${t(`dailyGoals.measure.${goal.measure}`).toLocaleLowerCase()}`,
       amount: `${goalAmount(goal.measure, done)} / ${goalAmount(goal.measure, goal.target)}${unit}`,
       remaining: t('dailyGoals.remaining', { amount: `${goalAmount(goal.measure, remaining)}${unit}` }),
+      over: done > goal.target ? `+${goalAmount(goal.measure, done - goal.target)}` : null,
     };
   };
 }
 
-/** A goal still to reach: name, amount and a bar. */
-export function DailyGoalCard({ progress, onPress }: { progress: DailyGoalProgress; onPress: () => void }) {
+/** One segment per goal: filled as far as it got, green once reached. */
+export function GoalSegments({ progress }: { progress: readonly DailyGoalProgress[] }) {
+  const styles = useScaledStyles(baseStyles);
+  const { t } = useTranslation();
+  const { palette } = useTheme();
+  const reached = progress.filter((item) => item.reached).length;
+  return (
+    <View accessible accessibilityRole="progressbar" accessibilityLabel={t('dailyGoals.reachedOf', { done: reached, total: progress.length })} style={styles.segments}>
+      {progress.map((item) => (
+        <View key={item.goal.id} style={[styles.segment, { backgroundColor: item.reached ? palette.success : palette.surfaceMuted }]}>
+          {item.reached ? null : <View style={[styles.segmentFill, { backgroundColor: palette.accentStrong, width: `${Math.min(100, (item.done / item.goal.target) * 100)}%` }]} />}
+        </View>
+      ))}
+    </View>
+  );
+}
+
+function RowAction({ icon, label, onPress, disabled, tone = 'plain' }: { icon: IconName; label: string; onPress: () => void; disabled?: boolean; tone?: 'plain' | 'accent' | 'danger' }) {
   const styles = useScaledStyles(baseStyles);
   const { palette } = useTheme();
-  const text = useGoalText()(progress);
+  const color = tone === 'accent' ? palette.accentStrong : tone === 'danger' ? palette.warning : palette.text;
   return (
-    <Pressable accessibilityRole="button" accessibilityLabel={`${text.name}, ${text.amount}, ${text.remaining}`} onPress={() => { tapFeedback(); onPress(); }}>
-      <Card style={styles.card}>
-        <View style={styles.head}>
-          <View style={[styles.badge, { backgroundColor: palette.surfaceMuted }]}><Text style={[styles.badgeText, { color: palette.textMuted }]}>{text.scope}</Text></View>
-          <Text style={[styles.name, { color: palette.text }]}>{text.name}</Text>
-          <Text style={[styles.amount, { color: palette.text }]}>{text.amount}</Text>
-        </View>
-        <ProgressMeter value={progress.done} total={progress.goal.target} label={text.amount} />
-        <Text style={[styles.remaining, { color: palette.textMuted }]}>{text.remaining}</Text>
-      </Card>
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      accessibilityState={{ disabled: !!disabled }}
+      disabled={disabled}
+      onPress={() => { tapFeedback(); onPress(); }}
+      style={({ pressed }) => [styles.action, {
+        backgroundColor: tone === 'accent' ? palette.accentSoft : tone === 'danger' ? palette.surface : palette.surfaceMuted,
+        borderColor: tone === 'danger' ? palette.warning : 'transparent',
+        opacity: disabled ? 0.4 : pressed ? 0.7 : 1,
+      }]}
+    >
+      <Icon name={icon} size={18} color={color} />
+      <Text style={[styles.actionText, { color }]}>{label}</Text>
     </Pressable>
   );
 }
 
-/** A reached goal, in a compact list. */
-export function DailyGoalRow({ progress, onPress }: { progress: DailyGoalProgress; onPress: () => void }) {
+/**
+ * A goal in the list. A tap opens it in place: the daily total with − and +, and every action on it
+ * as a labelled button, so nothing hides behind a gesture or a menu.
+ */
+export function GoalRow({ progress, expanded, first, last, onToggle, onTarget, onDetails, onEdit, onDuplicate, onMove, onDelete }: {
+  progress: DailyGoalProgress;
+  expanded: boolean;
+  first: boolean;
+  last: boolean;
+  onToggle: () => void;
+  onTarget: (value: number) => void;
+  onDetails: () => void;
+  onEdit: () => void;
+  onDuplicate: () => void;
+  onMove: (delta: -1 | 1) => void;
+  onDelete: () => void;
+}) {
+  const styles = useScaledStyles(baseStyles);
+  const { t } = useTranslation();
   const { palette } = useTheme();
   const text = useGoalText()(progress);
-  return <ListRow icon="checkmark" tint={palette.success} title={text.name} subtitle={`${text.scope} · ${text.amount}`} onPress={onPress} />;
+  const { goal, reached } = progress;
+  return (
+    <View style={[!last ? styles.divider : null, { borderColor: palette.border, backgroundColor: expanded ? palette.background : 'transparent' }]}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`${text.name}, ${text.kind}, ${text.amount}, ${reached ? t('dailyGoals.reachedShort') : text.remaining}`}
+        accessibilityState={{ expanded }}
+        onPress={() => { tapFeedback(); onToggle(); }}
+        style={({ pressed }) => [styles.row, { backgroundColor: pressed ? palette.surfaceMuted : 'transparent' }]}
+      >
+        <View style={styles.rowHead}>
+          {reached ? <Icon name="checkmark-circle" size={24} color={palette.success} /> : null}
+          <View style={styles.rowCopy}>
+            <Text style={[styles.name, { color: palette.text }]}>{text.name}</Text>
+            <Text style={[styles.kind, { color: palette.textMuted }]}>{text.kind}</Text>
+          </View>
+          <View style={styles.rowAmount}>
+            <Text style={[styles.amount, { color: reached ? palette.success : palette.text }]}>{text.amount}</Text>
+            <Text style={[styles.status, { color: reached ? palette.success : palette.accentStrong }]}>{reached ? text.over ?? t('dailyGoals.reachedShort') : text.remaining}</Text>
+          </View>
+          <Icon name={expanded ? 'chevron-up' : 'chevron-down'} size={18} color={palette.textMuted} />
+        </View>
+        {reached ? null : (
+          <View style={[styles.track, { backgroundColor: palette.surfaceMuted }]}>
+            <View style={[styles.fill, { backgroundColor: palette.accentStrong, width: `${Math.min(100, (progress.done / goal.target) * 100)}%` }]} />
+          </View>
+        )}
+      </Pressable>
+      {expanded ? (
+        <View style={styles.panel}>
+          <Stepper
+            label={t('dailyGoals.perDay')}
+            layout="row"
+            value={goal.target}
+            display={goalAmount(goal.measure, goal.target)}
+            step={GOAL_STEPS[goal.measure]}
+            min={GOAL_STEPS[goal.measure]}
+            max={DAILY_TARGET_MAX[goal.measure]}
+            onChange={(value) => onTarget(Math.max(1, Math.round(value)))}
+          />
+          <View style={styles.actions}>
+            <RowAction icon="list-outline" label={t('dailyGoals.details')} tone="accent" onPress={onDetails} />
+            <RowAction icon="create-outline" label={t('dailyGoals.edit')} onPress={onEdit} />
+            <RowAction icon="copy-outline" label={t('dailyGoals.duplicate')} onPress={onDuplicate} />
+            <RowAction icon="arrow-up" label={t('dailyGoals.moveUp')} disabled={first} onPress={() => onMove(-1)} />
+            <RowAction icon="arrow-down" label={t('dailyGoals.moveDown')} disabled={last} onPress={() => onMove(1)} />
+            <RowAction icon="trash-outline" label={t('dailyGoals.delete')} tone="danger" onPress={onDelete} />
+          </View>
+        </View>
+      ) : null}
+    </View>
+  );
 }
 
-const baseStyles = StyleSheet.create({
-  card: { gap: 10 },
-  head: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8 },
-  badge: { borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4 },
-  badgeText: { fontSize: 12, fontFamily: fonts.semibold },
-  name: { flexGrow: 1, flexShrink: 1, fontSize: 17, fontFamily: fonts.semibold },
-  amount: { fontSize: 20, fontFamily: fonts.display },
-  remaining: { fontSize: 14 },
-});
-
-/** Today's goals on the Today screen: how many are reached and the ones still open. */
+/** Today's goals on the Today screen: how many are reached and what is still open. */
 export function DailyGoalsSummary({ progress, onPress }: { progress: readonly DailyGoalProgress[]; onPress: () => void }) {
-  const styles = useScaledStyles(summaryStyles);
+  const styles = useScaledStyles(baseStyles);
   const { t } = useTranslation();
   const { palette } = useTheme();
   const goalText = useGoalText();
@@ -69,40 +152,45 @@ export function DailyGoalsSummary({ progress, onPress }: { progress: readonly Da
   const open = progress.filter((item) => !item.reached);
   const title = t('dailyGoals.title');
   const count = t('dailyGoals.reachedOf', { done: reached, total: progress.length });
+  const missing = open.map((item) => { const text = goalText(item); return `${text.name} ${text.amount}`; }).join(' · ');
   return (
     <Pressable accessibilityRole="button" accessibilityLabel={`${title}, ${count}`} onPress={() => { tapFeedback(); onPress(); }}>
-      <Card style={styles.card}>
-        <View style={styles.head}>
+      <Card style={styles.summary}>
+        <View style={styles.summaryHead}>
           <Text style={[styles.count, { color: reached === progress.length ? palette.success : palette.accentStrong }]}>{`${reached}/${progress.length}`}</Text>
-          <View style={styles.copy}>
-            <Text style={[styles.title, { color: palette.text }]}>{title}</Text>
-            <Text style={[styles.sub, { color: palette.textMuted }]}>{reached === progress.length ? t('dailyGoals.allReached') : count}</Text>
-          </View>
+          <Text style={[styles.summaryTitle, { color: palette.text }]}>{title}</Text>
           <Icon name="chevron-forward" size={18} color={palette.textMuted} />
         </View>
-        <ProgressMeter value={reached} total={progress.length} label={count} tone={reached === progress.length ? 'success' : 'accent'} />
-        {open.length > 0 ? (
-          <View style={styles.chips}>
-            {open.slice(0, 3).map((item) => {
-              const text = goalText(item);
-              return <View key={item.goal.id} style={[styles.chip, { backgroundColor: palette.accentSoft }]}><Text style={[styles.chipText, { color: palette.accentStrong }]}>{`${text.name} · ${text.amount}`}</Text></View>;
-            })}
-            {open.length > 3 ? <View style={[styles.chip, { backgroundColor: palette.surfaceMuted }]}><Text style={[styles.chipText, { color: palette.textMuted }]}>{t('dailyGoals.moreOpen', { count: open.length - 3 })}</Text></View> : null}
-          </View>
-        ) : null}
+        <GoalSegments progress={progress} />
+        <Text style={[styles.kind, { color: palette.textMuted }]}>
+          {open.length === 0 ? t('dailyGoals.allReached') : t('dailyGoals.missing', { list: missing })}
+        </Text>
       </Card>
     </Pressable>
   );
 }
 
-const summaryStyles = StyleSheet.create({
-  card: { gap: 12 },
-  head: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  count: { fontFamily: fonts.display, fontSize: 30 },
-  copy: { flex: 1, gap: 2 },
-  title: { fontSize: 17, fontFamily: fonts.bold },
-  sub: { fontSize: 14 },
-  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  chip: { minHeight: 32, borderRadius: 16, paddingHorizontal: 12, paddingVertical: 6, justifyContent: 'center' },
-  chipText: { fontSize: 14, fontFamily: fonts.semibold },
+const baseStyles = StyleSheet.create({
+  segments: { flexDirection: 'row', gap: 4 },
+  segment: { flex: 1, height: 6, borderRadius: 3, overflow: 'hidden' },
+  segmentFill: { height: '100%' },
+  divider: { borderBottomWidth: StyleSheet.hairlineWidth },
+  row: { minHeight: 56, paddingHorizontal: 14, paddingVertical: 10, gap: 8, justifyContent: 'center' },
+  rowHead: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  rowCopy: { flex: 1, minWidth: 0 },
+  name: { fontSize: 16, fontFamily: fonts.semibold },
+  kind: { fontSize: 13 },
+  rowAmount: { alignItems: 'flex-end', flexShrink: 0, maxWidth: '45%' },
+  amount: { fontSize: 18, fontFamily: fonts.display, textAlign: 'right' },
+  status: { fontSize: 13, fontFamily: fonts.semibold, textAlign: 'right' },
+  track: { height: 6, borderRadius: 3, overflow: 'hidden' },
+  fill: { height: '100%' },
+  panel: { paddingHorizontal: 14, paddingBottom: 12, gap: 10 },
+  actions: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  action: { flexGrow: 1, flexBasis: '30%', minHeight: MIN_TOUCH_TARGET, borderRadius: 12, borderWidth: 1, paddingHorizontal: 8, paddingVertical: 6, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
+  actionText: { fontSize: 14, fontFamily: fonts.semibold },
+  summary: { gap: 8 },
+  summaryHead: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  count: { fontFamily: fonts.display, fontSize: 24 },
+  summaryTitle: { flex: 1, fontSize: 16, fontFamily: fonts.bold },
 });
