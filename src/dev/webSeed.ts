@@ -56,6 +56,16 @@ async function seed(count = 40, active = false, from = 0, total = count): Promis
 
 (globalThis as { __seed?: typeof seed }).__seed = seed;
 
+/** Development only: marks the open sets of the active workout done now, for screens that count today's sets. */
+async function doneToday(): Promise<void> {
+  const { getActiveWorkout, completeSet } = await import('../features/session/repository');
+  const active = await getActiveWorkout();
+  for (const exercise of active?.exercises ?? []) {
+    for (const set of exercise.sets) if (!set.completedAt) await completeSet(set.id);
+  }
+}
+(globalThis as { __doneToday?: typeof doneToday }).__doneToday = doneToday;
+
 /**
  * Development only: pull-up sessions at different added loads and with help from bands, to look at
  * the load comparison. `__seedLoads()` once, on an empty database.

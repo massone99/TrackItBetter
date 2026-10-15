@@ -2,6 +2,11 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.35.0 - 2026-10-15
+
+- Today's goals: set totals to reach today by main category (push, pull…), movement group (vertical pull…) or movement tag (hip flexion…), in minutes (timed sets) or reps. Every working set done today counts, mini sessions included.
+- A card on Today shows how many goals are reached and the open ones; the goals screen lists what is left and what is reached, and each goal shows where today's total came from and the exercises that count, ready to start a mini session.
+
 ## 0.34.1 - 2026-10-15
 
 - Rest: the +15 s / −15 s buttons now change the rest saved on the set, so the recorded rest (and the comparison with last time) is the one you actually took.
