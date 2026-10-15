@@ -304,7 +304,10 @@ export default function WorkoutScreen() {
     await refresh(workout.id);
   };
 
-  const startRestTimer = (seconds: number) => {
+  // The set whose rest is running and its total so far: the +/- steps are saved on that set as its rest.
+  const restOf = useRef<{ setId: string; total: number } | null>(null);
+  const startRestTimer = (seconds: number, setId?: string) => {
+    if (setId) restOf.current = { setId, total: Math.floor(seconds) };
     setFreeRest(null);
     const duration = Math.max(1, Math.floor(seconds));
     const endsAt = Date.now() + duration * 1000;
@@ -319,6 +322,12 @@ export default function WorkoutScreen() {
   const adjustRest = (deltaSec: number) => {
     if (restEndsAt === null) return;
     const remaining = adjustedRest(restEndsAt, nowMs(), deltaSec);
+    const owner = restOf.current;
+    if (owner) {
+      const total = Math.max(0, Math.min(3600, owner.total + deltaSec));
+      restOf.current = { setId: owner.setId, total };
+      void updateSet(owner.setId, 'restSec', total).catch(() => undefined);
+    }
     if (remaining === null) { skipRest(); return; }
     void cancelRestFinishedNotification().catch(() => undefined);
     startRestTimer(remaining);
@@ -421,13 +430,13 @@ export default function WorkoutScreen() {
     const marked = workout?.exercises.map((item) => ({ ...item, sets: item.sets.map((set) => set.id === setId ? { ...set, completedAt: new Date() } : set) })) ?? [];
     const finished = exercise?.sets.find((s) => s.id === setId);
     if (finished?.pairId && exercise?.sets.some((s) => s.pairId === finished.pairId && s.id !== setId && !s.completedAt)) {
-      if (exercise.unilateralRestMode === 'side') startRestTimer(restAfter(setId));
+      if (exercise.unilateralRestMode === 'side') startRestTimer(restAfter(setId), setId);
       else skipRest();
       return;
     }
     const step = exercise ? supersetStep(marked, exercise.entryId) : null;
-    if (!step || step.endOfRound) startRestTimer(restAfter(setId));
-    else if (step.mode === 'between' && step.betweenSec > 0) startRestTimer(step.betweenSec);
+    if (!step || step.endOfRound) startRestTimer(restAfter(setId), setId);
+    else if (step.mode === 'between' && step.betweenSec > 0) startRestTimer(step.betweenSec, setId);
     else skipRest();
     // A working set still to be rated keeps the screen where it is; rating it moves on (see saveFormRating).
     const rated = finished?.kind !== 'working' || finished.formRating !== null || !!emomEntryId;

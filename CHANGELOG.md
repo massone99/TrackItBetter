@@ -2,6 +2,10 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.34.1 - 2026-10-15
+
+- Rest: the +15 s / −15 s buttons now change the rest saved on the set, so the recorded rest (and the comparison with last time) is the one you actually took.
+
 ## 0.34.0 - 2026-10-15
 
 - Exercise page: a History row near the top (number of sessions and the last date) opens every session of that exercise, newest first, grouped by month.
