@@ -32,7 +32,7 @@ const NO_RECORDS: ReadonlyMap<string, RecordKind[]> = new Map();
  * and the add-set row. Shared by the workout in progress and a finished workout's page; the live-only
  * parts (hold timer, EMOM, comparison with last time, records) are optional.
  */
-export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, previous, hold = null, onChange, onSetValue, onComplete, onStartHold, onFinishHold, onAddSet, onAddWarmup, onCopyAllLast, onSetOptions, onUncomplete, onRemoveSet, onSwiped, showRpe, onRpe, onOptions, onToggleWarmup, setRecords = NO_RECORDS, volumeRecord = false, supersetLabel = null, emomLabel: emomBadgeLabel, defaultRest = 0, onFormRating, editDone = false, typeDone = false, compare = true, apparatusLabel = null, firstTimeLabel, describeBands, compareBands }: {
+export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, previous, hold = null, onChange, onSetValue, onComplete, onStartHold, onFinishHold, onAddSet, onAddWarmup, onCopyAllLast, onSetOptions, onUncomplete, onRemoveSet, onSwiped, showRpe, onRpe, onOptions, onToggleWarmup, setRecords = NO_RECORDS, volumeRecord = false, supersetLabel = null, emomLabel: emomBadgeLabel, defaultRest = 0, onFormRating, onRomRating, editDone = false, typeDone = false, compare = true, apparatusLabel = null, firstTimeLabel, describeBands, compareBands }: {
   handle?: ReactNode;
   exercise: SessionExercise;
   collapsed: boolean;
@@ -65,6 +65,8 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
   /** Rest the app applies to a working set without its own, for the rest comparison. */
   defaultRest?: number;
   onFormRating: (set: SessionSet, rating: number | null) => void;
+  /** Range-of-motion chips under each working set, like the RPE row (visible for the set in hand and the done ones). */
+  onRomRating?: (set: SessionSet, rating: number | null) => void;
   /** Done sets keep their − and + buttons (a finished workout, where every set is done). */
   editDone?: boolean;
   /** Done sets stay editable by tapping the value, without − and +, so finished rows stay quiet (the workout in progress). */
@@ -250,6 +252,7 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
         const loadText = set.addedLoadKg === 0 ? '0' : formatLoad(set.addedLoadKg).replace(' kg', '');
         // RPE for the set in hand and the done ones (all five whole values in one row); later sets wait.
         const rpeRow = open && showRpe && set.kind === 'working' && !emomBadgeLabel && (done || largeText || set.id === nextSetId);
+        const romRow = open && !!onRomRating && set.kind === 'working' && !emomBadgeLabel && (done || largeText || set.id === nextSetId);
         const title = `${set.kind === 'warmup' ? t('workout.blocks.warmup') : t('logger.setTitle', { number: workingNumber })}${set.side === 'left' ? ' · L' : set.side === 'right' ? ' · R' : ''}`;
         const valueDown = showSteps ? <StepButton large={largeText} icon="remove" label={t('logger.stepDown', { field: fieldLabel, number: workingNumber, side: sideLabel }).trim()} onPress={(multiplier) => step(set, field, (distance ? -0.5 : timed ? -5 : -1) * multiplier)} /> : null;
         const valueUp = showSteps ? <StepButton large={largeText} icon="add" label={t('logger.stepUp', { field: fieldLabel, number: workingNumber, side: sideLabel }).trim()} onPress={(multiplier) => step(set, field, (distance ? 0.5 : timed ? 5 : 1) * multiplier)} /> : null;
@@ -497,6 +500,7 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
             ) : null}
             {/* Row 3, once the set is done: how clean the form was. The exercise folds only after the last rating. */}
             {done && set.kind === 'working' && !emomBadgeLabel ? <FormRating scroll={!largeText} value={set.formRating} sideLabel={sideLabel} onChange={(rating) => onFormRating(set, rating)} /> : null}
+            {romRow ? <FormRating rom scroll={!largeText} value={set.romRating} sideLabel={sideLabel} onChange={(rating) => onRomRating!(set, rating)} /> : null}
             {/* Only when there is something to show: PR, clips, note (and RPE when its row is hidden). */}
             {set.note || set.clipCount > 0 || (set.poseCount ?? 0) > 0 || (!rpeRow && set.rpe !== null) || setRecords.has(set.id) || set.bands.length > 0 ? (
               <Pressable accessibilityRole="button" onPress={() => onSetOptions(set)} style={styles.setMeta}>

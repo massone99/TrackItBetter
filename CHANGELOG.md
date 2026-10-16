@@ -2,6 +2,10 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.38.1 - 2026-10-16
+
+- Workout: the ROM chips (1 to 5) sit right under each working set, like the RPE row, so you rate it without opening the set sheet (also in the finished workout's editor).
+
 ## 0.38.0 - 2026-10-16
 
 - "Vs last time" now compares an exercise with its latest time in the same session (a workout with the same name, e.g. the same program day), set 3 with set 3; with none, it falls back to the latest time anywhere.
