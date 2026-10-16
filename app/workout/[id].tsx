@@ -1053,9 +1053,10 @@ const runningRests = new Map<string, number>();
 
 /** Last time's working set at the same position as `set` (same side for L/R pairs), or null. */
 function lastTimeFor(exercise: SessionExercise, set: SessionSet, previous: PreviousPerformance | undefined): PreviousSetValues | null {
-  if (set.kind !== 'working' || !previous) return null;
-  const workingNumber = groupSets(exercise.sets.filter((item) => item.kind === 'working' && item.index <= set.index)).length;
-  const group = groupSets(previous.sets)[workingNumber - 1];
+  if (!previous) return null;
+  // Warm-ups match warm-ups, working sets match working sets, by position within their kind.
+  const number = groupSets(exercise.sets.filter((item) => item.kind === set.kind && item.index <= set.index)).length;
+  const group = groupSets(set.kind === 'warmup' ? previous.warmups : previous.sets)[number - 1];
   return group?.find((s) => !set.pairId || s.side === set.side || !s.side || s.side === 'both') ?? null;
 }
 

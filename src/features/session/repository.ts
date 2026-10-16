@@ -1061,7 +1061,10 @@ export async function restoreRemoved(removed: RemovedRows): Promise<void> {
 
 export interface PreviousPerformance {
   workoutStartedAt: Date;
+  /** Working sets only. */
   sets: PreviousSetValues[];
+  /** Warm-up sets, matched with the warm-ups of the current workout by position. */
+  warmups: PreviousSetValues[];
 }
 
 export type PreviousSetValues = Pick<SessionSet, 'reps' | 'durationSec' | 'distanceM' | 'addedLoadKg' | 'rpe' | 'note' | 'side' | 'pairId'> & { restSec?: number | null; formRating?: number | null; bands?: SetBand[]; assistKg?: number | null };
@@ -1265,6 +1268,7 @@ export async function getPreviousPerformance(exerciseIds: string[], excludeWorko
       exerciseId: exerciseEntries.exerciseId,
       workoutId: workouts.id,
       startedAt: workouts.startedAt,
+      kind: trainingSets.kind,
       side: trainingSets.side,
       pairId: trainingSets.pairId,
       reps: trainingSets.reps,
@@ -1281,12 +1285,12 @@ export async function getPreviousPerformance(exerciseIds: string[], excludeWorko
     .from(trainingSets)
     .innerJoin(exerciseEntries, eq(trainingSets.entryId, exerciseEntries.id))
     .innerJoin(workouts, eq(exerciseEntries.workoutId, workouts.id))
-    .where(and(inArray(exerciseEntries.exerciseId, [...latestWorkout.keys()]), inArray(workouts.id, [...new Set(latestWorkout.values())]), done))
+    .where(and(inArray(exerciseEntries.exerciseId, [...latestWorkout.keys()]), inArray(workouts.id, [...new Set(latestWorkout.values())]), isNotNull(workouts.endedAt), isNotNull(trainingSets.completedAt)))
     .orderBy(desc(workouts.startedAt), asc(trainingSets.index));
   for (const row of rows) {
     if (latestWorkout.get(row.exerciseId) !== row.workoutId) continue;
-    const entry: PreviousPerformance = result.get(row.exerciseId) ?? { workoutStartedAt: row.startedAt, sets: [] };
-    entry.sets.push({ side: row.side, pairId: row.pairId, reps: row.reps, durationSec: row.durationSec, distanceM: row.distanceM, addedLoadKg: row.addedLoadKg, rpe: row.rpe, note: row.note, restSec: row.restSec, formRating: row.formRating, bands: parseSetBands(row.bands), assistKg: row.assistKg });
+    const entry: PreviousPerformance = result.get(row.exerciseId) ?? { workoutStartedAt: row.startedAt, sets: [], warmups: [] };
+    (row.kind === 'warmup' ? entry.warmups : entry.sets).push({ side: row.side, pairId: row.pairId, reps: row.reps, durationSec: row.durationSec, distanceM: row.distanceM, addedLoadKg: row.addedLoadKg, rpe: row.rpe, note: row.note, restSec: row.restSec, formRating: row.formRating, bands: parseSetBands(row.bands), assistKg: row.assistKg });
     result.set(row.exerciseId, entry);
   }
   return result;
