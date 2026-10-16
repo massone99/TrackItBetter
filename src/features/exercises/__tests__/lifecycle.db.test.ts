@@ -17,6 +17,7 @@ const mockPrefs = new Map<string, string>();
 jest.mock('../../../shared/settings/preferences', () => ({
   readPreference: (key: string) => mockPrefs.get(key) ?? null,
   writePreference: (key: string, value: string) => { mockPrefs.set(key, value); },
+  readCompareMode: () => 'session',
 }));
 const { mockReal: real } = jest.requireMock('../../../db/client');
 

@@ -116,6 +116,9 @@ const entrySchema = z.object({
   formRating: z.number().min(1).max(5).multipleOf(0.5).nullable().default(null),
   // Added in schema v17.
   apparatusId: nullableString.default(null),
+  // Added in schema v18 and v20.
+  totalTarget: nullableNumber.default(null),
+  compareWorkoutId: nullableString.default(null),
 }).strict();
 
 const setSchema = z.object({

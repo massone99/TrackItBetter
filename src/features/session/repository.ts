@@ -1,4 +1,5 @@
 import { isValidFormRating } from '../../domain/formRating';
+import { readCompareMode } from '../../shared/settings/preferences';
 import { isMobilityExercise } from '../exercises/categories';
 import { and, asc, count, desc, eq, gt, gte, inArray, isNotNull, isNull, lt, max, ne, or, sql } from 'drizzle-orm';
 import * as Crypto from 'expo-crypto';
@@ -50,6 +51,8 @@ export interface SessionSet {
 export interface SessionExercise {
   /** Apparatus used here: the one chosen in this workout, else the exercise default; null for none. */
   apparatusId?: string | null;
+  /** Finished workout chosen by hand as the comparison; null for the default one. */
+  compareWorkoutId?: string | null;
   /** Apparatus this exercise can be done on. */
   apparatusIds?: string[];
   /** When true, comparisons only use sessions on the same apparatus. */
@@ -328,6 +331,7 @@ async function loadSessionExercises(workoutId: string): Promise<SessionExercise[
       groupId: entry.groupId,
       groupType: entry.groupType,
       totalTarget: entry.totalTarget ?? null,
+      compareWorkoutId: entry.compareWorkoutId ?? null,
       sets: sets.map((set) => ({
         id: set.id,
         pairId: set.pairId,
@@ -917,6 +921,25 @@ export async function setEntryAverages(entryId: string, values: { rpe?: number |
   await bumpIfFinished({ entryId });
 }
 
+/** Chooses the finished workout an exercise of a workout is compared with; null goes back to the default. */
+export async function setEntryCompareWorkout(entryId: string, workoutId: string | null): Promise<void> {
+  await initializeDatabase();
+  await db.update(exerciseEntries).set({ compareWorkoutId: workoutId }).where(eq(exerciseEntries.id, entryId));
+}
+
+export interface ComparableWorkout { workoutId: string; name: string; startedAt: Date }
+
+/** Finished workouts with completed working sets of an exercise, newest first, to pick a comparison from. */
+export async function listComparableWorkouts(exerciseId: string, excludeWorkoutId: string, limit = 30): Promise<ComparableWorkout[]> {
+  await initializeDatabase();
+  return db.selectDistinct({ workoutId: workouts.id, name: workouts.name, startedAt: workouts.startedAt })
+    .from(trainingSets)
+    .innerJoin(exerciseEntries, eq(trainingSets.entryId, exerciseEntries.id))
+    .innerJoin(workouts, eq(exerciseEntries.workoutId, workouts.id))
+    .where(and(eq(exerciseEntries.exerciseId, exerciseId), isNotNull(workouts.endedAt), isNotNull(trainingSets.completedAt), eq(trainingSets.kind, 'working'), ne(workouts.id, excludeWorkoutId)))
+    .orderBy(desc(workouts.startedAt)).limit(limit);
+}
+
 /** Sets the RPE the program planned for a set; null clears it. */
 export async function setSetTargetRpe(setId: string, rpe: number | null): Promise<void> {
   await initializeDatabase();
@@ -1297,7 +1320,7 @@ export async function getPreviousPerformance(exerciseIds: string[], excludeWorko
   const done = and(isNotNull(workouts.endedAt), isNotNull(trainingSets.completedAt), eq(trainingSets.kind, 'working'));
   // First the latest finished workout of each exercise (SQLite takes the bare workout id from the
   // row holding the max), then only the sets of those workouts.
-  const latestOf = async (ids: string[], apparatusId?: string | null) => db
+  const latestOf = async (ids: string[], apparatusId?: string | null, session?: { name: string; before: Date }) => ids.length === 0 ? [] : db
     .select({ exerciseId: exerciseEntries.exerciseId, workoutId: workouts.id, startedAt: max(workouts.startedAt) })
     .from(trainingSets)
     .innerJoin(exerciseEntries, eq(trainingSets.entryId, exerciseEntries.id))
@@ -1305,6 +1328,7 @@ export async function getPreviousPerformance(exerciseIds: string[], excludeWorko
     .innerJoin(workouts, eq(exerciseEntries.workoutId, workouts.id))
     .where(and(
       inArray(exerciseEntries.exerciseId, ids), done, ne(workouts.id, excludeWorkoutId),
+      session ? and(eq(workouts.name, session.name), lt(workouts.startedAt, session.before)) : undefined,
       apparatusId === undefined ? undefined
         : apparatusId === null ? sql`coalesce(${exerciseEntries.apparatusId}, ${exercises.defaultApparatusId}) IS NULL`
           : sql`coalesce(${exerciseEntries.apparatusId}, ${exercises.defaultApparatusId}) = ${apparatusId}`,
@@ -1312,10 +1336,26 @@ export async function getPreviousPerformance(exerciseIds: string[], excludeWorko
     .groupBy(exerciseEntries.exerciseId);
   const strict = apparatusOf ? (await db.select({ id: exercises.id }).from(exercises)
     .where(and(inArray(exercises.id, exerciseIds), eq(exercises.apparatusAffectsDifficulty, true)))).map((row) => row.id) : [];
-  const latest = [
-    ...await latestOf(exerciseIds.filter((exerciseId) => !strict.includes(exerciseId))),
-    ...(await Promise.all(strict.map((exerciseId) => latestOf([exerciseId], apparatusOf?.get(exerciseId) ?? null)))).flat(),
+  const find = async (ids: string[], session?: { name: string; before: Date }) => [
+    ...await latestOf(ids.filter((exerciseId) => !strict.includes(exerciseId)), undefined, session),
+    ...(await Promise.all(ids.filter((exerciseId) => strict.includes(exerciseId)).map((exerciseId) => latestOf([exerciseId], apparatusOf?.get(exerciseId) ?? null, session)))).flat(),
   ];
+  // What each exercise is compared with: the workout chosen by hand, else (by default) its latest time
+  // in the same session (a workout of the same name, such as a program day), else its latest time anywhere.
+  const [current] = await db.select({ name: workouts.name, startedAt: workouts.startedAt }).from(workouts).where(eq(workouts.id, excludeWorkoutId)).limit(1);
+  const entries = current ? await db.select({ exerciseId: exerciseEntries.exerciseId, compareWorkoutId: exerciseEntries.compareWorkoutId }).from(exerciseEntries)
+    .where(and(eq(exerciseEntries.workoutId, excludeWorkoutId), isNotNull(exerciseEntries.compareWorkoutId))) : [];
+  const pinnedTo = new Map(entries.map((entry) => [entry.exerciseId, entry.compareWorkoutId!] as const));
+  const pinned = pinnedTo.size === 0 ? [] : (await db.selectDistinct({ exerciseId: exerciseEntries.exerciseId, workoutId: workouts.id, startedAt: workouts.startedAt })
+    .from(trainingSets)
+    .innerJoin(exerciseEntries, eq(trainingSets.entryId, exerciseEntries.id))
+    .innerJoin(workouts, eq(exerciseEntries.workoutId, workouts.id))
+    .where(and(inArray(exerciseEntries.exerciseId, [...pinnedTo.keys()]), inArray(workouts.id, [...new Set(pinnedTo.values())]), done, ne(workouts.id, excludeWorkoutId))))
+    .filter((row) => pinnedTo.get(row.exerciseId) === row.workoutId);
+  const unpinned = exerciseIds.filter((exerciseId) => !pinned.some((row) => row.exerciseId === exerciseId));
+  const sameSession = current && readCompareMode() === 'session' ? await find(unpinned, { name: current.name, before: current.startedAt }) : [];
+  const anywhere = unpinned.filter((exerciseId) => !sameSession.some((row) => row.exerciseId === exerciseId));
+  const latest = [...pinned, ...sameSession, ...await find(anywhere)];
   if (latest.length === 0) return result;
   const latestWorkout = new Map(latest.map((row) => [row.exerciseId, row.workoutId]));
   const rows = await db

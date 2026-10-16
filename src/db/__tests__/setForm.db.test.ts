@@ -12,6 +12,7 @@ describe('schema v15: form rated per set', () => {
       ALTER TABLE exercise DROP COLUMN default_apparatus_id;
       ALTER TABLE exercise DROP COLUMN apparatus_affects_difficulty;
       ALTER TABLE exercise_entry DROP COLUMN apparatus_id;
+      ALTER TABLE exercise_entry DROP COLUMN compare_workout_id;
       ALTER TABLE exercise_entry DROP COLUMN total_target;
       ALTER TABLE training_set DROP COLUMN bands;
       ALTER TABLE training_set DROP COLUMN assist_kg;
@@ -38,6 +39,7 @@ describe('schema v18: total goal', () => {
     await seedCatalogIfEmpty(legacy.db as unknown as Parameters<typeof seedCatalogIfEmpty>[0]);
     legacy.sqlite.exec(`
       ALTER TABLE training_set DROP COLUMN rom_rating;
+      ALTER TABLE exercise_entry DROP COLUMN compare_workout_id;
       ALTER TABLE exercise_entry DROP COLUMN total_target;
       PRAGMA user_version = 17;
       INSERT INTO workout (id, name, started_at, ended_at) VALUES ('w', 'Old', 10, 20);
@@ -45,6 +47,6 @@ describe('schema v18: total goal', () => {
     `);
     await migrateDatabase(legacy.expo);
     expect(legacy.sqlite.prepare('SELECT total_target FROM exercise_entry WHERE id = ?').get('e')).toEqual({ total_target: null });
-    expect(legacy.sqlite.prepare('PRAGMA user_version').get()).toEqual({ user_version: 19 });
+    expect(legacy.sqlite.prepare('PRAGMA user_version').get()).toEqual({ user_version: 20 });
   });
 });

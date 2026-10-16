@@ -8,7 +8,7 @@ import { fonts } from "../../src/shared/theme/typography";
 import { DurationField } from "../../src/shared/components/DateTimePickers";
 import { MAX_NARRATION_PREP_SEC, readNarrationPrepSec, writeNarrationPrepSec } from "../../src/features/narration/settings";
 import { readDefaultRest, writeDefaultRest } from "../../src/features/session/restDefaults";
-import { readBooleanPreference, RPE_PROMPT_KEY, writePreference } from "../../src/shared/settings/preferences";
+import { COMPARE_MODE_KEY, readBooleanPreference, readCompareMode, RPE_PROMPT_KEY, writePreference, type CompareMode } from "../../src/shared/settings/preferences";
 import { UI_SCALES, type TextScaleMode, type UiScale } from "../../src/shared/theme/scale";
 import i18n, { setAppLanguage } from "../../src/shared/i18n";
 import { useTheme } from "../../src/shared/theme/ThemeProvider";
@@ -21,6 +21,7 @@ export default function ProfileScreen() {
   const { preference, setMode, palette, scale, setScale, textScaleMode, setTextScaleMode } = useTheme();
   const { speed, setSpeed, reducedMotion } = useAnimationSettings();
   const [rpePrompt, setRpePrompt] = useState(() => readBooleanPreference(RPE_PROMPT_KEY, true));
+  const [compareMode, setCompareMode] = useState<CompareMode>(readCompareMode);
   const [prepSec, setPrepSec] = useState(readNarrationPrepSec);
   const [rest, setRest] = useState(() => ({ working: readDefaultRest("working"), warmup: readDefaultRest("warmup") }));
   const changeRest = (kind: "working" | "warmup", seconds: number) => { setRest((current) => ({ ...current, [kind]: seconds })); writeDefaultRest(kind, seconds); };
@@ -86,6 +87,18 @@ export default function ProfileScreen() {
           onChange={(next) => { setRpePrompt(next); writePreference(RPE_PROMPT_KEY, String(next)); }}
         />
       </ListGroup>
+      <SectionTitle title={t("compare.profileTitle")} />
+      <Card>
+        <SegmentedControl
+          value={compareMode}
+          onChange={(next) => { setCompareMode(next); writePreference(COMPARE_MODE_KEY, next); }}
+          options={[
+            { value: "session", label: t("compare.modeSession") },
+            { value: "any", label: t("compare.modeAny") },
+          ]}
+        />
+        <Body>{t("compare.profileHint")}</Body>
+      </Card>
       <SectionTitle title={t("profile.restTitle")} />
       <Card>
         <DurationField label={t("logger.restWorking")} value={rest.working} max={600} presets={[30, 60, 90, 120, 180]} format={(seconds) => t("userProgram.secondsValue", { value: seconds })} onChange={(value) => changeRest("working", value)} />

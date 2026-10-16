@@ -14,6 +14,7 @@ import { SupersetActions, SupersetSettings } from '../../src/features/session/Su
 import type { ScrollHandle } from '../../src/shared/components/keyboard';
 import { getSessionRecords } from '../../src/features/analytics/repository';
 import type { RecordKind } from '../../src/features/analytics/records';
+import { ExerciseCompareField } from '../../src/features/session/ExerciseCompareField';
 import { ExerciseAveragesField } from '../../src/features/session/ExerciseAveragesField';
 import { ExerciseRestFields } from '../../src/features/session/ExerciseRestFields';
 import {
@@ -202,7 +203,7 @@ export default function WorkoutScreen() {
       }), FOLD_DELAY_MS);
     }
     // "Last time" only changes when the exercises change, so it is not re-read after every set.
-    const exerciseKey = `${next.id}:${next.exercises.map((exercise) => `${exercise.exerciseId}@${exercise.apparatusId ?? ''}`).join(',')}`;
+    const exerciseKey = `${next.id}:${next.exercises.map((exercise) => `${exercise.exerciseId}@${exercise.apparatusId ?? ''}${exercise.compareWorkoutId ? `#${exercise.compareWorkoutId}` : ''}`).join(',')}`;
     const apparatusOf = new Map(next.exercises.map((exercise) => [exercise.exerciseId, exercise.apparatusId ?? null] as const));
     const [previousPerformance, found] = await Promise.all([
       previousKey.current === exerciseKey ? null : getPreviousPerformance(next.exercises.map((exercise) => exercise.exerciseId), next.id, apparatusOf),
@@ -932,6 +933,7 @@ export default function WorkoutScreen() {
                 {optionsFor.apparatusAffectsDifficulty ? <Label>{t('equipment.apparatusCompareHint')}</Label> : null}
               </MenuGroup>
             ) : null}
+            <ExerciseCompareField key={`compare-${optionsFor.entryId}`} exercise={optionsFor} workoutId={workout.id} onChanged={() => void refresh(workout.id)} />
             <ExerciseAveragesField key={`averages-${optionsFor.entryId}`} exercise={optionsFor} onChanged={() => void refresh(workout.id)} />
             <ExerciseBlockField key={`block-${optionsFor.entryId}-${optionsFor.block}`} entryId={optionsFor.entryId} value={optionsFor.block} onChanged={() => { setOptionsFor(null); void refresh(workout.id); }} />
             <SupersetSettings key={`superset-${optionsFor.entryId}-${optionsFor.groupId ?? ''}`} exercise={optionsFor} />

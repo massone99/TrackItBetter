@@ -1,6 +1,6 @@
 import { migrateDatabase } from '../../../db/migrations';
 import { seedCatalogIfEmpty } from '../../../db/seed/import';
-import { addExerciseToWorkout, addSet, copyValuesToSet, getActiveWorkout, getPreviousPerformance, repeatWorkout, repeatWorkoutIfIdle, setEntryAverages, setSetKind, setSetRomRating, startWorkout, updateEntryNote, updateSet, updateSetNote, updateSetRpe } from '../repository';
+import { addExerciseToWorkout, addSet, copyValuesToSet, getActiveWorkout, getPreviousPerformance, repeatWorkout, repeatWorkoutIfIdle, setEntryAverages, setEntryCompareWorkout, listComparableWorkouts, setSetKind, setSetRomRating, startWorkout, updateEntryNote, updateSet, updateSetNote, updateSetRpe } from '../repository';
 
 jest.mock('../../../db/client', () => {
   const { createRealDatabase } = jest.requireActual('../../../test/realDatabase');
@@ -62,6 +62,36 @@ describe('ROM and averages in a workout in progress', () => {
     const rows = real.sqlite.prepare('SELECT id, rpe, form_rating AS form, rom_rating AS rom FROM training_set WHERE entry_id = ?').all(entryId) as { id: string; rpe: number | null; form: number | null; rom: number | null }[];
     expect(rows.find((row) => row.id === first.id)).toMatchObject({ rpe: 8, form: 4, rom: 4.5 });
     expect(rows.find((row) => row.id === second)).toMatchObject({ rpe: null, form: null, rom: 3.5 });
+  });
+});
+
+describe('what an exercise is compared with', () => {
+  const finish = async (name: string, startedAt: number, reps: number) => {
+    const workoutId = await startWorkout(name);
+    const entryId = await addExerciseToWorkout(workoutId, 'push-up', false);
+    const set = real.sqlite.prepare('SELECT id FROM training_set WHERE entry_id = ?').get(entryId) as { id: string };
+    await updateSet(set.id, 'reps', reps);
+    real.sqlite.prepare('UPDATE training_set SET completed_at = 5 WHERE id = ?').run(set.id);
+    real.sqlite.prepare('UPDATE workout SET started_at = ?, ended_at = ? WHERE id = ?').run(startedAt, startedAt + 1, workoutId);
+    return workoutId;
+  };
+
+  it('defaults to the same session, can be pinned by hand, and falls back to any workout', async () => {
+    const dayA = await finish('Day A', 1000, 5);
+    await finish('Day B', 2000, 9);
+    const current = await startWorkout('Day A');
+    const entryId = await addExerciseToWorkout(current, 'push-up', false);
+    const repsOf = async () => (await getPreviousPerformance(['push-up'], current)).get('push-up')?.sets[0].reps;
+    expect(await repsOf()).toBe(5);
+    const other = await startWorkout('Day C');
+    await addExerciseToWorkout(other, 'push-up', false);
+    const unnamed = await startWorkout('Day D');
+    expect((await getPreviousPerformance(['push-up'], unnamed)).get('push-up')?.sets[0].reps).toBe(9);
+    await setEntryCompareWorkout(entryId, (await listComparableWorkouts('push-up', current)).find((item) => item.name === 'Day B')!.workoutId);
+    expect(await repsOf()).toBe(9);
+    await setEntryCompareWorkout(entryId, null);
+    expect(await repsOf()).toBe(5);
+    expect(dayA).toBeTruthy();
   });
 });
 

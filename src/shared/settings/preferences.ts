@@ -30,6 +30,14 @@ export function readBooleanPreference(key: string, fallback: boolean): boolean {
 /** Asks for RPE right after a set is completed (on by default). */
 export const RPE_PROMPT_KEY = "workout.rpePrompt";
 
+/** What an exercise is compared with by default: its latest time in the same session (same workout name, e.g. a program day), or its latest time anywhere. */
+export const COMPARE_MODE_KEY = "workout.compareMode";
+export type CompareMode = "session" | "any";
+
+export function readCompareMode(): CompareMode {
+  return readPreference(COMPARE_MODE_KEY) === "any" ? "any" : "session";
+}
+
 export const ANIMATION_PREFERENCE_KEY = "ui.animationSpeed";
 export type AnimationSpeed = "normal" | "fast" | "off";
 

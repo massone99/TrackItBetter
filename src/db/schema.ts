@@ -105,6 +105,8 @@ export const exerciseEntries = sqliteTable(
     formRating: integer('form_rating'),
     /** A total to reach in as many sets as it takes (reps, seconds or meters); null for ordinary sets. */
     totalTarget: real('total_target'),
+    /** Finished workout this exercise is compared with, chosen by hand; null for the default comparison. */
+    compareWorkoutId: text('compare_workout_id'),
   },
   (table) => [index('entry_workout_order_idx').on(table.workoutId, table.order)],
 );

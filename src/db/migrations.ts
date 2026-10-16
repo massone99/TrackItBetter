@@ -251,6 +251,12 @@ ALTER TABLE training_set ADD COLUMN rom_rating REAL CHECK (rom_rating BETWEEN 1 
 PRAGMA user_version = 19;
 `;
 
+/** The finished workout an exercise is compared with, when chosen by hand (null: the default comparison). */
+export const compareSchema = `
+ALTER TABLE exercise_entry ADD COLUMN compare_workout_id TEXT;
+PRAGMA user_version = 20;
+`;
+
 /** Applies numbered, local-first SQLite schema migrations once per database. */
 export async function migrateDatabase(database: SQLiteDatabase): Promise<void> {
   await database.execAsync('PRAGMA foreign_keys = ON;');
@@ -379,6 +385,12 @@ export async function migrateDatabase(database: SQLiteDatabase): Promise<void> {
   if (version < 19) {
     await database.withTransactionAsync(async () => {
       await database.execAsync(romSchema);
+    });
+  }
+
+  if (version < 20) {
+    await database.withTransactionAsync(async () => {
+      await database.execAsync(compareSchema);
     });
   }
 }
