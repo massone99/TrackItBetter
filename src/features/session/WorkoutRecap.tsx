@@ -66,7 +66,7 @@ export function WorkoutRecap({ mode }: { mode: 'finish' | 'log' }) {
       const beatLastTime = (completed?.exercises ?? []).some((exercise) => {
         const before = last.get(exercise.exerciseId);
         const { improved } = compareWithLast(exercise.sets, before?.sets ?? null, exercise.metric, { defaultRest: restForSet(exercise.exerciseId, { kind: 'working', restSec: null }), compareBands: comparer });
-        return improved.total || improved.rest || improved.form || improved.rpe || improved.assist;
+        return improved.total || improved.rest || improved.form || improved.rom || improved.rpe || improved.assist;
       });
       if (distance.length + session.sets.length + session.volume.length > 0 || beatLastTime) tapFeedback('success');
     }).catch(() => { if (mounted) { setLoadFailed(true); setLoading(false); } });
@@ -123,6 +123,7 @@ export function WorkoutRecap({ mode }: { mode: 'finish' | 'log' }) {
       improved.total && total ? t('lastTime.totalShort', { delta: Math.round(((total.now ?? 0) - total.last) * 10) / 10 }) : null,
       improved.rest && rest ? t('lastTime.restShort', { delta: rest.last - (rest.now ?? rest.last) }) : null,
       improved.form ? t('lastTime.formShort') : null,
+      improved.rom ? t('lastTime.romShort') : null,
       improved.assist ? (assist && assist.now !== null ? t('lastTime.assistShort', { value: Math.round((assist.last - assist.now) * 10) / 10 }) : t('lastTime.assistLighter')) : null,
       improved.rpe && rpe && rpe.now !== null ? t('lastTime.rpeShort', { value: formatRpe(rpe.now), last: formatRpe(rpe.last) }) : null,
     ].filter((item): item is string => item !== null);

@@ -124,6 +124,8 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
   // Average form of today's rated sets (also when there is nothing to compare it with).
   const ratedForms = exercise.sets.filter((set) => set.completedAt && set.kind === 'working' && set.formRating !== null).map((set) => set.formRating as number);
   const comparisonFormNow = ratedForms.length ? Math.round((ratedForms.reduce((sum, value) => sum + value, 0) / ratedForms.length) * 10) / 10 : null;
+  const ratedRoms = exercise.sets.filter((set) => set.completedAt && set.kind === 'working' && set.romRating !== null).map((set) => set.romRating as number);
+  const comparisonRomNow = ratedRoms.length ? Math.round((ratedRoms.reduce((sum, value) => sum + value, 0) / ratedRoms.length) * 10) / 10 : null;
   // Mini PRs against last time, for the folded results line.
   const prNotes = [
     comparison.improved.total && comparison.total ? `↑ ${t('lastTime.totalShort', { delta: formatNumber(Math.round(((comparison.total.now ?? 0) - comparison.total.last) * 10) / 10) })}` : null,
@@ -192,6 +194,11 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
             // Average form with its trend against last time in one line: green ↑ better, red ↓ worse.
             <Label style={comparison.improved.form ? { color: palette.success } : comparison.worse.form ? { color: palette.warning } : undefined}>
               {`${t('lastTime.formAverage', { value: formatNumber(comparisonFormNow) })}${comparison.improved.form ? ' ↑' : comparison.worse.form ? ' ↓' : ''}`}
+            </Label>
+          ) : null}
+          {collapsed && comparisonRomNow !== null ? (
+            <Label style={comparison.improved.rom ? { color: palette.success } : comparison.worse.rom ? { color: palette.warning } : undefined}>
+              {`${t('lastTime.romAverageValue', { value: formatNumber(comparisonRomNow) })}${comparison.improved.rom ? ' ↑' : comparison.worse.rom ? ' ↓' : ''}`}
             </Label>
           ) : null}
           {collapsed && prNotes.length ? <Text numberOfLines={2} style={[styles.prNotes, { color: palette.success }]}>{prNotes.join(' · ')}</Text> : null}

@@ -41,8 +41,8 @@ export interface LastTimeComparison {
   /** Without kg, help from the bands compared set by set through the strength order; null when not needed or not possible. */
   assistOrder: 'less' | 'same' | 'more' | null;
   /**
-   * The mini PRs: more in total, less rest, better form, and the same work at a lower average RPE
-   * (every set done with the same reps or time and load as last time, rest no longer, form no worse).
+   * The mini PRs: more in total, less rest, better form, better ROM, and the same work at a lower average RPE
+   * (every set done with the same reps or time and load as last time, rest no longer, form and ROM no worse).
    */
   improved: { total: boolean; rest: boolean; form: boolean; rom: boolean; rpe: boolean; assist: boolean };
   /** Regressions worth flagging. Only form and ROM: total and rest fill up during the workout, so "less so far" is not one. */
@@ -146,7 +146,7 @@ export function compareWithLast(
       // Less help from the bands for the work done is progress; it fills up like the total.
       assist: working.every((set) => set.completedAt) && ((assist !== null && assist.now !== null && assist.now < assist.last) || assistOrder === 'less'),
       rpe: sameWork && rpe !== null && rpe.now !== null && rpe.now < rpe.last
-        && (rest === null || rest.now === null || rest.now <= rest.last) && !worseForm,
+        && (rest === null || rest.now === null || rest.now <= rest.last) && !worseForm && !worseRom,
     },
     worse: { form: worseForm, rom: worseRom },
   };

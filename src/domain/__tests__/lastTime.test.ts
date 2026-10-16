@@ -88,6 +88,10 @@ describe('compareWithLast', () => {
     expect(compareWithLast([at(8, 10, 8), at(8, 10, 8)], [at(8, 10, 9), at(8, 10, null)], 'reps', options).rpe).toBeNull();
     // Longer rest or worse form spoil it.
     expect(compareWithLast([at(8, 10, 8, { restSec: 180 }), at(8, 10, 8, { restSec: 180 })], last, 'reps', options).improved.rpe).toBe(false);
+    // A lower ROM spoils it too.
+    const romLast = [at(8, 10, 9, { romRating: 4 }), at(8, 10, 9, { romRating: 4 })];
+    expect(compareWithLast([at(8, 10, 8, { romRating: 3 }), at(8, 10, 8, { romRating: 3 })], romLast, 'reps', options).improved.rpe).toBe(false);
+    expect(compareWithLast([at(8, 10, 8, { romRating: 4 }), at(8, 10, 8, { romRating: 4 })], romLast, 'reps', options).improved.rpe).toBe(true);
   });
 
   it('has nothing to compare the first time', () => {

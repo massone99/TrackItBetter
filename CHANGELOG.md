@@ -2,6 +2,10 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.38.2 - 2026-10-16
+
+- ROM counts for mini PRs like form: a higher average ROM than last time is a mini PR ("better ROM" in the workout summary, green ↑ on the folded exercise), and a lower one blocks the "same work at a lower RPE" mini PR.
+
 ## 0.38.1 - 2026-10-16
 
 - Workout: the ROM chips (1 to 5) sit right under each working set, like the RPE row, so you rate it without opening the set sheet (also in the finished workout's editor).
