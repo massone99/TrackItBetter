@@ -2,6 +2,10 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.36.2 - 2026-10-16
+
+- Copy last time: warm-up sets now match last time's warm-ups, and working sets match working sets, by position.
+
 ## 0.36.1 - 2026-10-15
 
 - Micro-session: the exercise picker stays open and lets you tick several exercises at once (tap again to untick), then Done adds them all.
