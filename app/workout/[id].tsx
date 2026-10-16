@@ -778,7 +778,9 @@ export default function WorkoutScreen() {
           gap={20}
           onMove={(from, to) => void moveExerciseEntry(workout.id, workout.exercises[from].entryId, to).then(() => refresh(workout.id))}
           onRowLayout={(key, top) => { cardTops.current.set(key, listTop.current + top); }}
-          renderRow={(exercise, index, row) => (
+          renderRow={(exercise, index, row) => {
+            const copyable = copyableSets(exercise, previous.get(exercise.exerciseId));
+            return (
             <Animated.View entering={exerciseEntering} exiting={itemExiting}>
           {showBlocks && (index === 0 || blockOf(workout.exercises[index - 1].block) !== exercise.block) ? (
             <BlockHeader block={exercise.block} exercises={workout.exercises.filter((item) => item.block === exercise.block)} />
@@ -797,6 +799,7 @@ export default function WorkoutScreen() {
             onFinishHold={() => void finishCurrentHold()}
             onAddSet={() => void addSet(exercise.entryId).then(() => refresh(workout.id))}
             onAddWarmup={() => void addWarmupSet(exercise.entryId).then(() => refresh(workout.id))}
+            onCopyAllLast={copyable.length > 0 ? () => void Promise.all(copyable.map(({ set, values }) => copyValuesToSet(set.id, values))).then(() => refresh(workout.id)) : undefined}
             onSetOptions={(set) => setSetSheet({ exercise, setId: set.id })}
             onToggleWarmup={(set) => void toggleWarmup(set)}
             setRecords={records.sets}
@@ -818,7 +821,8 @@ export default function WorkoutScreen() {
             onOptions={() => setOptionsFor(exercise)}
           />
             </Animated.View>
-          )}
+            );
+          }}
         />
         </LayoutAnimationConfig>
         </View>
@@ -1058,6 +1062,14 @@ function lastTimeFor(exercise: SessionExercise, set: SessionSet, previous: Previ
   const number = groupSets(exercise.sets.filter((item) => item.kind === set.kind && item.index <= set.index)).length;
   const group = groupSets(set.kind === 'warmup' ? previous.warmups : previous.sets)[number - 1];
   return group?.find((s) => !set.pairId || s.side === set.side || !s.side || s.side === 'both') ?? null;
+}
+
+/** The open sets of an exercise that have a matching set last time, with its values. */
+function copyableSets(exercise: SessionExercise, previous: PreviousPerformance | undefined): { set: SessionSet; values: PreviousSetValues }[] {
+  return exercise.sets.filter((set) => !set.completedAt).flatMap((set) => {
+    const values = lastTimeFor(exercise, set, previous);
+    return values ? [{ set, values }] : [];
+  });
 }
 
 interface EmomBar {

@@ -9,7 +9,7 @@ import type { RecordKind } from '../analytics/records';
 import { openExercisePage } from '../exercises/openExercise';
 import { openReferenceVideo } from '../exercises/ReferenceLinkSheet';
 import { HoldDurationField } from '../../shared/components/DateTimePickers';
-import { Heading, Icon, IconButton, Label, NumberEdit, ProgressMeter, tapFeedback, Text, type NumberEditControl } from '../../shared/components/ui';
+import { ActionButton, Heading, Icon, IconButton, Label, NumberEdit, ProgressMeter, tapFeedback, Text, type NumberEditControl } from '../../shared/components/ui';
 import { totalProgress } from '../../domain/totalGoal';
 import { useAnimationSettings } from '../../shared/settings/AnimationProvider';
 import { useTheme } from '../../shared/theme/ThemeProvider';
@@ -32,7 +32,7 @@ const NO_RECORDS: ReadonlyMap<string, RecordKind[]> = new Map();
  * and the add-set row. Shared by the workout in progress and a finished workout's page; the live-only
  * parts (hold timer, EMOM, comparison with last time, records) are optional.
  */
-export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, previous, hold = null, onChange, onSetValue, onComplete, onStartHold, onFinishHold, onAddSet, onAddWarmup, onSetOptions, onUncomplete, onRemoveSet, onSwiped, showRpe, onRpe, onOptions, onToggleWarmup, setRecords = NO_RECORDS, volumeRecord = false, supersetLabel = null, emomLabel: emomBadgeLabel, defaultRest = 0, onFormRating, editDone = false, typeDone = false, compare = true, apparatusLabel = null, firstTimeLabel, describeBands, compareBands }: {
+export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, previous, hold = null, onChange, onSetValue, onComplete, onStartHold, onFinishHold, onAddSet, onAddWarmup, onCopyAllLast, onSetOptions, onUncomplete, onRemoveSet, onSwiped, showRpe, onRpe, onOptions, onToggleWarmup, setRecords = NO_RECORDS, volumeRecord = false, supersetLabel = null, emomLabel: emomBadgeLabel, defaultRest = 0, onFormRating, editDone = false, typeDone = false, compare = true, apparatusLabel = null, firstTimeLabel, describeBands, compareBands }: {
   handle?: ReactNode;
   exercise: SessionExercise;
   collapsed: boolean;
@@ -47,6 +47,8 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
   onFinishHold?: () => void;
   onAddSet: () => void;
   onAddWarmup?: () => void;
+  /** Fills every open set from last time's matching set; given only when there is one to fill. */
+  onCopyAllLast?: () => void;
   onSetOptions: (set: SessionSet) => void;
   onUncomplete: (set: SessionSet) => void;
   onRemoveSet: (set: SessionSet) => void;
@@ -222,6 +224,10 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
           detail={previousText ?? ''}
           compact={exercise.sets.some((set) => set.completedAt)}
         />
+      ) : null}
+
+      {!collapsed && onCopyAllLast ? (
+        <ActionButton icon="arrow-undo-outline" label={t('logger.copyAllPrevious')} secondary onPress={() => { tapFeedback(); onCopyAllLast(); }} />
       ) : null}
 
       {(collapsed ? [] : exercise.sets).map((set) => {

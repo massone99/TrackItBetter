@@ -2,6 +2,10 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.36.4 - 2026-10-16
+
+- Workout: a "Copy last time to all sets" button under each exercise fills every open set from the matching set of last time (warm-ups with warm-ups, working sets with working sets) in one tap.
+
 ## 0.36.3 - 2026-10-16
 
 - A new exercise in a workout starts from last time: same warm-ups and working sets, loads, rest and bands (RPE and notes start empty).
