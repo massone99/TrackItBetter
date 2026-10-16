@@ -131,6 +131,12 @@ describe('computeMetric', () => {
     expect(computeMetric('avgRpe', [a('1', 8), a('2', null), a('3', 7, 'b'), a('4', 7, 'b')], [])).toBe(7);
   });
 
+  it('averages the ROM of the rated sets', () => {
+    const rated = [{ ...w1Rows[0], setId: 'r1', romRating: 4 }, { ...w1Rows[0], setId: 'r2', romRating: 3 }, { ...w1Rows[0], setId: 'r3', romRating: null }];
+    expect(computeMetric('avgRom', rated, [w1])).toBe(3.5);
+    expect(computeMetric('avgRom', w1Rows, [w1])).toBeNull();
+  });
+
   it('averages the form of the rated sets, an L/R pair counting once', () => {
     const rated = [
       { ...w1Rows[0], setId: 'f1', formRating: 4 },

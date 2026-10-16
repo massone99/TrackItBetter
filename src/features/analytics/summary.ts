@@ -51,6 +51,8 @@ export interface CompletedSetRow {
   rpe?: number | null;
   /** Form rating of the set, 1–5. */
   formRating?: number | null;
+  /** Range-of-motion rating of the set, 1–5. */
+  romRating?: number | null;
 }
 
 /** Which side a record belongs to; only exercises done one side at a time carry one. */

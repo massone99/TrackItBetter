@@ -1115,7 +1115,7 @@ export interface PreviousPerformance {
   warmups: PreviousSetValues[];
 }
 
-export type PreviousSetValues = Pick<SessionSet, 'reps' | 'durationSec' | 'distanceM' | 'addedLoadKg' | 'rpe' | 'note' | 'side' | 'pairId'> & { kind?: SetKind; restSec?: number | null; formRating?: number | null; bands?: SetBand[]; assistKg?: number | null };
+export type PreviousSetValues = Pick<SessionSet, 'reps' | 'durationSec' | 'distanceM' | 'addedLoadKg' | 'rpe' | 'note' | 'side' | 'pairId'> & { kind?: SetKind; restSec?: number | null; formRating?: number | null; romRating?: number | null; bands?: SetBand[]; assistKg?: number | null };
 
 /** Fills an open set with the values of a set from last time, note and bands included. */
 export async function copyValuesToSet(setId: string, values: PreviousSetValues): Promise<void> {
@@ -1334,6 +1334,7 @@ export async function getPreviousPerformance(exerciseIds: string[], excludeWorko
       note: trainingSets.note,
       restSec: trainingSets.restSec,
       formRating: trainingSets.formRating,
+      romRating: trainingSets.romRating,
       bands: trainingSets.bands,
       assistKg: trainingSets.assistKg,
     })
@@ -1345,7 +1346,7 @@ export async function getPreviousPerformance(exerciseIds: string[], excludeWorko
   for (const row of rows) {
     if (latestWorkout.get(row.exerciseId) !== row.workoutId) continue;
     const entry: PreviousPerformance = result.get(row.exerciseId) ?? { workoutStartedAt: row.startedAt, sets: [], warmups: [] };
-    (row.kind === 'warmup' ? entry.warmups : entry.sets).push({ side: row.side, pairId: row.pairId, reps: row.reps, durationSec: row.durationSec, distanceM: row.distanceM, addedLoadKg: row.addedLoadKg, rpe: row.rpe, note: row.note, restSec: row.restSec, formRating: row.formRating, bands: parseSetBands(row.bands), assistKg: row.assistKg });
+    (row.kind === 'warmup' ? entry.warmups : entry.sets).push({ side: row.side, pairId: row.pairId, reps: row.reps, durationSec: row.durationSec, distanceM: row.distanceM, addedLoadKg: row.addedLoadKg, rpe: row.rpe, note: row.note, restSec: row.restSec, formRating: row.formRating, romRating: row.romRating, bands: parseSetBands(row.bands), assistKg: row.assistKg });
     result.set(row.exerciseId, entry);
   }
   return result;

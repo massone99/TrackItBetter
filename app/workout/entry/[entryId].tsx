@@ -148,6 +148,7 @@ export default function WorkoutEntryScreen() {
           const extras = [
             set.rpe !== null ? t('logger.rpeTag', { value: formatRpe(set.rpe) }) : null,
             set.formRating !== null ? t('recap.formShort', { value: set.formRating }) : null,
+            set.romRating !== null ? t('recap.romShort', { value: set.romRating }) : null,
             working ? t('entryRecap.rest', { value: formatClock(set.restSec ?? defaultRest) }) : null,
           ].filter(Boolean).join(' · ');
           return (

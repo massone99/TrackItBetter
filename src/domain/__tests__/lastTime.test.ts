@@ -54,8 +54,17 @@ describe('compareWithLast', () => {
     const result = compareWithLast([hold(20, 4), hold(25, 5)], [hold(20, 3), hold(20, 4)], 'time', options);
     expect(result.total).toEqual({ now: 45, last: 40 });
     expect(result.form).toEqual({ now: 4.5, last: 3.5 });
-    expect(result.improved).toEqual({ total: true, rest: false, form: true, rpe: false, assist: false });
+    expect(result.improved).toEqual({ total: true, rest: false, form: true, rom: false, rpe: false, assist: false });
     expect(result.worse.form).toBe(false);
+  });
+
+  it('compares the average ROM like the form', () => {
+    const better = compareWithLast([set(8, { romRating: 4.5 })], [set(8, { romRating: 3.5 })], 'reps', options);
+    expect(better.rom).toEqual({ now: 4.5, last: 3.5 });
+    expect(better.improved.rom).toBe(true);
+    const worse = compareWithLast([set(8, { romRating: 3 })], [set(8, { romRating: 4 })], 'reps', options);
+    expect(worse.worse.rom).toBe(true);
+    expect(compareWithLast([set(8)], [set(8)], 'reps', options).rom).toBeNull();
   });
 
   it('flags a lower average form', () => {
@@ -83,7 +92,7 @@ describe('compareWithLast', () => {
 
   it('has nothing to compare the first time', () => {
     const result = compareWithLast([set(8, { formRating: 4 })], null, 'reps', options);
-    expect(result).toEqual({ total: null, rest: null, form: null, rpe: null, assist: null, assistUnknown: false, assistOrder: null, improved: { total: false, rest: false, form: false, rpe: false, assist: false }, worse: { form: false } });
+    expect(result).toEqual({ total: null, rest: null, form: null, rom: null, rpe: null, assist: null, assistUnknown: false, assistOrder: null, improved: { total: false, rest: false, form: false, rom: false, rpe: false, assist: false }, worse: { form: false, rom: false } });
   });
 
   it('keeps last time visible before anything is done today', () => {
@@ -91,7 +100,7 @@ describe('compareWithLast', () => {
     expect(result.total).toEqual({ now: 0, last: 8 });
     expect(result.rest).toEqual({ now: null, last: 60 });
     expect(result.form).toEqual({ now: null, last: 3 });
-    expect(result.improved).toEqual({ total: false, rest: false, form: false, rpe: false, assist: false });
+    expect(result.improved).toEqual({ total: false, rest: false, form: false, rom: false, rpe: false, assist: false });
   });
 });
 
@@ -125,7 +134,7 @@ describe('sessionStats', () => {
       { ...base, kind: 'working', reps: 4, restSec: null, rpe: null, formRating: 3 },
       { ...base, kind: 'working', reps: 6, restSec: 120, rpe: 9, formRating: null, completedAt: null },
     ], 'reps', 90);
-    expect(stats).toEqual({ total: 9, best: 5, sets: 2, warmups: 1, rest: 105, rpe: 8, form: 3.5, volumeKg: null });
+    expect(stats).toEqual({ total: 9, best: 5, sets: 2, warmups: 1, rest: 105, rpe: 8, form: 3.5, rom: null, volumeKg: null });
   });
   it('reports volume only for loaded rep work', () => {
     const stats = sessionStats([{ ...base, kind: 'working', reps: 5, restSec: 60, rpe: null, formRating: null, addedLoadKg: 10 }], 'reps', 60);

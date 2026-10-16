@@ -31,7 +31,7 @@ export function LastTimeStrip({ comparison, metric, date, detail, compact = fals
   const styles = useScaledStyles(baseStyles);
   const [open, setOpen] = useState(false);
   const [expanded, setExpanded] = useState(false);
-  const { total, rest, form, rpe, assist, assistUnknown, assistOrder, improved, worse } = comparison;
+  const { total, rest, form, rom, rpe, assist, assistUnknown, assistOrder, improved, worse } = comparison;
   const totalLabel = metric === 'time' || metric === 'time_load' ? t('lastTime.totalTime') : metric === 'distance' ? t('lastTime.totalMeters') : t('lastTime.totalReps');
   const cells: { key: string; label: string; pairing: Pairing; trend: 'up' | 'down' | null; delta: string | null; format: (value: number) => string }[] = [];
   const signed = (value: number) => `${value > 0 ? '+' : '−'}${formatNumber(Math.abs(Math.round(value * 10) / 10))}`;
@@ -41,6 +41,7 @@ export function LastTimeStrip({ comparison, metric, date, detail, compact = fals
   if (rpe) cells.push({ key: 'rpe', label: t('lastTime.rpeAverage'), pairing: rpe, trend: improved.rpe ? 'up' : null, delta: improved.rpe && rpe.now !== null ? signed(rpe.now - rpe.last) : null, format: (value) => formatNumber(value) });
   if (assist) cells.push({ key: 'assist', label: t('lastTime.assistAverage'), pairing: assist, trend: improved.assist ? 'up' : null, delta: improved.assist && assist.now !== null ? `${signed(assist.now - assist.last)} kg` : null, format: (value) => `${formatNumber(value)} kg` });
   if (form) cells.push({ key: 'form', label: t('lastTime.formAverage', { value: '' }).trim(), pairing: form, trend: improved.form ? 'up' : worse.form ? 'down' : null, delta: form.now !== null && form.now !== form.last ? signed(form.now - form.last) : null, format: (value) => formatNumber(value) });
+  if (rom) cells.push({ key: 'rom', label: t('lastTime.romAverage'), pairing: rom, trend: improved.rom ? 'up' : worse.rom ? 'down' : null, delta: rom.now !== null && rom.now !== rom.last ? signed(rom.now - rom.last) : null, format: (value) => formatNumber(value) });
   if (compact && !expanded) {
     const anyUp = cells.some((cell) => cell.trend === 'up') || assistOrder === 'less';
     const anyDown = cells.some((cell) => cell.trend === 'down');

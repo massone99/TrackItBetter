@@ -20,7 +20,8 @@ export function HistoryRow({ session, older, metric, locale, first, exerciseId }
   const mean = (values: (number | null | undefined)[]) => { const ok = values.filter((value): value is number => value != null); return ok.length ? Math.round((ok.reduce((sum, value) => sum + value, 0) / ok.length) * 10) / 10 : null; };
   const rpe = mean(working.map((set) => set.rpe));
   const form = mean(working.map((set) => set.formRating));
-  const averages = [rpe !== null ? `RPE ${formatNumber(rpe)}` : null, form !== null ? `${t('lastTime.form').toLowerCase()} ${formatNumber(form)}` : null].filter(Boolean).join(' · ');
+  const rom = mean(working.map((set) => set.romRating));
+  const averages = [rpe !== null ? `RPE ${formatNumber(rpe)}` : null, form !== null ? `${t('lastTime.form').toLowerCase()} ${formatNumber(form)}` : null, rom !== null ? `ROM ${formatNumber(rom)}` : null].filter(Boolean).join(' · ');
   const total = (item: ExerciseHistorySession) => perSet(item.sets.map((set) => ({ ...set, completedAt: new Date() })), (set) => amountOf(set, metric)).reduce((sum, value) => sum + value, 0);
   const delta = older ? Math.round((total(session) - total(older)) * 10) / 10 : null;
   const timed = metric === 'time' || metric === 'time_load';

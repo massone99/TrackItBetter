@@ -2,6 +2,10 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.37.1 - 2026-10-16
+
+- ROM now counts everywhere form does: "vs last time" (average ROM, red ↓ when lower), the workout recap, the exercise history and the entry page, and Statistics (new metric: Average ROM).
+
 ## 0.37.0 - 2026-10-16
 
 - ROM: every working set can be rated for range of motion with the same 1 to 5 chips as form (set sheet, under Form).

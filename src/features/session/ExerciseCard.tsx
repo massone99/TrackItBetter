@@ -118,7 +118,7 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
   const results = doneValues && !timed && !distance ? t('logger.resultsReps', { values: doneValues }) : doneValues;
   const previousText = previous ? describePrevious(previous.sets, exercise.metric) : null;
   const comparison = compareWithLast(exercise.sets, previous?.sets ?? null, exercise.metric, { defaultRest, compareBands });
-  const hasComparison = Boolean(comparison.total || comparison.rest || comparison.form || comparison.assist || comparison.assistOrder);
+  const hasComparison = Boolean(comparison.total || comparison.rest || comparison.form || comparison.rom || comparison.assist || comparison.assistOrder);
   // Average form of today's rated sets (also when there is nothing to compare it with).
   const ratedForms = exercise.sets.filter((set) => set.completedAt && set.kind === 'working' && set.formRating !== null).map((set) => set.formRating as number);
   const comparisonFormNow = ratedForms.length ? Math.round((ratedForms.reduce((sum, value) => sum + value, 0) / ratedForms.length) * 10) / 10 : null;

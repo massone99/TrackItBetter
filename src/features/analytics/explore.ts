@@ -24,7 +24,7 @@ export type MetricId =
   | 'reps' | 'holdSec' | 'distanceM' | 'loadReps' | 'loadSec'
   | 'mobilityHoldSec' | 'mobilitySets'
   | 'bestReps' | 'bestHold' | 'bestLoad' | 'bestE1rm' | 'estMaxReps' | 'estMaxHold'
-  | 'setsAtRpe' | 'avgRpe' | 'avgForm' | 'sessionRpe' | 'trainingSec' | 'sleep' | 'energy' | 'soreness';
+  | 'setsAtRpe' | 'avgRpe' | 'avgForm' | 'avgRom' | 'sessionRpe' | 'trainingSec' | 'sleep' | 'energy' | 'soreness';
 
 export type MetricFamily = 'counts' | 'volume' | 'mobility' | 'performance' | 'intensity';
 export type MetricUnit = 'count' | 'reps' | 'seconds' | 'meters' | 'kgReps' | 'kgSeconds' | 'kg' | 'score';
@@ -57,6 +57,7 @@ export const METRICS: readonly MetricDef[] = [
   { id: 'setsAtRpe', family: 'intensity', unit: 'count', additive: true },
   { id: 'avgRpe', family: 'intensity', unit: 'score', additive: false },
   { id: 'avgForm', family: 'intensity', unit: 'score', additive: false },
+  { id: 'avgRom', family: 'intensity', unit: 'score', additive: false },
   { id: 'sessionRpe', family: 'intensity', unit: 'score', additive: false },
   { id: 'trainingSec', family: 'intensity', unit: 'seconds', additive: false },
   { id: 'sleep', family: 'intensity', unit: 'score', additive: false },
@@ -136,6 +137,7 @@ export function computeMetric(metric: MetricId, rows: readonly CompletedSetRow[]
     case 'avgRpe': return average(fullyRated(rows).map((row) => row.rpe ?? null));
     // An L/R pair counts once, as the mean of its sides' ratings.
     case 'avgForm': return average(rows.map((row) => realMean(row, (side) => side.formRating ?? null)));
+    case 'avgRom': return average(rows.map((row) => realMean(row, (side) => side.romRating ?? null)));
     case 'sessionRpe': return average(workouts.map((workout) => workout.sessionRpe));
     case 'sleep': return average(workouts.map((workout) => workout.sleep));
     case 'energy': return average(workouts.map((workout) => workout.energy));

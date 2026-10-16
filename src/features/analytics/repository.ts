@@ -153,6 +153,7 @@ async function readCompletedSetRows(): Promise<CompletedSetRow[]> {
       completedAt: trainingSets.completedAt,
       rpe: trainingSets.rpe,
       formRating: trainingSets.formRating,
+      romRating: trainingSets.romRating,
     })
     .from(trainingSets)
     .innerJoin(exerciseEntries, eq(trainingSets.entryId, exerciseEntries.id))
@@ -276,6 +277,7 @@ export interface ExerciseHistorySet {
   bandCount?: number;
   rpe: number | null;
   formRating?: number | null;
+  romRating?: number | null;
 }
 
 export interface ExerciseHistorySession {
@@ -340,6 +342,7 @@ export async function getExerciseHistory(exerciseId: string, limit?: number): Pr
     bands: trainingSets.bands,
     rpe: trainingSets.rpe,
     formRating: trainingSets.formRating,
+    romRating: trainingSets.romRating,
   }).from(exerciseEntries)
     .innerJoin(workouts, eq(workouts.id, exerciseEntries.workoutId))
     .innerJoin(trainingSets, eq(trainingSets.entryId, exerciseEntries.id))
@@ -353,7 +356,7 @@ export async function getExerciseHistory(exerciseId: string, limit?: number): Pr
       session = { entryId: row.entryId, workoutId: row.workoutId, workoutName: row.workoutName, startedAt: row.startedAt, notes: row.notes, sets: [] };
       sessions.set(row.workoutId, session);
     }
-    session.sets.push({ id: row.setId, pairId: row.pairId, side: row.side, kind: row.kind, reps: row.reps, durationSec: row.durationSec, distanceM: row.distanceM, addedLoadKg: row.addedLoadKg, assistKg: row.assistKg, bandCount: parseSetBands(row.bands).length, rpe: row.rpe, formRating: row.formRating });
+    session.sets.push({ id: row.setId, pairId: row.pairId, side: row.side, kind: row.kind, reps: row.reps, durationSec: row.durationSec, distanceM: row.distanceM, addedLoadKg: row.addedLoadKg, assistKg: row.assistKg, bandCount: parseSetBands(row.bands).length, rpe: row.rpe, formRating: row.formRating, romRating: row.romRating });
   }
   return [...sessions.values()];
 }

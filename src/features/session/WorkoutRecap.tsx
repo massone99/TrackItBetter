@@ -96,6 +96,8 @@ export function WorkoutRecap({ mode }: { mode: 'finish' | 'log' }) {
   const totalReps = repExercises.reduce((sum, { stats: item }) => sum + (item.total ?? 0), 0);
   const volumeKg = stats.reduce((sum, { stats: item }) => sum + (item.volumeKg ?? 0), 0);
   const forms = completedSets.filter((set) => set.kind === 'working' && set.formRating !== null).map((set) => set.formRating as number);
+  const roms = completedSets.filter((set) => set.kind === 'working' && set.romRating !== null).map((set) => set.romRating as number);
+  const avgRom = roms.length ? Math.round((roms.reduce((sum, value) => sum + value, 0) / roms.length) * 10) / 10 : null;
   const avgForm = forms.length ? Math.round((forms.reduce((sum, value) => sum + value, 0) / forms.length) * 10) / 10 : null;
   // One line per exercise and record kind: the best of the session (shortest, for rest).
   const bestPrs = new Map<string, SetRecord>();
@@ -140,6 +142,7 @@ export function WorkoutRecap({ mode }: { mode: 'finish' | 'log' }) {
     mobilitySeconds > 0 ? { key: 'mobility', value: Math.max(1, Math.round(mobilitySeconds / 60)), label: t('mobilityStats.summaryStat') } : null,
     avgRpe !== null ? { key: 'rpe', value: formatRpe(avgRpe), label: t('summary.avgRpe') } : null,
     avgForm !== null ? { key: 'form', value: formatNumber(avgForm), label: t('recap.avgForm') } : null,
+    avgRom !== null ? { key: 'rom', value: formatNumber(avgRom), label: t('recap.avgRom') } : null,
   ] as (Tile | null)[]).filter((tile): tile is Tile => tile !== null);
 
   const footer = mode === 'log' ? (

@@ -13,6 +13,7 @@ export interface ComparableSet {
   addedLoadKg?: number;
   restSec?: number | null;
   formRating?: number | null;
+  romRating?: number | null;
   rpe?: number | null;
   /** Bands on the set; with `assistKg` null they are bands whose kg are unknown. */
   bands?: readonly SetBand[];
@@ -29,6 +30,8 @@ export interface LastTimeComparison {
   rest: Pairing | null;
   /** Average form rating of the sets, 1–5. */
   form: Pairing | null;
+  /** Average range-of-motion rating of the sets, 1–5. */
+  rom: Pairing | null;
   /** Average RPE of the sets; only when every set has one (last time; and today, for `now`). */
   rpe: Pairing | null;
   /** Average band assistance in kg (a set without bands counts 0); null when no set used bands. */
@@ -41,9 +44,9 @@ export interface LastTimeComparison {
    * The mini PRs: more in total, less rest, better form, and the same work at a lower average RPE
    * (every set done with the same reps or time and load as last time, rest no longer, form no worse).
    */
-  improved: { total: boolean; rest: boolean; form: boolean; rpe: boolean; assist: boolean };
-  /** Regressions worth flagging. Only form: total and rest fill up during the workout, so "less so far" is not one. */
-  worse: { form: boolean };
+  improved: { total: boolean; rest: boolean; form: boolean; rom: boolean; rpe: boolean; assist: boolean };
+  /** Regressions worth flagging. Only form and ROM: total and rest fill up during the workout, so "less so far" is not one. */
+  worse: { form: boolean; rom: boolean };
 }
 
 export const amountOf = (set: ComparableSet, metric: string) =>
@@ -92,6 +95,9 @@ export function compareWithLast(
   const formNow = mean(perSet(done, (set) => set.formRating));
   const formLast = previous ? mean(perSet(previous, (set) => set.formRating)) : null;
   const form = formLast !== null ? { now: formNow === null ? null : round(formNow), last: round(formLast) } : null;
+  const romNow = mean(perSet(done, (set) => set.romRating));
+  const romLast = previous ? mean(perSet(previous, (set) => set.romRating)) : null;
+  const rom = romLast !== null ? { now: romNow === null ? null : round(romNow), last: round(romLast) } : null;
   const rpeLast = previous ? fullMean(previous, (set) => set.rpe) : null;
   const rpeNow = done.length ? fullMean(done, (set) => set.rpe) : null;
   const rpe = rpeLast !== null ? { now: rpeNow === null ? null : round(rpeNow), last: round(rpeLast) } : null;
@@ -121,10 +127,13 @@ export function compareWithLast(
   const improvedRest = rest !== null && rest.now !== null && rest.now < rest.last;
   const improvedForm = form !== null && form.now !== null && form.now > form.last;
   const worseForm = form !== null && form.now !== null && form.now < form.last;
+  const improvedRom = rom !== null && rom.now !== null && rom.now > rom.last;
+  const worseRom = rom !== null && rom.now !== null && rom.now < rom.last;
   return {
     total,
     rest,
     form,
+    rom,
     rpe,
     assist,
     assistUnknown,
@@ -133,12 +142,13 @@ export function compareWithLast(
       total: total !== null && total.now !== null && total.now > total.last,
       rest: improvedRest,
       form: improvedForm,
+      rom: improvedRom,
       // Less help from the bands for the work done is progress; it fills up like the total.
       assist: working.every((set) => set.completedAt) && ((assist !== null && assist.now !== null && assist.now < assist.last) || assistOrder === 'less'),
       rpe: sameWork && rpe !== null && rpe.now !== null && rpe.now < rpe.last
         && (rest === null || rest.now === null || rest.now <= rest.last) && !worseForm,
     },
-    worse: { form: worseForm },
+    worse: { form: worseForm, rom: worseRom },
   };
 }
 
@@ -157,6 +167,7 @@ export interface SessionStats {
   /** Averages of the sets that have a value. */
   rpe: number | null;
   form: number | null;
+  rom: number | null;
   /** Reps × added load, for loaded rep work; null without load. */
   volumeKg: number | null;
 }
@@ -173,6 +184,7 @@ export function sessionStats(sets: readonly ComparableSet[], metric: string, def
     rest: (() => { const value = mean(perSet(done, (set) => set.restSec ?? defaultRest)); return value === null ? null : Math.round(value); })(),
     rpe: (() => { const value = mean(perSet(done, (set) => set.rpe)); return value === null ? null : round(value); })(),
     form: (() => { const value = mean(perSet(done, (set) => set.formRating)); return value === null ? null : round(value); })(),
+    rom: (() => { const value = mean(perSet(done, (set) => set.romRating)); return value === null ? null : round(value); })(),
     volumeKg: loaded ? round(sum(perSet(done, (set) => (set.reps ?? 0) * Math.max(0, set.addedLoadKg ?? 0)))) : null,
   };
 }
