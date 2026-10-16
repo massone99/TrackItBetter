@@ -14,7 +14,7 @@ const averageOf = (values: (number | null)[]) => {
 const sharedValue = (values: (number | null)[]) => (values.length > 0 && values.every((value) => value === values[0]) ? values[0] : null);
 
 /**
- * Average RPE and form of an exercise in a finished workout, set by hand: the chosen value goes to
+ * Average RPE, form and ROM of an exercise in a workout (finished or in progress), set by hand: the chosen value goes to
  * every completed working set, so statistics and "vs last time" read it like any rated set.
  */
 export function ExerciseAveragesField({ exercise, onChanged }: { exercise: SessionExercise; onChanged: () => void }) {
@@ -22,18 +22,21 @@ export function ExerciseAveragesField({ exercise, onChanged }: { exercise: Sessi
   const working = exercise.sets.filter((set) => set.kind === 'working' && set.completedAt);
   const [rpe, setRpe] = useState(() => sharedValue(working.map((set) => set.rpe)));
   const [form, setForm] = useState(() => sharedValue(working.map((set) => set.formRating)));
+  const [rom, setRom] = useState(() => sharedValue(working.map((set) => set.romRating)));
   if (working.length === 0) return null;
   const rpeAverage = averageOf(working.map((set) => set.rpe));
   const formAverage = averageOf(working.map((set) => set.formRating));
-  const mixed = (rpe === null && rpeAverage !== null) || (form === null && formAverage !== null);
+  const romAverage = averageOf(working.map((set) => set.romRating));
+  const mixed = (rpe === null && rpeAverage !== null) || (form === null && formAverage !== null) || (rom === null && romAverage !== null);
   return (
     <MenuGroup title={t('averages.title')}>
       <Body>{t('averages.help', { count: working.length })}</Body>
       {mixed ? (
-        <Body>{t('averages.current', { rpe: rpeAverage === null ? '–' : formatNumber(rpeAverage), form: formAverage === null ? '–' : formatNumber(formAverage) })}</Body>
+        <Body>{t('averages.current', { rpe: rpeAverage === null ? '–' : formatNumber(rpeAverage), form: formAverage === null ? '–' : formatNumber(formAverage), rom: romAverage === null ? '–' : formatNumber(romAverage) })}</Body>
       ) : null}
       <RpePicker value={rpe} onChange={(next) => { setRpe(next); void setEntryAverages(exercise.entryId, { rpe: next }).then(onChanged); }} />
       <FormRating value={form} onChange={(next) => { setForm(next); void setEntryAverages(exercise.entryId, { formRating: next }).then(onChanged); }} />
+      <FormRating rom value={rom} onChange={(next) => { setRom(next); void setEntryAverages(exercise.entryId, { romRating: next }).then(onChanged); }} />
     </MenuGroup>
   );
 }

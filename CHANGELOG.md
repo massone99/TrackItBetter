@@ -2,6 +2,11 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.37.0 - 2026-10-16
+
+- ROM: every working set can be rated for range of motion with the same 1 to 5 chips as form (set sheet, under Form).
+- Average RPE, form and ROM of an exercise can now be set during the workout too, from the exercise's options (they go to its done working sets).
+
 ## 0.36.4 - 2026-10-16
 
 - Workout: a "Copy last time to all sets" button under each exercise fills every open set from the matching set of last time (warm-ups with warm-ups, working sets with working sets) in one tap.

@@ -120,7 +120,7 @@ export function LastTimeStrip({ comparison, metric, date, detail, compact = fals
 }
 
 /** The "how clean was it" rating, 1–5 in half steps, in the same chip style as the RPE row; tap the chosen one again to clear. */
-export function FormRating({ value, onChange, sideLabel = '', scroll = false }: { value: number | null; onChange: (value: number | null) => void; sideLabel?: string; /** One line that scrolls sideways (like the RPE row) instead of wrapping. */ scroll?: boolean }) {
+export function FormRating({ value, onChange, sideLabel = '', scroll = false, rom = false }: { value: number | null; onChange: (value: number | null) => void; sideLabel?: string; /** One line that scrolls sideways (like the RPE row) instead of wrapping. */ scroll?: boolean; /** The same chips for the range of motion instead of the form. */ rom?: boolean }) {
   const { t } = useTranslation();
   const { palette } = useTheme();
   const styles = useScaledStyles(baseStyles);
@@ -131,7 +131,7 @@ export function FormRating({ value, onChange, sideLabel = '', scroll = false }: 
       <Pressable
         key={rating}
         accessibilityRole="button"
-        accessibilityLabel={`${sideLabel} ${t('lastTime.formRating', { value: formatNumber(rating) })}`.trim()}
+        accessibilityLabel={`${sideLabel} ${t(rom ? 'lastTime.romRating' : 'lastTime.formRating', { value: formatNumber(rating) })}`.trim()}
         accessibilityState={{ selected }}
         hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}
         onPress={() => { tapFeedback(); onChange(selected ? null : rating); }}
@@ -145,7 +145,7 @@ export function FormRating({ value, onChange, sideLabel = '', scroll = false }: 
   const focus = Math.max(0, (value === null ? FORM_VALUES.indexOf(3.5) : FORM_VALUES.indexOf(value as (typeof FORM_VALUES)[number])) - 1);
   return (
     <View style={styles.formRow}>
-      <View style={styles.formLabel}><Text style={[styles.formLabelText, { color: palette.textMuted }]}>{t('lastTime.form')}</Text></View>
+      <View style={styles.formLabel}><Text style={[styles.formLabelText, { color: palette.textMuted }]}>{t(rom ? 'lastTime.rom' : 'lastTime.form')}</Text></View>
       {scroll ? (
         <ScrollView
           ref={strip}

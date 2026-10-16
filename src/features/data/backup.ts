@@ -142,6 +142,8 @@ const setSchema = z.object({
   targetRpe: nullableNumber.default(null),
   // Added in schema v15.
   formRating: z.number().min(1).max(5).multipleOf(0.5).nullable().default(null),
+  // Added in schema v19.
+  romRating: z.number().min(1).max(5).multipleOf(0.5).nullable().default(null),
   // Added in schema v17.
   bands: nullableString.default(null),
   assistKg: nullableNumber.default(null),

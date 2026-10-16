@@ -14,6 +14,7 @@ import { SupersetActions, SupersetSettings } from '../../src/features/session/Su
 import type { ScrollHandle } from '../../src/shared/components/keyboard';
 import { getSessionRecords } from '../../src/features/analytics/repository';
 import type { RecordKind } from '../../src/features/analytics/records';
+import { ExerciseAveragesField } from '../../src/features/session/ExerciseAveragesField';
 import { ExerciseRestFields } from '../../src/features/session/ExerciseRestFields';
 import {
   updateEntryNote,
@@ -931,6 +932,7 @@ export default function WorkoutScreen() {
                 {optionsFor.apparatusAffectsDifficulty ? <Label>{t('equipment.apparatusCompareHint')}</Label> : null}
               </MenuGroup>
             ) : null}
+            <ExerciseAveragesField key={`averages-${optionsFor.entryId}`} exercise={optionsFor} onChanged={() => void refresh(workout.id)} />
             <ExerciseBlockField key={`block-${optionsFor.entryId}-${optionsFor.block}`} entryId={optionsFor.entryId} value={optionsFor.block} onChanged={() => { setOptionsFor(null); void refresh(workout.id); }} />
             <SupersetSettings key={`superset-${optionsFor.entryId}-${optionsFor.groupId ?? ''}`} exercise={optionsFor} />
             <ExerciseRestFields key={`rest-${optionsFor.entryId}`} exercise={optionsFor} onSaved={() => void refresh(workout.id)} />

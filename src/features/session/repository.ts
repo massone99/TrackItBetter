@@ -33,6 +33,8 @@ export interface SessionSet {
   targetRpe: number | null;
   /** How clean the form of this set was, 1–5; null when not rated. */
   formRating: number | null;
+  /** Range of motion of this set, 1–5 in half steps; null when not rated. */
+  romRating: number | null;
   note: string | null;
   /** Resistance bands that helped this set, with how far each was stretched. */
   bands: SetBand[];
@@ -340,6 +342,7 @@ async function loadSessionExercises(workoutId: string): Promise<SessionExercise[
         rpe: set.rpe,
         targetRpe: set.targetRpe,
         formRating: set.formRating,
+        romRating: set.romRating,
         note: set.note,
         bands: parseSetBands(set.bands),
         assistKg: set.assistKg,
@@ -890,15 +893,24 @@ export async function setSetFormRating(setId: string, rating: number | null): Pr
   await bumpIfFinished({ setId });
 }
 
+/** Rates the range of motion of one set, 1–5 in half steps like form; null clears it. */
+export async function setSetRomRating(setId: string, rating: number | null): Promise<void> {
+  await initializeDatabase();
+  if (rating !== null && !isValidFormRating(rating)) throw new RangeError('ROM ratings go from 1 to 5 in half steps');
+  await db.update(trainingSets).set({ romRating: rating }).where(eq(trainingSets.id, setId));
+  await bumpIfFinished({ setId });
+}
+
 /**
- * Sets the average RPE or form of an exercise in a workout by giving that value to every completed
+ * Sets the average RPE, form or ROM of an exercise in a workout by giving that value to every completed
  * working set (the averages are computed from the sets everywhere else); null clears it.
  */
-export async function setEntryAverages(entryId: string, values: { rpe?: number | null; formRating?: number | null }): Promise<void> {
+export async function setEntryAverages(entryId: string, values: { rpe?: number | null; formRating?: number | null; romRating?: number | null }): Promise<void> {
   await initializeDatabase();
   if (values.rpe != null && !isValidRpe(values.rpe)) throw new RangeError('RPE must be between 6 and 10 in half steps');
   if (values.formRating != null && !isValidFormRating(values.formRating)) throw new RangeError('Form ratings go from 1 to 5 in half steps');
-  const patch = { ...(values.rpe !== undefined ? { rpe: values.rpe } : {}), ...(values.formRating !== undefined ? { formRating: values.formRating } : {}) };
+  if (values.romRating != null && !isValidFormRating(values.romRating)) throw new RangeError('ROM ratings go from 1 to 5 in half steps');
+  const patch = { ...(values.romRating !== undefined ? { romRating: values.romRating } : {}), ...(values.rpe !== undefined ? { rpe: values.rpe } : {}), ...(values.formRating !== undefined ? { formRating: values.formRating } : {}) };
   if (Object.keys(patch).length === 0) return;
   await db.update(trainingSets).set(patch)
     .where(and(eq(trainingSets.entryId, entryId), eq(trainingSets.kind, 'working'), isNotNull(trainingSets.completedAt)));
@@ -1144,7 +1156,7 @@ export async function repeatWorkout(sourceId: string): Promise<string> {
     const pairIds = new Map(sets.filter((s) => s.pairId).map((s) => [s.pairId, id()]));
     newSets.push(...sets.map((set) => ({
       // How hard and how clean it was belong to that day: the copy starts without them.
-      ...set, id: id(), pairId: set.pairId ? pairIds.get(set.pairId)! : null, entryId, completedAt: null, rpe: null, formRating: null,
+      ...set, id: id(), pairId: set.pairId ? pairIds.get(set.pairId)! : null, entryId, completedAt: null, rpe: null, formRating: null, romRating: null,
     })));
   }
   const bodyweightKg = await latestBodyweightKg();

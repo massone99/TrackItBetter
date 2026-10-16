@@ -245,6 +245,12 @@ ALTER TABLE exercise_entry ADD COLUMN total_target REAL;
 PRAGMA user_version = 18;
 `;
 
+/** Range of motion of a set, rated like its form: 1 to 5 in half steps. */
+export const romSchema = `
+ALTER TABLE training_set ADD COLUMN rom_rating REAL CHECK (rom_rating BETWEEN 1 AND 5);
+PRAGMA user_version = 19;
+`;
+
 /** Applies numbered, local-first SQLite schema migrations once per database. */
 export async function migrateDatabase(database: SQLiteDatabase): Promise<void> {
   await database.execAsync('PRAGMA foreign_keys = ON;');
@@ -367,6 +373,12 @@ export async function migrateDatabase(database: SQLiteDatabase): Promise<void> {
   if (version < 18) {
     await database.withTransactionAsync(async () => {
       await database.execAsync(totalGoalSchema);
+    });
+  }
+
+  if (version < 19) {
+    await database.withTransactionAsync(async () => {
+      await database.execAsync(romSchema);
     });
   }
 }

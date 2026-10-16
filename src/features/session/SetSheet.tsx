@@ -8,7 +8,7 @@ import { ActionButton, Body, Label, MenuList, MenuRow, SegmentedControl, Sheet, 
 import { formatClock } from '../../shared/utils/format';
 import { describePreviousSet } from './ExerciseCard';
 import { FormRating } from './LastTime';
-import { removeSetWithUndo, setSetFormRating, updateSetNote, updateSetRpe, type PreviousSetValues, type RemovedRows, type SessionExercise, type SessionSet } from './repository';
+import { removeSetWithUndo, setSetFormRating, setSetRomRating, updateSetNote, updateSetRpe, type PreviousSetValues, type RemovedRows, type SessionExercise, type SessionSet } from './repository';
 import { RpePicker } from './RpePicker';
 import { SetBandsField } from '../equipment/SetBandsField';
 import { bandsById, describeSetBands, useEquipment } from '../equipment/useEquipment';
@@ -39,6 +39,7 @@ export function SetSheet({ exercise, set, holdMode, onHoldMode, onClose, onChang
   const [note, setNote] = useState(set.note ?? '');
   const [rpe, setRpe] = useState(set.rpe);
   const [form, setForm] = useState(set.formRating);
+  const [rom, setRom] = useState(set.romRating);
   const [confirming, setConfirming] = useState(false);
   // Bands open in their own view of the sheet, so the main view stays short.
   const [bandsOpen, setBandsOpen] = useState(false);
@@ -110,6 +111,7 @@ export function SetSheet({ exercise, set, holdMode, onHoldMode, onClose, onChang
           ) : null}
           <RpePicker value={rpe} onChange={(next) => { setRpe(next); void updateSetRpe(set.id, next).then(onChanged); }} />
           {set.kind === 'working' ? <FormRating value={form} onChange={(next) => { setForm(next); void setSetFormRating(set.id, next).then(onChanged); }} /> : null}
+          {set.kind === 'working' ? <FormRating rom value={rom} onChange={(next) => { setRom(next); void setSetRomRating(set.id, next).then(onChanged); }} /> : null}
           <MenuList>
             <MenuRow icon="git-commit-outline" label={bandsText ? `${t('bands.title')}: ${bandsText}` : t('bands.addRow')} onPress={() => setBandsOpen(true)} />
           </MenuList>

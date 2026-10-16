@@ -1,6 +1,6 @@
 import { migrateDatabase } from '../../../db/migrations';
 import { seedCatalogIfEmpty } from '../../../db/seed/import';
-import { addExerciseToWorkout, addSet, copyValuesToSet, getActiveWorkout, getPreviousPerformance, repeatWorkout, repeatWorkoutIfIdle, setSetKind, startWorkout, updateEntryNote, updateSet, updateSetNote, updateSetRpe } from '../repository';
+import { addExerciseToWorkout, addSet, copyValuesToSet, getActiveWorkout, getPreviousPerformance, repeatWorkout, repeatWorkoutIfIdle, setEntryAverages, setSetKind, setSetRomRating, startWorkout, updateEntryNote, updateSet, updateSetNote, updateSetRpe } from '../repository';
 
 jest.mock('../../../db/client', () => {
   const { createRealDatabase } = jest.requireActual('../../../test/realDatabase');
@@ -46,6 +46,22 @@ describe('a new exercise in a workout', () => {
     ]);
     const bare = await addExerciseToWorkout(workoutId, 'pull-up', false);
     expect(real.sqlite.prepare('SELECT COUNT(*) AS n FROM training_set WHERE entry_id = ?').get(bare)).toEqual({ n: 1 });
+  });
+});
+
+describe('ROM and averages in a workout in progress', () => {
+  it('rates ROM per set and sets the averages on the done working sets only', async () => {
+    const workoutId = await startWorkout('Live');
+    const entryId = await addExerciseToWorkout(workoutId, 'push-up', false);
+    const [first] = real.sqlite.prepare('SELECT id FROM training_set WHERE entry_id = ?').all(entryId) as { id: string }[];
+    const second = await addSet(entryId);
+    real.sqlite.prepare('UPDATE training_set SET completed_at = 5 WHERE id = ?').run(first.id);
+    await setSetRomRating(second, 3.5);
+    await expect(setSetRomRating(second, 3.2)).rejects.toThrow(RangeError);
+    await setEntryAverages(entryId, { rpe: 8, formRating: 4, romRating: 4.5 });
+    const rows = real.sqlite.prepare('SELECT id, rpe, form_rating AS form, rom_rating AS rom FROM training_set WHERE entry_id = ?').all(entryId) as { id: string; rpe: number | null; form: number | null; rom: number | null }[];
+    expect(rows.find((row) => row.id === first.id)).toMatchObject({ rpe: 8, form: 4, rom: 4.5 });
+    expect(rows.find((row) => row.id === second)).toMatchObject({ rpe: null, form: null, rom: 3.5 });
   });
 });
 

@@ -133,6 +133,8 @@ export const trainingSets = sqliteTable(
     targetRpe: real('target_rpe'),
     /** How clean the form of this set was, 1–5; null when not rated. */
     formRating: integer('form_rating'),
+    /** Range of motion of this set, 1–5 in half steps; null when not rated. */
+    romRating: real('rom_rating'),
     note: text('note'),
     /** JSON list of { bandId, tension } for resistance bands that helped this set; null when none. */
     bands: text('bands'),
