@@ -2,6 +2,11 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.36.3 - 2026-10-16
+
+- A new exercise in a workout starts from last time: same warm-ups and working sets, loads, rest and bands (RPE and notes start empty).
+- Starting a program day also brings last time's warm-ups and bands.
+
 ## 0.36.2 - 2026-10-16
 
 - Copy last time: warm-up sets now match last time's warm-ups, and working sets match working sets, by position.

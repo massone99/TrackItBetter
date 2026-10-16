@@ -1,3 +1,4 @@
+import type { SetBand } from '../../domain/equipment';
 import { isLoadMetric, isTimedMetric, plannedLoads, programSessionWorkoutName, targetRpeFor, type UserProgram, type UserProgramSession } from '../../domain/userProgram';
 import { getExerciseById } from '../exercises/repository';
 import { addPlannedEntries, convertToPastWorkout, deleteWorkout, getLastSameWorkoutSets, getPreviousPerformance, startWorkout, type PlannedEntry, type PlannedSet } from '../session/repository';
@@ -11,6 +12,9 @@ type PreviousProgramSet = {
   note?: string | null;
   pairId?: string | null;
   side?: string;
+  kind?: 'warmup' | 'working';
+  bands?: SetBand[];
+  assistKg?: number | null;
 };
 
 /** Previous-performance rows were historically side-less; retain that format as a fallback. */
@@ -94,6 +98,8 @@ async function fillWorkout(workoutId: string, known: readonly KnownPrescription[
     const previousSets = (previous.get(prescription.exerciseId)?.sets ?? []) as PreviousProgramSet[];
     const loads = isLoadMetric(metric) ? plannedLoads(prescription, previousSets.map((set) => set.addedLoadKg)) : [];
     const sides = unilateral ? (['left', 'right'] as const) : (['both'] as const);
+    const sameAll = (sameWorkout.get(prescription.exerciseId) ?? []) as PreviousProgramSet[];
+    const sameWarmups = sameAll.filter((set) => set.kind === 'warmup');
     // At least one set, as an exercise added to a workout always has.
     // A total goal starts with one set; the next ones are added as the sets get done.
     const sets = Array.from({ length: prescription.totalTarget != null ? 1 : Math.max(1, prescription.sets) }, (_, setIndex): PlannedSet => sides.map((side) => {
@@ -111,7 +117,7 @@ async function fillWorkout(workoutId: string, known: readonly KnownPrescription[
       }
       // Last time this very workout was done wins over the plan: the set at the same position and
       // side, else the last one logged for that side (the plan may now have more sets).
-      const sameSets = (sameWorkout.get(prescription.exerciseId) ?? []) as PreviousProgramSet[];
+      const sameSets = sameAll.filter((set) => set.kind !== 'warmup');
       const sideSets = unilateral && sameSets.some((set) => set.side === side) ? sameSets.filter((set) => set.side === side) : sameSets;
       const repeat = previousForSide(sameSets, setIndex, unilateral ? side : undefined, unilateral) ?? sideSets[sideSets.length - 1];
       if (repeat) {
@@ -127,8 +133,24 @@ async function fillWorkout(workoutId: string, known: readonly KnownPrescription[
         // Without a rest of its own the set keeps none, and the exercise's or Profile's rest applies.
         restSec: prescription.restSeconds ?? null,
         targetRpe: targetRpeFor(prescription, setIndex),
+        bands: repeat?.bands,
+        assistKg: repeat?.assistKg,
       };
     }));
+    // The warm-ups of last time come first, one per warm-up then (not with a total goal).
+    const sided = unilateral && sameWarmups.some((set) => set.side === 'left' || set.side === 'right');
+    const warmupCount = prescription.totalTarget != null ? 0 : sided ? Math.max(sameWarmups.filter((set) => set.side === 'left').length, sameWarmups.filter((set) => set.side === 'right').length) : sameWarmups.length;
+    const warmups = Array.from({ length: warmupCount }, (_, setIndex): PlannedSet => sides.map((side) => {
+      const warm = previousForSide(sameWarmups, setIndex, unilateral ? side : undefined, unilateral);
+      const values = { ...initialValues(metric) };
+      if (warm) {
+        if (isTimedMetric(metric) && warm.durationSec != null) values.durationSec = warm.durationSec;
+        else if (metric === 'distance' && warm.distanceM != null) values.distanceM = warm.distanceM;
+        else if (!isTimedMetric(metric) && metric !== 'distance' && warm.reps != null) values.reps = warm.reps;
+      }
+      return { side, ...values, addedLoadKg: warm && loads.length > 0 ? warm.addedLoadKg : 0, restSec: null, targetRpe: null, kind: 'warmup', bands: warm?.bands, assistKg: warm?.assistKg };
+    }));
+    sets.unshift(...warmups);
     return { exerciseId: prescription.exerciseId, notes: prescription.note, totalTarget: prescription.totalTarget ?? null, sets };
   });
   await addPlannedEntries(workoutId, planned);

@@ -397,6 +397,7 @@ export async function updateCompletedWorkoutSet(
 export async function addExerciseToWorkout(
   workoutId: string,
   exerciseId: string,
+  prefill = true,
 ): Promise<string> {
   await initializeDatabase();
   const [lastOrder] = await db
@@ -418,8 +419,43 @@ export async function addExerciseToWorkout(
     block,
   });
   await normalizeBlockOrder(workoutId);
-  await addSet(entryId);
+  if (!(prefill && await prefillFromLastTime(entryId, workoutId, exerciseId))) await addSet(entryId);
   return entryId;
+}
+
+/**
+ * Gives a new exercise in a workout in progress the sets of its latest finished workout: warm-ups
+ * first, then working sets, with the same values, rest and bands (not RPE or notes), still open.
+ * Returns false, adding nothing, when there is no history or the workout is already finished.
+ */
+async function prefillFromLastTime(entryId: string, workoutId: string, exerciseId: string): Promise<boolean> {
+  const [workout] = await db.select({ endedAt: workouts.endedAt }).from(workouts).where(eq(workouts.id, workoutId)).limit(1);
+  if (!workout || workout.endedAt) return false;
+  const [exercise] = await db.select({ unilateral: exercises.unilateral, apparatusId: exercises.defaultApparatusId }).from(exercises).where(eq(exercises.id, exerciseId)).limit(1);
+  const last = (await getPreviousPerformance([exerciseId], workoutId, new Map([[exerciseId, exercise?.apparatusId ?? null]]))).get(exerciseId);
+  const source = [...(last?.warmups ?? []).map((set) => ({ set, kind: 'warmup' as const })), ...(last?.sets ?? []).map((set) => ({ set, kind: 'working' as const }))];
+  if (source.length === 0) return false;
+  const rows: (typeof trainingSets.$inferInsert)[] = [];
+  const pairs = new Map<string, string>();
+  let index = 0;
+  for (const { set, kind } of source) {
+    const bands = set.bands && set.bands.length > 0 ? JSON.stringify(set.bands) : null;
+    const base = { entryId, kind, reps: set.reps, durationSec: set.durationSec, distanceM: set.distanceM, addedLoadKg: set.addedLoadKg, restSec: set.restSec ?? null, band: null, bands, assistKg: bands ? set.assistKg ?? null : null, rpe: null, targetRpe: null, note: null, completedAt: null };
+    if (set.pairId) {
+      const known = pairs.get(set.pairId);
+      if (!known) { index += 1; pairs.set(set.pairId, id()); }
+      rows.push({ ...base, id: id(), index, side: set.side, pairId: pairs.get(set.pairId) });
+    } else if (exercise?.unilateral) {
+      index += 1;
+      const pairId = id();
+      for (const side of ['left', 'right']) rows.push({ ...base, id: id(), index, side, pairId });
+    } else {
+      index += 1;
+      rows.push({ ...base, id: id(), index, side: 'both', pairId: null });
+    }
+  }
+  await db.insert(trainingSets).values(rows);
+  return true;
 }
 
 /** Renumbers a workout's exercises so every block is contiguous (warm-up, main work, mobility). */
@@ -1067,7 +1103,7 @@ export interface PreviousPerformance {
   warmups: PreviousSetValues[];
 }
 
-export type PreviousSetValues = Pick<SessionSet, 'reps' | 'durationSec' | 'distanceM' | 'addedLoadKg' | 'rpe' | 'note' | 'side' | 'pairId'> & { restSec?: number | null; formRating?: number | null; bands?: SetBand[]; assistKg?: number | null };
+export type PreviousSetValues = Pick<SessionSet, 'reps' | 'durationSec' | 'distanceM' | 'addedLoadKg' | 'rpe' | 'note' | 'side' | 'pairId'> & { kind?: SetKind; restSec?: number | null; formRating?: number | null; bands?: SetBand[]; assistKg?: number | null };
 
 /** Fills an open set with the values of a set from last time, note and bands included. */
 export async function copyValuesToSet(setId: string, values: PreviousSetValues): Promise<void> {
@@ -1133,6 +1169,10 @@ export type PlannedSet = {
   addedLoadKg: number;
   restSec: number | null;
   targetRpe: number | null;
+  /** Defaults to a working set. */
+  kind?: SetKind;
+  bands?: SetBand[];
+  assistKg?: number | null;
 }[];
 
 export interface PlannedEntry {
@@ -1183,7 +1223,10 @@ export async function addPlannedEntries(workoutId: string, planned: readonly Pla
     if (!mobility) anyOther = true;
     for (const [position, set] of entry.sets.entries()) {
       const pairId = set.length === 2 ? id() : null;
-      for (const row of set) newSets.push({ ...row, id: id(), entryId, index: position + 1, kind: 'working', pairId, band: null, rpe: null, note: null, completedAt: null });
+      for (const { bands, assistKg, kind, ...row } of set) {
+        const hasBands = !!bands && bands.length > 0;
+        newSets.push({ ...row, id: id(), entryId, index: position + 1, kind: kind ?? 'working', pairId, band: null, bands: hasBands ? JSON.stringify(bands) : null, assistKg: hasBands ? assistKg ?? null : null, rpe: null, note: null, completedAt: null });
+      }
     }
   }
   // Every block stays contiguous, as normalizeBlockOrder keeps it.
@@ -1207,7 +1250,7 @@ export async function addPlannedEntries(workoutId: string, planned: readonly Pla
  * the apparatus given for it (a past workout without one counts as the exercise default).
  */
 /**
- * The done working sets of the latest finished workout with this name (a program day is recognised
+ * The done sets (warm-ups and working, told apart by `kind`) of the latest finished workout with this name (a program day is recognised
  * by its name), by exercise, in the order they were logged; empty when it was never done.
  */
 export async function getLastSameWorkoutSets(name: string, excludeWorkoutId: string): Promise<Map<string, PreviousSetValues[]>> {
@@ -1219,17 +1262,17 @@ export async function getLastSameWorkoutSets(name: string, excludeWorkoutId: str
   if (!last) return result;
   const rows = await db
     .select({
-      exerciseId: exerciseEntries.exerciseId, side: trainingSets.side, pairId: trainingSets.pairId, reps: trainingSets.reps,
+      exerciseId: exerciseEntries.exerciseId, kind: trainingSets.kind, bands: trainingSets.bands, assistKg: trainingSets.assistKg, side: trainingSets.side, pairId: trainingSets.pairId, reps: trainingSets.reps,
       durationSec: trainingSets.durationSec, distanceM: trainingSets.distanceM, addedLoadKg: trainingSets.addedLoadKg,
       rpe: trainingSets.rpe, note: trainingSets.note, restSec: trainingSets.restSec,
     })
     .from(trainingSets)
     .innerJoin(exerciseEntries, eq(trainingSets.entryId, exerciseEntries.id))
-    .where(and(eq(exerciseEntries.workoutId, last.id), isNotNull(trainingSets.completedAt), eq(trainingSets.kind, 'working')))
+    .where(and(eq(exerciseEntries.workoutId, last.id), isNotNull(trainingSets.completedAt)))
     .orderBy(asc(exerciseEntries.order), asc(trainingSets.index));
   for (const row of rows) {
     const sets = result.get(row.exerciseId) ?? [];
-    sets.push({ side: row.side, pairId: row.pairId, reps: row.reps, durationSec: row.durationSec, distanceM: row.distanceM, addedLoadKg: row.addedLoadKg, rpe: row.rpe, note: row.note, restSec: row.restSec });
+    sets.push({ kind: row.kind as SetKind, side: row.side, pairId: row.pairId, reps: row.reps, durationSec: row.durationSec, distanceM: row.distanceM, addedLoadKg: row.addedLoadKg, rpe: row.rpe, note: row.note, restSec: row.restSec, bands: parseSetBands(row.bands), assistKg: row.assistKg });
     result.set(row.exerciseId, sets);
   }
   return result;

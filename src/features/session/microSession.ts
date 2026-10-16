@@ -57,7 +57,7 @@ export async function startMicroSession(exerciseIds: readonly string[]): Promise
   const workoutId = await startWorkout(await nextMicroSessionName());
   try {
     for (const [index, exercise] of found.entries()) {
-      const entryId = await addExerciseToWorkout(workoutId, ids[index]);
+      const entryId = await addExerciseToWorkout(workoutId, ids[index], false);
       const field = exercise!.metric === 'time' || exercise!.metric === 'time_load' ? 'durationSec' : exercise!.metric === 'distance' ? 'distanceM' : 'reps';
       const sets = (await getActiveWorkout(workoutId))?.exercises.find((entry) => entry.entryId === entryId)?.sets ?? [];
       for (const set of sets) await updateSet(set.id, field, Number(defaultMicroTarget(exercise!.metric)));
@@ -108,7 +108,7 @@ export async function logMicroSessionItems(items: readonly MicroSessionItem[]): 
   for (const [index, item] of items.entries()) {
     const exercise = found[index]!;
     if (item.sets.some((set) => (set.loadKg ?? 0) !== 0)) await enableExerciseLoad(item.exerciseId);
-    const entryId = await addExerciseToWorkout(workoutId, item.exerciseId);
+    const entryId = await addExerciseToWorkout(workoutId, item.exerciseId, false);
     const field = exercise.metric === 'time' || exercise.metric === 'time_load'
       ? 'durationSec'
       : exercise.metric === 'distance' ? 'distanceM' : 'reps';

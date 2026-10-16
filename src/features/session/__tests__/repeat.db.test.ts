@@ -35,9 +35,24 @@ beforeAll(async () => {
   expect(skipped).toBeTruthy();
 });
 
+describe('a new exercise in a workout', () => {
+  it('starts from last time: warm-up first, then working sets, without RPE', async () => {
+    const workoutId = await startWorkout('Free');
+    const entryId = await addExerciseToWorkout(workoutId, 'pull-up');
+    const sets = real.sqlite.prepare('SELECT kind, reps, added_load_kg AS load, rest_sec AS rest, rpe, completed_at AS done FROM training_set WHERE entry_id = ? ORDER BY set_index').all(entryId);
+    expect(sets).toEqual([
+      { kind: 'warmup', reps: 3, load: 0, rest: null, rpe: null, done: null },
+      { kind: 'working', reps: 6, load: 15, rest: 150, rpe: null, done: null },
+    ]);
+    const bare = await addExerciseToWorkout(workoutId, 'pull-up', false);
+    expect(real.sqlite.prepare('SELECT COUNT(*) AS n FROM training_set WHERE entry_id = ?').get(bare)).toEqual({ n: 1 });
+  });
+});
+
 describe('previous values', () => {
   it('include the set note', async () => {
     const previous = await getPreviousPerformance(['pull-up'], 'none');
+    expect(previous.get('pull-up')?.warmups).toHaveLength(1);
     expect(previous.get('pull-up')?.sets).toEqual([{ pairId: null, side: 'both', reps: 6, durationSec: null, distanceM: null, addedLoadKg: 15, rpe: 8.5, note: 'Presa stretta', restSec: 150, formRating: null, bands: [], assistKg: null }]);
   });
 
