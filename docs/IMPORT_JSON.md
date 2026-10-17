@@ -2,7 +2,7 @@
 
 Programs tab → "Import programs from JSON", Mobility hub → Create → "From a JSON file", or Data → "Import from JSON". The app shows what the file
 holds before adding anything. Movements that already exist (same name) are reused; routines and programs
-are always added as new ones. Examples: `docs/import-examples/tom-merrick-full-body-mobility.json` (mobility), `docs/import-examples/example-program.json` (program).
+are always added as new ones. Examples: `tom-merrick-full-body-mobility.json` (mobility routine), `tom-merrick-full-body-mobility-program.json` (the same workout as a program) and `example-program.json`, all in `docs/import-examples/`.
 
 ```jsonc
 {

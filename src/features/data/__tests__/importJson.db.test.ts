@@ -5,6 +5,7 @@ import { listMobilityRoutines } from '../../mobility/routines';
 import { listUserPrograms } from '../../programs/userPrograms';
 import { importJson } from '../importJson';
 import example from '../../../../docs/import-examples/tom-merrick-full-body-mobility.json';
+import merrickProgram from '../../../../docs/import-examples/tom-merrick-full-body-mobility-program.json';
 
 jest.mock('../../../db/client', () => {
   const { createRealDatabase } = jest.requireActual('../../../test/realDatabase');
@@ -40,5 +41,19 @@ describe('importJson', () => {
     expect(await importJson(JSON.stringify(file))).toEqual({ exercisesCreated: 0, routines: 0, programs: 1 });
     const [program] = await listUserPrograms();
     expect(program.sessions[0].exercises[0]).toMatchObject({ exerciseId: 'pull-up', sets: 3, target: 6, restSeconds: 120 });
+  });
+
+  it('imports the Tom Merrick workout as a program, with holds in seconds and one-sided movements', async () => {
+    const result = await importJson(JSON.stringify(merrickProgram));
+    expect(result.programs).toBe(1);
+    const program = (await listUserPrograms()).find((item) => item.name === 'Tom Merrick - Full Body Mobility')!;
+    const [session] = program.sessions;
+    expect(session.exercises).toHaveLength(15);
+    const names = new Map((await listExercises()).map((item) => [item.id, item]));
+    const butcher = session.exercises.find((item) => names.get(item.exerciseId)?.name.startsWith('Prone or Kneeling'))!;
+    expect(butcher).toMatchObject({ sets: 1, target: 30 });
+    expect(names.get(butcher.exerciseId)?.metric).toBe('time');
+    const cossack = session.exercises.find((item) => names.get(item.exerciseId)?.name === 'Cossack Squats')!;
+    expect(names.get(cossack.exerciseId)).toMatchObject({ unilateral: true, metric: 'reps' });
   });
 });
