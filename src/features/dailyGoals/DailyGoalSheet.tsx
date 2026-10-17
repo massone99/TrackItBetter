@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { StyleSheet, TextInput, View } from 'react-native';
-import { DAILY_TARGET_MAX, type DailyGoal, type DailyGoalMeasure, type DailyGoalScope } from '../../domain/dailyGoals';
+import { targetMax, type DailyGoal, type DailyGoalMeasure, type DailyGoalScope, type GoalPeriod } from '../../domain/dailyGoals';
+import { useGoalT } from './period';
 import { ActionButton, Body, Chip, Label, SegmentedControl, Sheet, Stepper } from '../../shared/components/ui';
 import { useTheme } from '../../shared/theme/ThemeProvider';
 import { useScaledStyles } from '../../shared/theme/useScaledStyles';
@@ -14,8 +15,11 @@ import { GOAL_STEPS } from './DailyGoalViews';
 
 export type GoalDraft = Omit<DailyGoal, 'id'> & { id?: string };
 
-const DEFAULTS: Record<DailyGoalMeasure, number> = { minutes: 60, reps: 30 };
-const PRESETS: Record<DailyGoalMeasure, number[]> = { minutes: [30, 60, 120, 300], reps: [10, 20, 30, 50] };
+const DEFAULTS: Record<GoalPeriod, Record<DailyGoalMeasure, number>> = { day: { minutes: 60, reps: 30 }, week: { minutes: 1800, reps: 150 } };
+const PRESETS: Record<GoalPeriod, Record<DailyGoalMeasure, number[]>> = {
+  day: { minutes: [30, 60, 120, 300], reps: [10, 20, 30, 50] },
+  week: { minutes: [600, 1800, 3600, 7200], reps: [50, 100, 200, 300] },
+};
 const STEPS: Record<DailyGoalMeasure, number> = GOAL_STEPS;
 const TAG_RESULTS = 12;
 
@@ -23,7 +27,8 @@ const TAG_RESULTS = 12;
  * Adds or edits a daily goal: what it counts (category, movement group or tag), in minutes or reps,
  * and the total. The sheet is keyed by the goal it edits, so it starts from that goal each time.
  */
-export function DailyGoalSheet({ visible, initial, onSave, onRemove, onClose }: {
+export function DailyGoalSheet({ period = 'day', visible, initial, onSave, onRemove, onClose }: {
+  period?: GoalPeriod;
   visible: boolean;
   initial: GoalDraft | null;
   onSave: (goal: GoalDraft) => void;
@@ -32,16 +37,17 @@ export function DailyGoalSheet({ visible, initial, onSave, onRemove, onClose }: 
 }) {
   const styles = useScaledStyles(baseStyles);
   const { t } = useTranslation();
+  const tg = useGoalT(period);
   const { palette } = useTheme();
   const [scope, setScope] = useState<DailyGoalScope>(initial?.scope ?? 'tag');
   const [key, setKey] = useState<string | null>(initial?.key ?? null);
   const [measure, setMeasure] = useState<DailyGoalMeasure>(initial?.measure ?? 'minutes');
-  const [target, setTarget] = useState(initial?.target ?? DEFAULTS.minutes);
+  const [target, setTarget] = useState(initial?.target ?? DEFAULTS[period].minutes);
   const [query, setQuery] = useState('');
   const [section, setSection] = useState<string | null>(null);
 
   const changeScope = (next: DailyGoalScope) => { setScope(next); setKey(null); setQuery(''); };
-  const changeMeasure = (next: DailyGoalMeasure) => { setMeasure(next); setTarget(DEFAULTS[next]); };
+  const changeMeasure = (next: DailyGoalMeasure) => { setMeasure(next); setTarget(DEFAULTS[period][next]); };
 
   const needle = query.trim().toLocaleLowerCase();
   const allTags = MOVEMENT_TAG_SECTIONS.flatMap((item) => item.tags);
@@ -111,16 +117,16 @@ export function DailyGoalSheet({ visible, initial, onSave, onRemove, onClose }: 
         <Body>{t(measure === 'minutes' ? 'dailyGoals.minutesHint' : 'dailyGoals.repsHint')}</Body>
       </View>
       <Stepper
-        label={t('dailyGoals.totalTitle')}
+        label={tg('totalTitle')}
         layout="row"
         value={target}
         display={goalAmount(measure, target)}
         step={STEPS[measure]}
         min={STEPS[measure]}
-        max={DAILY_TARGET_MAX[measure]}
+        max={targetMax(period, measure)}
         editable
         clock={measure === 'minutes'}
-        presets={PRESETS[measure]}
+        presets={PRESETS[period][measure]}
         presetLabel={(value) => goalAmount(measure, value)}
         onChange={(value) => setTarget(Math.max(1, Math.round(value)))}
       />

@@ -11,8 +11,8 @@ import { listUserPrograms } from "../../src/features/programs/userPrograms";
 import { listExercises } from "../../src/features/exercises/repository";
 import { personalBestName, type PersonalBest } from "../../src/features/analytics/summary";
 import { getGoalSnapshot, GoalSnapshot } from "../../src/features/goals/repository";
-import { getDailyGoalsSnapshot } from "../../src/features/dailyGoals/repository";
-import { DailyGoalsSummary } from "../../src/features/dailyGoals/DailyGoalViews";
+import { getDailyGoalsSnapshot, getWeeklyGoalsSnapshot } from "../../src/features/dailyGoals/repository";
+import { GoalsArea } from "../../src/features/dailyGoals/DailyGoalViews";
 import type { DailyGoalProgress } from "../../src/domain/dailyGoals";
 import { ActiveWorkout, getActiveWorkout, listRecentWorkoutNames, listRecentWorkouts, repeatWorkout, WorkoutHistoryItem } from "../../src/features/session/repository";
 import { readDefaultRest } from "../../src/features/session/restDefaults";
@@ -37,6 +37,8 @@ type HomeData = {
   planned: Planned[];
   /** Today's daily goals, empty when none are set. */
   daily: DailyGoalProgress[];
+  /** This week's goals, empty when none are set. */
+  weekly: DailyGoalProgress[];
 };
 
 /** Midnight of this week's Monday. */
@@ -47,8 +49,8 @@ function startOfWeek(now: Date): Date {
 }
 
 async function loadHome(): Promise<HomeData> {
-  const [active, goals, progress, recent, programs, names, exercises, daily] = await Promise.all([
-    getActiveWorkout(), getGoalSnapshot(), getProgressSnapshot(), listRecentWorkouts(1), listUserPrograms(), listRecentWorkoutNames(), listExercises(), getDailyGoalsSnapshot(),
+  const [active, goals, progress, recent, programs, names, exercises, daily, weekly] = await Promise.all([
+    getActiveWorkout(), getGoalSnapshot(), getProgressSnapshot(), listRecentWorkouts(1), listUserPrograms(), listRecentWorkoutNames(), listExercises(), getDailyGoalsSnapshot(), getWeeklyGoalsSnapshot(),
   ]);
   const metricById = new Map(exercises.map((exercise) => [exercise.id, exercise.metric]));
   const rest = readDefaultRest("working");
@@ -60,6 +62,7 @@ async function loadHome(): Promise<HomeData> {
     weekBest: newest && newest.achievedAt.getTime() >= weekStart ? newest : null,
     last: recent[0] ?? null,
     daily: daily.progress,
+    weekly: weekly.progress,
     planned: programsByRecentUse(programs, names).map((item) => ({ ...item, seconds: estimateSessionSeconds(item.session, metricById, rest) })),
   };
 }
@@ -228,7 +231,7 @@ export default function TodayScreen() {
         )}
       </View>
 
-      {data && data.daily.length > 0 ? <DailyGoalsSummary progress={data.daily} onPress={() => router.push("/daily-goals")} /> : null}
+      {data ? <GoalsArea daily={data.daily} weekly={data.weekly} /> : null}
 
       <WorkoutInProgressSheet active={blockedBy} onClose={() => setBlockedBy(null)} />
       <StartFromProgramSheet
@@ -308,7 +311,7 @@ export default function TodayScreen() {
           />
         ) : null}
         <ListRow icon="flash-outline" title={t("home.micro")} subtitle={t("home.microBody")} onPress={() => router.push("/micro-session")} />
-        {data && data.daily.length === 0 ? <ListRow icon="flag-outline" title={t("dailyGoals.title")} subtitle={t("dailyGoals.homeBody")} onPress={() => router.push("/daily-goals")} /> : null}
+        {data && data.daily.length === 0 && data.weekly.length === 0 ? <ListRow icon="flag-outline" title={t("dailyGoals.areaTitle")} subtitle={t("dailyGoals.homeBody")} onPress={() => router.push("/daily-goals")} /> : null}
         <ListRow icon="scale-outline" title={t("home.bodyweight")} subtitle={t("home.bodyweightBody")} onPress={() => router.push("/bodyweight")} />
         <ListRow icon="body-outline" title={t("home.mobility")} subtitle={t("home.mobilityBody")} onPress={() => router.push("/mobility")} />
         <ListRow icon="calculator-outline" title={t("home.estimator")} subtitle={t("home.estimatorBody")} onPress={() => router.push("/estimator")} />

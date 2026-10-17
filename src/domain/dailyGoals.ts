@@ -1,7 +1,9 @@
 /**
  * Daily goals: totals to reach today, summed over every set done today (mini sessions included).
- * A goal counts sets of one main category, one movement group or one movement tag, in minutes or reps.
+ * Weekly goals are the same thing over the week (Monday to Sunday). A goal counts sets of one main
+ * category, one movement group or one movement tag, in minutes or reps.
  */
+export type GoalPeriod = 'day' | 'week';
 export type DailyGoalScope = 'category' | 'group' | 'tag';
 export type DailyGoalMeasure = 'minutes' | 'reps';
 
@@ -53,8 +55,14 @@ const SCOPES: readonly DailyGoalScope[] = ['category', 'group', 'tag'];
 const MEASURES: readonly DailyGoalMeasure[] = ['minutes', 'reps'];
 export const MAX_DAILY_GOALS = 20;
 export const DAILY_TARGET_MAX = { minutes: 6 * 3600, reps: 5000 } as const;
+export const WEEKLY_TARGET_MAX = { minutes: 40 * 3600, reps: 35000 } as const;
 
-export function isValidDailyGoal(value: unknown): value is DailyGoal {
+/** The biggest target a goal of the period can have. */
+export function targetMax(period: GoalPeriod, measure: DailyGoalMeasure): number {
+  return (period === 'week' ? WEEKLY_TARGET_MAX : DAILY_TARGET_MAX)[measure];
+}
+
+export function isValidDailyGoal(value: unknown, period: GoalPeriod = 'day'): value is DailyGoal {
   if (!value || typeof value !== 'object') return false;
   const goal = value as Record<string, unknown>;
   return typeof goal.id === 'string' && goal.id.length > 0
@@ -62,15 +70,15 @@ export function isValidDailyGoal(value: unknown): value is DailyGoal {
     && typeof goal.key === 'string' && goal.key.trim().length > 0
     && MEASURES.includes(goal.measure as DailyGoalMeasure)
     && typeof goal.target === 'number' && Number.isInteger(goal.target) && goal.target >= 1
-    && goal.target <= DAILY_TARGET_MAX[goal.measure as DailyGoalMeasure];
+    && goal.target <= targetMax(period, goal.measure as DailyGoalMeasure);
 }
 
 /** Stored goals; anything malformed is dropped rather than breaking the screen. */
-export function parseDailyGoals(raw: string | null | undefined): DailyGoal[] {
+export function parseDailyGoals(raw: string | null | undefined, period: GoalPeriod = 'day'): DailyGoal[] {
   if (!raw) return [];
   try {
     const parsed: unknown = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed.filter(isValidDailyGoal).slice(0, MAX_DAILY_GOALS) : [];
+    return Array.isArray(parsed) ? parsed.filter((item) => isValidDailyGoal(item, period)).slice(0, MAX_DAILY_GOALS) : [];
   } catch {
     return [];
   }
@@ -111,4 +119,10 @@ export function dailyGoalProgress(goal: DailyGoal, sets: readonly DaySet[]): Dai
 /** Midnight today, local time: the day the goals count. */
 export function startOfToday(now: Date): Date {
   return new Date(now.getFullYear(), now.getMonth(), now.getDate());
+}
+
+/** Midnight of the Monday of the week `now` is in, local time: the week weekly goals count. */
+export function startOfWeek(now: Date): Date {
+  const sinceMonday = (now.getDay() + 6) % 7;
+  return new Date(now.getFullYear(), now.getMonth(), now.getDate() - sinceMonday);
 }

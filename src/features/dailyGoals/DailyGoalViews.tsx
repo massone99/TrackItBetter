@@ -1,12 +1,14 @@
 import { useTranslation } from 'react-i18next';
 import { Pressable, StyleSheet, View } from 'react-native';
-import type { DailyGoalProgress } from '../../domain/dailyGoals';
-import { Card, Icon, type IconName, Stepper, Text, tapFeedback } from '../../shared/components/ui';
+import { router } from 'expo-router';
+import type { DailyGoalProgress, GoalPeriod } from '../../domain/dailyGoals';
+import { Card, Icon, type IconName, SectionTitle, SegmentedControl, Stepper, Text, tapFeedback } from '../../shared/components/ui';
 import { useTheme } from '../../shared/theme/ThemeProvider';
 import { useScaledStyles } from '../../shared/theme/useScaledStyles';
 import { fonts } from '../../shared/theme/typography';
 import { MIN_TOUCH_TARGET } from '../../shared/theme/tokens';
-import { DAILY_TARGET_MAX } from '../../domain/dailyGoals';
+import { targetMax } from '../../domain/dailyGoals';
+import { useGoalT } from './period';
 import { goalAmount, goalKeyLabel } from './labels';
 
 export const GOAL_STEPS = { minutes: 15, reps: 5 } as const;
@@ -71,7 +73,8 @@ function RowAction({ icon, label, onPress, disabled, tone = 'plain' }: { icon: I
  * A goal in the list. A tap opens it in place: the daily total with − and +, and every action on it
  * as a labelled button, so nothing hides behind a gesture or a menu.
  */
-export function GoalRow({ progress, expanded, first, last, onToggle, onTarget, onDetails, onEdit, onDuplicate, onMove, onDelete }: {
+export function GoalRow({ period = 'day', progress, expanded, first, last, onToggle, onTarget, onDetails, onEdit, onDuplicate, onMove, onDelete }: {
+  period?: GoalPeriod;
   progress: DailyGoalProgress;
   expanded: boolean;
   first: boolean;
@@ -87,6 +90,7 @@ export function GoalRow({ progress, expanded, first, last, onToggle, onTarget, o
   const styles = useScaledStyles(baseStyles);
   const { t } = useTranslation();
   const { palette } = useTheme();
+  const tg = useGoalT(period);
   const text = useGoalText()(progress);
   const { goal, reached } = progress;
   return (
@@ -119,13 +123,13 @@ export function GoalRow({ progress, expanded, first, last, onToggle, onTarget, o
       {expanded ? (
         <View style={styles.panel}>
           <Stepper
-            label={t('dailyGoals.perDay')}
+            label={tg('perDay')}
             layout="row"
             value={goal.target}
             display={goalAmount(goal.measure, goal.target)}
             step={GOAL_STEPS[goal.measure]}
             min={GOAL_STEPS[goal.measure]}
-            max={DAILY_TARGET_MAX[goal.measure]}
+            max={targetMax(period, goal.measure)}
             onChange={(value) => onTarget(Math.max(1, Math.round(value)))}
           />
           <View style={styles.actions}>
@@ -143,14 +147,15 @@ export function GoalRow({ progress, expanded, first, last, onToggle, onTarget, o
 }
 
 /** Today's goals on the Today screen: how many are reached and what is still open. */
-export function DailyGoalsSummary({ progress, onPress }: { progress: readonly DailyGoalProgress[]; onPress: () => void }) {
+export function DailyGoalsSummary({ period = 'day', progress, onPress }: { period?: GoalPeriod; progress: readonly DailyGoalProgress[]; onPress: () => void }) {
   const styles = useScaledStyles(baseStyles);
   const { t } = useTranslation();
   const { palette } = useTheme();
   const goalText = useGoalText();
   const reached = progress.filter((item) => item.reached).length;
   const open = progress.filter((item) => !item.reached);
-  const title = t('dailyGoals.title');
+  const tg = useGoalT(period);
+  const title = tg('title');
   const count = t('dailyGoals.reachedOf', { done: reached, total: progress.length });
   const missing = open.map((item) => { const text = goalText(item); return `${text.name} ${text.amount}`; }).join(' · ');
   return (
@@ -170,7 +175,34 @@ export function DailyGoalsSummary({ progress, onPress }: { progress: readonly Da
   );
 }
 
+/** The goals of the Today screen: one area, a card for each period that has goals, each opening its own page. */
+export function GoalsArea({ daily, weekly }: { daily: readonly DailyGoalProgress[]; weekly: readonly DailyGoalProgress[] }) {
+  const styles = useScaledStyles(baseStyles);
+  const { t } = useTranslation();
+  if (daily.length === 0 && weekly.length === 0) return null;
+  return (
+    <View style={styles.area}>
+      <SectionTitle title={t('dailyGoals.areaTitle')} />
+      {daily.length > 0 ? <DailyGoalsSummary progress={daily} onPress={() => router.push('/daily-goals')} /> : null}
+      {weekly.length > 0 ? <DailyGoalsSummary period="week" progress={weekly} onPress={() => router.push('/weekly-goals')} /> : null}
+    </View>
+  );
+}
+
+/** Switches between the daily and the weekly goals pages: two pages, one area. */
+export function GoalsPeriodSwitch({ period }: { period: GoalPeriod }) {
+  const { t } = useTranslation();
+  return (
+    <SegmentedControl<GoalPeriod>
+      value={period}
+      onChange={(next) => { if (next !== period) router.replace(next === 'week' ? '/weekly-goals' : '/daily-goals'); }}
+      options={[{ value: 'day', label: t('dailyGoals.periodDay') }, { value: 'week', label: t('dailyGoals.periodWeek') }]}
+    />
+  );
+}
+
 const baseStyles = StyleSheet.create({
+  area: { gap: 8 },
   segments: { flexDirection: 'row', gap: 4 },
   segment: { flex: 1, height: 6, borderRadius: 3, overflow: 'hidden' },
   segmentFill: { height: '100%' },

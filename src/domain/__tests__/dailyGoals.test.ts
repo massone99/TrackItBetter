@@ -1,4 +1,4 @@
-import { dailyGoalProgress, goalMatches, parseDailyGoals, type DailyGoal, type DaySet } from '../dailyGoals';
+import { dailyGoalProgress, goalMatches, parseDailyGoals, startOfWeek, targetMax, type DailyGoal, type DaySet } from '../dailyGoals';
 
 const set = (over: Partial<DaySet>): DaySet => ({
   workoutId: 'w1', workoutName: 'Mini 1', exerciseId: 'e1', exerciseName: 'Couch stretch', completedAt: new Date(2026, 9, 15, 8),
@@ -40,5 +40,26 @@ describe('daily goals', () => {
     const raw = JSON.stringify([goal({}), { id: 'x', scope: 'muscle', key: 'a', measure: 'reps', target: 5 }, goal({ id: 'y', target: 0 })]);
     expect(parseDailyGoals(raw).map((item) => item.id)).toEqual(['g']);
     expect(parseDailyGoals('not json')).toEqual([]);
+  });
+});
+
+describe('weekly goals', () => {
+  it('start on Monday, local time', () => {
+    expect(startOfWeek(new Date(2026, 9, 14, 15))).toEqual(new Date(2026, 9, 12));
+    expect(startOfWeek(new Date(2026, 9, 12, 0, 1))).toEqual(new Date(2026, 9, 12));
+    expect(startOfWeek(new Date(2026, 9, 18, 23))).toEqual(new Date(2026, 9, 12));
+    expect(startOfWeek(new Date(2026, 10, 1))).toEqual(new Date(2026, 9, 26));
+  });
+
+  it('allow bigger totals than a day, and sum sets of the whole week', () => {
+    const big = JSON.stringify([goal({ target: 20 * 3600 })]);
+    expect(parseDailyGoals(big, 'day')).toEqual([]);
+    expect(parseDailyGoals(big, 'week')).toHaveLength(1);
+    expect(targetMax('week', 'reps')).toBeGreaterThan(targetMax('day', 'reps'));
+    const progress = dailyGoalProgress(goal({ measure: 'reps', target: 100 }), [
+      set({ reps: 40, completedAt: new Date(2026, 9, 12, 9) }),
+      set({ reps: 70, completedAt: new Date(2026, 9, 15, 9) }),
+    ]);
+    expect(progress).toMatchObject({ done: 110, reached: true, remaining: 0 });
   });
 });

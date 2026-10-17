@@ -2,6 +2,10 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.40.0 - 2026-10-17
+
+- Weekly goals: the same goals as the daily ones (category, movement group or tag, in minutes or reps, tap a goal to open it in place, details, mini session), counted over the week from Monday to Sunday. Two separate pages, Daily and Weekly, with a switch at the top of each, under one "Goals" area on the Today screen that shows a card for each.
+
 ## 0.39.0 - 2026-10-17
 
 - Import from JSON: a file can bring in custom movements, mobility routines and programs (not only mobility). You see what it holds before anything is added; movements already in the app are reused. Open it from Mobility → Create → "From a JSON file" or Data → "Import from JSON". Format and an example (Tom Merrick, 15 Minute Full Body Mobility) in docs/IMPORT_JSON.md.
