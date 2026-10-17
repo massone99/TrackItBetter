@@ -109,6 +109,8 @@ export default function ProgramsTab() {
             </ListGroup>
           ) : null}
 
+          <ActionButton icon="document-outline" variant="ghost" label={t('importJson.programsAction')} onPress={() => router.push('/import-json')} />
+
           <SectionTitle title={t('userProgram.templates')} />
           {templates.length > 0 ? (
             <ListGroup>

@@ -1,0 +1,47 @@
+{
+  "format": "trackitbetter-import",
+  "version": 1,
+  "programs": [
+    {
+      "name": "Esempio Push/Pull",
+      "sessions": [
+        {
+          "name": "Giorno A · Pull",
+          "notes": "Concentrati sulla fase negativa.",
+          "exercises": [
+            {
+              "exercise": "pull-up",
+              "sets": 4,
+              "target": 6,
+              "restSeconds": 120,
+              "rpe": 8
+            },
+            {
+              "exercise": "push-up",
+              "sets": 3,
+              "target": 10,
+              "restSeconds": 90,
+              "rpePerSet": [
+                7,
+                8,
+                9
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Giorno B · Gambe",
+          "notes": null,
+          "exercises": [
+            {
+              "exercise": "bodyweight-squat",
+              "sets": 3,
+              "target": 15,
+              "restSeconds": 60
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

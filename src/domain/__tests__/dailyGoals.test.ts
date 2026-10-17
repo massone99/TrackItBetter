@@ -63,3 +63,22 @@ describe('weekly goals', () => {
     expect(progress).toMatchObject({ done: 110, reached: true, remaining: 0 });
   });
 });
+
+describe('one-sided sets', () => {
+  it('count once: 10 reps on each side are 10, unequal sides their mean', () => {
+    const reps = goal({ measure: 'reps', target: 100 });
+    const side = (pairId: string, value: number, extra: Partial<DaySet> = {}) => set({ pairId, reps: value, ...extra });
+    expect(dailyGoalProgress(reps, [side('p', 10), side('p', 10)]).done).toBe(10);
+    expect(dailyGoalProgress(reps, [side('p', 10), side('p', 8)]).done).toBe(9);
+    const two = dailyGoalProgress(reps, [side('p', 10), side('p', 10), side('q', 6), side('q', 6), set({ reps: 5 })]);
+    expect(two.done).toBe(21);
+    expect(two.contributions[0].sets).toBe(3);
+  });
+
+  it('count time the same way', () => {
+    const time = goal({ measure: 'minutes', target: 600 });
+    const side = (pairId: string, seconds: number) => set({ pairId, durationSec: seconds });
+    expect(dailyGoalProgress(time, [side('p', 30), side('p', 30)]).done).toBe(30);
+    expect(dailyGoalProgress(time, [side('p', 30), side('p', 40)]).done).toBe(35);
+  });
+});

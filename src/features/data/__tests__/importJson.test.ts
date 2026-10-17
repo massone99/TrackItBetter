@@ -1,5 +1,6 @@
 import { planImport } from '../importJson';
 import example from '../../../../docs/import-examples/tom-merrick-full-body-mobility.json';
+import exampleProgram from '../../../../docs/import-examples/example-program.json';
 
 jest.mock('expo-crypto', () => ({ randomUUID: jest.requireActual('node:crypto').randomUUID }));
 jest.mock('../../../db/client', () => ({ db: {}, initializeDatabase: jest.fn() }));
@@ -24,6 +25,12 @@ describe('planImport', () => {
   it('accepts programs that point at movements of the app by id or by name', () => {
     const file = { ...base, programs: [{ name: 'Plan', sessions: [{ name: 'A', exercises: [{ exercise: 'pull-up', sets: 3, target: 5 }, { exercise: 'Pull-Up', sets: 2 }] }] }] };
     expect(planImport(JSON.stringify(file), [pullUp]).file.programs).toHaveLength(1);
+  });
+
+  it('accepts the example program, with a RPE per set, for movements of the catalog', () => {
+    const plan = planImport(JSON.stringify(exampleProgram), [pullUp, { id: 'push-up', name: 'Push-up' }, { id: 'bodyweight-squat', name: 'Bodyweight Squat' }]);
+    expect(plan.file.programs[0].sessions).toHaveLength(2);
+    expect(plan.file.programs[0].sessions[0].exercises[1].rpePerSet).toEqual([7, 8, 9]);
   });
 
   it('refuses unknown movements, duplicate keys, bad shapes and empty files, naming the problem', () => {

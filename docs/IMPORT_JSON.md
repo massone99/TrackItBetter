@@ -1,8 +1,8 @@
 # Import from JSON
 
-Mobility hub → Create → "From a JSON file" (also Data → "Import from JSON"). The app shows what the file
+Programs tab → "Import programs from JSON", Mobility hub → Create → "From a JSON file", or Data → "Import from JSON". The app shows what the file
 holds before adding anything. Movements that already exist (same name) are reused; routines and programs
-are always added as new ones. Example: `docs/import-examples/tom-merrick-full-body-mobility.json`.
+are always added as new ones. Examples: `docs/import-examples/tom-merrick-full-body-mobility.json` (mobility), `docs/import-examples/example-program.json` (program).
 
 ```jsonc
 {
@@ -20,7 +20,8 @@ are always added as new ones. Example: `docs/import-examples/tom-merrick-full-bo
   ],
   "programs": [             // optional, not only mobility
     { "name": "Pull", "sessions": [ { "name": "A", "notes": null,
-        "exercises": [ { "exercise": "pull-up", "sets": 3, "target": 6, "restSeconds": 120 } ] } ] }
+        "exercises": [ { "exercise": "pull-up", "sets": 3, "target": 6, "restSeconds": 120,
+                         "loadKg": null, "rpe": 8, "rpePerSet": null, "note": null, "totalTarget": null } ] } ] }
   ]
 }
 ```

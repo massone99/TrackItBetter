@@ -24,6 +24,8 @@ export type DaySet = {
   exerciseId: string;
   exerciseName: string;
   completedAt: Date;
+  /** Both sides of a one-sided set share it; they count once, as the mean of the sides. */
+  pairId?: string | null;
   reps: number | null;
   durationSec: number | null;
   categories: readonly string[];
@@ -103,10 +105,21 @@ export function setAmount(measure: DailyGoalMeasure, set: Pick<DaySet, 'reps' | 
 export function dailyGoalProgress(goal: DailyGoal, sets: readonly DaySet[]): DailyGoalProgress {
   const byKey = new Map<string, GoalContribution>();
   let done = 0;
+  // An L/R pair is one set: 10 reps (or 30 s) on each side count 10 (30), unequal sides their mean.
+  const pairs = new Map<string, { set: DaySet; amounts: number[] }>();
   for (const set of [...sets].sort((a, b) => a.completedAt.getTime() - b.completedAt.getTime())) {
     if (!goalMatches(goal, set)) continue;
     const amount = setAmount(goal.measure, set);
     if (amount === 0) continue;
+    const pair = set.pairId ? pairs.get(set.pairId) : undefined;
+    if (pair) pair.amounts.push(amount);
+    else {
+      const entry = { set, amounts: [amount] };
+      pairs.set(set.pairId ?? `solo:${pairs.size}`, entry);
+    }
+  }
+  for (const { set, amounts } of pairs.values()) {
+    const amount = amounts.reduce((total, value) => total + value, 0) / amounts.length;
     done += amount;
     const key = `${set.workoutId}:${set.exerciseId}`;
     const current = byKey.get(key);

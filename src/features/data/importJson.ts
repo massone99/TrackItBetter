@@ -52,6 +52,7 @@ const prescriptionSchema = z.object({
   restSeconds: count(0, 3600).nullable().default(null),
   loadKg: z.number().min(0).nullable().default(null),
   rpe: z.number().nullable().default(null),
+  rpePerSet: z.array(z.number().nullable()).nullable().default(null),
   totalTarget: z.number().positive().nullable().default(null),
 });
 
@@ -137,7 +138,7 @@ function toProgram(program: ImportFile['programs'][number], idOf: (reference: st
       notes: session.notes,
       exercises: session.exercises.map((item): UserProgramExercise => ({
         id: Crypto.randomUUID(), exerciseId: idOf(item.exercise), sets: item.sets, target: item.target, note: item.note,
-        restSeconds: item.restSeconds, loadKg: item.loadKg, rpe: item.rpe, totalTarget: item.totalTarget,
+        restSeconds: item.restSeconds, loadKg: item.loadKg, rpe: item.rpe, rpePerSet: item.rpePerSet, totalTarget: item.totalTarget,
       })),
     })),
   };

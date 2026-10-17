@@ -2,6 +2,11 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.40.1 - 2026-10-17
+
+- Goals: a one-sided exercise counts once, not once per side: 10 reps (or 30 s) on each side count 10 (30), unequal sides count their mean. Same as the statistics. Daily and weekly goals.
+- Programs can be imported from a JSON file also from the Programs tab ("Import programs from JSON"); the format now takes a RPE per set. Example in docs/import-examples/example-program.json.
+
 ## 0.40.0 - 2026-10-17
 
 - Weekly goals: the same goals as the daily ones (category, movement group or tag, in minutes or reps, tap a goal to open it in place, details, mini session), counted over the week from Monday to Sunday. Two separate pages, Daily and Weekly, with a switch at the top of each, under one "Goals" area on the Today screen that shows a card for each.
