@@ -1,0 +1,271 @@
+{
+  "format": "trackitbetter-import",
+  "version": 1,
+  "exercises": [
+    {
+      "key": "neck-circles",
+      "name": "Neck Circles",
+      "metric": "reps",
+      "category": "mobility",
+      "unilateral": false,
+      "mobilityMode": "active",
+      "cues": [
+        "Slow and controlled. Pause 1-2 seconds at the end of each rep before returning."
+      ]
+    },
+    {
+      "key": "thoracic-circles",
+      "name": "Thoracic Circles",
+      "metric": "reps",
+      "category": "mobility",
+      "unilateral": false,
+      "mobilityMode": "active",
+      "cues": [
+        "Slow and controlled. Pause 1-2 seconds at the end of each rep before returning."
+      ]
+    },
+    {
+      "key": "shoulder-circles",
+      "name": "Shoulder Circles",
+      "metric": "reps",
+      "category": "mobility",
+      "unilateral": false,
+      "mobilityMode": "active",
+      "cues": [
+        "Slow and controlled. Pause 1-2 seconds at the end of each rep before returning."
+      ]
+    },
+    {
+      "key": "prone-shoulder-dislocates",
+      "name": "Prone Shoulder Dislocates",
+      "metric": "reps",
+      "category": "mobility",
+      "unilateral": false,
+      "mobilityMode": "active",
+      "cues": [
+        "Slow and controlled. Pause 1-2 seconds at the end of each rep before returning."
+      ]
+    },
+    {
+      "key": "butchers-block",
+      "name": "Prone or Kneeling Butcher's Block",
+      "metric": "time",
+      "category": "mobility",
+      "unilateral": false,
+      "mobilityMode": "active",
+      "cues": [
+        "Slow and controlled. Pause 1-2 seconds at the end of each rep before returning."
+      ]
+    },
+    {
+      "key": "hindu-push-ups",
+      "name": "Hindu Push-Ups (Downward Dog to Upward Dog)",
+      "metric": "reps",
+      "category": "mobility",
+      "unilateral": false,
+      "mobilityMode": "active",
+      "cues": [
+        "Slow and controlled. Pause 1-2 seconds at the end of each rep before returning."
+      ]
+    },
+    {
+      "key": "quadruped-thoracic-rotation",
+      "name": "Quadruped Thoracic Rotation",
+      "metric": "reps",
+      "category": "mobility",
+      "unilateral": true,
+      "mobilityMode": "active",
+      "cues": [
+        "Slow and controlled. Pause 1-2 seconds at the end of each rep before returning."
+      ]
+    },
+    {
+      "key": "squat-to-figure-4",
+      "name": "Squat to Figure-4 Position",
+      "metric": "reps",
+      "category": "mobility",
+      "unilateral": true,
+      "mobilityMode": "active",
+      "cues": [
+        "Slow and controlled. Pause 1-2 seconds at the end of each rep before returning."
+      ]
+    },
+    {
+      "key": "figure-4-lifts",
+      "name": "Figure-4 Position Lifts",
+      "metric": "reps",
+      "category": "mobility",
+      "unilateral": true,
+      "mobilityMode": "active",
+      "cues": [
+        "Slow and controlled. Pause 1-2 seconds at the end of each rep before returning."
+      ]
+    },
+    {
+      "key": "cossack-squats",
+      "name": "Cossack Squats",
+      "metric": "reps",
+      "category": "mobility",
+      "unilateral": true,
+      "mobilityMode": "active",
+      "cues": [
+        "Slow and controlled. Pause 1-2 seconds at the end of each rep before returning."
+      ]
+    },
+    {
+      "key": "long-lunge-extensions",
+      "name": "Long Lunge Extensions",
+      "metric": "reps",
+      "category": "mobility",
+      "unilateral": true,
+      "mobilityMode": "active",
+      "cues": [
+        "Slow and controlled. Pause 1-2 seconds at the end of each rep before returning."
+      ]
+    },
+    {
+      "key": "good-mornings-mobility",
+      "name": "Good Mornings (Mobility)",
+      "metric": "reps",
+      "category": "mobility",
+      "unilateral": false,
+      "mobilityMode": "active",
+      "cues": [
+        "Slow and controlled. Pause 1-2 seconds at the end of each rep before returning."
+      ]
+    },
+    {
+      "key": "pike-twists",
+      "name": "Pike Twists",
+      "metric": "reps",
+      "category": "mobility",
+      "unilateral": true,
+      "mobilityMode": "active",
+      "cues": [
+        "Slow and controlled. Pause 1-2 seconds at the end of each rep before returning."
+      ]
+    },
+    {
+      "key": "squat-and-close",
+      "name": "Squat and Close",
+      "metric": "time",
+      "category": "mobility",
+      "unilateral": false,
+      "mobilityMode": "active",
+      "cues": [
+        "Slow and controlled. Pause 1-2 seconds at the end of each rep before returning."
+      ]
+    }
+  ],
+  "mobilityRoutines": [
+    {
+      "name": "Tom Merrick - 15 Minute Full Body Mobility",
+      "transitionSec": 5,
+      "prepSec": 5,
+      "steps": [
+        {
+          "exercise": "neck-circles",
+          "mode": "reps",
+          "reps": 5,
+          "rounds": 2,
+          "perSide": false
+        },
+        {
+          "exercise": "thoracic-circles",
+          "mode": "reps",
+          "reps": 5,
+          "rounds": 2,
+          "perSide": false
+        },
+        {
+          "exercise": "shoulder-circles",
+          "mode": "reps",
+          "reps": 5,
+          "rounds": 2,
+          "perSide": false
+        },
+        {
+          "exercise": "prone-shoulder-dislocates",
+          "mode": "reps",
+          "reps": 5,
+          "rounds": 2,
+          "perSide": false
+        },
+        {
+          "exercise": "butchers-block",
+          "mode": "hold",
+          "seconds": 30,
+          "perSide": false
+        },
+        {
+          "exercise": "hindu-push-ups",
+          "mode": "reps",
+          "reps": 5,
+          "rounds": 2,
+          "perSide": false
+        },
+        {
+          "exercise": "quadruped-thoracic-rotation",
+          "mode": "reps",
+          "reps": 5,
+          "rounds": 1,
+          "perSide": true
+        },
+        {
+          "exercise": "squat-to-figure-4",
+          "mode": "reps",
+          "reps": 5,
+          "rounds": 1,
+          "perSide": true
+        },
+        {
+          "exercise": "figure-4-lifts",
+          "mode": "reps",
+          "reps": 5,
+          "rounds": 1,
+          "perSide": true
+        },
+        {
+          "exercise": "cossack-squats",
+          "mode": "reps",
+          "reps": 5,
+          "rounds": 1,
+          "perSide": true
+        },
+        {
+          "exercise": "long-lunge-extensions",
+          "mode": "reps",
+          "reps": 5,
+          "rounds": 1,
+          "perSide": true
+        },
+        {
+          "exercise": "long-lunge-extensions",
+          "mode": "hold",
+          "seconds": 10,
+          "perSide": true
+        },
+        {
+          "exercise": "good-mornings-mobility",
+          "mode": "reps",
+          "reps": 5,
+          "rounds": 2,
+          "perSide": false
+        },
+        {
+          "exercise": "pike-twists",
+          "mode": "reps",
+          "reps": 5,
+          "rounds": 1,
+          "perSide": true
+        },
+        {
+          "exercise": "squat-and-close",
+          "mode": "hold",
+          "seconds": 30,
+          "perSide": false
+        }
+      ]
+    }
+  ]
+}

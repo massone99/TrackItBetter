@@ -106,6 +106,7 @@ function AppNavigator() {
         <Stack.Screen name="stats" />
         <Stack.Screen name="training-stats" />
         <Stack.Screen name="data" />
+        <Stack.Screen name="import-json" />
         <Stack.Screen name="reset" options={{ gestureEnabled: false }} />
         <Stack.Screen name="reminders" />
         <Stack.Screen name="photos" />

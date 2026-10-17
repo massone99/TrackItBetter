@@ -121,6 +121,7 @@ export default function MobilityHubScreen() {
   const createItems = [
     { icon: 'add' as const, label: t('mobilityHub.createNew'), go: () => router.push({ pathname: '/mobility/routine/[id]', params: { id: 'new' } }) },
     { icon: 'download-outline' as const, label: t('mobilityHub.fromWorkout'), go: () => router.push({ pathname: '/mobility/import', params: { mode: 'workout' } }) },
+    { icon: 'document-outline' as const, label: t('mobilityHub.fromJson'), go: () => router.push('/import-json') },
     { icon: 'swap-horizontal' as const, label: t('mobilityHub.convertProgram'), go: () => router.push({ pathname: '/mobility/import', params: { mode: 'program' } }) },
   ];
 

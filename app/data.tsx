@@ -106,6 +106,12 @@ export default function DataScreen() {
         <ActionButton label={working ? t("data.working") : t("data.importAction")} secondary disabled={working} onPress={() => void chooseBackupFile()} />
       </Card>
 
+      <Card style={styles.card}>
+        <Heading>{t("importJson.title")}</Heading>
+        <Body>{t("importJson.dataBody")}</Body>
+        <ActionButton icon="document-outline" label={t("importJson.open")} secondary disabled={working} onPress={() => router.push("/import-json")} />
+      </Card>
+
       {message ? <Body accessibilityLiveRegion="polite" style={{ color: palette.text }}>{message}</Body> : null}
       <Body style={{ color: palette.warning }}>{t("data.privacy")}</Body>
       <Body>{t("data.videoBackupBoundary")}</Body>

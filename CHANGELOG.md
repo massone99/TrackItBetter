@@ -2,6 +2,10 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.39.0 - 2026-10-17
+
+- Import from JSON: a file can bring in custom movements, mobility routines and programs (not only mobility). You see what it holds before anything is added; movements already in the app are reused. Open it from Mobility → Create → "From a JSON file" or Data → "Import from JSON". Format and an example (Tom Merrick, 15 Minute Full Body Mobility) in docs/IMPORT_JSON.md.
+
 ## 0.38.2 - 2026-10-16
 
 - ROM counts for mini PRs like form: a higher average ROM than last time is a mini PR ("better ROM" in the workout summary, green ↑ on the folded exercise), and a lower one blocks the "same work at a lower RPE" mini PR.
