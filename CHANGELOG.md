@@ -2,6 +2,10 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.41.2 - 2026-10-18
+
+- Toasts (such as "Set removed") can be swiped away sideways.
+
 ## 0.41.1 - 2026-10-18
 
 - Exercise options: "Compare with" is now a choice between "Last time in this workout" and "Last time of this exercise", instead of a list of past workouts.

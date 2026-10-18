@@ -1,7 +1,7 @@
 import * as Haptics from "expo-haptics";
 import { router, useSegments } from "expo-router";
-import { Children, PropsWithChildren, ReactNode, Ref, createContext, useContext, useEffect, useImperativeHandle, useRef, useState } from "react";
-import { Modal, Platform, Pressable, ScrollView, StyleSheet, Switch, TextInput, TextInputProps, TextProps, useWindowDimensions, View, ViewProps } from "react-native";
+import { Children, PropsWithChildren, ReactNode, Ref, createContext, useContext, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
+import { Animated, Modal, PanResponder, Platform, Pressable, ScrollView, StyleSheet, Switch, TextInput, TextInputProps, TextProps, useWindowDimensions, View, ViewProps } from "react-native";
 import { KeyboardLift, KeyboardScroll, useKeyboardVisible, type ScrollHandle } from "./keyboard";
 import { useAppInsets } from "../layout/useAppInsets";
 import { useTranslation } from "react-i18next";
@@ -806,11 +806,29 @@ export function Toast({ message, actionLabel, onAction, onHide, bottomOffset = 0
     const timer = setTimeout(onHide, 8000);
     return () => clearTimeout(timer);
   }, [message, onHide]);
+  // A sideways swipe (or a quick flick) sends the toast away; a short drag springs back.
+  const [drag] = useState(() => new Animated.Value(0));
+  useEffect(() => { drag.setValue(0); }, [message, drag]);
+  const swipe = useMemo(() => PanResponder.create({
+    onMoveShouldSetPanResponder: (_, g) => Math.abs(g.dx) > 8 && Math.abs(g.dx) > Math.abs(g.dy),
+    onPanResponderMove: (_, g) => drag.setValue(g.dx),
+    onPanResponderRelease: (_, g) => {
+      if (Math.abs(g.dx) > 80 || Math.abs(g.vx) > 0.6) {
+        Animated.timing(drag, { toValue: Math.sign(g.dx || g.vx) * 500, duration: 150, useNativeDriver: Platform.OS !== "web" }).start(() => onHide());
+      } else {
+        Animated.spring(drag, { toValue: 0, useNativeDriver: Platform.OS !== "web" }).start();
+      }
+    },
+    onPanResponderTerminate: () => Animated.spring(drag, { toValue: 0, useNativeDriver: Platform.OS !== "web" }).start(),
+  }), [drag, onHide]);
   if (message === null) return null;
   return (
-    <View
+    <Animated.View
+      {...swipe.panHandlers}
       accessibilityLiveRegion="polite"
-      style={[styles.toast, { bottom: insets.bottom + 16 + bottomOffset, backgroundColor: palette.text }]}
+      accessibilityActions={[{ name: "escape", label: "dismiss" }]}
+      onAccessibilityEscape={onHide}
+      style={[styles.toast, { bottom: insets.bottom + 16 + bottomOffset, backgroundColor: palette.text, transform: [{ translateX: drag }], opacity: drag.interpolate({ inputRange: [-300, 0, 300], outputRange: [0.2, 1, 0.2] }) }]}
     >
       <Text style={[styles.toastText, { color: palette.background }]}>{message}</Text>
       {actionLabel && onAction ? (
@@ -818,7 +836,7 @@ export function Toast({ message, actionLabel, onAction, onHide, bottomOffset = 0
           <Text style={[styles.toastActionText, { color: palette.accentSoft }]}>{actionLabel}</Text>
         </Pressable>
       ) : null}
-    </View>
+    </Animated.View>
   );
 }
 
