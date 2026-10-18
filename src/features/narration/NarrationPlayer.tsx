@@ -53,7 +53,7 @@ function readDraft(key: string, signature: string): { records: [number, Performe
   } catch { return null; }
 }
 
-export function NarrationPlayer({ draftKey, title, segments, drills, exitHref, initialVoice, onSave }: NarrationPlayerProps) {
+export function NarrationPlayer({ draftKey, title, segments, drills, exitHref, initialVoice, onSave, checkPairs = true }: NarrationPlayerProps & { checkPairs?: boolean }) {
   useKeepAwake();
   const styles = useScaledStyles(baseStyles);
   const { t, i18n } = useTranslation();
@@ -126,7 +126,8 @@ export function NarrationPlayer({ draftKey, title, segments, drills, exitHref, i
 
   const finish = useCallback(async (records: Map<number, Performed>) => {
     if (finished.current) return;
-    const missing = [...records.values()].find((row) => row.side && ![...records.values()].some((other) => other.stepIndex === row.stepIndex && other.round === row.round && other.side && other.side !== row.side));
+    // A workout narrates what the workout already holds (one side may be done already): no pair check there.
+    const missing = checkPairs && [...records.values()].find((row) => row.side && ![...records.values()].some((other) => other.stepIndex === row.stepIndex && other.round === row.round && other.side && other.side !== row.side));
     if (missing) {
       const missingIndex = segments.findIndex((s) => s.kind === 'work' && s.stepIndex === missing.stepIndex && s.round === missing.round && s.side !== missing.side);
       Alert.alert(t('logger.pairIncompleteTitle'), t('logger.pairIncompleteBody', { name: drills[missing.stepIndex]?.name ?? '', number: missing.round, side: t(missing.side === 'left' ? 'logger.sideRight' : 'logger.sideLeft') }));
@@ -151,7 +152,7 @@ export function NarrationPlayer({ draftKey, title, segments, drills, exitHref, i
       return;
     }
     writePreference(draftKey, 'null');
-  }, [segments, drills, draftKey, exitHref, onSave, t]);
+  }, [segments, drills, draftKey, exitHref, onSave, t, checkPairs]);
 
   const goTo = useCallback((next: number, records: Map<number, Performed>) => {
     if (next >= segments.length) { void finish(records); return; }

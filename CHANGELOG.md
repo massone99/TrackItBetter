@@ -2,6 +2,10 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.41.3 - 2026-10-18
+
+- Narrated workout: finishing no longer checks that both sides of an L/R set were done in the narration, so narrating only the side left to do (the other already done in the workout) saves it and returns to the workout.
+
 ## 0.41.2 - 2026-10-18
 
 - Toasts (such as "Set removed") can be swiped away sideways.
