@@ -3,7 +3,8 @@ import { useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { startOfWeek, type DailyGoal, type GoalPeriod } from '../../domain/dailyGoals';
-import { goalsOf, type DailyGoalsSnapshot } from './repository';
+import { addWeeklyGoalsFromDaily, goalsOf, listDailyGoals, type DailyGoalsSnapshot } from './repository';
+import { DeriveWeeklySheet } from './DeriveWeeklySheet';
 import { DailyGoalSheet, type GoalDraft } from './DailyGoalSheet';
 import { GoalRow, GoalSegments, GoalsPeriodSwitch, useGoalText } from './DailyGoalViews';
 import { useGoalT } from './period';
@@ -32,12 +33,15 @@ export function GoalsPage({ period }: { period: GoalPeriod }) {
   const [expanded, setExpanded] = useState<string | null>(null);
   const [editing, setEditing] = useState<GoalDraft | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [deriveOpen, setDeriveOpen] = useState(false);
+  const [dailyGoals, setDailyGoals] = useState<DailyGoal[]>([]);
   const [removed, setRemoved] = useState<Removed | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(() => {
     void store.snapshot().then((next) => { setSnapshot(next); setFailed(false); }, () => setFailed(true));
-  }, [store]);
+    if (period === 'week') void listDailyGoals().then(setDailyGoals, () => undefined);
+  }, [store, period]);
   useFocusEffect(load);
   const hideToast = useCallback(() => setRemoved(null), []);
 
@@ -52,6 +56,7 @@ export function GoalsPage({ period }: { period: GoalPeriod }) {
     load();
   };
 
+  const derive = (days: number) => { setDeriveOpen(false); void change(() => addWeeklyGoalsFromDaily(days)); };
   const openSheet = (draft: GoalDraft | null) => { setEditing(draft); setSheetOpen(true); };
   const save = (draft: GoalDraft) => { setSheetOpen(false); void change(() => store.put(draft)); };
   const remove = (goal: DailyGoal, name: string) => void change(async () => {
@@ -101,7 +106,7 @@ export function GoalsPage({ period }: { period: GoalPeriod }) {
       ) : !snapshot ? (
         <ActivityIndicator color={palette.accent} />
       ) : progress.length === 0 ? (
-        <EmptyState icon="flag-outline" title={tg('emptyTitle')} body={tg('emptyBody')} action={<ActionButton icon="add" label={t('dailyGoals.add')} onPress={() => openSheet(null)} />} />
+        <EmptyState icon="flag-outline" title={tg('emptyTitle')} body={tg('emptyBody')} action={<><ActionButton icon="add" label={t('dailyGoals.add')} onPress={() => openSheet(null)} />{period === 'week' ? <ActionButton icon="copy-outline" label={t('weeklyGoals.deriveOpen')} secondary onPress={() => setDeriveOpen(true)} /> : null}</>} />
       ) : (
         <ListGroup>
           <View>
@@ -125,6 +130,8 @@ export function GoalsPage({ period }: { period: GoalPeriod }) {
           </View>
         </ListGroup>
       )}
+      {period === 'week' ? <ActionButton icon="copy-outline" variant="ghost" label={t('weeklyGoals.deriveOpen')} onPress={() => setDeriveOpen(true)} /> : null}
+      <DeriveWeeklySheet visible={deriveOpen} daily={dailyGoals} weekly={progress.map((item) => item.goal)} onDerive={derive} onClose={() => setDeriveOpen(false)} />
       <DailyGoalSheet
         period={period}
         key={sheetOpen ? `open-${editing?.id ?? 'new'}` : 'closed'}

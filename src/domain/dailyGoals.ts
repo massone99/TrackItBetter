@@ -139,3 +139,28 @@ export function startOfWeek(now: Date): Date {
   const sinceMonday = (now.getDay() + 6) % 7;
   return new Date(now.getFullYear(), now.getMonth(), now.getDate() - sinceMonday);
 }
+
+export type WeeklyDerivation = {
+  /** Weekly goals to add. */
+  add: DailyGoal[];
+  /** Daily goals whose weekly goal (same target, measure and what it counts) already exists. */
+  existing: number;
+  /** Goals left out because the list is full. */
+  dropped: number;
+};
+
+/**
+ * Weekly goals made from the daily ones: the same thing counted over `days` days of the week (7 for
+ * every day, 5 for the working days). The result is only a start: each can be edited afterwards.
+ * A weekly goal that already counts the same thing is left alone, so deriving again never doubles
+ * goals or undoes an edit.
+ */
+export function deriveWeeklyGoals(daily: readonly DailyGoal[], weekly: readonly DailyGoal[], days: number, newId: () => string): WeeklyDerivation {
+  const factor = Math.min(7, Math.max(1, Math.round(days)));
+  const fresh = daily.filter((goal) => !weekly.some((item) => sameGoalTarget(item, goal)));
+  const room = Math.max(0, MAX_DAILY_GOALS - weekly.length);
+  const add = fresh.slice(0, room).map((goal): DailyGoal => ({
+    id: newId(), scope: goal.scope, key: goal.key, measure: goal.measure, target: Math.min(targetMax('week', goal.measure), goal.target * factor),
+  }));
+  return { add, existing: daily.length - fresh.length, dropped: fresh.length - add.length };
+}

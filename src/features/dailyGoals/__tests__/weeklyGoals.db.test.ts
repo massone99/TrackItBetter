@@ -1,7 +1,7 @@
 import { migrateDatabase } from '../../../db/migrations';
 import { seedCatalogIfEmpty } from '../../../db/seed/import';
 import { addExerciseToWorkout, completeSet, startWorkout } from '../../session/repository';
-import { goalsOf } from '../repository';
+import { addWeeklyGoalsFromDaily, goalsOf } from '../repository';
 
 jest.mock('../../../db/client', () => {
   const { createRealDatabase } = jest.requireActual('../../../test/realDatabase');
@@ -46,5 +46,22 @@ describe('weekly goals', () => {
     expect((await day.snapshot()).progress[0].done).toBe(today.getDay() === 1 ? 10 : 0);
     real.sqlite.prepare('UPDATE training_set SET completed_at = ? WHERE id = ?').run(monday.getTime() - 7 * 86400000, setId);
     expect((await week.snapshot()).progress[0].done).toBe(0);
+  });
+
+  it('are derived from the daily goals, then edited freely, and deriving again changes nothing', async () => {
+    const day = goalsOf('day');
+    const week = goalsOf('week');
+    for (const goal of await week.list()) await week.remove(goal.id);
+    const [a] = await day.list();
+    await day.put({ scope: 'tag', key: 'Hip flexion', measure: 'minutes', target: 600 });
+    const first = await addWeeklyGoalsFromDaily(5);
+    expect(first.add.length).toBe((await day.list()).length);
+    const derived = (await week.list()).find((goal) => goal.key === 'Hip flexion')!;
+    expect(derived.target).toBe(3000);
+    await week.put({ ...derived, target: 2400 });
+    const again = await addWeeklyGoalsFromDaily(7);
+    expect(again.add).toEqual([]);
+    expect((await week.list()).find((goal) => goal.id === derived.id)!.target).toBe(2400);
+    expect(a).toBeDefined();
   });
 });

@@ -2,6 +2,10 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.41.0 - 2026-10-18
+
+- Weekly goals can be derived from the daily ones: "From the daily goals" on the weekly goals page turns each daily goal into a weekly one (daily total times the days per week you choose, up to 7). It shows what will be added first, leaves weekly goals that already count the same thing as they are, and every goal can be edited afterwards.
+
 ## 0.40.1 - 2026-10-17
 
 - Goals: a one-sided exercise counts once, not once per side: 10 reps (or 30 s) on each side count 10 (30), unequal sides count their mean. Same as the statistics. Daily and weekly goals.

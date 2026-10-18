@@ -2,7 +2,7 @@ import { and, eq, gte, ne } from 'drizzle-orm';
 import * as Crypto from 'expo-crypto';
 import { db, initializeDatabase } from '../../db/client';
 import { exerciseEntries, exercises, settings, trainingSets, workouts } from '../../db/schema';
-import { dailyGoalProgress, isValidDailyGoal, MAX_DAILY_GOALS, parseDailyGoals, startOfToday, startOfWeek, type DailyGoal, type DailyGoalProgress, type DaySet, type GoalPeriod } from '../../domain/dailyGoals';
+import { dailyGoalProgress, deriveWeeklyGoals, type WeeklyDerivation, isValidDailyGoal, MAX_DAILY_GOALS, parseDailyGoals, startOfToday, startOfWeek, type DailyGoal, type DailyGoalProgress, type DaySet, type GoalPeriod } from '../../domain/dailyGoals';
 import { rowCategories } from '../analytics/summary';
 import { exerciseMovementTags } from '../exercises/movementCatalog';
 
@@ -141,3 +141,11 @@ export type DailyGoalsSnapshot = {
 
 export const getDailyGoalsSnapshot = daily.snapshot;
 export const getWeeklyGoalsSnapshot = weekly.snapshot;
+
+/** Adds weekly goals derived from the daily ones (see `deriveWeeklyGoals`); returns what was added. */
+export async function addWeeklyGoalsFromDaily(days: number): Promise<WeeklyDerivation> {
+  const [dailyGoals, weeklyGoalsNow] = await Promise.all([daily.list(), weekly.list()]);
+  const result = deriveWeeklyGoals(dailyGoals, weeklyGoalsNow, days, () => Crypto.randomUUID());
+  for (const goal of result.add) await weekly.put(goal);
+  return result;
+}

@@ -1,4 +1,4 @@
-import { dailyGoalProgress, goalMatches, parseDailyGoals, startOfWeek, targetMax, type DailyGoal, type DaySet } from '../dailyGoals';
+import { dailyGoalProgress, deriveWeeklyGoals, goalMatches, parseDailyGoals, startOfWeek, targetMax, type DailyGoal, type DaySet } from '../dailyGoals';
 
 const set = (over: Partial<DaySet>): DaySet => ({
   workoutId: 'w1', workoutName: 'Mini 1', exerciseId: 'e1', exerciseName: 'Couch stretch', completedAt: new Date(2026, 9, 15, 8),
@@ -80,5 +80,34 @@ describe('one-sided sets', () => {
     const side = (pairId: string, seconds: number) => set({ pairId, durationSec: seconds });
     expect(dailyGoalProgress(time, [side('p', 30), side('p', 30)]).done).toBe(30);
     expect(dailyGoalProgress(time, [side('p', 30), side('p', 40)]).done).toBe(35);
+  });
+});
+
+describe('weekly goals from the daily ones', () => {
+  let n = 0;
+  const id = () => `new-${(n += 1)}`;
+  const daily = [goal({ id: 'a', key: 'Hip flexion', target: 600 }), goal({ id: 'b', scope: 'category', key: 'push', measure: 'reps', target: 30 })];
+
+  it('multiplies each daily total by the days of the week', () => {
+    const result = deriveWeeklyGoals(daily, [], 5, id);
+    expect(result.add.map(({ scope, key, measure, target }) => ({ scope, key, measure, target }))).toEqual([
+      { scope: 'tag', key: 'Hip flexion', measure: 'minutes', target: 3000 },
+      { scope: 'category', key: 'push', measure: 'reps', target: 150 },
+    ]);
+    expect(result).toMatchObject({ existing: 0, dropped: 0 });
+    expect(new Set(result.add.map((item) => item.id)).size).toBe(2);
+  });
+
+  it('leaves a weekly goal that counts the same thing alone, edited or not', () => {
+    const result = deriveWeeklyGoals(daily, [goal({ id: 'w', key: 'Hip flexion', target: 9999 })], 7, id);
+    expect(result.add).toHaveLength(1);
+    expect(result.add[0]).toMatchObject({ key: 'push', target: 210 });
+    expect(result.existing).toBe(1);
+  });
+
+  it('stays within the weekly ceiling and the size of the list', () => {
+    expect(deriveWeeklyGoals([goal({ measure: 'reps', target: 5000 })], [], 7, id).add[0].target).toBe(targetMax('week', 'reps'));
+    const full = Array.from({ length: 20 }, (_, index) => goal({ id: `w${index}`, key: `tag-${index}` }));
+    expect(deriveWeeklyGoals(daily, full, 7, id)).toMatchObject({ add: [], dropped: 2 });
   });
 });
