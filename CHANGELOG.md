@@ -2,6 +2,10 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.41.1 - 2026-10-18
+
+- Exercise options: "Compare with" is now a choice between "Last time in this workout" and "Last time of this exercise", instead of a list of past workouts.
+
 ## 0.41.0 - 2026-10-18
 
 - Weekly goals can be derived from the daily ones: "From the daily goals" on the weekly goals page turns each daily goal into a weekly one (daily total times the days per week you choose, up to 7). It shows what will be added first, leaves weekly goals that already count the same thing as they are, and every goal can be edited afterwards.

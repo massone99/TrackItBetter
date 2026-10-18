@@ -1345,7 +1345,9 @@ export async function getPreviousPerformance(exerciseIds: string[], excludeWorko
   const [current] = await db.select({ name: workouts.name, startedAt: workouts.startedAt }).from(workouts).where(eq(workouts.id, excludeWorkoutId)).limit(1);
   const entries = current ? await db.select({ exerciseId: exerciseEntries.exerciseId, compareWorkoutId: exerciseEntries.compareWorkoutId }).from(exerciseEntries)
     .where(and(eq(exerciseEntries.workoutId, excludeWorkoutId), isNotNull(exerciseEntries.compareWorkoutId))) : [];
-  const pinnedTo = new Map(entries.map((entry) => [entry.exerciseId, entry.compareWorkoutId!] as const));
+  // '@session' / '@any' pick the mode for one exercise; any other value is a workout chosen by hand (older builds).
+  const modeOf = new Map(entries.filter((entry) => entry.compareWorkoutId!.startsWith('@')).map((entry) => [entry.exerciseId, entry.compareWorkoutId!.slice(1)] as const));
+  const pinnedTo = new Map(entries.filter((entry) => !entry.compareWorkoutId!.startsWith('@')).map((entry) => [entry.exerciseId, entry.compareWorkoutId!] as const));
   const pinned = pinnedTo.size === 0 ? [] : (await db.selectDistinct({ exerciseId: exerciseEntries.exerciseId, workoutId: workouts.id, startedAt: workouts.startedAt })
     .from(trainingSets)
     .innerJoin(exerciseEntries, eq(trainingSets.entryId, exerciseEntries.id))
@@ -1353,7 +1355,9 @@ export async function getPreviousPerformance(exerciseIds: string[], excludeWorko
     .where(and(inArray(exerciseEntries.exerciseId, [...pinnedTo.keys()]), inArray(workouts.id, [...new Set(pinnedTo.values())]), done, ne(workouts.id, excludeWorkoutId))))
     .filter((row) => pinnedTo.get(row.exerciseId) === row.workoutId);
   const unpinned = exerciseIds.filter((exerciseId) => !pinned.some((row) => row.exerciseId === exerciseId));
-  const sameSession = current && readCompareMode() === 'session' ? await find(unpinned, { name: current.name, before: current.startedAt }) : [];
+  const fallback = readCompareMode();
+  const bySession = unpinned.filter((exerciseId) => (modeOf.get(exerciseId) ?? fallback) === 'session');
+  const sameSession = current ? await find(bySession, { name: current.name, before: current.startedAt }) : [];
   const anywhere = unpinned.filter((exerciseId) => !sameSession.some((row) => row.exerciseId === exerciseId));
   const latest = [...pinned, ...sameSession, ...await find(anywhere)];
   if (latest.length === 0) return result;

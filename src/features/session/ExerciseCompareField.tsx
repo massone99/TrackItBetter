@@ -1,41 +1,28 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { StyleSheet, View } from 'react-native';
-import { Body, Chip, MenuGroup } from '../../shared/components/ui';
-import { listComparableWorkouts, setEntryCompareWorkout, type ComparableWorkout, type SessionExercise } from './repository';
-
-const SHOWN = 8;
+import { Body, MenuGroup, SegmentedControl } from '../../shared/components/ui';
+import { readCompareMode, type CompareMode } from '../../shared/settings/preferences';
+import { setEntryCompareWorkout, type SessionExercise } from './repository';
 
 /**
- * What the exercise is compared with ("vs last time"): the default (its latest time in the same session,
- * as chosen in the Profile) or, by hand, one of its past workouts.
+ * What "vs last time" uses for this exercise: its latest time in this workout (same name, e.g. the same
+ * program day) or its latest time in any workout. Starts from the Profile default.
  */
-export function ExerciseCompareField({ exercise, workoutId, onChanged }: { exercise: SessionExercise; workoutId: string; onChanged: () => void }) {
-  const { t, i18n } = useTranslation();
-  const [workouts, setWorkouts] = useState<ComparableWorkout[] | null>(null);
-  const [chosen, setChosen] = useState(exercise.compareWorkoutId ?? null);
-  useEffect(() => {
-    let alive = true;
-    listComparableWorkouts(exercise.exerciseId, workoutId, SHOWN).then((list) => { if (alive) setWorkouts(list); }).catch(() => { if (alive) setWorkouts([]); });
-    return () => { alive = false; };
-  }, [exercise.exerciseId, workoutId]);
-  if (workouts === null || workouts.length === 0) return null;
-  const choose = (next: string | null) => {
-    setChosen(next);
-    void setEntryCompareWorkout(exercise.entryId, next).then(onChanged);
+export function ExerciseCompareField({ exercise, onChanged }: { exercise: SessionExercise; workoutId?: string; onChanged: () => void }) {
+  const { t } = useTranslation();
+  const stored = exercise.compareWorkoutId;
+  const [mode, setMode] = useState<CompareMode>(stored === '@session' || stored === '@any' ? (stored.slice(1) as CompareMode) : readCompareMode());
+  const choose = (next: CompareMode) => {
+    setMode(next);
+    void setEntryCompareWorkout(exercise.entryId, `@${next}`).then(onChanged);
   };
-  const label = (item: ComparableWorkout) => `${item.startedAt.toLocaleDateString(i18n.language, { day: 'numeric', month: 'short' })} · ${item.name}`;
   return (
     <MenuGroup title={t('compare.title')}>
-      <Body>{t('compare.help')}</Body>
-      <View style={styles.chips}>
-        <Chip label={t('compare.automatic')} selected={chosen === null} onPress={() => choose(null)} />
-        {workouts.map((item) => <Chip key={item.workoutId} label={label(item)} selected={chosen === item.workoutId} onPress={() => choose(item.workoutId)} />)}
-      </View>
+      <SegmentedControl value={mode} onChange={choose} options={[
+        { value: 'session', label: t('compare.modeWorkout') },
+        { value: 'any', label: t('compare.modeExercise') },
+      ]} />
+      <Body>{t(mode === 'session' ? 'compare.workoutHint' : 'compare.exerciseHint')}</Body>
     </MenuGroup>
   );
 }
-
-const styles = StyleSheet.create({
-  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-});
