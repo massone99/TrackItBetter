@@ -2,6 +2,10 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.45.3 - 2026-10-19
+
+- Focus mode: the set's value chips and scales sit inside the set card, above "Complete set"; collapsed sets no longer open RPE scales; a done set opens the form scale instead of the RPE one, so the next set stays in place.
+
 ## 0.45.2 - 2026-10-19
 
 - Workout toolbar: check-in and "Collapse all" share the first row; Focus, Voice and narration chips sit side by side on their own row, left-aligned, instead of stacking in the middle.
