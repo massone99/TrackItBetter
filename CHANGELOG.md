@@ -2,6 +2,10 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.45.4 - 2026-10-19
+
+- Focus mode: the set card uses one even spacing between header, fields, chips, scale and button; folded sets sit closer together; chips and scales of a done set line up with its text.
+
 ## 0.45.3 - 2026-10-19
 
 - Focus mode: the set's value chips and scales sit inside the set card, above "Complete set"; collapsed sets no longer open RPE scales; a done set opens the form scale instead of the RPE one, so the next set stays in place.
