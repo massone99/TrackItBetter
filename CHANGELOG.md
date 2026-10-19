@@ -2,6 +2,12 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.44.0 - 2026-10-19
+
+- Workout: once a set is rated and a later set is done, its RPE, form and ROM pickers fold into value chips (RPE 8 · Form 4 · ROM 4,5, with bands, record, clip and note chips); tap a chip to reopen its picker. The set just done keeps its pickers open. In a finished workout every set shows its values as chips. The chips are now 32 dp tall with a larger touch area and wrap onto more lines.
+- New Focus chip on the workout screen: the set in hand opens as a large one-column block (big fields, one set at a time), the others fold to one line. The choice is remembered.
+- Nothing was removed: every field, action and menu of a set is still there.
+
 ## 0.43.0 - 2026-10-19
 
 - When a workout started from a program ends with a different structure (exercises added or removed, other order or number of sets), the app offers to update the prescribed workout in the program too.

@@ -108,6 +108,7 @@ import { useScaledStyles } from '../../src/shared/theme/useScaledStyles';
 import { useAnimationSettings } from '../../src/shared/settings/AnimationProvider';
 
 const VOICE_CUES_KEY = 'workout.voice_cues.enabled';
+const FOCUS_MODE_KEY = 'workout.focus_mode.enabled';
 /** Pause between finishing an exercise and folding it. */
 const FOLD_DELAY_MS = 650;
 
@@ -154,6 +155,7 @@ export default function WorkoutScreen() {
     return null;
   }), []);
   const [clockNow, setClockNow] = useState<number | null>(null);
+  const [focusMode, setFocusMode] = useState(() => readBooleanPreference(FOCUS_MODE_KEY, false));
   const [voiceCues, setVoiceCues] = useState(() => readBooleanPreference(VOICE_CUES_KEY, false));
   const [readinessOpen, setReadinessOpen] = useState(false);
   const [detailsOpen, setDetailsOpen] = useState(false);
@@ -754,6 +756,13 @@ export default function WorkoutScreen() {
               <Chip icon="mic-outline" label={t('narration.start')} accessibilityLabel={t('narration.startHint')} onPress={() => router.push({ pathname: '/workout/narrate/[id]', params: { id: workout.id } })} />
             ) : null}
             <Chip
+              icon="scan-outline"
+              label={t('logger.focusChip')}
+              accessibilityLabel={focusMode ? t('logger.focusOn') : t('logger.focusOff')}
+              selected={focusMode}
+              onPress={() => { tapFeedback(); setFocusMode(!focusMode); writePreference(FOCUS_MODE_KEY, String(!focusMode)); }}
+            />
+            <Chip
               icon={voiceCues ? 'volume-high' : 'volume-mute-outline'}
               label={t('logger.voiceChip')}
               accessibilityLabel={voiceCues ? t('logger.voiceOn') : t('logger.voiceOff')}
@@ -810,6 +819,7 @@ export default function WorkoutScreen() {
             <BlockHeader block={exercise.block} exercises={workout.exercises.filter((item) => item.block === exercise.block)} />
           ) : null}
           <ExerciseCard
+            focus={focusMode}
             exercise={exercise}
             collapsed={collapsedEntries.get(exercise.entryId) ?? false}
             onToggleCollapsed={() => setCollapsedEntries((current) => new Map(current).set(exercise.entryId, !(current.get(exercise.entryId) ?? false)))}

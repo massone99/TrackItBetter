@@ -32,7 +32,7 @@ const NO_RECORDS: ReadonlyMap<string, RecordKind[]> = new Map();
  * and the add-set row. Shared by the workout in progress and a finished workout's page; the live-only
  * parts (hold timer, EMOM, comparison with last time, records) are optional.
  */
-export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, previous, hold = null, onChange, onSetValue, onComplete, onStartHold, onFinishHold, onAddSet, onAddWarmup, onCopyAllLast, onSetOptions, onUncomplete, onRemoveSet, onSwiped, showRpe, onRpe, onOptions, onToggleWarmup, setRecords = NO_RECORDS, volumeRecord = false, supersetLabel = null, emomLabel: emomBadgeLabel, defaultRest = 0, onFormRating, onRomRating, editDone = false, typeDone = false, compare = true, apparatusLabel = null, firstTimeLabel, describeBands, compareBands }: {
+export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, previous, hold = null, onChange, onSetValue, onComplete, onStartHold, onFinishHold, onAddSet, onAddWarmup, onCopyAllLast, onSetOptions, onUncomplete, onRemoveSet, onSwiped, showRpe, onRpe, onOptions, onToggleWarmup, setRecords = NO_RECORDS, volumeRecord = false, supersetLabel = null, emomLabel: emomBadgeLabel, defaultRest = 0, onFormRating, onRomRating, focus = false, editDone = false, typeDone = false, compare = true, apparatusLabel = null, firstTimeLabel, describeBands, compareBands }: {
   handle?: ReactNode;
   exercise: SessionExercise;
   collapsed: boolean;
@@ -67,6 +67,8 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
   onFormRating: (set: SessionSet, rating: number | null) => void;
   /** Range-of-motion chips under each working set, like the RPE row (visible for the set in hand and the done ones). */
   onRomRating?: (set: SessionSet, rating: number | null) => void;
+  /** Focus mode: the set in hand opens as a large one-column block, the others fold to one line. */
+  focus?: boolean;
   /** Done sets keep their − and + buttons (a finished workout, where every set is done). */
   editDone?: boolean;
   /** Done sets stay editable by tapping the value, without − and +, so finished rows stay quiet (the workout in progress). */
@@ -85,7 +87,9 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
   const styles = useScaledStyles(baseStyles);
   const { t, i18n } = useTranslation();
   // Very large text: each set stacks its fields (reps, then kg, then done) instead of one tight row.
-  const { palette, largeText } = useTheme();
+  const { palette, largeText: textIsLarge } = useTheme();
+  // Focus mode stacks the set in hand like very large text does: big fields, one set at a time.
+  const largeText = textIsLarge || focus;
   // The number fields that are open, so − and + step what is typed rather than the saved value.
   const controls = useRef(new Map<string, NumberEditControl>());
   const step = (set: SessionSet, field: Parameters<typeof onChange>[1], delta: number) => {
@@ -151,6 +155,10 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
   // Sets where "+ kg" was tapped: a set with no load shows only that chip until then.
   const [loadShown, setLoadShown] = useState<ReadonlySet<string>>(() => new Set());
   const pickedSet = picked ? exercise.sets.find((set) => set.id === picked.id && Boolean(set.completedAt) === picked.done) : undefined;
+  // RPE, form and ROM pickers fold into value chips once a set is rated and a later set is done; a tap on the chip reopens its picker.
+  const [reopened, setReopened] = useState<ReadonlySet<string>>(() => new Set());
+  const reopen = (setId: string, kind: 'rpe' | 'form' | 'rom') => { tapFeedback(); setReopened((current) => new Set(current).add(`${setId}:${kind}`)); };
+  const lastDoneId = [...exercise.sets].reverse().find((set) => set.completedAt)?.id ?? null;
   const focusedId = hold && exercise.sets.some((set) => set.id === hold.setId) ? hold.setId : pickedSet?.id ?? nextSetId;
 
   return (
@@ -258,8 +266,14 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
         const value = holding && hold ? holdDisplay(hold) : timed ? formatClock(stored) : distance ? formatNumber(stored) : String(stored);
         const loadText = set.addedLoadKg === 0 ? '0' : formatLoad(set.addedLoadKg).replace(' kg', '');
         // RPE for the set in hand and the done ones (all five whole values in one row); later sets wait.
-        const rpeRow = open && showRpe && set.kind === 'working' && !emomBadgeLabel && (done || largeText || set.id === nextSetId);
-        const romRow = open && !!onRomRating && set.kind === 'working' && !emomBadgeLabel && (done || largeText || set.id === nextSetId);
+        // A done set keeps a picker open while it has no value, while it is the one just done, or once reopened; otherwise a chip shows the value.
+        const foldable = done && !editDone && set.id !== lastDoneId;
+        const folded = (kind: 'rpe' | 'form' | 'rom', value: number | null) => done && value !== null && (editDone || foldable) && !reopened.has(`${set.id}:${kind}`);
+        const rpeRow = open && showRpe && set.kind === 'working' && !emomBadgeLabel && (done || largeText || set.id === nextSetId) && !folded('rpe', set.rpe);
+        const romRow = open && !!onRomRating && set.kind === 'working' && !emomBadgeLabel && (done || largeText || set.id === nextSetId) && !folded('rom', set.romRating);
+        const formRow = done && set.kind === 'working' && !emomBadgeLabel && !folded('form', set.formRating);
+        const formChip = done && set.kind === 'working' && !emomBadgeLabel && set.formRating !== null && !formRow;
+        const romChip = !!onRomRating && done && set.kind === 'working' && !emomBadgeLabel && set.romRating !== null && !romRow;
         const title = `${set.kind === 'warmup' ? t('workout.blocks.warmup') : t('logger.setTitle', { number: workingNumber })}${set.side === 'left' ? ' · L' : set.side === 'right' ? ' · R' : ''}`;
         const valueDown = showSteps ? <StepButton large={largeText} icon="remove" label={t('logger.stepDown', { field: fieldLabel, number: workingNumber, side: sideLabel }).trim()} onPress={(multiplier) => step(set, field, (distance ? -0.5 : timed ? -5 : -1) * multiplier)} /> : null;
         const valueUp = showSteps ? <StepButton large={largeText} icon="add" label={t('logger.stepUp', { field: fieldLabel, number: workingNumber, side: sideLabel }).trim()} onPress={(multiplier) => step(set, field, (distance ? 0.5 : timed ? 5 : 1) * multiplier)} /> : null;
@@ -506,50 +520,67 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
               )
             ) : null}
             {/* Row 3, once the set is done: how clean the form was. The exercise folds only after the last rating. */}
-            {done && set.kind === 'working' && !emomBadgeLabel ? <FormRating scroll={!largeText} value={set.formRating} sideLabel={sideLabel} onChange={(rating) => onFormRating(set, rating)} /> : null}
+            {formRow ? <FormRating scroll={!largeText} value={set.formRating} sideLabel={sideLabel} onChange={(rating) => onFormRating(set, rating)} /> : null}
             {romRow ? <FormRating rom scroll={!largeText} value={set.romRating} sideLabel={sideLabel} onChange={(rating) => onRomRating!(set, rating)} /> : null}
             {/* Only when there is something to show: PR, clips, note (and RPE when its row is hidden). */}
-            {set.note || set.clipCount > 0 || (set.poseCount ?? 0) > 0 || (!rpeRow && set.rpe !== null) || setRecords.has(set.id) || set.bands.length > 0 ? (
-              <Pressable accessibilityRole="button" onPress={() => onSetOptions(set)} style={styles.setMeta}>
+            {set.note || set.clipCount > 0 || (set.poseCount ?? 0) > 0 || (!rpeRow && set.rpe !== null) || formChip || romChip || setRecords.has(set.id) || set.bands.length > 0 ? (
+              <View style={styles.setMeta}>
                 {(() => {
                   const described = set.bands.length > 0 ? describeBands?.(set) : null;
                   return described ? (
-                    <View accessibilityLabel={described.text} style={[styles.clipChip, { backgroundColor: palette.surface }]}>
+                    <Pressable accessibilityRole="button" accessibilityLabel={described.text} hitSlop={8} onPress={() => onSetOptions(set)} style={[styles.clipChip, { backgroundColor: palette.surface }]}>
                       {described.colors.map((color, index) => <View key={`${color}-${index}`} style={[styles.bandDot, { backgroundColor: color, borderColor: palette.border }]} />)}
                       <Text style={[styles.clipChipText, { color: palette.text }]}>{described.text}</Text>
-                    </View>
+                    </Pressable>
                   ) : null;
                 })()}
                 {setRecords.has(set.id) ? (
-                  <View
+                  <Pressable
+                    accessibilityRole="button"
                     accessibilityLabel={setRecords.get(set.id)!.map((kind) => t(`records.kinds.${kind}`)).join(', ')}
+                    hitSlop={8}
+                    onPress={() => onSetOptions(set)}
                     style={[styles.clipChip, { backgroundColor: palette.recordSoft }]}
                   >
                     <Icon name="trophy" size={13} color={palette.record} />
                     <Text style={[styles.clipChipText, { color: palette.record }]}>{t('records.pr')}</Text>
-                  </View>
+                  </Pressable>
                 ) : null}
                 {!rpeRow && set.rpe !== null ? (
-                  <View style={[styles.clipChip, { backgroundColor: palette.surface }]}>
+                  <Pressable accessibilityRole="button" accessibilityLabel={t('logger.rpeTag', { value: formatRpe(set.rpe) })} hitSlop={8} onPress={() => reopen(set.id, 'rpe')} style={[styles.clipChip, { backgroundColor: palette.surface }]}>
                     <Icon name="speedometer-outline" size={13} color={palette.accentStrong} />
                     <Text style={[styles.clipChipText, { color: palette.accentStrong }]}>{t('logger.rpeTag', { value: formatRpe(set.rpe) })}</Text>
-                  </View>
+                  </Pressable>
+                ) : null}
+                {formChip ? (
+                  <Pressable accessibilityRole="button" accessibilityLabel={`${t('lastTime.form')} ${formatNumber(set.formRating!)}`} hitSlop={8} onPress={() => reopen(set.id, 'form')} style={[styles.clipChip, { backgroundColor: palette.surface }]}>
+                    <Text style={[styles.clipChipText, { color: palette.accentStrong }]}>{`${t('lastTime.form')} ${formatNumber(set.formRating!)}`}</Text>
+                  </Pressable>
+                ) : null}
+                {romChip ? (
+                  <Pressable accessibilityRole="button" accessibilityLabel={`${t('lastTime.rom')} ${formatNumber(set.romRating!)}`} hitSlop={8} onPress={() => reopen(set.id, 'rom')} style={[styles.clipChip, { backgroundColor: palette.surface }]}>
+                    <Text style={[styles.clipChipText, { color: palette.accentStrong }]}>{`${t('lastTime.rom')} ${formatNumber(set.romRating!)}`}</Text>
+                  </Pressable>
                 ) : null}
                 {set.clipCount > 0 ? (
-                  <View style={[styles.clipChip, { backgroundColor: palette.surface }]}>
+                  <Pressable accessibilityRole="button" hitSlop={8} onPress={() => onSetOptions(set)} style={[styles.clipChip, { backgroundColor: palette.surface }]}>
                     <Icon name="videocam" size={13} color={palette.accentStrong} />
                     <Text style={[styles.clipChipText, { color: palette.accentStrong }]}>{t('logger.clip', { count: set.clipCount })}</Text>
-                  </View>
+                  </Pressable>
                 ) : null}
                 {(set.poseCount ?? 0) > 0 ? (
-                  <View accessibilityLabel={t('poseLink.setActionCount', { count: set.poseCount })} style={[styles.clipChip, { backgroundColor: palette.surface }]}>
+                  <Pressable accessibilityRole="button" accessibilityLabel={t('poseLink.setActionCount', { count: set.poseCount })} hitSlop={8} onPress={() => onSetOptions(set)} style={[styles.clipChip, { backgroundColor: palette.surface }]}>
                     <Icon name="scan-outline" size={13} color={palette.accentStrong} />
                     <Text style={[styles.clipChipText, { color: palette.accentStrong }]}>{set.poseCount}</Text>
-                  </View>
+                  </Pressable>
                 ) : null}
-                {set.note ? <Icon name="chatbubble-ellipses-outline" size={14} color={palette.textMuted} /> : null}
-                {set.note ? <Text numberOfLines={2} style={[styles.setNote, { color: palette.textMuted }]}>{set.note}</Text> : null}
-              </Pressable>
+                {set.note ? (
+                  <Pressable accessibilityRole="button" onPress={() => onSetOptions(set)} style={styles.noteChip}>
+                    <Icon name="chatbubble-ellipses-outline" size={14} color={palette.textMuted} />
+                    <Text numberOfLines={2} style={[styles.setNote, { color: palette.textMuted }]}>{set.note}</Text>
+                  </Pressable>
+                ) : null}
+              </View>
             ) : null}
           </Animated.View>
         );
@@ -650,9 +681,10 @@ const baseStyles = StyleSheet.create({
   addSetLarge: { justifyContent: 'center', borderWidth: 1, borderRadius: 14, paddingHorizontal: 12 },
   setRow: { flexDirection: 'row', alignItems: 'center', minHeight: 56, paddingTop: 4, paddingLeft: 2 },
   recordChip: { flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-start', borderRadius: 10, paddingHorizontal: 8, paddingVertical: 3, marginTop: 4 },
-  setMeta: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingLeft: 40, paddingRight: 12, paddingBottom: 8 },
-  clipChip: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, minHeight: 24, borderRadius: 999 },
+  setMeta: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8, paddingLeft: 40, paddingRight: 12, paddingBottom: 8 },
+  clipChip: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, minHeight: 32, borderRadius: 999 },
   clipChipText: { fontFamily: fonts.semibold, fontSize: 12 },
+  noteChip: { flexDirection: 'row', alignItems: 'center', gap: 6, flexShrink: 1, minHeight: 32 },
   setNote: { flex: 1, fontFamily: fonts.body, fontSize: 13, lineHeight: 18 },
   exerciseNote: { fontFamily: fonts.body, fontSize: 13, lineHeight: 18, marginTop: 4 },
   setBadge: { width: 36, height: 36, borderRadius: 9, alignItems: 'center', justifyContent: 'center' },
