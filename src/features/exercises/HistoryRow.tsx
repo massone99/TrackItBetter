@@ -11,7 +11,7 @@ import { amountOf, perSet } from '../../domain/lastTime';
 import { formatClock, formatNumber } from '../../shared/utils/format';
 
 /** One logged session: its date and workout, and every set on one line. */
-export function HistoryRow({ session, older, metric, locale, first, exerciseId }: { session: ExerciseHistorySession; /** The session before this one, to show how it went compared with it. */ older?: ExerciseHistorySession; metric: string; locale: string; first: boolean; exerciseId: string }) {
+export function HistoryRow({ session, older, metric, locale, first, exerciseId, onSelect, selected = false }: { /** Picking mode: a press chooses this session (instead of opening it) and `selected` marks the chosen one. */ onSelect?: () => void; selected?: boolean; session: ExerciseHistorySession; /** The session before this one, to show how it went compared with it. */ older?: ExerciseHistorySession; metric: string; locale: string; first: boolean; exerciseId: string }) {
   const styles = useScaledStyles(baseStyles);
   const { palette } = useTheme();
   const { t } = useTranslation();
@@ -29,10 +29,11 @@ export function HistoryRow({ session, older, metric, locale, first, exerciseId }
     : { text: `${delta > 0 ? '↑ +' : '↓ −'}${timed ? formatClock(Math.abs(delta)) : formatNumber(Math.abs(delta))}`, color: delta > 0 ? palette.success : palette.warning };
   return (
     <Pressable
-      accessibilityRole="button"
+      accessibilityRole={onSelect ? 'radio' : 'button'}
+      accessibilityState={onSelect ? { selected } : undefined}
       accessibilityLabel={`${date}, ${session.workoutName}: ${describeSets(session.sets, metric)}`}
-      onPress={() => router.push({ pathname: '/workout/entry/[entryId]', params: { entryId: session.entryId, workout: session.workoutId, exercise: exerciseId } })}
-      style={({ pressed }) => [styles.historyRow, !first && { borderTopColor: palette.border, borderTopWidth: StyleSheet.hairlineWidth }, { opacity: pressed ? 0.6 : 1 }]}
+      onPress={onSelect ?? (() => router.push({ pathname: '/workout/entry/[entryId]', params: { entryId: session.entryId, workout: session.workoutId, exercise: exerciseId } }))}
+      style={({ pressed }) => [styles.historyRow, selected && { backgroundColor: palette.accentSoft }, !first && { borderTopColor: palette.border, borderTopWidth: StyleSheet.hairlineWidth }, { opacity: pressed ? 0.6 : 1 }]}
     >
       <View style={styles.historyDate}>
         <Text style={[styles.historyDay, { color: palette.text }]}>{session.startedAt.getDate()}</Text>
@@ -44,7 +45,7 @@ export function HistoryRow({ session, older, metric, locale, first, exerciseId }
         {averages ? <Text style={[styles.historyAverages, { color: palette.textMuted }]}>{averages}</Text> : null}
       </View>
       {trend ? <Text style={[styles.historyTrend, { color: trend.color }]}>{trend.text}</Text> : null}
-      <Icon name="chevron-forward" size={16} color={palette.textMuted} />
+      {onSelect ? <Icon name={selected ? 'checkmark-circle' : 'ellipse-outline'} size={22} color={selected ? palette.accentStrong : palette.textMuted} /> : <Icon name="chevron-forward" size={16} color={palette.textMuted} />}
     </Pressable>
   );
 }

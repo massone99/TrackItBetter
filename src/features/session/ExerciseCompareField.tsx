@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Pressable, StyleSheet, View } from 'react-native';
-import { Body, Icon, MenuGroup, SegmentedControl, Text } from '../../shared/components/ui';
+import { getExerciseHistory, type ExerciseHistorySession } from '../analytics/repository';
+import { HistoryRow } from '../exercises/HistoryRow';
+import { Body, MenuGroup, SegmentedControl, Text } from '../../shared/components/ui';
 import { readCompareMode, type CompareMode } from '../../shared/settings/preferences';
 import { useTheme } from '../../shared/theme/ThemeProvider';
 import { fonts } from '../../shared/theme/typography';
-import { listComparableWorkouts, setEntryCompareWorkout, type ComparableWorkout, type SessionExercise } from './repository';
+import { setEntryCompareWorkout, type SessionExercise } from './repository';
 
 type Mode = CompareMode | 'pick';
 
@@ -23,11 +25,11 @@ export function ExerciseCompareField({ exercise, workoutId, onChanged }: { exerc
   const stored = exercise.compareWorkoutId ?? null;
   const [mode, setMode] = useState<Mode>(stored === '@session' || stored === '@any' ? (stored.slice(1) as CompareMode) : stored ? 'pick' : readCompareMode());
   const [pickedId, setPickedId] = useState<string | null>(stored && !stored.startsWith('@') ? stored : null);
-  const [workouts, setWorkouts] = useState<ComparableWorkout[] | null>(null);
+  const [workouts, setWorkouts] = useState<ExerciseHistorySession[] | null>(null);
   const [all, setAll] = useState(false);
   useEffect(() => {
     let alive = true;
-    listComparableWorkouts(exercise.exerciseId, workoutId, LOADED).then((list) => { if (alive) setWorkouts(list); }).catch(() => { if (alive) setWorkouts([]); });
+    getExerciseHistory(exercise.exerciseId, LOADED).then((list) => { if (alive) setWorkouts(list.filter((item) => item.workoutId !== workoutId)); }).catch(() => { if (alive) setWorkouts([]); });
     return () => { alive = false; };
   }, [exercise.exerciseId, workoutId]);
 
@@ -43,7 +45,6 @@ export function ExerciseCompareField({ exercise, workoutId, onChanged }: { exerc
 
   const canPick = (workouts?.length ?? 0) > 0;
   const shown = workouts ? (all ? workouts : workouts.slice(0, SHOWN)) : [];
-  const date = (item: ComparableWorkout) => item.startedAt.toLocaleDateString(i18n.language, { weekday: 'short', day: 'numeric', month: 'short' });
   return (
     <MenuGroup title={t('compare.title')}>
       <SegmentedControl value={mode} onChange={choose} options={[
@@ -53,25 +54,19 @@ export function ExerciseCompareField({ exercise, workoutId, onChanged }: { exerc
       ]} />
       {mode === 'pick' ? (
         <View style={[styles.list, { borderColor: palette.border, backgroundColor: palette.surface }]}>
-          {shown.map((item, index) => {
-            const selected = item.workoutId === pickedId;
-            return (
-              <Pressable
-                key={item.workoutId}
-                accessibilityRole="radio"
-                accessibilityState={{ selected }}
-                accessibilityLabel={`${date(item)}, ${item.name}`}
-                onPress={() => pick(item.workoutId)}
-                style={({ pressed }) => [styles.row, index > 0 && { borderTopColor: palette.border, borderTopWidth: StyleSheet.hairlineWidth }, selected && { backgroundColor: palette.accentSoft }, pressed && { opacity: 0.6 }]}
-              >
-                <Icon name={selected ? 'checkmark-circle' : 'ellipse-outline'} size={22} color={selected ? palette.accentStrong : palette.textMuted} />
-                <View style={styles.rowText}>
-                  <Text numberOfLines={1} style={[styles.rowTitle, { color: palette.text }]}>{item.name}</Text>
-                  <Text style={[styles.rowDate, { color: palette.textMuted }]}>{date(item)}</Text>
-                </View>
-              </Pressable>
-            );
-          })}
+          {shown.map((item, index) => (
+            <HistoryRow
+              key={item.workoutId}
+              session={item}
+              older={workouts?.[workouts.indexOf(item) + 1]}
+              exerciseId={exercise.exerciseId}
+              metric={exercise.metric}
+              locale={i18n.language}
+              first={index === 0}
+              selected={item.workoutId === pickedId}
+              onSelect={() => pick(item.workoutId)}
+            />
+          ))}
           {!all && (workouts?.length ?? 0) > SHOWN ? (
             <Pressable accessibilityRole="button" onPress={() => setAll(true)} style={[styles.more, { borderTopColor: palette.border }]}>
               <Text style={[styles.moreText, { color: palette.accentStrong }]}>{t('compare.showMore', { count: (workouts?.length ?? 0) - SHOWN })}</Text>
@@ -86,10 +81,6 @@ export function ExerciseCompareField({ exercise, workoutId, onChanged }: { exerc
 
 const styles = StyleSheet.create({
   list: { borderRadius: 16, borderWidth: StyleSheet.hairlineWidth, overflow: 'hidden' },
-  row: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 56, paddingHorizontal: 16, paddingVertical: 8 },
-  rowText: { flex: 1 },
-  rowTitle: { fontFamily: fonts.semibold, fontSize: 15 },
-  rowDate: { fontFamily: fonts.body, fontSize: 13 },
   more: { minHeight: 48, alignItems: 'center', justifyContent: 'center', borderTopWidth: StyleSheet.hairlineWidth },
   moreText: { fontFamily: fonts.semibold, fontSize: 14 },
 });
