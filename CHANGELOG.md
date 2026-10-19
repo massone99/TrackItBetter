@@ -2,6 +2,11 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.46.0 - 2026-10-19
+
+- Workout: "Remove all sets" in an exercise's options and at the end of the workout empties the sets and keeps the exercises, with a Restore toast.
+- Comparison: besides "Same workout" and "Any workout", a third "Pick one" shows a short list of past workouts of the exercise to compare with.
+
 ## 0.45.8 - 2026-10-19
 
 - Workout: a long set note shows on up to three lines in its chip instead of one, and the in-place note editor stops growing at a fixed height and scrolls.
