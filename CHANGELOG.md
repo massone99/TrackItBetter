@@ -2,6 +2,10 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.45.6 - 2026-10-19
+
+- Workout: turning focus mode off with a set open no longer makes that set vanish and leave a blank gap.
+
 ## 0.45.5 - 2026-10-19
 
 - Workout: a set's chips and its RPE, form and ROM scales line up under the values with even margins; the scales show every value on two rows instead of a strip cut at the edge.
