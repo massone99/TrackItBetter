@@ -18,7 +18,9 @@ import { bandsById, describeSetBands, useEquipment } from '../equipment/useEquip
  * note, video, pose analysis, L/R pair and removal. The live-only parts (hold timer mode, done
  * without the timer, copy last time) show when their handlers are given.
  */
-export function SetSheet({ exercise, set, holdMode, onHoldMode, onClose, onChanged, onRemoved, onCompleteManually, lastTime, onCopyLast, onPair }: {
+export function SetSheet({ initialView, exercise, set, holdMode, onHoldMode, onClose, onChanged, onRemoved, onCompleteManually, lastTime, onCopyLast, onPair }: {
+  /** Opens straight on the set's bands or its note. */
+  initialView?: 'bands' | 'note';
   exercise: SessionExercise;
   set: SessionSet;
   holdMode?: HoldMode;
@@ -42,7 +44,7 @@ export function SetSheet({ exercise, set, holdMode, onHoldMode, onClose, onChang
   const [rom, setRom] = useState(set.romRating);
   const [confirming, setConfirming] = useState(false);
   // Bands open in their own view of the sheet, so the main view stays short.
-  const [bandsOpen, setBandsOpen] = useState(false);
+  const [bandsOpen, setBandsOpen] = useState(initialView === 'bands');
   const { catalog } = useEquipment();
   const bandsText = catalog ? describeSetBands(set, bandsById(catalog), t)?.text ?? null : null;
   // Clips cannot be restored, so only a set with clips asks first; any other removal can be undone.
@@ -121,6 +123,7 @@ export function SetSheet({ exercise, set, holdMode, onHoldMode, onClose, onChang
             onChangeText={setNote}
             placeholder={t('logger.notePlaceholder')}
             multiline
+            autoFocus={initialView === 'note'}
             maxLength={500}
           />
           <ActionButton

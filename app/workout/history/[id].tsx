@@ -85,7 +85,7 @@ export default function PastWorkoutScreen() {
   const [error, setError] = useState<string | null>(null);
   const [blockedBy, setBlockedBy] = useState<{ id: string; name: string } | null>(null);
   const [loadError, setLoadError] = useState(false);
-  const [setFor, setSetFor] = useState<SetTarget | null>(null);
+  const [setFor, setSetFor] = useState<(SetTarget & { view?: 'bands' | 'note' }) | null>(null);
   const [pairFor, setPairFor] = useState<(SetTarget & { pairedSet: SessionSet | null }) | null>(
     null,
   );
@@ -393,7 +393,7 @@ export default function PastWorkoutScreen() {
               tapFeedback();
               void edit(() => setSetRomRating(set.id, rating));
             }}
-            onSetOptions={(set) => setSetFor({ exercise, set })}
+            onSetOptions={(set, view) => setSetFor({ exercise, set, view })}
             onRemoveSet={(set) => void removeSet(set)}
             onAddSet={() => {
               if (exercise.unilateral) setNewPairFor(exercise);
@@ -423,7 +423,8 @@ export default function PastWorkoutScreen() {
 
       {setFor && liveSet ? (
         <SetSheet
-          key={liveSet.id}
+          key={`${liveSet.id}:${setFor.view ?? ''}`}
+          initialView={setFor.view}
           exercise={setFor.exercise}
           set={liveSet}
           onClose={() => setSetFor(null)}

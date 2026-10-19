@@ -2,6 +2,10 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.45.0 - 2026-10-19
+
+- Workout: every value of a set is one tap away. Under the set in hand, the done sets and (in a finished workout) every set, a strip of chips shows RPE, Form, ROM, Bands and Note: filled with the value, or dashed when empty. RPE, Form and ROM open their picker right there (tap again to close); Bands and Note open the set's sheet straight on the bands or on the note. Record, clip and pose chips stay.
+
 ## 0.44.0 - 2026-10-19
 
 - Workout: once a set is rated and a later set is done, its RPE, form and ROM pickers fold into value chips (RPE 8 · Form 4 · ROM 4,5, with bands, record, clip and note chips); tap a chip to reopen its picker. The set just done keeps its pickers open. In a finished workout every set shows its values as chips. The chips are now 32 dp tall with a larger touch area and wrap onto more lines.

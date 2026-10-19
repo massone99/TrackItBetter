@@ -177,7 +177,7 @@ export default function WorkoutScreen() {
   const [records, setRecords] = useState<{ sets: Map<string, RecordKind[]>; volume: Set<string> }>(() => ({ sets: new Map(), volume: new Set() }));
   const [referenceFor, setReferenceFor] = useState<SessionExercise | null>(null);
   const [removeExerciseFor, setRemoveExerciseFor] = useState<SessionExercise | null>(null);
-  const [setSheet, setSetSheet] = useState<{ exercise: SessionExercise; setId: string } | null>(null);
+  const [setSheet, setSetSheet] = useState<{ exercise: SessionExercise; setId: string; view?: 'bands' | 'note' } | null>(null);
   // Set that just got completed and is waiting for an optional RPE tap.
   // RPE chips under every working set; Profile can hide them.
   const [showRpe] = useState(() => readBooleanPreference(RPE_PROMPT_KEY, true));
@@ -834,7 +834,7 @@ export default function WorkoutScreen() {
             onAddSet={() => void addSet(exercise.entryId).then(() => refresh(workout.id))}
             onAddWarmup={() => void addWarmupSet(exercise.entryId).then(() => refresh(workout.id))}
             onCopyAllLast={copyable.length > 0 ? () => void Promise.all(copyable.map(({ set, values }) => copyValuesToSet(set.id, values))).then(() => refresh(workout.id)) : undefined}
-            onSetOptions={(set) => setSetSheet({ exercise, setId: set.id })}
+            onSetOptions={(set, view) => setSetSheet({ exercise, setId: set.id, view })}
             onToggleWarmup={(set) => void toggleWarmup(set)}
             setRecords={records.sets}
             volumeRecord={records.volume.has(exercise.exerciseId)}
@@ -1051,7 +1051,8 @@ export default function WorkoutScreen() {
 
       {sheetExercise && sheetSet ? (
         <SetSheet
-          key={sheetSet.id}
+          key={`${sheetSet.id}:${setSheet?.view ?? ''}`}
+          initialView={setSheet?.view}
           exercise={sheetExercise}
           set={sheetSet}
           holdMode={holdModeFor(sheetSet.id)}
