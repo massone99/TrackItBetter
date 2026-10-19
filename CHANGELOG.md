@@ -2,6 +2,10 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.42.0 - 2026-10-19
+
+- Goal history: a calendar icon on the goals screens opens a month calendar of the days where all goals were reached (green with a check) or some (2/3), with the goals of the day you tap; the Weekly tab lists the weeks with an expandable detail. Current and best streak of days or weeks.
+
 ## 0.41.3 - 2026-10-18
 
 - Narrated workout: finishing no longer checks that both sides of an L/R set were done in the narration, so narrating only the side left to do (the other already done in the workout) saves it and returns to the workout.

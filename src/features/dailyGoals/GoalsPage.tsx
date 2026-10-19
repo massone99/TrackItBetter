@@ -8,7 +8,7 @@ import { DeriveWeeklySheet } from './DeriveWeeklySheet';
 import { DailyGoalSheet, type GoalDraft } from './DailyGoalSheet';
 import { GoalRow, GoalSegments, GoalsPeriodSwitch, useGoalText } from './DailyGoalViews';
 import { useGoalT } from './period';
-import { ActionButton, Body, EmptyState, FooterAction, ListGroup, PageHeading, Screen, Text, Toast } from '../../shared/components/ui';
+import { ActionButton, Body, EmptyState, FooterAction, IconButton, ListGroup, PageHeading, Screen, Text, Toast } from '../../shared/components/ui';
 import { useTheme } from '../../shared/theme/ThemeProvider';
 import { useScaledStyles } from '../../shared/theme/useScaledStyles';
 import { fonts } from '../../shared/theme/typography';
@@ -96,7 +96,12 @@ export function GoalsPage({ period }: { period: GoalPeriod }) {
       <GoalsPeriodSwitch period={period} />
       <PageHeading
         title={tg('title')}
-        action={progress.length > 0 ? <Text style={[styles.count, { color: reached === progress.length ? palette.success : palette.accentStrong }]}>{`${reached}/${progress.length}`}</Text> : undefined}
+        action={(
+          <View style={styles.headActions}>
+            {progress.length > 0 ? <Text style={[styles.count, { color: reached === progress.length ? palette.success : palette.accentStrong }]}>{`${reached}/${progress.length}`}</Text> : null}
+            <IconButton icon="calendar-outline" label={t('dailyGoals.history')} onPress={() => router.push({ pathname: '/goals-history', params: { period } })} />
+          </View>
+        )}
       />
       {progress.length > 0 ? <GoalSegments progress={progress} /> : null}
       <Body style={styles.stats}>{stats}</Body>
@@ -145,6 +150,7 @@ export function GoalsPage({ period }: { period: GoalPeriod }) {
 }
 
 const baseStyles = StyleSheet.create({
+  headActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   count: { fontFamily: fonts.display, fontSize: 28 },
   stats: { fontSize: 14 },
 });

@@ -88,6 +88,7 @@ function AppNavigator() {
         <Stack.Screen name="workout/[id]" options={{ gestureEnabled: false }} />
         <Stack.Screen name="micro-session" />
         <Stack.Screen name="daily-goals" />
+        <Stack.Screen name="goals-history" />
         <Stack.Screen name="daily-goal/[id]" />
         <Stack.Screen name="weekly-goals" />
         <Stack.Screen name="weekly-goal/[id]" />
