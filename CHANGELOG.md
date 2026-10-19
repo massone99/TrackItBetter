@@ -2,6 +2,10 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.45.1 - 2026-10-19
+
+- Set values work like tabs: the chips RPE · Form · ROM · Bands · Note pick what to edit, and only the chosen scale shows below them, in its own panel. By default the first value still to fill opens (RPE, then form once the set is done, then ROM).
+
 ## 0.45.0 - 2026-10-19
 
 - Workout: every value of a set is one tap away. Under the set in hand, the done sets and (in a finished workout) every set, a strip of chips shows RPE, Form, ROM, Bands and Note: filled with the value, or dashed when empty. RPE, Form and ROM open their picker right there (tap again to close); Bands and Note open the set's sheet straight on the bands or on the note. Record, clip and pose chips stay.

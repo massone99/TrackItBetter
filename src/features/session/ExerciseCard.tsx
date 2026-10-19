@@ -158,8 +158,9 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
   const pickedSet = picked ? exercise.sets.find((set) => set.id === picked.id && Boolean(set.completedAt) === picked.done) : undefined;
   // RPE, form and ROM pickers fold into value chips once a set is rated and a later set is done; a tap on the chip reopens its picker.
   // Opened or closed by hand with the chip of that value; without an entry the default below applies.
-  const [handled, setHandled] = useState<ReadonlyMap<string, boolean>>(() => new Map());
-  const toggleOpen = (setId: string, kind: 'rpe' | 'form' | 'rom', isOpen: boolean) => { tapFeedback(); setHandled((current) => new Map(current).set(`${setId}:${kind}`, !isOpen)); };
+  // Which value of a set is being edited (its chip is selected and its scale shows below); chosen by hand, else the default below.
+  const [chosen, setChosen] = useState<ReadonlyMap<string, 'rpe' | 'form' | 'rom' | null>>(() => new Map());
+  const toggleOpen = (setId: string, kind: 'rpe' | 'form' | 'rom', isOpen: boolean) => { tapFeedback(); setChosen((current) => new Map(current).set(setId, isOpen ? null : kind)); };
   const lastDoneId = [...exercise.sets].reverse().find((set) => set.completedAt)?.id ?? null;
   const focusedId = hold && exercise.sets.some((set) => set.id === hold.setId) ? hold.setId : pickedSet?.id ?? nextSetId;
 
@@ -276,9 +277,16 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
         const canRpe = open && showRpe && working;
         const canForm = working;
         const canRom = open && !!onRomRating && working;
-        const rpeRow = canRpe && (handled.get(`${set.id}:rpe`) ?? ((done || largeText || set.id === nextSetId) && !isFolded(set.rpe)));
-        const formRow = canForm && (handled.get(`${set.id}:form`) ?? (done && !isFolded(set.formRating)));
-        const romRow = canRom && (handled.get(`${set.id}:rom`) ?? ((done || largeText || set.id === nextSetId) && !isFolded(set.romRating)));
+        // One value at a time: by default the first one still to fill (RPE, then form once done, then ROM) on the set in hand or just done.
+        const live = done || largeText || set.id === nextSetId;
+        const fallback = canRpe && live && !isFolded(set.rpe) && (set.rpe === null || !done) ? 'rpe'
+          : canForm && done && !isFolded(set.formRating) && set.formRating === null ? 'form'
+            : canRom && live && !isFolded(set.romRating) && set.romRating === null ? 'rom'
+              : null;
+        const active = chosen.has(set.id) ? chosen.get(set.id)! : fallback;
+        const rpeRow = canRpe && active === 'rpe';
+        const formRow = canForm && active === 'form';
+        const romRow = canRom && active === 'rom';
         // The chip strip shows on done sets and the next one (every set in a finished workout); other sets show only what they carry.
         const strip = done || editDone || set.id === nextSetId;
         const title = `${set.kind === 'warmup' ? t('workout.blocks.warmup') : t('logger.setTitle', { number: workingNumber })}${set.side === 'left' ? ' · L' : set.side === 'right' ? ' · R' : ''}`;
@@ -482,7 +490,6 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
             </SwipeableSetRow>
             )}
             {/* Row 2: how hard it was. */}
-            {rpeRow ? <RpePicker compact grid={largeText} sideLabel={sideLabel} value={set.rpe} target={set.targetRpe} onChange={(rpe) => onRpe(set, rpe)} /> : null}
             {/* Large text: one wide button finishes the set (or runs its hold). */}
             {editing ? (
               done ? (
@@ -527,10 +534,8 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
               )
             ) : null}
             {/* Row 3, once the set is done: how clean the form was. The exercise folds only after the last rating. */}
-            {formRow ? <FormRating scroll={!largeText} value={set.formRating} sideLabel={sideLabel} onChange={(rating) => onFormRating(set, rating)} /> : null}
-            {romRow ? <FormRating rom scroll={!largeText} value={set.romRating} sideLabel={sideLabel} onChange={(rating) => onRomRating!(set, rating)} /> : null}
             {/* Only when there is something to show: PR, clips, note (and RPE when its row is hidden). */}
-            {strip || set.note || set.clipCount > 0 || (set.poseCount ?? 0) > 0 || (set.rpe !== null && !rpeRow) || setRecords.has(set.id) || set.bands.length > 0 ? (
+            {strip || set.note || set.clipCount > 0 || (set.poseCount ?? 0) > 0 || set.rpe !== null || setRecords.has(set.id) || set.bands.length > 0 ? (
               <View style={styles.setMeta}>
                 {canRpe && (strip || set.rpe !== null) ? (
                   <ValueChip label={set.rpe !== null ? t('logger.rpeTag', { value: formatRpe(set.rpe) }) : t('lastTime.rpeChip')} icon="speedometer-outline" filled={set.rpe !== null} open={rpeRow} onPress={() => toggleOpen(set.id, 'rpe', rpeRow)} />
@@ -580,6 +585,13 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
                     <Text style={[styles.clipChipText, { color: palette.accentStrong }]}>{set.poseCount}</Text>
                   </Pressable>
                 ) : null}
+              </View>
+            ) : null}
+            {rpeRow || formRow || romRow ? (
+              <View style={[styles.valuePanel, { backgroundColor: palette.background }]}>
+                {rpeRow ? <RpePicker compact grid={largeText} sideLabel={sideLabel} value={set.rpe} target={set.targetRpe} onChange={(rpe) => onRpe(set, rpe)} /> : null}
+                {formRow ? <FormRating scroll={!largeText} value={set.formRating} sideLabel={sideLabel} onChange={(rating) => onFormRating(set, rating)} /> : null}
+                {romRow ? <FormRating rom scroll={!largeText} value={set.romRating} sideLabel={sideLabel} onChange={(rating) => onRomRating!(set, rating)} /> : null}
               </View>
             ) : null}
           </Animated.View>
@@ -708,6 +720,7 @@ const baseStyles = StyleSheet.create({
   setMeta: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8, paddingLeft: 40, paddingRight: 12, paddingBottom: 8 },
   clipChip: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, minHeight: 32, borderRadius: 999 },
   clipChipText: { fontFamily: fonts.semibold, fontSize: 12 },
+  valuePanel: { marginLeft: 40, marginRight: 8, marginBottom: 8, borderRadius: 14, padding: 8 },
   valueChip: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 36, paddingHorizontal: 12, borderRadius: 18, borderWidth: 1, maxWidth: '100%' },
   valueChipGrow: { flexShrink: 1 },
   valueChipText: { fontFamily: fonts.semibold, fontSize: 14, flexShrink: 1 },
