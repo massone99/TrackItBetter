@@ -2,6 +2,10 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.45.2 - 2026-10-19
+
+- Workout toolbar: check-in and "Collapse all" share the first row; Focus, Voice and narration chips sit side by side on their own row, left-aligned, instead of stacking in the middle.
+
 ## 0.45.1 - 2026-10-19
 
 - Set values work like tabs: the chips RPE · Form · ROM · Bands · Note pick what to edit, and only the chosen scale shows below them, in its own panel. By default the first value still to fill opens (RPE, then form once the set is done, then ROM).

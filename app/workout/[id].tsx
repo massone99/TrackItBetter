@@ -1292,11 +1292,12 @@ function ReadinessRow({ label, value, onChange }: { label: string; value: number
 
 
 const baseStyles = StyleSheet.create({
-  headingActions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, justifyContent: 'flex-end' },
+  // Its own row under check-in and fold all: the chips sit side by side, left-aligned.
+  headingActions: { width: '100%', flexDirection: 'row', flexWrap: 'wrap', gap: 8, justifyContent: 'flex-start' },
   choiceRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   root: { flex: 1 },
   flex: { flex: 1 },
-  readinessToggle: { flexShrink: 1, flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: MIN_TOUCH_TARGET },
+  readinessToggle: { flexGrow: 1, flexShrink: 1, flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: MIN_TOUCH_TARGET },
   shrink: { flexShrink: 1 },
   readinessTitle: { fontFamily: fonts.medium, fontSize: 15 },
   readinessHint: { fontFamily: fonts.body, fontSize: 13, marginTop: 2 },
@@ -1310,7 +1311,7 @@ const baseStyles = StyleSheet.create({
   blockHeader: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: 12, paddingBottom: 6, marginBottom: 10, borderBottomWidth: StyleSheet.hairlineWidth },
   blockTitle: { fontFamily: fonts.semibold, fontSize: 16 },
   blockCount: { fontFamily: fonts.medium, fontSize: 13 },
-  toolbar: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
+  toolbar: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', columnGap: 8, rowGap: 12 },
   foldAll: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: MIN_TOUCH_TARGET, paddingHorizontal: 8 },
   foldAllText: { fontFamily: fonts.semibold, fontSize: 14 },
   summary: { marginTop: -8, flexDirection: 'row', alignItems: 'center', gap: 12 },
