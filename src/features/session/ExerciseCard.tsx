@@ -474,7 +474,7 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
           </>
         );
         return (
-          <Animated.View key={set.id} entering={largeText ? undefined : setEntering} style={[styles.setBlock, editing && [styles.largeBlock, { borderColor: palette.border }]]}>
+          <Animated.View key={set.id} entering={largeText ? undefined : setEntering} style={[styles.setBlock, largeText && !editing && styles.setBlockLine, editing && [styles.largeBlock, { borderColor: palette.border }]]}>
             {editing ? null : <DoneTint done={done} color={palette.accentSoft} />}
             {/* The set in hand with very large text is not swiped: its steppers and buttons own the gestures. */}
             {editing ? rowBody : (
@@ -494,7 +494,7 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
             {/* Row 3, once the set is done: how clean the form was. The exercise folds only after the last rating. */}
             {/* Only when there is something to show: PR, clips, note (and RPE when its row is hidden). */}
             {strip || set.note || set.clipCount > 0 || (set.poseCount ?? 0) > 0 || set.rpe !== null || setRecords.has(set.id) || set.bands.length > 0 ? (
-              <View style={[styles.setMeta, largeText && styles.setMetaLarge]}>
+              <View style={[styles.setMeta, largeText && (editing ? styles.setMetaLarge : styles.setMetaLine)]}>
                 {canRpe && (strip || set.rpe !== null) ? (
                   <ValueChip label={set.rpe !== null ? t('logger.rpeTag', { value: formatRpe(set.rpe) }) : t('lastTime.rpeChip')} icon="speedometer-outline" filled={set.rpe !== null} open={rpeRow} onPress={() => toggleOpen(set.id, 'rpe', rpeRow)} />
                 ) : null}
@@ -546,7 +546,7 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
               </View>
             ) : null}
             {rpeRow || formRow || romRow ? (
-              <View style={[styles.valuePanel, largeText && styles.valuePanelLarge, { backgroundColor: palette.background }]}>
+              <View style={[styles.valuePanel, largeText && (editing ? styles.valuePanelLarge : styles.valuePanelLine), { backgroundColor: editing ? undefined : palette.background }]}>
                 {rpeRow ? <RpePicker compact grid={largeText} sideLabel={sideLabel} value={set.rpe} target={set.targetRpe} onChange={(rpe) => onRpe(set, rpe)} /> : null}
                 {formRow ? <FormRating scroll={!largeText} value={set.formRating} sideLabel={sideLabel} onChange={(rating) => onFormRating(set, rating)} /> : null}
                 {romRow ? <FormRating rom scroll={!largeText} value={set.romRating} sideLabel={sideLabel} onChange={(rating) => onRomRating!(set, rating)} /> : null}
@@ -701,14 +701,16 @@ const baseStyles = StyleSheet.create({
   addLoad: { minWidth: 56, minHeight: 48, paddingHorizontal: 10, borderRadius: 12, borderWidth: 1, borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center' },
   addLoadText: { fontFamily: fonts.semibold, fontSize: 15 },
   // Large text: the open set is a card of one-column fields; the other sets are one line each.
-  largeBlock: { borderRadius: 16, borderWidth: 1, paddingHorizontal: 12, paddingBottom: 12, marginBottom: 12 },
-  largeFields: { gap: 16, paddingTop: 8, paddingBottom: 8 },
+  // Focus card: one 16 rhythm between header, fields, chips, scale and button.
+  largeBlock: { borderRadius: 20, borderWidth: 1, padding: 16, gap: 16, marginVertical: 8 },
+  largeFields: { gap: 16 },
+  setBlockLine: { marginBottom: 0 },
   largeHeader: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   largeTitle: { flex: 1, fontFamily: fonts.display, fontSize: 22 },
   largeField: { gap: 8 },
   largeStepper: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   largeValue: { flex: 1, alignItems: 'center' },
-  largeAction: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, minHeight: 56, paddingHorizontal: 16, paddingVertical: 8, borderRadius: 16, marginTop: 4 },
+  largeAction: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, minHeight: 56, paddingHorizontal: 16, paddingVertical: 8, borderRadius: 16 },
   largeActionText: { flexShrink: 1, fontFamily: fonts.semibold, fontSize: 17, textAlign: 'center' },
   summaryLine: { flexDirection: 'row', alignItems: 'center' },
   summaryRow: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 56, paddingVertical: 4, paddingLeft: 4 },
@@ -721,8 +723,11 @@ const baseStyles = StyleSheet.create({
   setMeta: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8, paddingLeft: 40, paddingRight: 12, paddingBottom: 8 },
   clipChip: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, minHeight: 32, borderRadius: 999 },
   clipChipText: { fontFamily: fonts.semibold, fontSize: 12 },
-  setMetaLarge: { paddingLeft: 0, paddingRight: 0 },
-  valuePanelLarge: { marginLeft: 0, marginRight: 0 },
+  setMetaLarge: { paddingLeft: 0, paddingRight: 0, paddingBottom: 0 },
+  valuePanelLarge: { marginLeft: 0, marginRight: 0, marginBottom: 0, padding: 0 },
+  // Folded line with large text: chips and scale line up with the summary text (4 + dot 32 + gap 12).
+  setMetaLine: { paddingLeft: 48, paddingRight: 12 },
+  valuePanelLine: { marginLeft: 48, marginRight: 12, marginBottom: 12 },
   valuePanel: { marginLeft: 40, marginRight: 8, marginBottom: 8, borderRadius: 14, padding: 8 },
   valueChip: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 36, paddingHorizontal: 12, borderRadius: 18, borderWidth: 1, maxWidth: '100%' },
   valueChipGrow: { flexShrink: 1 },
