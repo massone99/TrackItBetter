@@ -520,7 +520,7 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
                   ) : null;
                 })()}
                 {strip || set.note ? (
-                  <ValueChip label={set.note ? set.note : t('logger.noteChip')} icon="chatbubble-ellipses-outline" filled={Boolean(set.note)} grow onPress={() => { if (onNote) toggleOpen(set.id, 'note', noteRow); else { tapFeedback(); onSetOptions(set, 'note'); } }} open={noteRow} />
+                  <ValueChip label={set.note ? set.note : t('logger.noteChip')} icon="chatbubble-ellipses-outline" filled={Boolean(set.note)} grow lines={3} onPress={() => { if (onNote) toggleOpen(set.id, 'note', noteRow); else { tapFeedback(); onSetOptions(set, 'note'); } }} open={noteRow} />
                 ) : null}
                 {setRecords.has(set.id) ? (
                   <Pressable
@@ -651,7 +651,7 @@ export function holdDisplay(hold: ActiveHold): string {
 }
 
 /** One value of a set as a chip: filled with the value, or dashed when empty; a tap edits it. */
-function ValueChip({ label, icon, filled, open = false, grow = false, colors, onPress }: { label: string; icon?: Parameters<typeof Icon>[0]['name']; filled: boolean; open?: boolean; grow?: boolean; colors?: string[]; onPress: () => void }) {
+function ValueChip({ label, icon, filled, open = false, grow = false, lines = 1, colors, onPress }: { lines?: number; label: string; icon?: Parameters<typeof Icon>[0]['name']; filled: boolean; open?: boolean; grow?: boolean; colors?: string[]; onPress: () => void }) {
   const styles = useScaledStyles(baseStyles);
   const { palette } = useTheme();
   return (
@@ -669,7 +669,7 @@ function ValueChip({ label, icon, filled, open = false, grow = false, colors, on
     >
       {colors?.map((color, index) => <View key={`${color}-${index}`} style={[styles.bandDot, { backgroundColor: color, borderColor: palette.border }]} />)}
       {icon && !colors?.length ? <Icon name={icon} size={14} color={filled ? palette.accentStrong : palette.textMuted} /> : null}
-      <Text numberOfLines={1} style={[styles.valueChipText, { color: filled ? palette.accentStrong : palette.textMuted }]}>{label}</Text>
+      <Text numberOfLines={lines} style={[styles.valueChipText, { color: filled ? palette.accentStrong : palette.textMuted }]}>{label}</Text>
     </Pressable>
   );
 }
@@ -731,6 +731,7 @@ const baseStyles = StyleSheet.create({
   valuePanelLarge: { marginLeft: 0, marginRight: 0, marginBottom: 0, padding: 0 },
   valuePanel: { marginLeft: 48, marginRight: 12, marginBottom: 12, borderRadius: 14, padding: 8 },
   valueChip: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 36, paddingHorizontal: 12, borderRadius: 18, borderWidth: 1, maxWidth: '100%' },
+  noteInput: { maxHeight: 220 },
   valueChipGrow: { flexShrink: 1 },
   valueChipText: { fontFamily: fonts.semibold, fontSize: 14, flexShrink: 1 },
   noteChip: { flexDirection: 'row', alignItems: 'center', gap: 6, flexShrink: 1, minHeight: 32 },
@@ -768,6 +769,7 @@ function NoteInput({ value, label, placeholder, onSave }: { value: string; label
       multiline
       autoFocus
       maxLength={500}
+      style={baseStyles.noteInput}
     />
   );
 }
