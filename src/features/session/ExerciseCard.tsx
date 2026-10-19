@@ -274,12 +274,13 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
         const working = set.kind === 'working' && !emomBadgeLabel;
         const foldable = done && !editDone && set.id !== lastDoneId;
         const isFolded = (value: number | null) => done && value !== null && (editDone || foldable);
-        const canRpe = open && showRpe && working;
+        const canRpe = showRpe && working;
         const canForm = working;
-        const canRom = open && !!onRomRating && working;
+        const canRom = !!onRomRating && working;
         // One value at a time: by default the first one still to fill (RPE, then form once done, then ROM) on the set in hand or just done.
-        const live = done || largeText || set.id === nextSetId;
-        const fallback = canRpe && live && !isFolded(set.rpe) && (set.rpe === null || !done) ? 'rpe'
+        const live = done || editing || set.id === nextSetId;
+        // With large text RPE is asked before completing; a done set opens form next, so the set in hand does not slide away.
+        const fallback = canRpe && live && !isFolded(set.rpe) && (set.rpe === null || !done) && !(largeText && done) ? 'rpe'
           : canForm && done && !isFolded(set.formRating) && set.formRating === null ? 'form'
             : canRom && live && !isFolded(set.romRating) && set.romRating === null ? 'rom'
               : null;
@@ -490,53 +491,10 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
             </SwipeableSetRow>
             )}
             {/* Row 2: how hard it was. */}
-            {/* Large text: one wide button finishes the set (or runs its hold). */}
-            {editing ? (
-              done ? (
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityState={{ checked: true, disabled: emomLocked }}
-                  accessibilityHint={emomLocked ? t('emom.editHint') : t('logger.swipeReopen')}
-                  disabled={emomLocked}
-                  onPress={() => uncomplete(set)}
-                  onLongPress={openMenu}
-                  delayLongPress={450}
-                  style={({ pressed }) => [styles.largeAction, { backgroundColor: palette.success }, pressed && styles.checkPressed]}
-                >
-                  <Icon name="checkmark" size={22} color={palette.successText} />
-                  <Text style={[styles.largeActionText, { color: palette.successText }]}>{t('workout.setCompleted')}</Text>
-                </Pressable>
-              ) : timed && onStartHold ? (
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityHint={holding ? undefined : t('logger.holdLongPressHint')}
-                  accessibilityActions={holding ? undefined : [{ name: 'longpress', label: t('logger.markDoneNoTimer') }]}
-                  onAccessibilityAction={(event) => { if (event.nativeEvent.actionName === 'longpress') complete(set); }}
-                  onPress={() => holding ? onFinishHold?.() : onStartHold(set)}
-                  onLongPress={holding ? undefined : () => { tapFeedback(); complete(set); }}
-                  delayLongPress={400}
-                  style={({ pressed }) => [styles.largeAction, { backgroundColor: palette.accent }, pressed && styles.checkPressed]}
-                >
-                  <Icon name={holding ? 'stop' : 'play'} size={22} color={palette.accentText} />
-                  <Text style={[styles.largeActionText, { color: palette.accentText }]}>{holding ? t('logger.doneHold') : `${t('logger.startHold')} ${formatClock(stored)}`}</Text>
-                </Pressable>
-              ) : (
-                <Pressable
-                  accessibilityRole="button"
-                  onPress={() => complete(set)}
-                  onLongPress={openMenu}
-                  delayLongPress={450}
-                  style={({ pressed }) => [styles.largeAction, { backgroundColor: palette.accent }, pressed && styles.checkPressed]}
-                >
-                  <Icon name="checkmark" size={22} color={palette.accentText} />
-                  <Text style={[styles.largeActionText, { color: palette.accentText }]}>{t('workout.completeSet')}</Text>
-                </Pressable>
-              )
-            ) : null}
             {/* Row 3, once the set is done: how clean the form was. The exercise folds only after the last rating. */}
             {/* Only when there is something to show: PR, clips, note (and RPE when its row is hidden). */}
             {strip || set.note || set.clipCount > 0 || (set.poseCount ?? 0) > 0 || set.rpe !== null || setRecords.has(set.id) || set.bands.length > 0 ? (
-              <View style={styles.setMeta}>
+              <View style={[styles.setMeta, largeText && styles.setMetaLarge]}>
                 {canRpe && (strip || set.rpe !== null) ? (
                   <ValueChip label={set.rpe !== null ? t('logger.rpeTag', { value: formatRpe(set.rpe) }) : t('lastTime.rpeChip')} icon="speedometer-outline" filled={set.rpe !== null} open={rpeRow} onPress={() => toggleOpen(set.id, 'rpe', rpeRow)} />
                 ) : null}
@@ -588,11 +546,54 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
               </View>
             ) : null}
             {rpeRow || formRow || romRow ? (
-              <View style={[styles.valuePanel, { backgroundColor: palette.background }]}>
+              <View style={[styles.valuePanel, largeText && styles.valuePanelLarge, { backgroundColor: palette.background }]}>
                 {rpeRow ? <RpePicker compact grid={largeText} sideLabel={sideLabel} value={set.rpe} target={set.targetRpe} onChange={(rpe) => onRpe(set, rpe)} /> : null}
                 {formRow ? <FormRating scroll={!largeText} value={set.formRating} sideLabel={sideLabel} onChange={(rating) => onFormRating(set, rating)} /> : null}
                 {romRow ? <FormRating rom scroll={!largeText} value={set.romRating} sideLabel={sideLabel} onChange={(rating) => onRomRating!(set, rating)} /> : null}
               </View>
+            ) : null}
+            {/* Large text: one wide button finishes the set (or runs its hold). */}
+            {editing ? (
+              done ? (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityState={{ checked: true, disabled: emomLocked }}
+                  accessibilityHint={emomLocked ? t('emom.editHint') : t('logger.swipeReopen')}
+                  disabled={emomLocked}
+                  onPress={() => uncomplete(set)}
+                  onLongPress={openMenu}
+                  delayLongPress={450}
+                  style={({ pressed }) => [styles.largeAction, { backgroundColor: palette.success }, pressed && styles.checkPressed]}
+                >
+                  <Icon name="checkmark" size={22} color={palette.successText} />
+                  <Text style={[styles.largeActionText, { color: palette.successText }]}>{t('workout.setCompleted')}</Text>
+                </Pressable>
+              ) : timed && onStartHold ? (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityHint={holding ? undefined : t('logger.holdLongPressHint')}
+                  accessibilityActions={holding ? undefined : [{ name: 'longpress', label: t('logger.markDoneNoTimer') }]}
+                  onAccessibilityAction={(event) => { if (event.nativeEvent.actionName === 'longpress') complete(set); }}
+                  onPress={() => holding ? onFinishHold?.() : onStartHold(set)}
+                  onLongPress={holding ? undefined : () => { tapFeedback(); complete(set); }}
+                  delayLongPress={400}
+                  style={({ pressed }) => [styles.largeAction, { backgroundColor: palette.accent }, pressed && styles.checkPressed]}
+                >
+                  <Icon name={holding ? 'stop' : 'play'} size={22} color={palette.accentText} />
+                  <Text style={[styles.largeActionText, { color: palette.accentText }]}>{holding ? t('logger.doneHold') : `${t('logger.startHold')} ${formatClock(stored)}`}</Text>
+                </Pressable>
+              ) : (
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={() => complete(set)}
+                  onLongPress={openMenu}
+                  delayLongPress={450}
+                  style={({ pressed }) => [styles.largeAction, { backgroundColor: palette.accent }, pressed && styles.checkPressed]}
+                >
+                  <Icon name="checkmark" size={22} color={palette.accentText} />
+                  <Text style={[styles.largeActionText, { color: palette.accentText }]}>{t('workout.completeSet')}</Text>
+                </Pressable>
+              )
             ) : null}
           </Animated.View>
         );
@@ -720,6 +721,8 @@ const baseStyles = StyleSheet.create({
   setMeta: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8, paddingLeft: 40, paddingRight: 12, paddingBottom: 8 },
   clipChip: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, minHeight: 32, borderRadius: 999 },
   clipChipText: { fontFamily: fonts.semibold, fontSize: 12 },
+  setMetaLarge: { paddingLeft: 0, paddingRight: 0 },
+  valuePanelLarge: { marginLeft: 0, marginRight: 0 },
   valuePanel: { marginLeft: 40, marginRight: 8, marginBottom: 8, borderRadius: 14, padding: 8 },
   valueChip: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 36, paddingHorizontal: 12, borderRadius: 18, borderWidth: 1, maxWidth: '100%' },
   valueChipGrow: { flexShrink: 1 },
