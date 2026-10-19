@@ -2,6 +2,10 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.46.1 - 2026-10-19
+
+- Comparison: "Pick one" lists the exercise's history rows (date, workout, every set, averages, trend), as in its Storico, and a tap chooses the workout to compare with.
+
 ## 0.46.0 - 2026-10-19
 
 - Workout: "Remove all sets" in an exercise's options and at the end of the workout empties the sets and keeps the exercises, with a Restore toast.
