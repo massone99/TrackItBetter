@@ -39,6 +39,7 @@ import {
   removeExerciseEntry,
   removeExerciseEntryWithUndo,
   removeSetWithUndo,
+  clearSetsWithUndo,
   discardRemoved,
   restoreRemoved,
   uncompleteSet,
@@ -171,6 +172,7 @@ export default function WorkoutScreen() {
   const [freeRest, setFreeRest] = useState<{ since: number; restSec: number } | null>(null);
   const [totalFor, setTotalFor] = useState<SessionExercise | null>(null);
   const [optionsFor, setOptionsFor] = useState<SessionExercise | null>(null);
+  const [clearAllOpen, setClearAllOpen] = useState(false);
   const [emomSetupFor, setEmomSetupFor] = useState<SessionExercise | null>(null);
   const [emomNotice, setEmomNotice] = useState<string | null>(null);
   // PRs set so far in this workout: record kinds per set, and exercises with a volume mini PR.
@@ -654,6 +656,19 @@ export default function WorkoutScreen() {
     await refresh(workout.id);
   };
 
+  /** Empties an exercise (or the whole workout) of sets and keeps the exercises; "Restore" puts them back. */
+  const clearSets = async (scope: { exercise: SessionExercise } | null) => {
+    setOptionsFor(null);
+    setClearAllOpen(false);
+    if (!workout) return;
+    const targets = scope ? [scope.exercise] : workout.exercises;
+    if (hold.active) hold.stop();
+    if (targets.some((exercise) => exercise.entryId === emomEntryId)) await emom.stop();
+    const count = targets.reduce((sum, exercise) => sum + exercise.sets.length, 0);
+    offerUndo(t('logger.clearedSets', { count }), await clearSetsWithUndo(scope ? { entryId: scope.exercise.entryId } : { workoutId: workout.id }));
+    await refresh(workout.id);
+  };
+
   const createExercise = (name: string) => {
     if (!workout) return;
     setPickerOpen(false);
@@ -876,6 +891,11 @@ export default function WorkoutScreen() {
               <View style={styles.footerCellWide}><ActionButton icon="bookmark-outline" label={t('saveToProgram.action')} variant="ghost" onPress={() => setSaveOpen(true)} /></View>
               <View style={styles.footerCellWide}><ActionButton icon="close-circle-outline" label={t('workout.discard')} variant="ghost" onPress={() => setDiscardOpen(true)} /></View>
             </View>
+            {workout.exercises.some((exercise) => exercise.sets.length > 0) ? (
+              <View style={styles.footerRow}>
+                <View style={styles.footerCellWide}><ActionButton icon="remove-circle-outline" label={t('logger.clearAllSets')} variant="ghost" onPress={() => setClearAllOpen(true)} /></View>
+              </View>
+            ) : null}
           </View>
         ) : null}
       </Screen>
@@ -1019,6 +1039,7 @@ export default function WorkoutScreen() {
               <MenuTile icon={optionsFor.demoUrl ? 'create-outline' : 'link'} label={optionsFor.demoUrl ? t('logger.reference') : t('exercise.addReference')} onPress={() => { setReferenceFor(optionsFor); setOptionsFor(null); }} />
             </MenuGrid>
             <MenuList>
+              {optionsFor.sets.length > 0 ? <MenuRow tone="danger" icon="remove-circle-outline" label={t('logger.clearSets')} onPress={() => void clearSets({ exercise: optionsFor })} /> : null}
               <MenuRow tone="danger" icon="trash-outline" label={t('logger.removeExercise')} onPress={() => void removeExerciseOrConfirm(optionsFor)} />
             </MenuList>
           </>
@@ -1034,6 +1055,16 @@ export default function WorkoutScreen() {
           if (target) void setEntryTotalTarget(target.entryId, value).then(() => refresh(workout.id));
         }}
       />
+
+      <Sheet
+        visible={clearAllOpen}
+        onClose={() => setClearAllOpen(false)}
+        title={t('logger.clearAllTitle')}
+        body={t('logger.clearAllBody', { count: workout.exercises.reduce((sum, exercise) => sum + exercise.sets.length, 0) })}
+      >
+        <ActionButton icon="remove-circle-outline" label={t('logger.clearAllConfirm')} variant="danger" onPress={() => void clearSets(null)} />
+        <ActionButton label={t('common.cancel')} secondary onPress={() => setClearAllOpen(false)} />
+      </Sheet>
 
       <Sheet
         visible={removeExerciseFor !== null}

@@ -1070,6 +1070,29 @@ export async function removeSetWithUndo(setId: string): Promise<RemovedRows | nu
 }
 
 /**
+ * Removes every set of an exercise (or of a whole workout) and keeps the exercises, so a workout can start over.
+ * Returns a snapshot for `restoreRemoved`; clips stay on disk until `discardRemoved`.
+ */
+export async function clearSetsWithUndo(scope: { entryId: string } | { workoutId: string }): Promise<RemovedRows | null> {
+  await initializeDatabase();
+  const entryIds = 'entryId' in scope
+    ? [scope.entryId]
+    : (await db.select({ id: exerciseEntries.id }).from(exerciseEntries).where(eq(exerciseEntries.workoutId, scope.workoutId))).map((row) => row.id);
+  if (entryIds.length === 0) return null;
+  const sets = await db.select().from(trainingSets).where(inArray(trainingSets.entryId, entryIds)).orderBy(asc(trainingSets.entryId), asc(trainingSets.index));
+  if (sets.length === 0) return null;
+  const finished = await isFinished('entryId' in scope ? { entryId: scope.entryId } : { entryId: entryIds[0] });
+  const videos = await db.select().from(formCheckVideos).where(inArray(formCheckVideos.setId, sets.map((set) => set.id)));
+  retainClipFiles(videos.map((video) => video.fileName));
+  await db.transaction(async (tx) => {
+    if (videos.length > 0) await tx.delete(formCheckVideos).where(inArray(formCheckVideos.id, videos.map((video) => video.id)));
+    await tx.delete(trainingSets).where(inArray(trainingSets.id, sets.map((set) => set.id)));
+  });
+  if (finished) bumpFinishedVersion();
+  return { entry: null, sets, videos };
+}
+
+/**
  * Removes an exercise with its sets and returns a snapshot that `restoreRemoved` can put back. Like
  * `removeSetWithUndo`, its clips stay on disk until `discardRemoved`.
  */

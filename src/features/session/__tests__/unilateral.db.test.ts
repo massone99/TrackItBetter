@@ -10,6 +10,7 @@ import { startUserProgramSession } from '../../programs/startUserSession';
 import {
   addExerciseToWorkout,
   addSet,
+  clearSetsWithUndo,
   completeSet,
   finishWorkout,
   getActiveWorkout,
@@ -55,6 +56,21 @@ const buildUnilateral = async (name = 'Unilateral') => {
 };
 
 describe('unilateral session persistence', () => {
+  it('clears every set of an exercise or a workout and restores them in order', async () => {
+    const { workoutId, entryId } = await buildUnilateral();
+    await addSet(entryId);
+    const before = pairRows(entryId).map((row) => row.id);
+    expect(before.length).toBeGreaterThan(2);
+    const removed = await clearSetsWithUndo({ workoutId });
+    expect(removed?.sets).toHaveLength(before.length);
+    expect(pairRows(entryId)).toEqual([]);
+    expect(real.sqlite.prepare('SELECT COUNT(*) AS n FROM exercise_entry WHERE id = ?').get(entryId)).toEqual({ n: 1 });
+    await restoreRemoved(removed!);
+    expect(pairRows(entryId).map((row) => row.id)).toEqual(before);
+    expect(await clearSetsWithUndo({ entryId })).not.toBeNull();
+    expect(await clearSetsWithUndo({ entryId })).toBeNull();
+  });
+
   it('rejects invalid side values while retaining signed assistance', async () => {
     const { entryId } = await buildUnilateral();
     const [left] = pairRows(entryId);
