@@ -143,7 +143,7 @@ const baseStyles = StyleSheet.create({
   stripChip: { minWidth: 44, minHeight: 48, paddingHorizontal: 8, paddingVertical: 8, borderRadius: 12, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
   chip: { minWidth: 48, minHeight: 48, paddingHorizontal: 10, paddingVertical: 8, borderRadius: 12, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
   chipText: { fontFamily: fonts.display, fontSize: 20 },
-  compactRow: { flexDirection: 'row', alignItems: 'flex-start', paddingLeft: 2, paddingTop: 4, paddingBottom: 12 },
+  compactRow: { flexDirection: 'row', alignItems: 'flex-start' },
   // Spans the reps and kg columns; the done and menu columns (44 + 32) stay clear.
   compactStrip: { flex: 1, marginRight: 76 },
   compactFit: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginRight: 0 },

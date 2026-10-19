@@ -186,7 +186,7 @@ const baseStyles = StyleSheet.create({
   delta: { fontFamily: fonts.semibold, fontSize: 12, fontVariant: ['tabular-nums'] },
   last: { fontFamily: fonts.medium, fontSize: 12, fontVariant: ['tabular-nums'] },
   detail: { marginTop: 2 },
-  formRow: { flexDirection: 'row', alignItems: 'flex-start', paddingLeft: 2, paddingTop: 4, paddingBottom: 8 },
+  formRow: { flexDirection: 'row', alignItems: 'flex-start' },
   formLabel: { minWidth: 40, minHeight: 36, paddingRight: 4, alignItems: 'center', justifyContent: 'center' },
   formLabelText: { fontFamily: fonts.semibold, fontSize: 12 },
   // Nine values (1 to 5 in half steps) wrap onto a second line on narrow screens.
