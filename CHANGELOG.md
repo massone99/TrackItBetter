@@ -2,6 +2,11 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.43.0 - 2026-10-19
+
+- When a workout started from a program ends with a different structure (exercises added or removed, other order or number of sets), the app offers to update the prescribed workout in the program too.
+- From a past workout that belongs to a prescribed workout, a new "Update prescribed workout" button takes what was done (exercises, order, sets, targets, loads, rest) back into the program.
+
 ## 0.42.0 - 2026-10-19
 
 - Goal history: a calendar icon on the goals screens opens a month calendar of the days where all goals were reached (green with a check) or some (2/3), with the goals of the day you tap; the Weekly tab lists the weeks with an expandable detail. Current and best streak of days or weeks.

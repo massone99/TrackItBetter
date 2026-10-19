@@ -28,6 +28,9 @@ import {
   updateSetRpe,
   WORKOUT_NAME_MAX,
 } from "../../../src/features/session/repository";
+import { PrescriptionSyncSheet } from "../../../src/features/programs/PrescriptionSyncSheet";
+import { listUserPrograms } from "../../../src/features/programs/userPrograms";
+import { findPrescribedWorkout, trainedExercises, type PrescribedMatch } from "../../../src/domain/prescriptionSync";
 import { SaveToProgramSheet } from "../../../src/features/programs/SaveToProgramSheet";
 import { WorkoutInProgressSheet } from "../../../src/features/session/WorkoutInProgressSheet";
 import type {
@@ -96,6 +99,9 @@ export default function PastWorkoutScreen() {
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(new Set());
   const loadedOnce = useRef(false);
   const [saveOpen, setSaveOpen] = useState(false);
+  const [syncOpen, setSyncOpen] = useState(false);
+  const [prescribed, setPrescribed] = useState<PrescribedMatch | null>(null);
+  const [updatedProgram, setUpdatedProgram] = useState<string | null>(null);
   const [saved, setSaved] = useState<{ id: string; name: string } | null>(null);
   // The last removal, offered for a few seconds as "Restore".
   const [undo, setUndo] = useState<{ message: string; removed: RemovedRows } | null>(null);
@@ -113,6 +119,7 @@ export default function PastWorkoutScreen() {
         getWorkoutMobilitySeconds(id),
       ]);
       setWorkout(completed);
+      if (completed) void listUserPrograms().then((programs) => setPrescribed(findPrescribedWorkout(programs, completed.name)), () => undefined);
       // Like the workout in progress, exercises open folded to their results; tap one to edit it.
       if (completed && !loadedOnce.current) setCollapsed(new Set(completed.exercises.map((item) => item.entryId)));
       if (completed) loadedOnce.current = true;
@@ -398,6 +405,11 @@ export default function PastWorkoutScreen() {
       />
 
       <View style={styles.footerRow}>
+        {prescribed ? (
+          <View style={styles.footerCellWide}>
+            <ActionButton icon="refresh" label={t("prescriptionSync.action")} variant="ghost" onPress={() => setSyncOpen(true)} />
+          </View>
+        ) : null}
         <View style={styles.footerCellWide}>
           <ActionButton icon="bookmark-outline" label={t("saveToProgram.action")} variant="ghost" onPress={() => setSaveOpen(true)} />
         </View>
@@ -494,6 +506,17 @@ export default function PastWorkoutScreen() {
         <ActionButton label={t("common.cancel")} secondary onPress={() => setDeleteOpen(false)} />
       </Sheet>
 
+      <PrescriptionSyncSheet
+        visible={syncOpen}
+        match={prescribed}
+        exercises={workout ? trainedExercises(workout.exercises) : []}
+        mode="values"
+        onClose={(applied) => { setSyncOpen(false); if (applied && prescribed) setUpdatedProgram(prescribed.program.name); }}
+      />
+      <Toast
+        message={updatedProgram ? t("prescriptionSync.done", { name: updatedProgram }) : null}
+        onHide={() => setUpdatedProgram(null)}
+      />
       <SaveToProgramSheet
         visible={saveOpen}
         defaultName={workout.name}

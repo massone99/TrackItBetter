@@ -86,6 +86,9 @@ import { ReorderableList } from '../../src/shared/components/ReorderableList';
 import { FreeRestBar } from '../../src/features/session/FreeRestBar';
 import { TotalGoalSheet } from '../../src/features/session/TotalGoalSheet';
 import { nextSetValue, totalProgress } from '../../src/domain/totalGoal';
+import { PrescriptionSyncSheet } from '../../src/features/programs/PrescriptionSyncSheet';
+import { listUserPrograms } from '../../src/features/programs/userPrograms';
+import { findPrescribedWorkout, hasStructureChange, prescriptionChanges, trainedExercises, type PrescribedMatch } from '../../src/domain/prescriptionSync';
 import { SaveToProgramSheet } from '../../src/features/programs/SaveToProgramSheet';
 import { ExerciseNoteField } from '../../src/features/session/ExerciseNoteField';
 import { WorkoutDetailsSheet } from '../../src/features/session/WorkoutDetailsSheet';
@@ -581,6 +584,7 @@ export default function WorkoutScreen() {
     await refresh(workout.id);
   };
 
+  const [syncOffer, setSyncOffer] = useState<{ match: PrescribedMatch; exercises: SessionExercise[]; workoutId: string } | null>(null);
   const confirmFinish = async () => {
     if (!workout) return;
     setFinishOpen(false);
@@ -594,7 +598,17 @@ export default function WorkoutScreen() {
       } else Alert.alert(t('history.saveError'), error instanceof Error ? error.message : String(error));
       return;
     }
-    router.replace({ pathname: '/workout/summary/[id]', params: { id: workout.id } });
+    // A workout from a program whose structure changed offers to update the prescribed workout; then the summary.
+    const summary = () => router.replace({ pathname: '/workout/summary/[id]', params: { id: workout.id } });
+    try {
+      const match = findPrescribedWorkout(await listUserPrograms(), workout.name);
+      const trained = trainedExercises(workout.exercises);
+      if (match && trained.length > 0 && hasStructureChange(prescriptionChanges(match.session, trained))) {
+        setSyncOffer({ match, exercises: trained, workoutId: workout.id });
+        return;
+      }
+    } catch { /* the offer is optional: go on to the summary */ }
+    summary();
   };
 
   const confirmDiscard = async () => {
@@ -874,6 +888,13 @@ export default function WorkoutScreen() {
           if (emom.plan) void emom.stop().then(() => emom.start(config));
           else emom.start(config);
         }}
+      />
+      <PrescriptionSyncSheet
+        visible={syncOffer !== null}
+        match={syncOffer?.match ?? null}
+        exercises={syncOffer?.exercises ?? []}
+        mode="structure"
+        onClose={() => { const target = syncOffer?.workoutId; setSyncOffer(null); if (target) router.replace({ pathname: '/workout/summary/[id]', params: { id: target } }); }}
       />
       <SaveToProgramSheet
         visible={saveOpen}
