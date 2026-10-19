@@ -474,7 +474,7 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
           </>
         );
         return (
-          <Animated.View key={set.id} entering={largeText ? undefined : setEntering} style={[styles.setBlock, largeText && !editing && styles.setBlockLine, editing && [styles.largeBlock, { borderColor: palette.border }]]}>
+          <Animated.View key={`${set.id}${largeText ? "-f" : ""}`} entering={largeText ? undefined : setEntering} style={[styles.setBlock, largeText && !editing && styles.setBlockLine, editing && [styles.largeBlock, { borderColor: palette.border }]]}>
             {editing ? null : <DoneTint done={done} color={palette.accentSoft} />}
             {/* The set in hand with very large text is not swiped: its steppers and buttons own the gestures. */}
             {editing ? rowBody : (
