@@ -23,6 +23,7 @@ import {
   enableExerciseLoad,
   setSetFormRating,
   setSetRomRating,
+  updateSetNote,
   addSet,
   completeSet,
   copyValuesToSet,
@@ -525,6 +526,12 @@ export default function WorkoutScreen() {
     if (workout) await refresh(workout.id);
   };
 
+  const saveNote = async (set: SessionSet, note: string) => {
+    patchSet(set.id, { note: note.trim() || null });
+    await updateSetNote(set.id, note);
+    if (workout) await refresh(workout.id);
+  };
+
   const saveRomRating = async (set: SessionSet, rating: number | null) => {
     tapFeedback();
     patchSet(set.id, { romRating: rating });
@@ -847,6 +854,7 @@ export default function WorkoutScreen() {
             defaultRest={restForSet(exercise.exerciseId, { kind: 'working', restSec: null })}
             onFormRating={(set, rating) => void saveFormRating(set, rating)}
             onRomRating={(set, rating) => void saveRomRating(set, rating)}
+            onNote={(set, note) => void saveNote(set, note)}
             typeDone
             apparatusLabel={exercise.apparatusId && catalog ? apparatusName(catalog.apparatus.find((item) => item.id === exercise.apparatusId), t) : null}
             firstTimeLabel={exercise.apparatusAffectsDifficulty && exercise.apparatusId && catalog ? t('equipment.firstTimeOn', { name: apparatusName(catalog.apparatus.find((item) => item.id === exercise.apparatusId), t) }) : undefined}

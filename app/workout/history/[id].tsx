@@ -12,6 +12,7 @@ import {
   addSetToCompletedWorkout,
   setSetFormRating,
   setSetRomRating,
+  updateSetNote,
   setSetKind,
   deleteWorkout,
   getCompletedWorkout,
@@ -393,6 +394,7 @@ export default function PastWorkoutScreen() {
               tapFeedback();
               void edit(() => setSetRomRating(set.id, rating));
             }}
+            onNote={(set, note) => void edit(() => updateSetNote(set.id, note))}
             onSetOptions={(set, view) => setSetFor({ exercise, set, view })}
             onRemoveSet={(set) => void removeSet(set)}
             onAddSet={() => {

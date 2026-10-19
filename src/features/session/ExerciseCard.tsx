@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next';
 import { Pressable, StyleSheet, View } from 'react-native';
 import Animated, { FadeIn, ZoomIn } from 'react-native-reanimated';
-import { useRef, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { compareWithLast } from '../../domain/lastTime';
 import { formatRpe } from '../../domain/rpe';
 import { completedSetCount, groupSets } from '../../domain/setPairs';
@@ -9,7 +9,7 @@ import type { RecordKind } from '../analytics/records';
 import { openExercisePage } from '../exercises/openExercise';
 import { openReferenceVideo } from '../exercises/ReferenceLinkSheet';
 import { HoldDurationField } from '../../shared/components/DateTimePickers';
-import { ActionButton, Heading, Icon, IconButton, Label, NumberEdit, ProgressMeter, tapFeedback, Text, type NumberEditControl } from '../../shared/components/ui';
+import { ActionButton, Heading, Icon, IconButton, Label, NumberEdit, ProgressMeter, tapFeedback, Text, TextField, type NumberEditControl } from '../../shared/components/ui';
 import { totalProgress } from '../../domain/totalGoal';
 import { useAnimationSettings } from '../../shared/settings/AnimationProvider';
 import { useTheme } from '../../shared/theme/ThemeProvider';
@@ -32,7 +32,7 @@ const NO_RECORDS: ReadonlyMap<string, RecordKind[]> = new Map();
  * and the add-set row. Shared by the workout in progress and a finished workout's page; the live-only
  * parts (hold timer, EMOM, comparison with last time, records) are optional.
  */
-export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, previous, hold = null, onChange, onSetValue, onComplete, onStartHold, onFinishHold, onAddSet, onAddWarmup, onCopyAllLast, onSetOptions, onUncomplete, onRemoveSet, onSwiped, showRpe, onRpe, onOptions, onToggleWarmup, setRecords = NO_RECORDS, volumeRecord = false, supersetLabel = null, emomLabel: emomBadgeLabel, defaultRest = 0, onFormRating, onRomRating, focus = false, editDone = false, typeDone = false, compare = true, apparatusLabel = null, firstTimeLabel, describeBands, compareBands }: {
+export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, previous, hold = null, onChange, onSetValue, onComplete, onStartHold, onFinishHold, onAddSet, onAddWarmup, onCopyAllLast, onSetOptions, onUncomplete, onRemoveSet, onSwiped, showRpe, onRpe, onOptions, onToggleWarmup, setRecords = NO_RECORDS, volumeRecord = false, supersetLabel = null, emomLabel: emomBadgeLabel, defaultRest = 0, onFormRating, onRomRating, onNote, focus = false, editDone = false, typeDone = false, compare = true, apparatusLabel = null, firstTimeLabel, describeBands, compareBands }: {
   handle?: ReactNode;
   exercise: SessionExercise;
   collapsed: boolean;
@@ -68,6 +68,8 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
   onFormRating: (set: SessionSet, rating: number | null) => void;
   /** Range-of-motion chips under each working set, like the RPE row (visible for the set in hand and the done ones). */
   onRomRating?: (set: SessionSet, rating: number | null) => void;
+  /** Saves a set's note typed in place; without it the Note chip opens the set's sheet. */
+  onNote?: (set: SessionSet, note: string) => void;
   /** Focus mode: the set in hand opens as a large one-column block, the others fold to one line. */
   focus?: boolean;
   /** Done sets keep their − and + buttons (a finished workout, where every set is done). */
@@ -159,8 +161,8 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
   // RPE, form and ROM pickers fold into value chips once a set is rated and a later set is done; a tap on the chip reopens its picker.
   // Opened or closed by hand with the chip of that value; without an entry the default below applies.
   // Which value of a set is being edited (its chip is selected and its scale shows below); chosen by hand, else the default below.
-  const [chosen, setChosen] = useState<ReadonlyMap<string, 'rpe' | 'form' | 'rom' | null>>(() => new Map());
-  const toggleOpen = (setId: string, kind: 'rpe' | 'form' | 'rom', isOpen: boolean) => { tapFeedback(); setChosen((current) => new Map(current).set(setId, isOpen ? null : kind)); };
+  const [chosen, setChosen] = useState<ReadonlyMap<string, 'rpe' | 'form' | 'rom' | 'note' | null>>(() => new Map());
+  const toggleOpen = (setId: string, kind: 'rpe' | 'form' | 'rom' | 'note', isOpen: boolean) => { tapFeedback(); setChosen((current) => new Map(current).set(setId, isOpen ? null : kind)); };
   const lastDoneId = [...exercise.sets].reverse().find((set) => set.completedAt)?.id ?? null;
   const focusedId = hold && exercise.sets.some((set) => set.id === hold.setId) ? hold.setId : pickedSet?.id ?? nextSetId;
 
@@ -288,6 +290,7 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
         const rpeRow = canRpe && active === 'rpe';
         const formRow = canForm && active === 'form';
         const romRow = canRom && active === 'rom';
+        const noteRow = !!onNote && active === 'note';
         // The chip strip shows on done sets and the next one (every set in a finished workout); other sets show only what they carry.
         const strip = done || editDone || set.id === nextSetId;
         const title = `${set.kind === 'warmup' ? t('workout.blocks.warmup') : t('logger.setTitle', { number: workingNumber })}${set.side === 'left' ? ' · L' : set.side === 'right' ? ' · R' : ''}`;
@@ -517,7 +520,7 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
                   ) : null;
                 })()}
                 {strip || set.note ? (
-                  <ValueChip label={set.note ? set.note : t('logger.noteChip')} icon="chatbubble-ellipses-outline" filled={Boolean(set.note)} grow onPress={() => { tapFeedback(); onSetOptions(set, 'note'); }} />
+                  <ValueChip label={set.note ? set.note : t('logger.noteChip')} icon="chatbubble-ellipses-outline" filled={Boolean(set.note)} grow onPress={() => { if (onNote) toggleOpen(set.id, 'note', noteRow); else { tapFeedback(); onSetOptions(set, 'note'); } }} open={noteRow} />
                 ) : null}
                 {setRecords.has(set.id) ? (
                   <Pressable
@@ -545,10 +548,11 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
                 ) : null}
               </View>
             ) : null}
-            {rpeRow || formRow || romRow ? (
+            {rpeRow || formRow || romRow || noteRow ? (
               <View style={[styles.valuePanel, editing && styles.valuePanelLarge, { backgroundColor: editing ? undefined : done ? palette.background : palette.surface }]}>
                 {rpeRow ? <RpePicker compact grid={largeText} wrap sideLabel={sideLabel} value={set.rpe} target={set.targetRpe} onChange={(rpe) => onRpe(set, rpe)} /> : null}
                 {formRow ? <FormRating value={set.formRating} sideLabel={sideLabel} onChange={(rating) => onFormRating(set, rating)} /> : null}
+                {noteRow ? <NoteInput value={set.note ?? ''} label={t('logger.noteLabel')} placeholder={t('logger.notePlaceholder')} onSave={(note) => onNote!(set, note)} /> : null}
                 {romRow ? <FormRating rom value={set.romRating} sideLabel={sideLabel} onChange={(rating) => onRomRating!(set, rating)} /> : null}
               </View>
             ) : null}
@@ -744,3 +748,26 @@ const baseStyles = StyleSheet.create({
   addRow: { flexDirection: 'row', flexWrap: 'wrap', columnGap: 20 },
   addSetText: { fontFamily: fonts.semibold, fontSize: 15 },
 });
+
+/** The set's note typed in place: the keyboard opens at once, and the text is saved on blur or when the field closes. */
+function NoteInput({ value, label, placeholder, onSave }: { value: string; label: string; placeholder: string; onSave: (note: string) => void }) {
+  const [text, setText] = useState(value);
+  const latest = useRef({ text, value, onSave });
+  useEffect(() => { latest.current = { text, value, onSave }; });
+  useEffect(() => () => {
+    const current = latest.current;
+    if (current.text.trim() !== current.value.trim()) current.onSave(current.text);
+  }, []);
+  return (
+    <TextField
+      label={label}
+      value={text}
+      onChangeText={setText}
+      onBlur={() => { if (text.trim() !== value.trim()) onSave(text); }}
+      placeholder={placeholder}
+      multiline
+      autoFocus
+      maxLength={500}
+    />
+  );
+}
