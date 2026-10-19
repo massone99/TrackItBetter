@@ -2,6 +2,10 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.45.8 - 2026-10-19
+
+- Workout: a long set note shows on up to three lines in its chip instead of one, and the in-place note editor stops growing at a fixed height and scrolls.
+
 ## 0.45.7 - 2026-10-19
 
 - Workout: the Note chip of a set opens the note right under the set with the keyboard already up (saved on leaving the field); the set sheet stays on the long press and the three dots.
