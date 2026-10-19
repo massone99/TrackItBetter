@@ -2,6 +2,10 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.45.5 - 2026-10-19
+
+- Workout: a set's chips and its RPE, form and ROM scales line up under the values with even margins; the scales show every value on two rows instead of a strip cut at the edge.
+
 ## 0.45.4 - 2026-10-19
 
 - Focus mode: the set card uses one even spacing between header, fields, chips, scale and button; folded sets sit closer together; chips and scales of a done set line up with its text.
