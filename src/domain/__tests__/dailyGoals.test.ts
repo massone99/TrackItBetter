@@ -36,6 +36,26 @@ describe('daily goals', () => {
     expect(progress.remaining).toBe(0);
   });
 
+  it('splits one tag by active or passive mobility, typeless exercises counting only in the plain goal', () => {
+    const sets = [
+      set({ durationSec: 30, mobilityMode: 'active' }),
+      set({ durationSec: 20, mobilityMode: 'passive', completedAt: new Date(2026, 9, 15, 9) }),
+      set({ durationSec: 10, mobilityMode: null, completedAt: new Date(2026, 9, 15, 10) }),
+    ];
+    expect(dailyGoalProgress(goal({}), sets).done).toBe(60);
+    expect(dailyGoalProgress(goal({ mobilityMode: 'active' }), sets).done).toBe(30);
+    expect(dailyGoalProgress(goal({ mobilityMode: 'passive' }), sets).done).toBe(20);
+  });
+
+  it('keeps the mobility type only on tag goals and when deriving weekly goals', () => {
+    const raw = JSON.stringify([goal({ mobilityMode: 'passive' }), goal({ id: 'c', scope: 'category', key: 'mobility', mobilityMode: 'active' }), goal({ id: 'z', mobilityMode: 'weird' as never })]);
+    expect(parseDailyGoals(raw).map((item) => item.id)).toEqual(['g']);
+    const daily = [goal({ id: 'a', mobilityMode: 'active' }), goal({ id: 'p', mobilityMode: 'passive' })];
+    const derived = deriveWeeklyGoals(daily, [goal({ id: 'w', mobilityMode: 'active' })], 7, () => 'new');
+    expect(derived.add.map((item) => item.mobilityMode)).toEqual(['passive']);
+    expect(derived.existing).toBe(1);
+  });
+
   it('drops malformed stored goals', () => {
     const raw = JSON.stringify([goal({}), { id: 'x', scope: 'muscle', key: 'a', measure: 'reps', target: 5 }, goal({ id: 'y', target: 0 })]);
     expect(parseDailyGoals(raw).map((item) => item.id)).toEqual(['g']);

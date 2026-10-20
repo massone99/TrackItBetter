@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { StyleSheet, TextInput, View } from 'react-native';
-import { targetMax, type DailyGoal, type DailyGoalMeasure, type DailyGoalScope, type GoalPeriod } from '../../domain/dailyGoals';
+import { targetMax, type DailyGoal, type DailyGoalMeasure, type DailyGoalScope, type GoalMobilityMode, type GoalPeriod } from '../../domain/dailyGoals';
 import { useGoalT } from './period';
 import { ActionButton, Body, Chip, Label, SegmentedControl, Sheet, Stepper } from '../../shared/components/ui';
 import { useTheme } from '../../shared/theme/ThemeProvider';
@@ -43,8 +43,10 @@ export function DailyGoalSheet({ period = 'day', visible, initial, onSave, onRem
   const [key, setKey] = useState<string | null>(initial?.key ?? null);
   const [measure, setMeasure] = useState<DailyGoalMeasure>(initial?.measure ?? 'minutes');
   const [target, setTarget] = useState(initial?.target ?? DEFAULTS[period].minutes);
+  const [mobilityMode, setMobilityMode] = useState<GoalMobilityMode | undefined>(initial?.mobilityMode);
   const [query, setQuery] = useState('');
   const [section, setSection] = useState<string | null>(null);
+  const mode = scope === 'tag' ? mobilityMode : undefined;
 
   const changeScope = (next: DailyGoalScope) => { setScope(next); setKey(null); setQuery(''); };
   const changeMeasure = (next: DailyGoalMeasure) => { setMeasure(next); setTarget(DEFAULTS[period][next]); };
@@ -107,6 +109,21 @@ export function DailyGoalSheet({ period = 'day', visible, initial, onSave, onRem
           </>
         )}
       </View>
+      {scope === 'tag' ? (
+        <View style={styles.field}>
+          <Label>{t('dailyGoals.mobilityModeTitle')}</Label>
+          <SegmentedControl
+            value={mobilityMode ?? 'all'}
+            options={[
+              { value: 'all', label: t('dailyGoals.mobilityModeAll') },
+              { value: 'active', label: t('customExercise.mobilityMode.active') },
+              { value: 'passive', label: t('customExercise.mobilityMode.passive') },
+            ]}
+            onChange={(next) => setMobilityMode(next === 'all' ? undefined : next)}
+          />
+          <Body>{t('dailyGoals.mobilityModeHint')}</Body>
+        </View>
+      ) : null}
       <View style={styles.field}>
         <Label>{t('dailyGoals.measureTitle')}</Label>
         <SegmentedControl
@@ -132,9 +149,9 @@ export function DailyGoalSheet({ period = 'day', visible, initial, onSave, onRem
       />
       <ActionButton
         icon="checkmark"
-        label={key === null ? t('dailyGoals.pickFirst') : t(initial?.id ? 'dailyGoals.saveSummary' : 'dailyGoals.addSummary', { name: goalKeyLabel({ scope, key }, t), amount: `${goalAmount(measure, target)}${measure === 'reps' ? ` ${t('dailyGoals.repsUnit')}` : ''}` })}
+        label={key === null ? t('dailyGoals.pickFirst') : t(initial?.id ? 'dailyGoals.saveSummary' : 'dailyGoals.addSummary', { name: goalKeyLabel({ scope, key, mobilityMode: mode }, t), amount: `${goalAmount(measure, target)}${measure === 'reps' ? ` ${t('dailyGoals.repsUnit')}` : ''}` })}
         disabled={key === null}
-        onPress={() => { if (key !== null) onSave({ id: initial?.id, scope, key, measure, target }); }}
+        onPress={() => { if (key !== null) onSave({ id: initial?.id, scope, key, measure, target, ...(mode ? { mobilityMode: mode } : {}) }); }}
       />
       {onRemove ? <ActionButton icon="trash-outline" variant="danger" label={t('dailyGoals.remove')} onPress={onRemove} /> : null}
     </Sheet>

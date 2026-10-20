@@ -15,7 +15,12 @@ export type DailyGoal = {
   measure: DailyGoalMeasure;
   /** Seconds for minutes goals, reps for reps goals. */
   target: number;
+  /** Tag goals only: count just active or just passive mobility exercises (unset: all of them). */
+  mobilityMode?: GoalMobilityMode;
 };
+
+export type GoalMobilityMode = 'active' | 'passive';
+export const GOAL_MOBILITY_MODES: readonly GoalMobilityMode[] = ['active', 'passive'];
 
 /** A completed working set of today, with what the goals match on. */
 export type DaySet = {
@@ -31,6 +36,8 @@ export type DaySet = {
   categories: readonly string[];
   group: string | null;
   tags: readonly string[];
+  /** The exercise's mobility type; null when it has none. */
+  mobilityMode?: string | null;
 };
 
 export type GoalContribution = {
@@ -72,7 +79,8 @@ export function isValidDailyGoal(value: unknown, period: GoalPeriod = 'day'): va
     && typeof goal.key === 'string' && goal.key.trim().length > 0
     && MEASURES.includes(goal.measure as DailyGoalMeasure)
     && typeof goal.target === 'number' && Number.isInteger(goal.target) && goal.target >= 1
-    && goal.target <= targetMax(period, goal.measure as DailyGoalMeasure);
+    && goal.target <= targetMax(period, goal.measure as DailyGoalMeasure)
+    && (goal.mobilityMode === undefined || (goal.scope === 'tag' && GOAL_MOBILITY_MODES.includes(goal.mobilityMode as GoalMobilityMode)));
 }
 
 /** Stored goals; anything malformed is dropped rather than breaking the screen. */
@@ -86,14 +94,17 @@ export function parseDailyGoals(raw: string | null | undefined, period: GoalPeri
   }
 }
 
-export function sameGoalTarget(a: Pick<DailyGoal, 'scope' | 'key' | 'measure'>, b: Pick<DailyGoal, 'scope' | 'key' | 'measure'>): boolean {
-  return a.scope === b.scope && a.key === b.key && a.measure === b.measure;
+type GoalTarget = Pick<DailyGoal, 'scope' | 'key' | 'measure' | 'mobilityMode'>;
+
+export function sameGoalTarget(a: GoalTarget, b: GoalTarget): boolean {
+  return a.scope === b.scope && a.key === b.key && a.measure === b.measure && (a.mobilityMode ?? null) === (b.mobilityMode ?? null);
 }
 
-export function goalMatches(goal: Pick<DailyGoal, 'scope' | 'key'>, item: Pick<DaySet, 'categories' | 'group' | 'tags'>): boolean {
+export function goalMatches(goal: Pick<DailyGoal, 'scope' | 'key' | 'mobilityMode'>, item: Pick<DaySet, 'categories' | 'group' | 'tags' | 'mobilityMode'>): boolean {
   if (goal.scope === 'category') return item.categories.includes(goal.key);
   if (goal.scope === 'group') return item.group === goal.key;
-  return item.tags.includes(goal.key);
+  // Under one tag a goal can count only active or only passive mobility; exercises with no type count in the plain goal only.
+  return item.tags.includes(goal.key) && (!goal.mobilityMode || item.mobilityMode === goal.mobilityMode);
 }
 
 /** What a set adds: its seconds for minutes goals (timed sets only), its reps for reps goals. */
@@ -160,7 +171,7 @@ export function deriveWeeklyGoals(daily: readonly DailyGoal[], weekly: readonly 
   const fresh = daily.filter((goal) => !weekly.some((item) => sameGoalTarget(item, goal)));
   const room = Math.max(0, MAX_DAILY_GOALS - weekly.length);
   const add = fresh.slice(0, room).map((goal): DailyGoal => ({
-    id: newId(), scope: goal.scope, key: goal.key, measure: goal.measure, target: Math.min(targetMax('week', goal.measure), goal.target * factor),
+    id: newId(), scope: goal.scope, key: goal.key, measure: goal.measure, ...(goal.mobilityMode ? { mobilityMode: goal.mobilityMode } : {}), target: Math.min(targetMax('week', goal.measure), goal.target * factor),
   }));
   return { add, existing: daily.length - fresh.length, dropped: fresh.length - add.length };
 }

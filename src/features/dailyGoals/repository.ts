@@ -110,6 +110,7 @@ export async function listSetsSince(since: Date): Promise<DaySet[]> {
     movementGroup: exercises.movementGroup,
     movementTag: exercises.movementTag,
     movementTags: exercises.movementTags,
+    mobilityMode: exercises.mobilityMode,
   })
     .from(trainingSets)
     .innerJoin(exerciseEntries, eq(trainingSets.entryId, exerciseEntries.id))
@@ -128,6 +129,7 @@ export async function listSetsSince(since: Date): Promise<DaySet[]> {
     categories: rowCategories(row),
     group: row.movementGroup,
     tags: exerciseMovementTags(row),
+    mobilityMode: row.mobilityMode,
   }));
 }
 
