@@ -3,6 +3,7 @@ import * as Crypto from 'expo-crypto';
 import { db, initializeDatabase } from '../../db/client';
 import { exerciseEntries, exercises, settings, trainingSets, workouts } from '../../db/schema';
 import { dailyGoalProgress, deriveWeeklyGoals, type WeeklyDerivation, isValidDailyGoal, MAX_DAILY_GOALS, parseDailyGoals, startOfToday, startOfWeek, type DailyGoal, type DailyGoalProgress, type DaySet, type GoalPeriod } from '../../domain/dailyGoals';
+import { applyGoalChange, type GoalChange } from '../../domain/tagGoals';
 import { rowCategories } from '../analytics/summary';
 import { exerciseMovementTags } from '../exercises/movementCatalog';
 
@@ -29,6 +30,11 @@ function goalStore(period: GoalPeriod) {
     const index = goals.findIndex((item) => item.id === saved.id);
     await save(index >= 0 ? goals.map((item, i) => (i === index ? saved : item)) : [...goals, saved]);
     return saved;
+  }
+
+  /** Adds, updates and removes several goals in one save (the sheet of a movement tag edits up to three). */
+  async function apply(change: GoalChange): Promise<void> {
+    await save(applyGoalChange(await list(), change, () => Crypto.randomUUID()));
   }
 
   /** Removes a goal and returns it with its place, so the removal can be undone. */
@@ -77,7 +83,7 @@ function goalStore(period: GoalPeriod) {
     };
   }
 
-  return { list, put, remove, restore, duplicate, move, snapshot };
+  return { list, put, apply, remove, restore, duplicate, move, snapshot };
 }
 
 const daily = goalStore('day');

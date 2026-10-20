@@ -5,6 +5,7 @@ import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { startOfWeek, type DailyGoal, type GoalPeriod } from '../../domain/dailyGoals';
 import { addWeeklyGoalsFromDaily, goalsOf, listDailyGoals, type DailyGoalsSnapshot } from './repository';
 import { DeriveWeeklySheet } from './DeriveWeeklySheet';
+import type { GoalChange } from '../../domain/tagGoals';
 import { DailyGoalSheet, type GoalDraft } from './DailyGoalSheet';
 import { GoalRow, GoalSegments, GoalsPeriodSwitch, useGoalText } from './DailyGoalViews';
 import { useGoalT } from './period';
@@ -58,7 +59,7 @@ export function GoalsPage({ period }: { period: GoalPeriod }) {
 
   const derive = (days: number) => { setDeriveOpen(false); void change(() => addWeeklyGoalsFromDaily(days)); };
   const openSheet = (draft: GoalDraft | null) => { setEditing(draft); setSheetOpen(true); };
-  const save = (draft: GoalDraft) => { setSheetOpen(false); void change(() => store.put(draft)); };
+  const save = (goalChange: GoalChange) => { setSheetOpen(false); void change(() => store.apply(goalChange)); };
   const remove = (goal: DailyGoal, name: string) => void change(async () => {
     const result = await store.remove(goal.id);
     if (result) setRemoved({ ...result, name });
@@ -142,6 +143,7 @@ export function GoalsPage({ period }: { period: GoalPeriod }) {
         key={sheetOpen ? `open-${editing?.id ?? 'new'}` : 'closed'}
         visible={sheetOpen}
         initial={editing}
+        goals={progress.map((item) => item.goal)}
         onSave={save}
         onClose={() => setSheetOpen(false)}
       />

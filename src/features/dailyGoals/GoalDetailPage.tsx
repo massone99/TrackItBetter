@@ -2,10 +2,11 @@ import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
-import { goalMatches, type DailyGoalProgress, type GoalPeriod } from '../../domain/dailyGoals';
+import { goalMatches, type DailyGoal, type DailyGoalProgress, type GoalPeriod } from '../../domain/dailyGoals';
 import { rowCategories } from '../analytics/summary';
 import { goalsOf } from './repository';
-import { DailyGoalSheet, type GoalDraft } from './DailyGoalSheet';
+import type { GoalChange } from '../../domain/tagGoals';
+import { DailyGoalSheet } from './DailyGoalSheet';
 import { useGoalText } from './DailyGoalViews';
 import { useGoalT } from './period';
 import { goalAmount } from './labels';
@@ -33,6 +34,7 @@ export function GoalDetailPage({ period }: { period: GoalPeriod }) {
   const { id } = useLocalSearchParams<{ id: string }>();
   const [progress, setProgress] = useState<DailyGoalProgress | null | undefined>(undefined);
   const [choices, setChoices] = useState<Choice[]>([]);
+  const [allGoals, setAllGoals] = useState<DailyGoal[]>([]);
   const [picked, setPicked] = useState<string[]>([]);
   const [editing, setEditing] = useState(false);
   const [blockedBy, setBlockedBy] = useState<{ id: string; name: string } | null>(null);
@@ -43,11 +45,12 @@ export function GoalDetailPage({ period }: { period: GoalPeriod }) {
     void Promise.all([store.snapshot(), listExercises()]).then(([snapshot, all]) => {
       const found = snapshot.progress.find((item) => item.goal.id === id) ?? null;
       setProgress(found);
+      setAllGoals(snapshot.progress.map((item) => item.goal));
       if (!found) return;
       // Exercises used today for this goal first, then favourites, then the rest by name.
       const usedToday = new Set(found.contributions.map((item) => item.exerciseId));
       const matching = all.filter((exercise) => goalMatches(found.goal, {
-        categories: rowCategories(exercise), group: exercise.movementGroup, tags: exerciseMovementTags(exercise),
+        categories: rowCategories(exercise), group: exercise.movementGroup, tags: exerciseMovementTags(exercise), mobilityMode: exercise.mobilityMode,
       }));
       matching.sort((a, b) => Number(usedToday.has(b.id)) - Number(usedToday.has(a.id)) || Number(b.favourite) - Number(a.favourite) || a.name.localeCompare(b.name));
       setChoices(matching.map((exercise) => ({ id: exercise.id, name: exercise.name })));
@@ -55,9 +58,9 @@ export function GoalDetailPage({ period }: { period: GoalPeriod }) {
   }, [id, t, store]);
   useFocusEffect(load);
 
-  const save = async (draft: GoalDraft) => {
+  const save = async (change: GoalChange) => {
     setEditing(false);
-    try { await store.put(draft); } catch { setError(t('dailyGoals.saveError')); }
+    try { await store.apply(change); } catch { setError(t('dailyGoals.saveError')); }
     load();
   };
   const start = async () => {
@@ -134,7 +137,7 @@ export function GoalDetailPage({ period }: { period: GoalPeriod }) {
           <ShowMore remaining={page.remaining} onPress={page.more} />
         </View>
       )}
-      <DailyGoalSheet period={period} key={editing ? `edit-${goal.id}` : 'closed'} visible={editing} initial={goal} onSave={(draft) => void save(draft)} onClose={() => setEditing(false)} />
+      <DailyGoalSheet period={period} key={editing ? `edit-${goal.id}` : 'closed'} visible={editing} initial={goal} goals={allGoals} onSave={(change) => void save(change)} onClose={() => setEditing(false)} />
     </Screen>
   );
 }
