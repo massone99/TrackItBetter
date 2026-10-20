@@ -2,6 +2,10 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.47.0 - 2026-10-20
+
+- Goals: a daily or weekly goal by movement tag can count only active or only passive mobility (All / Active / Passive). Two goals on the same tag with different types are counted apart. Exercises with no mobility type count in All only.
+
 ## 0.46.1 - 2026-10-19
 
 - Comparison: "Pick one" lists the exercise's history rows (date, workout, every set, averages, trend), as in its Storico, and a tap chooses the workout to compare with.
