@@ -5,9 +5,10 @@ import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { startOfWeek, type DailyGoal, type GoalPeriod } from '../../domain/dailyGoals';
 import { addWeeklyGoalsFromDaily, goalsOf, listDailyGoals, type DailyGoalsSnapshot } from './repository';
 import { DeriveWeeklySheet } from './DeriveWeeklySheet';
-import type { GoalChange } from '../../domain/tagGoals';
+import { groupGoalRows, moveGoalIds, type GoalChange } from '../../domain/tagGoals';
 import { DailyGoalSheet, type GoalDraft } from './DailyGoalSheet';
-import { GoalRow, GoalSegments, GoalsPeriodSwitch, useGoalText } from './DailyGoalViews';
+import { GoalGroupHeader, GoalRow, GoalSegments, GoalsPeriodSwitch, useGoalText } from './DailyGoalViews';
+import { goalKeyLabel } from './labels';
 import { useGoalT } from './period';
 import { ActionButton, Body, EmptyState, FooterAction, IconButton, ListGroup, PageHeading, Screen, Text, Toast } from '../../shared/components/ui';
 import { useTheme } from '../../shared/theme/ThemeProvider';
@@ -116,23 +117,30 @@ export function GoalsPage({ period }: { period: GoalPeriod }) {
       ) : (
         <ListGroup>
           <View>
-            {progress.map((item, index) => (
-              <GoalRow
-                key={item.goal.id}
-                period={period}
-                progress={item}
-                expanded={expanded === item.goal.id}
-                first={index === 0}
-                last={index === progress.length - 1}
-                onToggle={() => setExpanded((current) => (current === item.goal.id ? null : item.goal.id))}
-                onTarget={(target) => void change(() => store.put({ ...item.goal, target }))}
-                onDetails={() => router.push({ pathname: period === 'week' ? '/weekly-goal/[id]' : '/daily-goal/[id]', params: { id: item.goal.id } })}
-                onEdit={() => openSheet(item.goal)}
-                onDuplicate={() => duplicate(item.goal.id)}
-                onMove={(delta) => void change(() => store.move(item.goal.id, delta))}
-                onDelete={() => remove(item.goal, goalText(item).name)}
-              />
-            ))}
+            {groupGoalRows(progress).map((entry, index, entries) => {
+              const divider = index < entries.length - 1;
+              if (entry.kind === 'header') return <GoalGroupHeader key={`header-${entry.key}`} name={goalKeyLabel({ scope: 'tag', key: entry.key }, t)} divider={false} />;
+              const { item, child } = entry;
+              return (
+                <GoalRow
+                  key={item.goal.id}
+                  period={period}
+                  progress={item}
+                  child={child}
+                  expanded={expanded === item.goal.id}
+                  divider={divider}
+                  canMoveUp={moveGoalIds(progress, item.goal.id, -1) !== null}
+                  canMoveDown={moveGoalIds(progress, item.goal.id, 1) !== null}
+                  onToggle={() => setExpanded((current) => (current === item.goal.id ? null : item.goal.id))}
+                  onTarget={(target) => void change(() => store.put({ ...item.goal, target }))}
+                  onDetails={() => router.push({ pathname: period === 'week' ? '/weekly-goal/[id]' : '/daily-goal/[id]', params: { id: item.goal.id } })}
+                  onEdit={() => openSheet(item.goal)}
+                  onDuplicate={() => duplicate(item.goal.id)}
+                  onMove={(delta) => { const ids = moveGoalIds(progress, item.goal.id, delta); if (ids) void change(() => store.reorder(ids)); }}
+                  onDelete={() => remove(item.goal, goalText(item).name)}
+                />
+              );
+            })}
           </View>
         </ListGroup>
       )}

@@ -73,12 +73,16 @@ function RowAction({ icon, label, onPress, disabled, tone = 'plain' }: { icon: I
  * A goal in the list. A tap opens it in place: the daily total with − and +, and every action on it
  * as a labelled button, so nothing hides behind a gesture or a menu.
  */
-export function GoalRow({ period = 'day', progress, expanded, first, last, onToggle, onTarget, onDetails, onEdit, onDuplicate, onMove, onDelete }: {
+export function GoalRow({ period = 'day', progress, expanded, divider, canMoveUp, canMoveDown, child = false, onToggle, onTarget, onDetails, onEdit, onDuplicate, onMove, onDelete }: {
   period?: GoalPeriod;
   progress: DailyGoalProgress;
   expanded: boolean;
-  first: boolean;
-  last: boolean;
+  /** A line under the row (every row but the last one shown). */
+  divider: boolean;
+  canMoveUp: boolean;
+  canMoveDown: boolean;
+  /** Sits under its movement tag: indented, with a connector, named by its mobility type only. */
+  child?: boolean;
   onToggle: () => void;
   onTarget: (value: number) => void;
   onDetails: () => void;
@@ -93,11 +97,14 @@ export function GoalRow({ period = 'day', progress, expanded, first, last, onTog
   const tg = useGoalT(period);
   const text = useGoalText()(progress);
   const { goal, reached } = progress;
+  const name = child && goal.mobilityMode ? t(`customExercise.mobilityMode.${goal.mobilityMode}`) : text.name;
+  const kind = child && goal.mobilityMode ? `${t('dailyGoals.mobilityKind', { type: name.toLocaleLowerCase() })} · ${t(`dailyGoals.measure.${goal.measure}`).toLocaleLowerCase()}` : text.kind;
   return (
-    <View style={[!last ? styles.divider : null, { borderColor: palette.border, backgroundColor: expanded ? palette.background : 'transparent' }]}>
+    <View style={[divider ? styles.divider : null, child ? styles.child : null, { borderColor: palette.border, backgroundColor: expanded ? palette.background : 'transparent' }]}>
+      {child ? <View pointerEvents="none" style={[styles.connector, { borderColor: palette.border }]} /> : null}
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel={`${text.name}, ${text.kind}, ${text.amount}, ${reached ? t('dailyGoals.reachedShort') : text.remaining}`}
+        accessibilityLabel={`${name}, ${kind}, ${text.amount}, ${reached ? t('dailyGoals.reachedShort') : text.remaining}`}
         accessibilityState={{ expanded }}
         onPress={() => { tapFeedback(); onToggle(); }}
         style={({ pressed }) => [styles.row, { backgroundColor: pressed ? palette.surfaceMuted : 'transparent' }]}
@@ -105,8 +112,8 @@ export function GoalRow({ period = 'day', progress, expanded, first, last, onTog
         <View style={styles.rowHead}>
           {reached ? <Icon name="checkmark-circle" size={24} color={palette.success} /> : null}
           <View style={styles.rowCopy}>
-            <Text style={[styles.name, { color: palette.text }]}>{text.name}</Text>
-            <Text style={[styles.kind, { color: palette.textMuted }]}>{text.kind}</Text>
+            <Text style={[styles.name, { color: palette.text }]}>{name}</Text>
+            <Text style={[styles.kind, { color: palette.textMuted }]}>{kind}</Text>
           </View>
           <View style={styles.rowAmount}>
             <Text style={[styles.amount, { color: reached ? palette.success : palette.text }]}>{text.amount}</Text>
@@ -136,12 +143,23 @@ export function GoalRow({ period = 'day', progress, expanded, first, last, onTog
             <RowAction icon="list-outline" label={t('dailyGoals.details')} tone="accent" onPress={onDetails} />
             <RowAction icon="create-outline" label={t('dailyGoals.edit')} onPress={onEdit} />
             <RowAction icon="copy-outline" label={t('dailyGoals.duplicate')} onPress={onDuplicate} />
-            <RowAction icon="arrow-up" label={t('dailyGoals.moveUp')} disabled={first} onPress={() => onMove(-1)} />
-            <RowAction icon="arrow-down" label={t('dailyGoals.moveDown')} disabled={last} onPress={() => onMove(1)} />
+            <RowAction icon="arrow-up" label={t('dailyGoals.moveUp')} disabled={!canMoveUp} onPress={() => onMove(-1)} />
+            <RowAction icon="arrow-down" label={t('dailyGoals.moveDown')} disabled={!canMoveDown} onPress={() => onMove(1)} />
             <RowAction icon="trash-outline" label={t('dailyGoals.delete')} tone="danger" onPress={onDelete} />
           </View>
         </View>
       ) : null}
+    </View>
+  );
+}
+
+/** The heading of a movement tag whose total goal does not exist: its active and passive goals sit under it. */
+export function GoalGroupHeader({ name, divider }: { name: string; divider: boolean }) {
+  const styles = useScaledStyles(baseStyles);
+  const { palette } = useTheme();
+  return (
+    <View accessible accessibilityRole="header" style={[styles.groupHeader, divider ? styles.divider : null, { borderColor: palette.border }]}>
+      <Text style={[styles.name, { color: palette.text }]}>{name}</Text>
     </View>
   );
 }
@@ -207,6 +225,9 @@ const baseStyles = StyleSheet.create({
   segment: { flex: 1, height: 6, borderRadius: 3, overflow: 'hidden' },
   segmentFill: { height: '100%' },
   divider: { borderBottomWidth: StyleSheet.hairlineWidth },
+  child: { paddingLeft: 24 },
+  connector: { position: 'absolute', left: 14, top: 0, height: 28, width: 10, borderLeftWidth: 2, borderBottomWidth: 2, borderBottomLeftRadius: 8 },
+  groupHeader: { minHeight: 44, paddingHorizontal: 14, paddingTop: 12, paddingBottom: 4, justifyContent: 'center' },
   row: { minHeight: 56, paddingHorizontal: 14, paddingVertical: 10, gap: 8, justifyContent: 'center' },
   rowHead: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   rowCopy: { flex: 1, minWidth: 0 },

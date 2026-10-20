@@ -37,6 +37,13 @@ function goalStore(period: GoalPeriod) {
     await save(applyGoalChange(await list(), change, () => Crypto.randomUUID()));
   }
 
+  /** Puts the goals in the order of `ids` (the goals not named keep their relative order at the end). */
+  async function reorder(ids: readonly string[]): Promise<void> {
+    const goals = await list();
+    const first = ids.map((id) => goals.find((goal) => goal.id === id)).filter((goal): goal is DailyGoal => goal !== undefined);
+    await save([...first, ...goals.filter((goal) => !ids.includes(goal.id))]);
+  }
+
   /** Removes a goal and returns it with its place, so the removal can be undone. */
   async function remove(id: string): Promise<{ goal: DailyGoal; index: number } | null> {
     const goals = await list();
@@ -83,7 +90,7 @@ function goalStore(period: GoalPeriod) {
     };
   }
 
-  return { list, put, apply, remove, restore, duplicate, move, snapshot };
+  return { list, put, apply, reorder, remove, restore, duplicate, move, snapshot };
 }
 
 const daily = goalStore('day');

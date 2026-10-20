@@ -57,3 +57,58 @@ export function applyGoalChange(goals: readonly DailyGoal[], change: GoalChange,
   if (next.length > MAX_DAILY_GOALS) throw new RangeError('Too many goals');
   return next;
 }
+
+/** A line of the goals list: a goal (a child sits under its tag) or the heading of a tag that has no total goal. */
+export type GoalListEntry<T extends { goal: DailyGoal }> = { kind: 'goal'; item: T; child: boolean } | { kind: 'header'; key: string };
+
+const ORDER: Record<TagRowKey, number> = { all: 0, active: 1, passive: 2 };
+
+/** The goals of each tag together, in the position of the first one: the total, then active, then passive under it. */
+function blocksOf<T extends { goal: DailyGoal }>(items: readonly T[]): { key: string | null; total: T | null; children: T[] }[] {
+  const blocks: { key: string | null; total: T | null; children: T[] }[] = [];
+  const seen = new Set<string>();
+  for (const item of items) {
+    const { goal } = item;
+    if (goal.scope !== 'tag') { blocks.push({ key: null, total: item, children: [] }); continue; }
+    if (seen.has(goal.key)) continue;
+    seen.add(goal.key);
+    const own = items.filter((other) => other.goal.scope === 'tag' && other.goal.key === goal.key);
+    const total = own.find((other) => !other.goal.mobilityMode) ?? null;
+    const children = own.filter((other) => other !== total).sort((a, b) => ORDER[a.goal.mobilityMode ?? 'all'] - ORDER[b.goal.mobilityMode ?? 'all']);
+    blocks.push({ key: goal.key, total, children });
+  }
+  return blocks;
+}
+
+export function groupGoalRows<T extends { goal: DailyGoal }>(items: readonly T[]): GoalListEntry<T>[] {
+  const entries: GoalListEntry<T>[] = [];
+  for (const block of blocksOf(items)) {
+    if (block.total) entries.push({ kind: 'goal', item: block.total, child: false });
+    else if (block.key !== null) entries.push({ kind: 'header', key: block.key });
+    for (const item of block.children) entries.push({ kind: 'goal', item, child: true });
+  }
+  return entries;
+}
+
+/**
+ * The goal ids in storage order after moving one goal a place up (-1) or down (+1) as the list shows it:
+ * a child moves among the children of its tag, a total or a plain goal moves with its whole group.
+ * Null when it cannot move that way.
+ */
+export function moveGoalIds<T extends { goal: DailyGoal }>(items: readonly T[], id: string, delta: -1 | 1): string[] | null {
+  const blocks = blocksOf(items);
+  const at = blocks.findIndex((block) => block.total?.goal.id === id || block.children.some((child) => child.goal.id === id));
+  if (at < 0) return null;
+  const block = blocks[at];
+  const childIndex = block.children.findIndex((child) => child.goal.id === id);
+  if (childIndex >= 0) {
+    const target = childIndex + delta;
+    if (target < 0 || target >= block.children.length) return null;
+    [block.children[childIndex], block.children[target]] = [block.children[target], block.children[childIndex]];
+  } else {
+    const target = at + delta;
+    if (target < 0 || target >= blocks.length) return null;
+    [blocks[at], blocks[target]] = [blocks[target], blocks[at]];
+  }
+  return blocks.flatMap((entry) => [...(entry.total ? [entry.total] : []), ...entry.children]).map((item) => item.goal.id);
+}

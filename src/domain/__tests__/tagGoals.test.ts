@@ -1,5 +1,5 @@
 import type { DailyGoal } from '../dailyGoals';
-import { applyGoalChange, tagRowsFor, tagRowsToChange } from '../tagGoals';
+import { applyGoalChange, groupGoalRows, moveGoalIds, tagRowsFor, tagRowsToChange } from '../tagGoals';
 
 const goal = (over: Partial<DailyGoal>): DailyGoal => ({ id: 'g', scope: 'tag', key: 'Hip flexion', measure: 'minutes', target: 60, ...over });
 const defaults = { minutes: 60, reps: 30 };
@@ -40,5 +40,21 @@ describe('tag goals', () => {
   it('refuses more goals than the limit', () => {
     const many = Array.from({ length: 20 }, (_, index) => goal({ id: `g${index}`, key: `k${index}` }));
     expect(() => applyGoalChange(many, { drafts: [{ scope: 'tag', key: 'x', measure: 'minutes', target: 60 }], removeIds: [] }, () => 'n')).toThrow(RangeError);
+  });
+});
+
+describe('goal list hierarchy', () => {
+  const item = (over: Partial<DailyGoal>) => ({ goal: goal(over) });
+  it('puts active and passive under the total, and a heading over them when there is no total', () => {
+    const items = [item({ id: 'p', mobilityMode: 'passive' }), item({ id: 'k', key: 'Knee', mobilityMode: 'active' }), item({ id: 't' }), item({ id: 'c', scope: 'category', key: 'push' }), item({ id: 'a', mobilityMode: 'active' })];
+    expect(groupGoalRows(items).map((entry) => (entry.kind === 'header' ? `# ${entry.key}` : `${entry.child ? '  ' : ''}${entry.item.goal.id}`))).toEqual(['t', '  a', '  p', '# Knee', '  k', 'c']);
+  });
+
+  it('moves a child among its siblings and a total with its group', () => {
+    const items = [item({ id: 't' }), item({ id: 'a', mobilityMode: 'active' }), item({ id: 'p', mobilityMode: 'passive' }), item({ id: 'c', scope: 'category', key: 'push' })];
+    expect(moveGoalIds(items, 'p', -1)).toEqual(['t', 'p', 'a', 'c']);
+    expect(moveGoalIds(items, 'a', -1)).toBeNull();
+    expect(moveGoalIds(items, 't', 1)).toEqual(['c', 't', 'a', 'p']);
+    expect(moveGoalIds(items, 'c', 1)).toBeNull();
   });
 });
