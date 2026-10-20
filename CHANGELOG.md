@@ -2,6 +2,10 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.48.0 - 2026-10-20
+
+- Goals: the sheet of a movement tag sets up to three goals at once: Total (everything under the tag), Active and Passive mobility, each with its own switch, measure (minutes or reps) and target. Reopening a goal of the tag shows and edits all of them; the tag's detail page counts the right exercises for active and passive goals.
+
 ## 0.47.0 - 2026-10-20
 
 - Goals: a daily or weekly goal by movement tag can count only active or only passive mobility (All / Active / Passive). Two goals on the same tag with different types are counted apart. Exercises with no mobility type count in All only.
