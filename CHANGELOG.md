@@ -2,6 +2,10 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.48.1 - 2026-10-21
+
+- Goals: in the goals list, the active and passive goals of a movement tag sit under its total (indented, with a connector), also when only the active or only the passive one exists (then a heading with the tag name sits above). Up and Down move a child among its siblings and a total with its whole group.
+
 ## 0.48.0 - 2026-10-20
 
 - Goals: the sheet of a movement tag sets up to three goals at once: Total (everything under the tag), Active and Passive mobility, each with its own switch, measure (minutes or reps) and target. Reopening a goal of the tag shows and edits all of them; the tag's detail page counts the right exercises for active and passive goals.
