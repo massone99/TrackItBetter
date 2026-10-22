@@ -2,6 +2,11 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.49.0 - 2026-10-22
+
+- Exercises: images of how an exercise looks, shown only on its page. Add up to 12 (camera or several at once from the library); a row of previews opens each one full size, with previous/next, earlier/later to reorder, and delete. Images follow the history when it moves to another exercise, go away with the exercise, and are part of full backups (schema v21).
+- Import example: `docs/import-examples/daily-practice-routine-program.json`, the Daily Practice Routine as a program with one session of ten mobility movements.
+
 ## 0.48.1 - 2026-10-21
 
 - Goals: in the goals list, the active and passive goals of a movement tag sit under its total (indented, with a connector), also when only the active or only the passive one exists (then a heading with the tag name sits above). Up and Down move a child among its siblings and a total with its whole group.
