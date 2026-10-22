@@ -7,7 +7,7 @@ import { isPickerUnavailableError } from '../../shared/media/pickerErrors';
 import { useTheme } from '../../shared/theme/ThemeProvider';
 import { fonts } from '../../shared/theme/typography';
 import { useScaledStyles } from '../../shared/theme/useScaledStyles';
-import { addExerciseImage, deleteExerciseImage, listExerciseImages, MAX_EXERCISE_IMAGES, moveExerciseImage, type ExerciseImage } from './images';
+import { addExerciseImage, deleteExerciseImage, listExerciseImages, moveExerciseImage, type ExerciseImage } from './images';
 
 const THUMB = 112;
 
@@ -41,7 +41,6 @@ export function ExerciseImagesSection({ exerciseId }: { exerciseId: string }) {
     return () => { alive = false; };
   }, [exerciseId]);
 
-  const room = MAX_EXERCISE_IMAGES - (images?.length ?? 0);
   const add = async (source: 'camera' | 'library') => {
     setAdding(false);
     try {
@@ -53,9 +52,9 @@ export function ExerciseImagesSection({ exerciseId }: { exerciseId: string }) {
       }
       const result = source === 'camera'
         ? await ImagePicker.launchCameraAsync({ mediaTypes: ['images'], quality: 1 })
-        : await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 1, allowsMultipleSelection: true, selectionLimit: room });
+        : await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 1, allowsMultipleSelection: true, selectionLimit: 0 });
       if (result.canceled) return;
-      for (const asset of result.assets.slice(0, room)) {
+      for (const asset of result.assets) {
         await addExerciseImage(exerciseId, { sourceUri: asset.uri, mimeType: asset.mimeType ?? 'image/jpeg', width: asset.width, height: asset.height });
       }
       await load();
@@ -114,22 +113,20 @@ export function ExerciseImagesSection({ exerciseId }: { exerciseId: string }) {
                 <Image source={{ uri: image.uri }} style={styles.thumbImage} resizeMode="cover" />
               </Pressable>
             ))}
-            {room > 0 ? (
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={t('exerciseImages.add')}
-                disabled={busy}
-                onPress={() => setAdding(true)}
-                style={({ pressed }) => [styles.thumb, styles.addThumb, { borderColor: palette.border, opacity: pressed || busy ? 0.6 : 1 }]}
-              >
-                {busy ? <ActivityIndicator color={palette.accentStrong} /> : <Icon name="add" size={28} color={palette.accentStrong} />}
-              </Pressable>
-            ) : null}
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={t('exerciseImages.add')}
+              disabled={busy}
+              onPress={() => setAdding(true)}
+              style={({ pressed }) => [styles.thumb, styles.addThumb, { borderColor: palette.border, opacity: pressed || busy ? 0.6 : 1 }]}
+            >
+              {busy ? <ActivityIndicator color={palette.accentStrong} /> : <Icon name="add" size={28} color={palette.accentStrong} />}
+            </Pressable>
           </ScrollView>
         </>
       )}
 
-      <Sheet visible={adding} onClose={() => setAdding(false)} title={t('exerciseImages.add')} body={t('exerciseImages.addBody', { count: room })}>
+      <Sheet visible={adding} onClose={() => setAdding(false)} title={t('exerciseImages.add')} body={t('exerciseImages.addBody')}>
         <ActionButton icon="camera-outline" label={t('exerciseImages.camera')} onPress={() => void add('camera')} />
         <ActionButton icon="images-outline" label={t('exerciseImages.library')} secondary onPress={() => void add('library')} />
       </Sheet>

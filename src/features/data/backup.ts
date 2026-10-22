@@ -341,7 +341,7 @@ const backupV3Schema = z.object({
     // Kept optional so backups produced during the v2 pose rollout remain valid.
     poseCaptures: z.array(poseCaptureAssetSchema).max(500).optional(),
     // Added with exercise pictures; older backups omit it.
-    exerciseImages: z.array(exerciseImageAssetSchema).max(2000).optional(),
+    exerciseImages: z.array(exerciseImageAssetSchema).optional(),
   }).strict().superRefine((data, ctx) => {
     validateBackupData(data, ctx);
   }),

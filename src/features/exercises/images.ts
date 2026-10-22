@@ -10,8 +10,6 @@ export type ExerciseImage = typeof exerciseImages.$inferSelect & { uri: string }
 
 /** Longest edge of a stored exercise picture: enough for a full-screen view, small for a library of them. */
 const MAX_EDGE = 1280;
-/** Pictures one exercise can carry. */
-export const MAX_EXERCISE_IMAGES = 12;
 
 function getImageDirectory(): Directory {
   return new Directory(Paths.document, 'exercise-images');
@@ -41,7 +39,6 @@ export async function listExerciseImages(exerciseId: string): Promise<ExerciseIm
 export async function addExerciseImage(exerciseId: string, input: { sourceUri: string; mimeType: string; width: number; height: number }): Promise<void> {
   await initializeDatabase();
   const current = await listExerciseImages(exerciseId);
-  if (current.length >= MAX_EXERCISE_IMAGES) throw new RangeError('Too many images');
   prepareExerciseImageDirectory();
   const image = await downscale(input, MAX_EDGE);
   const extension = image.mimeType === 'image/png' ? 'png' : image.mimeType === 'image/webp' ? 'webp' : image.mimeType === 'image/heic' ? 'heic' : image.mimeType === 'image/heif' ? 'heif' : 'jpg';
