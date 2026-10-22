@@ -6,6 +6,7 @@ import { bumpFinishedVersion } from '../../db/cache';
 import {
   bodyMeasurements,
   exerciseEntries,
+  exerciseImages,
   exercises,
   levelCriteria,
   progressionChains,
@@ -17,6 +18,7 @@ import {
   workouts,
 } from '../../db/schema';
 import { getProgressPhotoFile, preparePhotoDirectory } from '../photos/repository';
+import { getExerciseImageFile, prepareExerciseImageDirectory } from '../exercises/images';
 import { getPoseCaptureFile, preparePoseCaptureDirectory } from '../pose/repository';
 import { getFormCheckVideoFile } from '../media/formVideos';
 import { MOVEMENT_GROUP_IDS, MOVEMENT_TAGS, canonicalizeMovementTag, normalizeExerciseClassification } from '../exercises/movementCatalog';
@@ -290,6 +292,18 @@ const poseCaptureAssetSchema = z.object({
   base64: base64Schema,
 }).strict();
 
+const exerciseImageAssetSchema = z.object({
+  id: z.string().uuid(),
+  exerciseId: z.string().min(1),
+  fileName: z.string().regex(/^[a-f0-9-]{36}\.(jpg|png|webp|heic|heif)$/i),
+  mimeType: z.enum(['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif']),
+  width: z.number().int().positive(),
+  height: z.number().int().positive(),
+  position: z.number().int().min(0),
+  createdAt: timestamp,
+  base64: base64Schema,
+}).strict();
+
 const backupV1Schema = z.object({
   format: z.literal('trackitbetter-backup'),
   version: z.literal(1),
@@ -326,6 +340,8 @@ const backupV3Schema = z.object({
     progressPhotos: z.array(photoAssetSchema).max(500),
     // Kept optional so backups produced during the v2 pose rollout remain valid.
     poseCaptures: z.array(poseCaptureAssetSchema).max(500).optional(),
+    // Added with exercise pictures; older backups omit it.
+    exerciseImages: z.array(exerciseImageAssetSchema).max(2000).optional(),
   }).strict().superRefine((data, ctx) => {
     validateBackupData(data, ctx);
   }),
@@ -395,7 +411,7 @@ export type ImportMode = 'replace' | 'merge';
 export async function createBackup(scope: BackupScope = { kind: 'full' }): Promise<LocalBackup> {
   if (scope.kind !== 'full') return createPartialBackup(scope);
   await initializeDatabase();
-  const [exerciseRows, chainRows, criteriaRows, workoutRows, entryRows, setRows, measurementRows, settingRows, photoRows, poseRows] = await Promise.all([
+  const [exerciseRows, chainRows, criteriaRows, workoutRows, entryRows, setRows, measurementRows, settingRows, photoRows, poseRows, imageRows] = await Promise.all([
     db.select().from(exercises),
     db.select().from(progressionChains),
     db.select().from(levelCriteria),
@@ -406,7 +422,13 @@ export async function createBackup(scope: BackupScope = { kind: 'full' }): Promi
     db.select().from(settings),
     db.select().from(progressPhotos),
     db.select().from(poseCaptures),
+    db.select().from(exerciseImages),
   ]);
+  const images = await Promise.all(imageRows.map(async (row) => ({
+    ...row,
+    createdAt: row.createdAt.toISOString(),
+    base64: await getExerciseImageFile(row.fileName).base64(),
+  })));
   const photos = await Promise.all(photoRows.map(async (row) => ({
     ...row,
     takenAt: row.takenAt.toISOString(),
@@ -434,6 +456,7 @@ export async function createBackup(scope: BackupScope = { kind: 'full' }): Promi
       settings: settingRows,
       progressPhotos: photos,
       poseCaptures: poses,
+      exerciseImages: images,
     },
   });
 }
@@ -579,18 +602,22 @@ async function replaceWithBackup(input: string): Promise<void> {
   const { data } = backup;
   const photoAssets = 'progressPhotos' in data ? data.progressPhotos : [];
   const poseAssets = 'poseCaptures' in data ? data.poseCaptures ?? [] : [];
+  const imageAssets = 'exerciseImages' in data ? data.exerciseImages ?? [] : [];
   const importedSets = regeneratePairIds(data.trainingSets);
   const date = (value: string) => new Date(value);
   await initializeDatabase();
   const oldPhotos = await db.select().from(progressPhotos);
   const oldVideos = await db.select().from(formCheckVideos);
   const oldPoses = await db.select().from(poseCaptures);
+  const oldImages = await db.select().from(exerciseImages);
   const restoreDir = new Directory(Paths.cache, `tib-photo-restore-${Crypto.randomUUID()}`);
   const installedFiles: File[] = [];
   const stagedPhotos: { id: string; fileName: string; mimeType: string; width: number; height: number; note: string; takenAt: Date }[] = [];
   const stagedPoses: (Omit<(typeof poseAssets)[number], 'base64' | 'capturedAt'> & { capturedAt: Date })[] = [];
+  const stagedImages: (Omit<(typeof imageAssets)[number], 'base64' | 'createdAt'> & { createdAt: Date })[] = [];
   await preparePhotoDirectory();
   preparePoseCaptureDirectory();
+  prepareExerciseImageDirectory();
   restoreDir.create({ idempotent: true, intermediates: true });
   try {
     for (const [index, photo] of photoAssets.entries()) {
@@ -629,6 +656,20 @@ async function replaceWithBackup(input: string): Promise<void> {
       stagedPoses.push({ ...metadata, exerciseId, setId, fileName, capturedAt: date(capturedAt) });
     }
 
+    for (const [index, { base64, createdAt, ...metadata }] of imageAssets.entries()) {
+      // A picture of an exercise the backup does not hold is left out.
+      if (!exerciseIds.has(metadata.exerciseId)) continue;
+      const extension = metadata.fileName.slice(metadata.fileName.lastIndexOf('.') + 1).toLowerCase();
+      const fileName = `${Crypto.randomUUID()}.${extension}`;
+      const stagedFile = new File(restoreDir, `image-${index}.${extension}`);
+      stagedFile.create({ overwrite: true, intermediates: true });
+      stagedFile.write(decodeBase64(base64));
+      const storedFile = getExerciseImageFile(fileName);
+      await stagedFile.copy(storedFile);
+      installedFiles.push(storedFile);
+      stagedImages.push({ ...metadata, fileName, createdAt: date(createdAt) });
+    }
+
     await db.transaction(async (tx) => {
     await tx.delete(trainingSets);
     await tx.delete(exerciseEntries);
@@ -636,6 +677,7 @@ async function replaceWithBackup(input: string): Promise<void> {
     await tx.delete(bodyMeasurements);
     await tx.delete(progressPhotos);
     await tx.delete(poseCaptures);
+    await tx.delete(exerciseImages);
     await tx.delete(settings);
     await tx.delete(levelCriteria);
     await tx.delete(exercises);
@@ -683,6 +725,9 @@ async function replaceWithBackup(input: string): Promise<void> {
       await insertInChunks(stagedPoses, async (rows) => {
         await tx.insert(poseCaptures).values(rows);
       });
+      await insertInChunks(stagedImages, async (rows) => {
+        await tx.insert(exerciseImages).values(rows);
+      });
     });
   } catch (error) {
     installedFiles.forEach((file) => { if (file.exists) file.delete(); });
@@ -692,6 +737,10 @@ async function replaceWithBackup(input: string): Promise<void> {
   }
   oldPhotos.forEach((photo) => {
     const file = getProgressPhotoFile(photo.fileName);
+    if (file.exists) file.delete();
+  });
+  oldImages.forEach((image) => {
+    const file = getExerciseImageFile(image.fileName);
     if (file.exists) file.delete();
   });
   oldPoses.forEach((capture) => {

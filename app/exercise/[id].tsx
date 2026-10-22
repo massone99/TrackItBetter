@@ -10,6 +10,7 @@ import { getExerciseById, setExerciseFavourite } from '../../src/features/exerci
 import { canTransfer, deleteExerciseWithHistory, getExerciseUsage, hideExercise, metricAfterTransfer, transferExerciseHistory, type ExerciseUsage } from '../../src/features/exercises/lifecycle';
 import { ExercisePicker, type ExerciseChoice } from '../../src/features/exercises/ExercisePicker';
 import { HistoryRow } from '../../src/features/exercises/HistoryRow';
+import { ExerciseImagesSection } from '../../src/features/exercises/ExerciseImages';
 import { addExerciseToWorkout, getActiveWorkout, startWorkout } from '../../src/features/session/repository';
 import { getExerciseCycle, getExerciseEstimate, getExerciseOneRepMax, getExerciseHistory, getExerciseHistoryOverview, getExerciseRecordSummary, getExerciseRepsAtLoad, getExerciseWeekStats, type ExerciseHistoryOverview, type ExerciseHistorySession } from '../../src/features/analytics/repository';
 import type { ExerciseRecordSummary } from '../../src/features/analytics/records';
@@ -233,6 +234,8 @@ export default function ExerciseRoute() {
           />
         }
       />
+
+      <ExerciseImagesSection key={exercise.id} exerciseId={exercise.id} />
 
       <ListGroup>
         <ListRow

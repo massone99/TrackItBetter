@@ -196,6 +196,21 @@ export const settings = sqliteTable('settings', {
 export type Exercise = typeof exercises.$inferSelect;
 export type NewExercise = typeof exercises.$inferInsert;
 
+export const exerciseImages = sqliteTable(
+  'exercise_image',
+  {
+    id: text('id').primaryKey(),
+    exerciseId: text('exercise_id').notNull().references(() => exercises.id, { onDelete: 'cascade' }),
+    fileName: text('file_name').notNull().unique(),
+    mimeType: text('mime_type').notNull(),
+    width: integer('width').notNull(),
+    height: integer('height').notNull(),
+    position: integer('position').notNull().default(0),
+    createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+  },
+  (table) => [index('exercise_image_exercise_idx').on(table.exerciseId, table.position)],
+);
+
 export const poseCaptures = sqliteTable(
   'pose_capture',
   {

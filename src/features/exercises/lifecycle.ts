@@ -2,9 +2,10 @@ import { aggregatePairs } from '../../domain/setPairs';
 import { and, eq, inArray, isNotNull, ne } from 'drizzle-orm';
 import { db, initializeDatabase } from '../../db/client';
 import { bumpFinishedVersion } from '../../db/cache';
-import { exerciseEntries, exercises, formCheckVideos, settings, trainingSets, workouts } from '../../db/schema';
+import { exerciseEntries, exerciseImages, exercises, formCheckVideos, settings, trainingSets, workouts } from '../../db/schema';
 import { isLoadMetric, measureOf } from '../../domain/userProgram';
 import { deleteFormCheckVideosForSets } from '../media/formVideos';
+import { deleteExerciseImageFileNames, exerciseImageFileNames } from './images';
 import { readPreference, writePreference } from '../../shared/settings/preferences';
 import { readTrendChoice, writeTrendChoice } from '../analytics/trendChoice';
 
@@ -71,6 +72,8 @@ export async function transferExerciseHistory(fromId: string, toId: string, opti
     if (metric !== to.metric) await tx.update(exercises).set({ metric }).where(eq(exercises.id, toId));
     await tx.update(exerciseEntries).set({ exerciseId: toId }).where(eq(exerciseEntries.exerciseId, fromId));
     await tx.update(formCheckVideos).set({ exerciseId: toId }).where(eq(formCheckVideos.exerciseId, fromId));
+    // Pictures follow the history, so deleting the source keeps them.
+    await tx.update(exerciseImages).set({ exerciseId: toId }).where(eq(exerciseImages.exerciseId, fromId));
     await rewriteSettingsJson(tx, (id) => (id === fromId ? toId : id));
     if (options.deleteSource) await tx.delete(exercises).where(eq(exercises.id, fromId));
   });
@@ -91,6 +94,7 @@ export async function deleteExerciseWithHistory(exerciseId: string): Promise<voi
     ? (await db.select({ id: trainingSets.id }).from(trainingSets).where(inArray(trainingSets.entryId, entryIds))).map((set) => set.id)
     : [];
   await deleteFormCheckVideosForSets(setIds);
+  const imageFiles = await exerciseImageFileNames(exerciseId);
   await db.transaction(async (tx) => {
     await tx.delete(formCheckVideos).where(eq(formCheckVideos.exerciseId, exerciseId));
     if (entryIds.length) {
@@ -105,8 +109,10 @@ export async function deleteExerciseWithHistory(exerciseId: string): Promise<voi
       if (empty.length) await tx.delete(workouts).where(and(inArray(workouts.id, empty), isNotNull(workouts.endedAt)));
     }
     await rewriteSettingsJson(tx, (id) => (id === exerciseId ? null : id));
+    await tx.delete(exerciseImages).where(eq(exerciseImages.exerciseId, exerciseId));
     await tx.delete(exercises).where(eq(exercises.id, exerciseId));
   });
+  deleteExerciseImageFileNames(imageFiles);
   bumpFinishedVersion();
   moveLocalPreferences(exerciseId, null);
 }

@@ -47,6 +47,6 @@ describe('schema v18: total goal', () => {
     `);
     await migrateDatabase(legacy.expo);
     expect(legacy.sqlite.prepare('SELECT total_target FROM exercise_entry WHERE id = ?').get('e')).toEqual({ total_target: null });
-    expect(legacy.sqlite.prepare('PRAGMA user_version').get()).toEqual({ user_version: 20 });
+    expect(legacy.sqlite.prepare('PRAGMA user_version').get()).toEqual({ user_version: 21 });
   });
 });

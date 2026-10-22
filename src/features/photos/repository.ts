@@ -23,17 +23,17 @@ function getPhotoDirectory(): Directory {
 /** Longest edge of a stored progress photo: sharp on a phone screen, a fraction of a camera original. */
 const MAX_EDGE = 1600;
 
-interface StoredImage { uri: string; mimeType: string; width: number; height: number; temporary: boolean }
+export interface StoredImage { uri: string; mimeType: string; width: number; height: number; temporary: boolean }
 
 /**
- * Re-encodes the image as an upright JPEG no larger than MAX_EDGE on its long side. When the
+ * Re-encodes the image as an upright JPEG no larger than `maxEdge` on its long side. When the
  * image cannot be decoded (an unusual format), the original is kept as it is.
  */
-async function downscale(input: { sourceUri: string; mimeType: string; width: number; height: number }): Promise<StoredImage> {
+export async function downscale(input: { sourceUri: string; mimeType: string; width: number; height: number }, maxEdge = MAX_EDGE): Promise<StoredImage> {
   try {
     const context = ImageManipulator.manipulate(input.sourceUri);
-    if (Math.max(input.width, input.height) > MAX_EDGE) {
-      context.resize(input.width >= input.height ? { width: MAX_EDGE } : { height: MAX_EDGE });
+    if (Math.max(input.width, input.height) > maxEdge) {
+      context.resize(input.width >= input.height ? { width: maxEdge } : { height: maxEdge });
     }
     const rendered = await context.renderAsync();
     const saved = await rendered.saveAsync({ format: SaveFormat.JPEG, compress: 0.85 });

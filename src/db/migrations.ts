@@ -257,6 +257,22 @@ ALTER TABLE exercise_entry ADD COLUMN compare_workout_id TEXT;
 PRAGMA user_version = 20;
 `;
 
+/** Pictures of how an exercise looks, shown on its page; they go with the exercise when it is deleted. */
+export const exerciseImageSchema = `
+CREATE TABLE IF NOT EXISTS exercise_image (
+  id TEXT PRIMARY KEY NOT NULL,
+  exercise_id TEXT NOT NULL REFERENCES exercise(id) ON DELETE CASCADE,
+  file_name TEXT NOT NULL UNIQUE,
+  mime_type TEXT NOT NULL,
+  width INTEGER NOT NULL,
+  height INTEGER NOT NULL,
+  position INTEGER NOT NULL DEFAULT 0,
+  created_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS exercise_image_exercise_idx ON exercise_image(exercise_id, position);
+PRAGMA user_version = 21;
+`;
+
 /** Applies numbered, local-first SQLite schema migrations once per database. */
 export async function migrateDatabase(database: SQLiteDatabase): Promise<void> {
   await database.execAsync('PRAGMA foreign_keys = ON;');
@@ -391,6 +407,12 @@ export async function migrateDatabase(database: SQLiteDatabase): Promise<void> {
   if (version < 20) {
     await database.withTransactionAsync(async () => {
       await database.execAsync(compareSchema);
+    });
+  }
+
+  if (version < 21) {
+    await database.withTransactionAsync(async () => {
+      await database.execAsync(exerciseImageSchema);
     });
   }
 }

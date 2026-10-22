@@ -6,6 +6,7 @@ import { bumpFinishedVersion } from '../../db/cache';
 import {
   bodyMeasurements,
   exerciseEntries,
+  exerciseImages,
   exercises,
   formCheckVideos,
   levelCriteria,
@@ -19,6 +20,7 @@ import {
 import { seedCatalogIfEmpty } from '../../db/seed/import';
 import { getFormCheckVideoFile } from '../media/formVideos';
 import { getProgressPhotoFile } from '../photos/repository';
+import { getExerciseImageFile } from '../exercises/images';
 import { getPoseCaptureFile } from '../pose/repository';
 import { expandScopes, type ResetScope } from './resetScopes';
 
@@ -56,6 +58,7 @@ export async function resetData(scopes: readonly ResetScope[]): Promise<void> {
     ...(clear.has('workouts') ? (await db.select({ fileName: formCheckVideos.fileName }).from(formCheckVideos)).map((row) => getFormCheckVideoFile(row.fileName)) : []),
     ...(clear.has('body') ? (await db.select({ fileName: progressPhotos.fileName }).from(progressPhotos)).map((row) => getProgressPhotoFile(row.fileName)) : []),
     ...(clear.has('pose') ? (await db.select({ fileName: poseCaptures.fileName }).from(poseCaptures)).map((row) => getPoseCaptureFile(row.fileName)) : []),
+    ...(clear.has('everything') ? (await db.select({ fileName: exerciseImages.fileName }).from(exerciseImages)).map((row) => getExerciseImageFile(row.fileName)) : []),
   ];
 
   await db.transaction(async (tx) => {
@@ -73,6 +76,7 @@ export async function resetData(scopes: readonly ResetScope[]): Promise<void> {
     if (clear.has('plans')) await tx.delete(settings);
     if (clear.has('everything')) {
       await tx.delete(levelCriteria);
+      await tx.delete(exerciseImages);
       await tx.delete(exercises);
       await tx.delete(progressionChains);
     }
