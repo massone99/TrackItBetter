@@ -2,6 +2,10 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.49.1 - 2026-10-22
+
+- Exercise images: no limit on how many images an exercise carries; the library picker takes any number at once.
+
 ## 0.49.0 - 2026-10-22
 
 - Exercises: images of how an exercise looks, shown only on its page. Add up to 12 (camera or several at once from the library); a row of previews opens each one full size, with previous/next, earlier/later to reorder, and delete. Images follow the history when it moves to another exercise, go away with the exercise, and are part of full backups (schema v21).
