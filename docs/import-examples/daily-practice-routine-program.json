@@ -1,0 +1,259 @@
+{
+  "format": "trackitbetter-import",
+  "version": 1,
+  "exercises": [
+    {
+      "key": "hip-rotations",
+      "name": "Seated Hip Rotations",
+      "metric": "reps",
+      "category": "mobility",
+      "unilateral": false,
+      "mobilityMode": "active",
+      "cues": [
+        "Sit with knees bent, feet on the floor, hands behind the hips.",
+        "Drop both knees to one side (front hip external, back hip internal rotation), then through the start to the other side.",
+        "Let torso and hips move at first; over time keep the torso facing forward. Breathe through the nose."
+      ]
+    },
+    {
+      "key": "wall-downward-dog",
+      "name": "Wall Downward Dog Spine Opener",
+      "metric": "reps",
+      "category": "mobility",
+      "unilateral": false,
+      "mobilityMode": "active",
+      "cues": [
+        "Hands on a wall, table or counter at hip to chest height; hinge forward.",
+        "Push the chest down to open the mid and upper back, arms moving toward the ears, then back to start.",
+        "Breathe out as the chest goes down, in as you come back."
+      ]
+    },
+    {
+      "key": "wall-hip-flexor-quad",
+      "name": "Wall Hip Flexor & Quad Stretch (Couch Stretch)",
+      "metric": "time",
+      "category": "mobility",
+      "unilateral": true,
+      "mobilityMode": "passive",
+      "cues": [
+        "Shin vertical against the wall, soft pad under the knee, other leg in a lunge.",
+        "Squeeze the glute, brace the core, tuck the pelvis (posterior tilt); avoid arching the lower back.",
+        "V1: one hand down, torso diagonal (hip flexors). V2: torso upright (quads). Easier: kneeling hip flexor stretch or couch version."
+      ]
+    },
+    {
+      "key": "seiza-camel",
+      "name": "Seiza & Optional Camel Pose",
+      "metric": "reps",
+      "category": "mobility",
+      "unilateral": false,
+      "mobilityMode": "active",
+      "cues": [
+        "Kneel, then slowly sit the hips back to the heels as low as comfortable; pause, then rise.",
+        "Toes pointed (ankle plantarflexion) or tucked (sole of the foot); pillows between legs and hips to shorten the range.",
+        "Optional camel: from hips forward reach one or both hands to the heels, open the chest and push the hips forward."
+      ]
+    },
+    {
+      "key": "lounge-chair-crab-press",
+      "name": "Lounge Chair & Crab Press",
+      "metric": "reps",
+      "category": "mobility",
+      "unilateral": false,
+      "mobilityMode": "active",
+      "cues": [
+        "Seated, knees bent, hands behind the hips with fingers pointing away.",
+        "Lounge chair: lift the hips, move them forward and set them down to stretch the front of the shoulders.",
+        "Crab press: from the same start press the hips straight up like a glute bridge. Breathe out as the arms go behind."
+      ]
+    },
+    {
+      "key": "straight-leg-hinge",
+      "name": "Straight Leg Hinge",
+      "metric": "reps",
+      "category": "mobility",
+      "unilateral": false,
+      "mobilityMode": "active",
+      "cues": [
+        "Stand feet shoulder width, strong arch in the lower back (hand there for feedback).",
+        "Keep the arch, let the chest fall forward as the hips drive back; only as far as the back stays extended.",
+        "Squeeze the glutes to come back up. Progression: staggered single-leg stance."
+      ]
+    },
+    {
+      "key": "windshield-wiper-back-fold",
+      "name": "Windshield Wiper & Back Fold",
+      "metric": "reps",
+      "category": "mobility",
+      "unilateral": true,
+      "mobilityMode": "active",
+      "cues": [
+        "Lie on the back, arms out in a T, knees lifted above the hips.",
+        "Keep back and shoulders down, let the legs fall to one side; pause 3-5 s, back to center, other side.",
+        "Aim to get the knees to the floor with the opposite shoulder down; breathe in on the transition, out as the knees go down."
+      ]
+    },
+    {
+      "key": "squat-pikes",
+      "name": "Squat Pikes",
+      "metric": "reps",
+      "category": "mobility",
+      "unilateral": false,
+      "mobilityMode": "active",
+      "cues": [
+        "Start in a shallow squat with hands on the knees.",
+        "Push the knees back to straighten them while pulling the torso into a forward fold, then back to the squat; go deeper with each rep.",
+        "Use a wedge under the heels if needed. Breathe in on the squat, out on the pike."
+      ]
+    },
+    {
+      "key": "crawl",
+      "name": "Crawl",
+      "metric": "reps",
+      "category": "mobility",
+      "unilateral": false,
+      "mobilityMode": "active",
+      "cues": [
+        "Hands and knees: wrists under shoulders, knees under hips; lift the knees slightly by digging the toes in.",
+        "Move the opposite hand and foot forward together, alternate sides; then crawl backward the same number of steps.",
+        "Variations: stiff-spine crawl (brace the core) and spine-movement crawl (let hips and shoulders rotate)."
+      ]
+    },
+    {
+      "key": "horse-stance-rotation",
+      "name": "Horse Stance Rotation",
+      "metric": "reps",
+      "category": "mobility",
+      "unilateral": true,
+      "mobilityMode": "active",
+      "cues": [
+        "Stance wider than shoulders, feet mostly forward, hips as low as you could hold for 1 minute.",
+        "Reach one arm in front and one behind, eyes following the back hand; push the fingertips away from each other.",
+        "Alternate sides, keeping the hips in the same position."
+      ]
+    }
+  ],
+  "programs": [
+    {
+      "name": "Daily Practice Routine",
+      "sessions": [
+        {
+          "name": "Daily Practice",
+          "notes": "Become more flexible and less stiff in about 15 minutes. Ten movements, one round each, in this order.",
+          "exercises": [
+            {
+              "exercise": "hip-rotations",
+              "sets": 1,
+              "target": 8,
+              "restSeconds": 15,
+              "loadKg": null,
+              "rpe": null,
+              "rpePerSet": null,
+              "note": "5-10 reps (in and out) on each leg separately + 5 reps moving both legs together (start, other side, back to start = 1 rep)",
+              "totalTarget": null
+            },
+            {
+              "exercise": "wall-downward-dog",
+              "sets": 1,
+              "target": 10,
+              "restSeconds": 15,
+              "loadKg": null,
+              "rpe": null,
+              "rpePerSet": null,
+              "note": "8-10 reps + 10-20 s hold on the last rep (in the stretched position)",
+              "totalTarget": null
+            },
+            {
+              "exercise": "wall-hip-flexor-quad",
+              "sets": 1,
+              "target": 45,
+              "restSeconds": 15,
+              "loadKg": null,
+              "rpe": null,
+              "rpePerSet": null,
+              "note": "30-60 s on each side (choose the variation or combination for your current level)",
+              "totalTarget": null
+            },
+            {
+              "exercise": "seiza-camel",
+              "sets": 1,
+              "target": 8,
+              "restSeconds": 15,
+              "loadKg": null,
+              "rpe": null,
+              "rpePerSet": null,
+              "note": "5-10 reps + 10-20 s hold on the last rep (plus camel pose if it suits you)",
+              "totalTarget": null
+            },
+            {
+              "exercise": "lounge-chair-crab-press",
+              "sets": 1,
+              "target": 8,
+              "restSeconds": 15,
+              "loadKg": null,
+              "rpe": null,
+              "rpePerSet": null,
+              "note": "5-10 reps + 10-20 s hold on the last rep (in the stretched position)",
+              "totalTarget": null
+            },
+            {
+              "exercise": "straight-leg-hinge",
+              "sets": 1,
+              "target": 10,
+              "restSeconds": 15,
+              "loadKg": null,
+              "rpe": null,
+              "rpePerSet": null,
+              "note": "8-10 reps + 10-20 s hold on the last rep (in the stretched position)",
+              "totalTarget": null
+            },
+            {
+              "exercise": "windshield-wiper-back-fold",
+              "sets": 1,
+              "target": 4,
+              "restSeconds": 15,
+              "loadKg": null,
+              "rpe": null,
+              "rpePerSet": null,
+              "note": "3-5 reps each side (hold the stretched position 3-5 s each rep; optional longer hold on the last rep)",
+              "totalTarget": null
+            },
+            {
+              "exercise": "squat-pikes",
+              "sets": 1,
+              "target": 8,
+              "restSeconds": 15,
+              "loadKg": null,
+              "rpe": null,
+              "rpePerSet": null,
+              "note": "5-10 reps + 10-20 s hold on the last rep (in both squat and pike position)",
+              "totalTarget": null
+            },
+            {
+              "exercise": "crawl",
+              "sets": 1,
+              "target": 20,
+              "restSeconds": 15,
+              "loadKg": null,
+              "rpe": null,
+              "rpePerSet": null,
+              "note": "10 steps forward + small break + 10 steps forward (turn around and crawl back). More challenge: 10 steps forward + 10 steps backward",
+              "totalTarget": null
+            },
+            {
+              "exercise": "horse-stance-rotation",
+              "sets": 1,
+              "target": 4,
+              "restSeconds": 15,
+              "loadKg": null,
+              "rpe": null,
+              "rpePerSet": null,
+              "note": "3-5 reaches both sides",
+              "totalTarget": null
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

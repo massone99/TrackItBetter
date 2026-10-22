@@ -1,6 +1,7 @@
 import { planImport } from '../importJson';
 import example from '../../../../docs/import-examples/tom-merrick-full-body-mobility.json';
 import exampleProgram from '../../../../docs/import-examples/example-program.json';
+import dailyPractice from '../../../../docs/import-examples/daily-practice-routine-program.json';
 
 jest.mock('expo-crypto', () => ({ randomUUID: jest.requireActual('node:crypto').randomUUID }));
 jest.mock('../../../db/client', () => ({ db: {}, initializeDatabase: jest.fn() }));
@@ -31,6 +32,13 @@ describe('planImport', () => {
     const plan = planImport(JSON.stringify(exampleProgram), [pullUp, { id: 'push-up', name: 'Push-up' }, { id: 'bodyweight-squat', name: 'Bodyweight Squat' }]);
     expect(plan.file.programs[0].sessions).toHaveLength(2);
     expect(plan.file.programs[0].sessions[0].exercises[1].rpePerSet).toEqual([7, 8, 9]);
+  });
+
+  it('reads the Daily Practice routine as a program with one session of ten movements', () => {
+    const plan = planImport(JSON.stringify(dailyPractice), []);
+    expect(plan.file.programs[0].sessions).toHaveLength(1);
+    expect(plan.file.programs[0].sessions[0].exercises).toHaveLength(10);
+    expect(plan.file.exercises).toHaveLength(10);
   });
 
   it('refuses unknown movements, duplicate keys, bad shapes and empty files, naming the problem', () => {
