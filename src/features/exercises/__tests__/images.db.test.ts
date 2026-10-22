@@ -1,6 +1,6 @@
 import { migrateDatabase } from '../../../db/migrations';
 import { seedCatalogIfEmpty } from '../../../db/seed/import';
-import { listExerciseImages, moveExerciseImage, deleteExerciseImage } from '../images';
+import { addImportedExerciseImages, listExerciseImages, moveExerciseImage, deleteExerciseImage } from '../images';
 import { deleteExerciseWithHistory, transferExerciseHistory } from '../lifecycle';
 
 jest.mock('../../../db/client', () => {
@@ -13,7 +13,7 @@ const mockDeleted: string[] = [];
 jest.mock('expo-file-system', () => ({
   Paths: { document: 'documents' },
   Directory: function MockDirectory() { return { exists: true }; },
-  File: function MockFile(_parent: never, fileName: string) { return { uri: `file:///${fileName}`, exists: true, delete: () => mockDeleted.push(fileName) }; },
+  File: function MockFile(_parent: never, fileName: string) { return { uri: `file:///${fileName}`, exists: true, delete: () => mockDeleted.push(fileName), create: () => undefined, write: () => undefined }; },
 }));
 jest.mock('../../photos/repository', () => ({ downscale: jest.fn() }));
 const { mockReal: real } = jest.requireMock('../../../db/client');
@@ -56,5 +56,15 @@ describe('exercise images', () => {
     await deleteExerciseWithHistory('chin-up');
     expect(await listExerciseImages('chin-up')).toEqual([]);
     expect(mockDeleted).toEqual(['a.jpg']);
+  });
+
+  it('adds imported pictures after the others and skips the ones an earlier import added', async () => {
+    insertImage('a', 'push-up', 0);
+    const one = { data: 'AAAABBBB', mimeType: 'image/jpeg' as const, width: 10, height: 20 };
+    const two = { data: 'data:image/png;base64,CCCCDDDD', mimeType: 'image/png' as const, width: 30, height: 40 };
+    expect(await addImportedExerciseImages('push-up', [one, two])).toBe(2);
+    expect(await addImportedExerciseImages('push-up', [one, two, one])).toBe(0);
+    const images = await listExerciseImages('push-up');
+    expect(images.map((image) => [image.position, image.mimeType, image.width])).toEqual([[0, 'image/jpeg', 100], [1, 'image/jpeg', 10], [2, 'image/png', 30]]);
   });
 });

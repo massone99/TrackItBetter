@@ -4,6 +4,7 @@ import { Directory, File, Paths } from 'expo-file-system';
 import { db, initializeDatabase } from '../../db/client';
 import { exerciseImages } from '../../db/schema';
 import { downscale } from '../photos/repository';
+import { decodeBase64, fingerprint } from '../../shared/utils/base64';
 
 /** A picture of how an exercise looks (a start or end position, a key moment), shown on the exercise's page. */
 export type ExerciseImage = typeof exerciseImages.$inferSelect & { uri: string };
@@ -77,6 +78,44 @@ export async function moveExerciseImage(id: string, delta: -1 | 1): Promise<void
   await db.transaction(async (tx) => {
     for (const [position, image] of images.entries()) await tx.update(exerciseImages).set({ position }).where(eq(exerciseImages.id, image.id));
   });
+}
+
+/** A picture carried by an import file: base64 data (a `data:` URL works too) and its size. */
+export type ImportedImage = { data: string; mimeType: 'image/jpeg' | 'image/png' | 'image/webp'; width: number; height: number };
+
+/**
+ * Adds the pictures of an import file to an exercise, after the ones it has. A picture already added
+ * from an earlier import (same data) is skipped, so a file can be imported again to add only what is new.
+ * Returns how many were added.
+ */
+export async function addImportedExerciseImages(exerciseId: string, images: readonly ImportedImage[]): Promise<number> {
+  if (images.length === 0) return 0;
+  await initializeDatabase();
+  const current = await listExerciseImages(exerciseId);
+  const known = new Set(current.map((image) => image.sourceKey).filter((key): key is string => key !== null));
+  let position = current.reduce((max, item) => Math.max(max, item.position + 1), 0);
+  let added = 0;
+  prepareExerciseImageDirectory();
+  for (const image of images) {
+    const data = image.data.replace(/^data:[^,]*,/, '');
+    const sourceKey = fingerprint(data);
+    if (known.has(sourceKey)) continue;
+    known.add(sourceKey);
+    const id = Crypto.randomUUID();
+    const fileName = `${id}.${image.mimeType === 'image/png' ? 'png' : image.mimeType === 'image/webp' ? 'webp' : 'jpg'}`;
+    const file = getExerciseImageFile(fileName);
+    file.create({ overwrite: true, intermediates: true });
+    file.write(decodeBase64(data));
+    try {
+      await db.insert(exerciseImages).values({ id, exerciseId, fileName, mimeType: image.mimeType, width: image.width, height: image.height, position, createdAt: new Date(), sourceKey });
+    } catch (error) {
+      deleteFile(fileName);
+      throw error;
+    }
+    position += 1;
+    added += 1;
+  }
+  return added;
 }
 
 /** The files of an exercise's pictures, read before the exercise is deleted (its rows go with it, ON DELETE CASCADE). */

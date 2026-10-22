@@ -207,6 +207,8 @@ export const exerciseImages = sqliteTable(
     height: integer('height').notNull(),
     position: integer('position').notNull().default(0),
     createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+    /** Fingerprint of an imported picture's data; null for pictures taken or picked on the device. */
+    sourceKey: text('source_key'),
   },
   (table) => [index('exercise_image_exercise_idx').on(table.exerciseId, table.position)],
 );

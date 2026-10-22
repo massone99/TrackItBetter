@@ -11,7 +11,8 @@ are always added as new ones. Examples: `tom-merrick-full-body-mobility.json` (m
   "exercises": [            // custom movements to create; optional
     { "key": "cossack", "name": "Cossack Squats", "metric": "reps" /* reps|time|reps_load|time_load|distance */,
       "category": "mobility" /* push|pull|biceps|triceps|legs|core|skill|mobility|cardio */,
-      "unilateral": true, "mobilityMode": "active", "cues": ["..."] }
+      "unilateral": true, "mobilityMode": "active", "cues": ["..."],
+      "images": [ { "data": "<base64 or data: URL>", "mimeType": "image/jpeg", "width": 520, "height": 320 } ] }
   ],
   "mobilityRoutines": [     // optional
     { "name": "Routine", "transitionSec": 5, "prepSec": 5,
@@ -27,3 +28,7 @@ are always added as new ones. Examples: `tom-merrick-full-body-mobility.json` (m
 ```
 
 `exercise` in a step or program is a `key` of this file, the id of an exercise in the app, or its name.
+
+`images` are shown on the exercise page. They are added to a movement that already exists too (matched by name), after its own
+images; an image already added by an earlier import (same data) is skipped. So a file with only `exercises` and their `images`
+works as an addendum: importing it adds just the missing pictures and creates nothing else.

@@ -48,7 +48,7 @@ export default function ImportJsonScreen() {
       const result = await applyImport(plan);
       setPlan(null);
       setDone(true);
-      setMessage(t('importJson.done', { exercises: result.exercisesCreated, routines: result.routines, programs: result.programs }));
+      setMessage(`${t('importJson.done', { exercises: result.exercisesCreated, routines: result.routines, programs: result.programs })}${result.imagesAdded > 0 ? ` ${t('importJson.imagesDone', { count: result.imagesAdded })}` : ''}`);
     } catch (error) {
       setMessage(describeError(error));
     } finally {
@@ -67,6 +67,7 @@ export default function ImportJsonScreen() {
           <Body>{t('importJson.exercises', { count: plan!.create.length })}</Body>
           <Body>{t('importJson.routines', { count: file.mobilityRoutines.length })}</Body>
           <Body>{t('importJson.programs', { count: file.programs.length })}</Body>
+          {plan!.images > 0 ? <Body>{t('importJson.images', { count: plan!.images })}</Body> : null}
         </Card>
       ) : null}
       {message ? <Body accessibilityLiveRegion="polite" style={{ color: done ? palette.success : palette.warning }}>{message}</Body> : null}

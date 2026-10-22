@@ -273,6 +273,12 @@ CREATE INDEX IF NOT EXISTS exercise_image_exercise_idx ON exercise_image(exercis
 PRAGMA user_version = 21;
 `;
 
+/** Where an imported picture came from, so importing the same file again skips it. */
+export const exerciseImageSourceSchema = `
+ALTER TABLE exercise_image ADD COLUMN source_key TEXT;
+PRAGMA user_version = 22;
+`;
+
 /** Applies numbered, local-first SQLite schema migrations once per database. */
 export async function migrateDatabase(database: SQLiteDatabase): Promise<void> {
   await database.execAsync('PRAGMA foreign_keys = ON;');
@@ -413,6 +419,12 @@ export async function migrateDatabase(database: SQLiteDatabase): Promise<void> {
   if (version < 21) {
     await database.withTransactionAsync(async () => {
       await database.execAsync(exerciseImageSchema);
+    });
+  }
+
+  if (version < 22) {
+    await database.withTransactionAsync(async () => {
+      await database.execAsync(exerciseImageSourceSchema);
     });
   }
 }

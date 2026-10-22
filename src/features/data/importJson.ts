@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { validateUserProgram, type UserProgram, type UserProgramExercise } from '../../domain/userProgram';
 import { EXERCISE_CATEGORIES } from '../exercises/categories';
 import { createCustomExercise } from '../exercises/customRepository';
+import { addImportedExerciseImages } from '../exercises/images';
 import { listExercises } from '../exercises/repository';
 import { saveMobilityRoutine } from '../mobility/routines';
 import { saveUserProgram } from '../programs/userPrograms';
@@ -24,6 +25,13 @@ const exerciseSchema = z.object({
   equipment: z.array(z.string()).default([]),
   cues: z.array(z.string()).default([]),
   demoUrl: z.string().nullable().default(null),
+  /** Pictures of the movement, shown on its page; added to a movement that already exists too, never twice. */
+  images: z.array(z.object({
+    data: z.string().min(8).max(20_000_000).regex(/^(?:data:image\/[a-z]+;base64,)?[A-Za-z0-9+/]+={0,2}$/),
+    mimeType: z.enum(['image/jpeg', 'image/png', 'image/webp']).default('image/jpeg'),
+    width: z.number().int().positive(),
+    height: z.number().int().positive(),
+  })).default([]),
 });
 
 const stepSchema = z.object({
@@ -88,6 +96,8 @@ export interface ImportPlan {
   create: ImportFile['exercises'];
   /** Exercise id for every key (new ones get theirs when applied) or reference used in the file. */
   existing: Map<string, string>;
+  /** Pictures in the file (some may already be in the app and are then skipped). */
+  images: number;
 }
 
 const norm = (value: string) => value.trim().toLowerCase();
@@ -126,7 +136,7 @@ export function planImport(text: string, known: readonly { id: string; name: str
     const probe = toProgram(program, (reference) => reference);
     if (validateUserProgram(probe).length > 0) throw new ImportError('program', program.name);
   }
-  return { file, create, existing };
+  return { file, create, existing, images: file.exercises.reduce((total, exercise) => total + exercise.images.length, 0) };
 }
 
 function toProgram(program: ImportFile['programs'][number], idOf: (reference: string) => string): Pick<UserProgram, 'name' | 'sessions'> {
@@ -144,7 +154,7 @@ function toProgram(program: ImportFile['programs'][number], idOf: (reference: st
   };
 }
 
-export interface ImportResult { exercisesCreated: number; routines: number; programs: number }
+export interface ImportResult { exercisesCreated: number; routines: number; programs: number; imagesAdded: number }
 
 /** Writes a checked plan: the movements first, then the routines and programs that use them. */
 export async function applyImport(plan: ImportPlan): Promise<ImportResult> {
@@ -154,6 +164,11 @@ export async function applyImport(plan: ImportPlan): Promise<ImportResult> {
       name: exercise.name, metric: exercise.metric, category: exercise.category, extraCategories: exercise.extraCategories,
       unilateral: exercise.unilateral, mobilityMode: exercise.mobilityMode, equipment: exercise.equipment, cues: exercise.cues, demoUrl: exercise.demoUrl,
     }));
+  }
+  let imagesAdded = 0;
+  for (const exercise of plan.file.exercises) {
+    const exerciseId = ids.get(exercise.key);
+    if (exerciseId) imagesAdded += await addImportedExerciseImages(exerciseId, exercise.images);
   }
   const known = await listExercises();
   const byId = new Set(known.map((item) => item.id));
@@ -166,7 +181,7 @@ export async function applyImport(plan: ImportPlan): Promise<ImportResult> {
     });
   }
   for (const program of plan.file.programs) await saveUserProgram(toProgram(program, idOf));
-  return { exercisesCreated: plan.create.length, routines: plan.file.mobilityRoutines.length, programs: plan.file.programs.length };
+  return { exercisesCreated: plan.create.length, routines: plan.file.mobilityRoutines.length, programs: plan.file.programs.length, imagesAdded };
 }
 
 /** Reads, checks and applies a file in one go. */

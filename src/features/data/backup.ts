@@ -19,6 +19,7 @@ import {
 } from '../../db/schema';
 import { getProgressPhotoFile, preparePhotoDirectory } from '../photos/repository';
 import { getExerciseImageFile, prepareExerciseImageDirectory } from '../exercises/images';
+import { decodeBase64 } from '../../shared/utils/base64';
 import { getPoseCaptureFile, preparePoseCaptureDirectory } from '../pose/repository';
 import { getFormCheckVideoFile } from '../media/formVideos';
 import { MOVEMENT_GROUP_IDS, MOVEMENT_TAGS, canonicalizeMovementTag, normalizeExerciseClassification } from '../exercises/movementCatalog';
@@ -301,6 +302,7 @@ const exerciseImageAssetSchema = z.object({
   height: z.number().int().positive(),
   position: z.number().int().min(0),
   createdAt: timestamp,
+  sourceKey: z.string().max(64).nullable().optional(),
   base64: base64Schema,
 }).strict();
 
@@ -514,22 +516,6 @@ export async function exportBackup(scope: BackupScope = { kind: 'full' }): Promi
 /** Parse and fully validate a backup before any database writes are attempted. */
 export function parseBackup(input: string): LocalBackup {
   return backupSchema.parse(JSON.parse(input));
-}
-
-function decodeBase64(value: string): Uint8Array {
-  const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
-  const output = new Uint8Array((value.length / 4) * 3 - (value.endsWith('==') ? 2 : value.endsWith('=') ? 1 : 0));
-  let offset = 0;
-  for (let index = 0; index < value.length; index += 4) {
-    const block = (alphabet.indexOf(value[index]) << 18)
-      | (alphabet.indexOf(value[index + 1]) << 12)
-      | (Math.max(0, alphabet.indexOf(value[index + 2])) << 6)
-      | Math.max(0, alphabet.indexOf(value[index + 3]));
-    if (offset < output.length) output[offset++] = (block >> 16) & 255;
-    if (offset < output.length) output[offset++] = (block >> 8) & 255;
-    if (offset < output.length) output[offset++] = block & 255;
-  }
-  return output;
 }
 
 /**
