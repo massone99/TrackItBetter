@@ -2,6 +2,10 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.50.0 - 2026-10-22
+
+- JSON import: a movement can carry `images` (base64). They are added to the movement's page, also when the movement already exists, after its own images; an image already added by an earlier import is skipped. A file with only movements and images works as an addendum: it adds just the missing pictures (schema v22).
+
 ## 0.49.1 - 2026-10-22
 
 - Exercise images: no limit on how many images an exercise carries; the library picker takes any number at once.
