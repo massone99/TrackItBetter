@@ -11,6 +11,7 @@ import { canTransfer, deleteExerciseWithHistory, getExerciseUsage, hideExercise,
 import { ExercisePicker, type ExerciseChoice } from '../../src/features/exercises/ExercisePicker';
 import { HistoryRow } from '../../src/features/exercises/HistoryRow';
 import { ExerciseImagesSection } from '../../src/features/exercises/ExerciseImages';
+import { ExerciseProgressionsSection } from '../../src/features/progressions/ExerciseProgressionsSection';
 import { addExerciseToWorkout, getActiveWorkout, startWorkout } from '../../src/features/session/repository';
 import { getExerciseCycle, getExerciseEstimate, getExerciseOneRepMax, getExerciseHistory, getExerciseHistoryOverview, getExerciseRecordSummary, getExerciseRepsAtLoad, getExerciseWeekStats, type ExerciseHistoryOverview, type ExerciseHistorySession } from '../../src/features/analytics/repository';
 import type { ExerciseRecordSummary } from '../../src/features/analytics/records';
@@ -270,6 +271,8 @@ export default function ExerciseRoute() {
           />
         </ListGroup>
       ) : null}
+
+      <ExerciseProgressionsSection key={`progressions-${exercise.id}`} exerciseId={exercise.id} exerciseName={exercise.name} />
 
       {lateral ? <View style={styles.section}>
         <SectionTitle title={scopeTitle} />

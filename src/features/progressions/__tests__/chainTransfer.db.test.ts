@@ -4,6 +4,7 @@ import { createCustomExercise } from '../../exercises/customRepository';
 import { ImportError, importJson } from '../../data/importJson';
 import { addLink, createChain, getChain, listChains, listLinks } from '../chains';
 import { buildChainsFile } from '../exportChains';
+import example from '../../../../docs/import-examples/example-chains.json';
 import { createBackup, importBackup } from '../../data/backup';
 
 jest.mock('../../../db/client', () => {
@@ -31,6 +32,16 @@ beforeAll(async () => {
 });
 
 describe('chains in import and export files', () => {
+  it('imports the documented example and adds nothing the second time', async () => {
+    expect(await importJson(JSON.stringify(example))).toMatchObject({ exercisesCreated: 1, chainsCreated: 1, stepsAdded: 3, linksAdded: 2 });
+    expect(await importJson(JSON.stringify(example))).toMatchObject({ exercisesCreated: 0, chainsCreated: 0, stepsAdded: 0, linksAdded: 0 });
+    const chain = (await listChains()).find((item) => item.name === 'My planche path')!;
+    expect(chain.steps.map((step) => step.criteria?.seconds)).toEqual([30, 20, 10]);
+    expect(chain.family).toBe('Planche');
+    await freshApp();
+  });
+
+
   it('exports chains and relations, re-imports without adding anything, and round-trips into a fresh app', async () => {
     const lean = await createCustomExercise({ name: 'My Planche Lean', metric: 'time', category: 'skill', equipment: [], cues: ['Lean past the hands'] });
     const chain = await createChain({ name: 'My planche path', description: 'From lean to tuck', family: 'planche' }, [lean, 'tuck-planche']);

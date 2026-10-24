@@ -5,7 +5,7 @@ import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
 import { Text } from '../../src/shared/components/Text';
 import type { ProgressionTarget } from '../../src/domain/progression';
 import { getProgressionChain } from '../../src/features/progressions/repository';
-import { Body, Card, Heading, Label, PageHeading, Screen, Icon } from '../../src/shared/components/ui';
+import { Body, Card, Heading, IconButton, Label, PageHeading, Screen, Icon } from '../../src/shared/components/ui';
 import { useTheme } from '../../src/shared/theme/ThemeProvider';
 import { useScaledStyles } from '../../src/shared/theme/useScaledStyles';
 
@@ -40,7 +40,12 @@ export default function SkillScreen() {
 
   return (
     <Screen>
-      <PageHeading title={chain.name} subtitle={chain.description} />
+      <PageHeading
+        title={chain.name}
+        subtitle={chain.description}
+        action={<IconButton icon="create-outline" label={t('chains.editDetails')} onPress={() => router.push({ pathname: '/chain/[id]', params: { id: chain.id } })} />}
+      />
+      {chain.levels.length === 0 ? <Body>{t('chains.noStepsBody')}</Body> : null}
       {chain.suggestion && (
         <Card style={[styles.suggestion, { borderColor: palette.success }]}>
           <Label>{t('progression.nextStep')}</Label>

@@ -1,0 +1,25 @@
+{
+  "format": "trackitbetter-import",
+  "version": 1,
+  "exercises": [
+    { "key": "planche-lean", "name": "Planche Lean", "metric": "time", "category": "skill", "cues": ["Lean the shoulders past the hands"] },
+    { "key": "frog-stand", "name": "Frog Stand", "metric": "time", "category": "skill", "cues": ["Knees on the elbows, look forward"] }
+  ],
+  "chains": [
+    {
+      "key": "my-planche",
+      "name": "My planche path",
+      "description": "From leaning to a tuck planche",
+      "skill": "Planche",
+      "steps": [
+        { "exercise": "frog-stand", "criteria": { "sets": 3, "seconds": 30, "requiredSessions": 2 } },
+        { "exercise": "planche-lean", "criteria": { "sets": 3, "seconds": 20, "requiredSessions": 3 } },
+        { "exercise": "tuck-planche", "criteria": { "sets": 3, "seconds": 10, "requiredSessions": 3 } }
+      ]
+    }
+  ],
+  "links": [
+    { "from": "push-up", "to": "planche-lean", "kind": "prerequisite", "criteria": { "sets": 3, "reps": 15 }, "note": "Solid push-ups first" },
+    { "from": "frog-stand", "to": "l-sit-floor", "kind": "variation", "note": "Same hands-on-the-floor support" }
+  ]
+}

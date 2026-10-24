@@ -102,6 +102,8 @@ function AppNavigator() {
         <Stack.Screen name="exercise/new" />
         <Stack.Screen name="exercise/history/[id]" />
         <Stack.Screen name="skill/[chainId]" />
+        <Stack.Screen name="progressions" />
+        <Stack.Screen name="chain/[id]" />
         <Stack.Screen name="program/[id]" />
         <Stack.Screen name="program/user/[id]" />
         <Stack.Screen name="program-builder" />

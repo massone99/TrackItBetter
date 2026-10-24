@@ -50,6 +50,10 @@ workout, versioned): `docs/LANGUAGE.md`; use it in UI strings, code and answers.
 - Long lists render in pages ("Show more"), not all at once: `usePaged`, `usePagedSections` or `<Paged>`
   (`src/shared/components/paging.tsx`). The Log pages in the database (`listWorkoutsPage`, a cursor).
 - Open improvements and their status are in `AUDIT.md`.
+- Progressions (schema v23): chains are user-made ordered steps in `chain_step` (an exercise can be in several) plus
+  single relations in `exercise_link` (progression | prerequisite | variation); loops are refused before saving
+  (`src/domain/progressionGraph.ts`, `src/features/progressions/chains.ts`). `exercise.chain_id/level` and
+  `level_criteria` are legacy, kept only to rebuild steps from old backups (`chainStepBackfill`).
 - Apparatus and band sets are global, stored as one JSON setting (`src/features/equipment`); a set's bands
   and assistance kg live on `training_set` (schema v17). Comparisons by apparatus go through
   `getPreviousPerformance(..., apparatusOf)` and the records' `compareKey`.

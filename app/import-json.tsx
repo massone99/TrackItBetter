@@ -4,7 +4,7 @@ import { router } from 'expo-router';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { StyleSheet } from 'react-native';
-import { applyImport, ImportError, planImport, type ImportPlan } from '../src/features/data/importJson';
+import { applyImport, ImportError, planGraph, planImport, type GraphPreview, type ImportPlan } from '../src/features/data/importJson';
 import { listExercises } from '../src/features/exercises/repository';
 import { ActionButton, Body, Card, Heading, PageHeading, Screen } from '../src/shared/components/ui';
 import { useTheme } from '../src/shared/theme/ThemeProvider';
@@ -14,6 +14,7 @@ export default function ImportJsonScreen() {
   const { t } = useTranslation();
   const { palette } = useTheme();
   const [plan, setPlan] = useState<ImportPlan | null>(null);
+  const [graph, setGraph] = useState<GraphPreview | null>(null);
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
@@ -32,7 +33,10 @@ export default function ImportJsonScreen() {
       const result = await DocumentPicker.getDocumentAsync({ type: ['application/json', 'text/json', 'public.json'], copyToCacheDirectory: true, multiple: false });
       if (result.canceled) return;
       const text = await new File(result.assets[0].uri).text();
-      setPlan(planImport(text, await listExercises()));
+      const next = planImport(text, await listExercises());
+      // Chains and relations are checked against the app (loops, what is already there) before anything is added.
+      setGraph(next.file.chains.length + next.file.links.length > 0 ? (await planGraph(next)).preview : null);
+      setPlan(next);
     } catch (error) {
       setMessage(describeError(error));
     } finally {
@@ -48,7 +52,7 @@ export default function ImportJsonScreen() {
       const result = await applyImport(plan);
       setPlan(null);
       setDone(true);
-      setMessage(`${t('importJson.done', { exercises: result.exercisesCreated, routines: result.routines, programs: result.programs })}${result.imagesAdded > 0 ? ` ${t('importJson.imagesDone', { count: result.imagesAdded })}` : ''}`);
+      setMessage(`${t('importJson.done', { exercises: result.exercisesCreated, routines: result.routines, programs: result.programs })}${result.imagesAdded > 0 ? ` ${t('importJson.imagesDone', { count: result.imagesAdded })}` : ''}${result.chainsCreated + result.stepsAdded + result.linksAdded > 0 ? ` ${t('importJson.graphDone', { created: result.chainsCreated, steps: result.stepsAdded, links: result.linksAdded })}` : ''}`);
     } catch (error) {
       setMessage(describeError(error));
     } finally {
@@ -68,6 +72,7 @@ export default function ImportJsonScreen() {
           <Body>{t('importJson.routines', { count: file.mobilityRoutines.length })}</Body>
           <Body>{t('importJson.programs', { count: file.programs.length })}</Body>
           {plan!.images > 0 ? <Body>{t('importJson.images', { count: plan!.images })}</Body> : null}
+          {graph ? <Body>{t('importJson.graph', { created: graph.chainsCreated, extended: graph.chainsExtended, steps: graph.stepsAdded, links: graph.linksAdded, skipped: graph.skipped })}</Body> : null}
         </Card>
       ) : null}
       {message ? <Body accessibilityLiveRegion="polite" style={{ color: done ? palette.success : palette.warning }}>{message}</Body> : null}

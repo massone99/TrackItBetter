@@ -79,7 +79,14 @@ export default function ProgramsTab() {
         options={[{ value: 'programs', label: t('programsTab.programs') }, { value: 'exercises', label: t('programsTab.exercises') }]}
       />
 
-      {view === 'exercises' ? <LibraryView /> : (
+      {view === 'exercises' ? (
+        <>
+          <ListGroup>
+            <ListRow icon="git-network-outline" title={t('chains.allTitle')} subtitle={t('chains.allSubtitle')} onPress={() => router.push('/progressions')} />
+          </ListGroup>
+          <LibraryView />
+        </>
+      ) : (
         <>
           <SectionTitle title={t('userProgram.myPrograms')} />
           {loadFailed ? <LoadError onRetry={() => void load()} /> : null}
