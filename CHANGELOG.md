@@ -2,6 +2,14 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.51.0 - 2026-10-24
+
+- Progressions: chains are yours. Create a chain (name, skill, description), add exercises in order, insert a step between two, reorder, set what to reach before moving on (sets × reps or seconds, sessions in a row), mark a step reached, remove a step with Restore; split, merge, duplicate, export or delete a chain. An exercise can be in several chains. The 15 catalog chains became editable chains with the same steps and targets (schema v23).
+- Relations between single exercises: harder, easier, needed first, variation, each with an optional target and note; added, edited or deleted (with Restore) from the exercise page. A loop (A → B → A), a duplicate or a relation to itself is shown before saving.
+- Exercise page: a Progressions section with the easier exercises below and the harder ones above (all chains or one chain), your best result and a check on reached steps, "also after …" when an exercise follows two others, and actions to add a relation, add it to a chain or start a chain from it.
+- Progressions screen (Programs → Exercises): every chain with steps and level reached, exercises without relations, new chain, import from JSON, export some or all chains.
+- JSON import/export: `chains` and `links` (see docs/IMPORT_JSON.md, example in docs/import-examples/example-chains.json). Importing adds only what is missing (a chain with the same name gets only its new steps), the preview says what will be added, and a file that would make a loop is refused. Chains and relations are also in full and library backups.
+
 ## 0.50.0 - 2026-10-22
 
 - JSON import: a movement can carry `images` (base64). They are added to the movement's page, also when the movement already exists, after its own images; an image already added by an earlier import is skipped. A file with only movements and images works as an addendum: it adds just the missing pictures (schema v22).
