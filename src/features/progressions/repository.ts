@@ -1,15 +1,15 @@
 import { aggregatePairs } from '../../domain/setPairs';
-import { and, asc, desc, eq, isNotNull } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNotNull } from 'drizzle-orm';
 import { evaluateProgression, type ProgressionSession, type ProgressionTarget } from '../../domain/progression';
 import { db, initializeDatabase } from '../../db/client';
-import { exerciseEntries, exercises, levelCriteria, progressionChains, trainingSets, workouts } from '../../db/schema';
+import { chainSteps, exerciseEntries, exercises, progressionChains, trainingSets, workouts } from '../../db/schema';
 
 interface ParsedCriteria {
   target: ProgressionTarget | null;
   requiredSessions: number;
 }
 
-function parseCriteria(targetJson: string, requiredSessions: number): ParsedCriteria {
+export function parseCriteria(targetJson: string, requiredSessions: number): ParsedCriteria {
   let parsed: Record<string, unknown>;
   try {
     const value: unknown = JSON.parse(targetJson);
@@ -56,33 +56,33 @@ export async function getProgressionChain(chainId: string) {
     .limit(1);
   if (!chain) return null;
 
-  const criteriaRows = await db
-    .select({ exercise: exercises, criteria: levelCriteria })
-    .from(exercises)
-    .leftJoin(
-      levelCriteria,
-      and(eq(exercises.level, levelCriteria.level), eq(exercises.chainId, levelCriteria.chainId)),
-    )
-    .where(eq(exercises.chainId, chainId))
-    .orderBy(asc(exercises.level));
-  const levels = criteriaRows.map(({ exercise, criteria }) => {
-    const parsed = criteria
-      ? parseCriteria(criteria.target, criteria.requiredSessions)
-      : { target: null, requiredSessions: 1 };
+  // The chain's steps in order, each with what to reach before the next one.
+  const stepRows = await db
+    .select({ exercise: exercises, step: chainSteps })
+    .from(chainSteps)
+    .innerJoin(exercises, eq(chainSteps.exerciseId, exercises.id))
+    .where(eq(chainSteps.chainId, chainId))
+    .orderBy(asc(chainSteps.position));
+  const levels = stepRows.map(({ exercise, step }, index) => {
+    const parsed = step.target
+      ? parseCriteria(step.target, step.requiredSessions)
+      : { target: null, requiredSessions: validSessionCount(step.requiredSessions) };
     return {
       id: exercise.id,
+      stepId: step.id,
       name: exercise.name,
-      level: exercise.level,
+      level: index + 1,
       metric: exercise.metric,
       target: parsed.target,
       requiredSessions: parsed.requiredSessions,
+      reachedAt: step.reachedAt,
     };
   });
+  const levelOf = new Map(levels.map((level) => [level.id, level.level]));
 
   const historyRows = await db
     .select({
       exerciseId: exercises.id,
-      level: exercises.level,
       workoutId: workouts.id,
       startedAt: workouts.startedAt,
       endedAt: workouts.endedAt,
@@ -100,7 +100,7 @@ export async function getProgressionChain(chainId: string) {
     .innerJoin(exercises, eq(exerciseEntries.exerciseId, exercises.id))
     .innerJoin(workouts, eq(exerciseEntries.workoutId, workouts.id))
     .leftJoin(trainingSets, and(eq(trainingSets.entryId, exerciseEntries.id), eq(trainingSets.kind, 'working')))
-    .where(and(eq(exercises.chainId, chainId), isNotNull(workouts.endedAt)))
+    .where(and(inArray(exercises.id, levels.length ? levels.map((level) => level.id) : ['']), isNotNull(workouts.endedAt)))
     .orderBy(desc(workouts.startedAt), asc(trainingSets.index));
 
   // One chain exercise per workout is typical, but merge multiple entries for the
@@ -118,7 +118,7 @@ export async function getProgressionChain(chainId: string) {
     }
     let session = byWorkout.get(row.workoutId);
     if (!session) {
-      session = { startedAt: row.startedAt, level: row.level, sets: new Map() };
+      session = { startedAt: row.startedAt, level: levelOf.get(row.exerciseId) ?? null, sets: new Map() };
       byWorkout.set(row.workoutId, session);
     }
     if (row.setId && row.completedAt) {

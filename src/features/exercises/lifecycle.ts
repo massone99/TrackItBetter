@@ -1,5 +1,5 @@
 import { aggregatePairs } from '../../domain/setPairs';
-import { and, eq, inArray, isNotNull, ne } from 'drizzle-orm';
+import { and, eq, inArray, isNotNull, ne, sql } from 'drizzle-orm';
 import { db, initializeDatabase } from '../../db/client';
 import { bumpFinishedVersion } from '../../db/cache';
 import { exerciseEntries, exerciseImages, exercises, formCheckVideos, settings, trainingSets, workouts } from '../../db/schema';
@@ -75,7 +75,14 @@ export async function transferExerciseHistory(fromId: string, toId: string, opti
     // Pictures follow the history, so deleting the source keeps them.
     await tx.update(exerciseImages).set({ exerciseId: toId }).where(eq(exerciseImages.exerciseId, fromId));
     await rewriteSettingsJson(tx, (id) => (id === fromId ? toId : id));
-    if (options.deleteSource) await tx.delete(exercises).where(eq(exercises.id, fromId));
+    if (options.deleteSource) {
+      // Its place in chains and relations goes to the target, unless the target is already there.
+      await tx.run(sql`UPDATE OR IGNORE chain_step SET exercise_id = ${toId} WHERE exercise_id = ${fromId}`);
+      await tx.run(sql`UPDATE OR IGNORE exercise_link SET from_id = ${toId} WHERE from_id = ${fromId}`);
+      await tx.run(sql`UPDATE OR IGNORE exercise_link SET to_id = ${toId} WHERE to_id = ${fromId}`);
+      await tx.run(sql`DELETE FROM exercise_link WHERE from_id = to_id`);
+      await tx.delete(exercises).where(eq(exercises.id, fromId));
+    }
   });
   bumpFinishedVersion();
   moveLocalPreferences(fromId, toId);
@@ -110,6 +117,8 @@ export async function deleteExerciseWithHistory(exerciseId: string): Promise<voi
     }
     await rewriteSettingsJson(tx, (id) => (id === exerciseId ? null : id));
     await tx.delete(exerciseImages).where(eq(exerciseImages.exerciseId, exerciseId));
+    await tx.run(sql`DELETE FROM chain_step WHERE exercise_id = ${exerciseId}`);
+    await tx.run(sql`DELETE FROM exercise_link WHERE from_id = ${exerciseId} OR to_id = ${exerciseId}`);
     await tx.delete(exercises).where(eq(exercises.id, exerciseId));
   });
   deleteExerciseImageFileNames(imageFiles);

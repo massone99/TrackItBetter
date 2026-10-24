@@ -4,6 +4,8 @@ import criteriaSeed from './level-criteria.json';
 import type { AppDatabase } from '../client';
 import type { NewExercise } from '../schema';
 import { exercises, levelCriteria, progressionChains } from '../schema';
+import { sql } from 'drizzle-orm';
+import { chainStepBackfill } from '../migrations';
 import { seededMovementGroup } from '../../features/exercises/movementCatalog';
 
 /** Inserts the bundled catalog on first launch and leaves user edits untouched. */
@@ -39,5 +41,7 @@ export async function seedCatalogIfEmpty(db: AppDatabase): Promise<void> {
         requiredSessions: criterion.requiredSessions,
       })),
     );
+    // The catalog chains become editable chains with ordered steps.
+    await transaction.run(sql.raw(chainStepBackfill));
   });
 }

@@ -279,6 +279,52 @@ ALTER TABLE exercise_image ADD COLUMN source_key TEXT;
 PRAGMA user_version = 22;
 `;
 
+/**
+ * Fills the steps of every chain that has none from the old one-chain-per-exercise columns
+ * (exercise.chain_id + level, level_criteria): the catalog chains, an old backup.
+ */
+export const chainStepBackfill = `
+INSERT OR IGNORE INTO chain_step (id, chain_id, exercise_id, position, target, required_sessions)
+SELECT e.chain_id || ':' || e.id, e.chain_id, e.id, e.level, lc.target, COALESCE(lc.required_sessions, 1)
+FROM exercise e
+JOIN progression_chain c ON c.id = e.chain_id
+LEFT JOIN level_criteria lc ON lc.chain_id = e.chain_id AND lc.level = e.level
+WHERE e.level IS NOT NULL
+  AND NOT EXISTS (SELECT 1 FROM chain_step s WHERE s.chain_id = e.chain_id);
+`;
+
+/**
+ * Progressions as a graph: a chain is an ordered list of steps the user makes or imports (an exercise
+ * can be in several), and single relations link two exercises (progression, prerequisite, variation).
+ */
+export const progressionGraphSchema = `
+CREATE TABLE IF NOT EXISTS chain_step (
+  id TEXT PRIMARY KEY NOT NULL,
+  chain_id TEXT NOT NULL REFERENCES progression_chain(id) ON DELETE CASCADE,
+  exercise_id TEXT NOT NULL REFERENCES exercise(id) ON DELETE CASCADE,
+  position INTEGER NOT NULL,
+  target TEXT,
+  required_sessions INTEGER NOT NULL DEFAULT 1,
+  reached_at INTEGER,
+  UNIQUE (chain_id, exercise_id)
+);
+CREATE INDEX IF NOT EXISTS chain_step_chain_idx ON chain_step(chain_id, position);
+CREATE INDEX IF NOT EXISTS chain_step_exercise_idx ON chain_step(exercise_id);
+CREATE TABLE IF NOT EXISTS exercise_link (
+  id TEXT PRIMARY KEY NOT NULL,
+  from_id TEXT NOT NULL REFERENCES exercise(id) ON DELETE CASCADE,
+  to_id TEXT NOT NULL REFERENCES exercise(id) ON DELETE CASCADE,
+  kind TEXT NOT NULL CHECK (kind IN ('progression', 'prerequisite', 'variation')),
+  target TEXT,
+  required_sessions INTEGER NOT NULL DEFAULT 1,
+  note TEXT NOT NULL DEFAULT '',
+  UNIQUE (from_id, to_id, kind)
+);
+CREATE INDEX IF NOT EXISTS exercise_link_to_idx ON exercise_link(to_id);
+${chainStepBackfill}
+PRAGMA user_version = 23;
+`;
+
 /** Applies numbered, local-first SQLite schema migrations once per database. */
 export async function migrateDatabase(database: SQLiteDatabase): Promise<void> {
   await database.execAsync('PRAGMA foreign_keys = ON;');
@@ -425,6 +471,12 @@ export async function migrateDatabase(database: SQLiteDatabase): Promise<void> {
   if (version < 22) {
     await database.withTransactionAsync(async () => {
       await database.execAsync(exerciseImageSourceSchema);
+    });
+  }
+
+  if (version < 23) {
+    await database.withTransactionAsync(async () => {
+      await database.execAsync(progressionGraphSchema);
     });
   }
 }

@@ -65,6 +65,38 @@ export const levelCriteria = sqliteTable('level_criteria', {
   requiredSessions: integer('required_sessions').notNull().default(1),
 });
 
+/** One step of a progression chain: the exercise at that place and what to reach before the next one. */
+export const chainSteps = sqliteTable(
+  'chain_step',
+  {
+    id: text('id').primaryKey(),
+    chainId: text('chain_id').notNull().references(() => progressionChains.id, { onDelete: 'cascade' }),
+    exerciseId: text('exercise_id').notNull().references(() => exercises.id, { onDelete: 'cascade' }),
+    position: integer('position').notNull(),
+    /** JSON criteria (sets, reps or durationSec), as in level_criteria; null when not set. */
+    target: text('target'),
+    requiredSessions: integer('required_sessions').notNull().default(1),
+    /** Set when the user marks the step as reached by hand. */
+    reachedAt: integer('reached_at', { mode: 'timestamp_ms' }),
+  },
+  (table) => [index('chain_step_chain_idx').on(table.chainId, table.position), index('chain_step_exercise_idx').on(table.exerciseId)],
+);
+
+/** A single relation between two exercises: `from` leads to `to` (progression, prerequisite) or sits beside it (variation). */
+export const exerciseLinks = sqliteTable(
+  'exercise_link',
+  {
+    id: text('id').primaryKey(),
+    fromId: text('from_id').notNull().references(() => exercises.id, { onDelete: 'cascade' }),
+    toId: text('to_id').notNull().references(() => exercises.id, { onDelete: 'cascade' }),
+    kind: text('kind').notNull(),
+    target: text('target'),
+    requiredSessions: integer('required_sessions').notNull().default(1),
+    note: text('note').notNull().default(''),
+  },
+  (table) => [index('exercise_link_to_idx').on(table.toId)],
+);
+
 export const workouts = sqliteTable(
   'workout',
   {
