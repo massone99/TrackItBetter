@@ -5,6 +5,7 @@ import { ImportError, importJson } from '../../data/importJson';
 import { addLink, createChain, getChain, listChains, listLinks } from '../chains';
 import { buildChainsFile } from '../exportChains';
 import example from '../../../../docs/import-examples/example-chains.json';
+import programExample from '../../../../docs/import-examples/program-with-chains.json';
 import { createBackup, importBackup } from '../../data/backup';
 
 jest.mock('../../../db/client', () => {
@@ -38,6 +39,12 @@ describe('chains in import and export files', () => {
     const chain = (await listChains()).find((item) => item.name === 'My planche path')!;
     expect(chain.steps.map((step) => step.criteria?.seconds)).toEqual([30, 20, 10]);
     expect(chain.family).toBe('Planche');
+    await freshApp();
+  });
+
+  it('imports a program together with the chains and relations of its exercises', async () => {
+    expect(await importJson(JSON.stringify(programExample))).toMatchObject({ exercisesCreated: 2, programs: 1, chainsCreated: 2, stepsAdded: 5, linksAdded: 3 });
+    expect(await importJson(JSON.stringify(programExample))).toMatchObject({ exercisesCreated: 0, chainsCreated: 0, stepsAdded: 0, linksAdded: 0 });
     await freshApp();
   });
 

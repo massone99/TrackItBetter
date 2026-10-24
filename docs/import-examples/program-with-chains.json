@@ -1,0 +1,43 @@
+{
+  "format": "trackitbetter-import",
+  "version": 1,
+  "exercises": [
+    { "key": "frog-stand", "name": "Frog Stand", "metric": "time", "category": "skill", "extraCategories": ["push"], "cues": ["Knees on the elbows, look forward"] },
+    { "key": "tuck-fl-row", "name": "Tuck Front Lever Row", "metric": "reps", "category": "pull", "cues": ["Hips level with the shoulders"] }
+  ],
+  "programs": [
+    {
+      "name": "Statics A/B",
+      "sessions": [
+        { "name": "A - Planche", "notes": null, "exercises": [
+          { "exercise": "frog-stand", "sets": 3, "target": 30, "restSeconds": 90, "note": "Hold" },
+          { "exercise": "tuck-planche", "sets": 4, "target": 10, "restSeconds": 120, "rpe": 8 },
+          { "exercise": "push-up", "sets": 3, "target": 12, "restSeconds": 90 }
+        ] },
+        { "name": "B - Front lever", "notes": null, "exercises": [
+          { "exercise": "tuck-front-lever", "sets": 4, "target": 10, "restSeconds": 120, "rpe": 8 },
+          { "exercise": "tuck-fl-row", "sets": 3, "target": 6, "restSeconds": 120 },
+          { "exercise": "pull-up", "sets": 3, "target": 6, "restSeconds": 120, "rpe": 8 }
+        ] }
+      ]
+    }
+  ],
+  "chains": [
+    { "key": "planche", "name": "Planche (my path)", "skill": "Planche", "description": "Frog stand to straddle",
+      "steps": [
+        { "exercise": "frog-stand", "criteria": { "sets": 3, "seconds": 30, "requiredSessions": 2 } },
+        { "exercise": "tuck-planche", "criteria": { "sets": 3, "seconds": 15, "requiredSessions": 3 } },
+        { "exercise": "advanced-tuck-planche", "criteria": { "sets": 3, "seconds": 10, "requiredSessions": 3 } }
+      ] },
+    { "key": "front-lever", "name": "Front lever (my path)", "skill": "Levers",
+      "steps": [
+        { "exercise": "tuck-front-lever", "criteria": { "sets": 3, "seconds": 15, "requiredSessions": 3 } },
+        { "exercise": "advanced-tuck-front-lever", "criteria": null }
+      ] }
+  ],
+  "links": [
+    { "from": "push-up", "to": "frog-stand", "kind": "prerequisite", "criteria": { "sets": 3, "reps": 15 }, "note": "Strong push-ups first" },
+    { "from": "pull-up", "to": "tuck-front-lever", "kind": "prerequisite", "criteria": { "sets": 3, "reps": 8 } },
+    { "from": "tuck-fl-row", "to": "tuck-front-lever", "kind": "variation" }
+  ]
+}

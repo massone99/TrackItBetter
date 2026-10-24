@@ -55,4 +55,4 @@ Importing is additive and can be repeated: a chain whose name is already in the 
 lacks (at the end), a relation already there is skipped, and the preview lists what will be added. A file
 that would make a loop (A → B → A) is refused, naming the exercises. In the app, Progressions → Export
 writes the same format (with each exercise's `id`, so it is matched exactly when imported on the same
-device); example: `docs/import-examples/example-chains.json`.
+device); examples: `docs/import-examples/example-chains.json`, and `program-with-chains.json` (a program with the chains and relations of its exercises in one file).
