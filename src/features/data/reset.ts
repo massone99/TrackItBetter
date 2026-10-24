@@ -5,6 +5,8 @@ import { db, initializeDatabase } from '../../db/client';
 import { bumpFinishedVersion } from '../../db/cache';
 import {
   bodyMeasurements,
+  chainSteps,
+  exerciseLinks,
   exerciseEntries,
   exerciseImages,
   exercises,
@@ -75,6 +77,8 @@ export async function resetData(scopes: readonly ResetScope[]): Promise<void> {
     if (clear.has('pose')) await tx.delete(poseCaptures);
     if (clear.has('plans')) await tx.delete(settings);
     if (clear.has('everything')) {
+      await tx.delete(chainSteps);
+      await tx.delete(exerciseLinks);
       await tx.delete(levelCriteria);
       await tx.delete(exerciseImages);
       await tx.delete(exercises);

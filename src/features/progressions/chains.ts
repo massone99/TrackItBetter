@@ -3,7 +3,7 @@ import * as Crypto from 'expo-crypto';
 import { db, initializeDatabase } from '../../db/client';
 import { chainSteps, exerciseEntries, exerciseLinks, exercises, levelCriteria, progressionChains, trainingSets, workouts } from '../../db/schema';
 import { evaluateProgression, type ProgressionSession, type ProgressionTarget } from '../../domain/progression';
-import { chainEdges, exerciseTree, findCycle, linkProblem, type ExerciseTree, type GraphEdge, type LinkKind, type LinkProblem } from '../../domain/progressionGraph';
+import { chainEdges, exerciseTree, findCycle, linkProblem, type ExerciseTree, type GraphEdge, type LinkKind, type LinkProblem, type StepRef } from '../../domain/progressionGraph';
 import { aggregatePairs } from '../../domain/setPairs';
 import { parseCriteria } from './repository';
 
@@ -135,6 +135,18 @@ export async function getChain(id: string): Promise<ChainView | null> {
   if (!chain) return null;
   const own = (await stepsOf([id])).get(id) ?? [];
   return { ...chain, steps: own, reachedLevel: reachedLevel(own) };
+}
+
+/** The whole graph as plain data: chains, their steps and the single links (for imports and checks). */
+export async function loadGraph(): Promise<{ chains: { id: string; name: string }[]; steps: StepRef[]; links: GraphEdge[]; edges: GraphEdge[] }> {
+  await initializeDatabase();
+  const [chains, steps, links] = await Promise.all([
+    db.select({ id: progressionChains.id, name: progressionChains.name }).from(progressionChains),
+    db.select({ chainId: chainSteps.chainId, exerciseId: chainSteps.exerciseId, position: chainSteps.position }).from(chainSteps),
+    db.select({ from: exerciseLinks.fromId, to: exerciseLinks.toId, kind: exerciseLinks.kind }).from(exerciseLinks),
+  ]);
+  const typed = links.map((link) => ({ ...link, kind: link.kind as LinkKind }));
+  return { chains, steps, links: typed, edges: [...chainEdges(steps), ...typed] };
 }
 
 /** Every directed and side relation: chain steps as progressions plus the single links. */

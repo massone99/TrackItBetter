@@ -23,7 +23,7 @@ beforeAll(async () => {
 describe('importJson', () => {
   it('creates the movements and the routine, and a second import reuses the movements', async () => {
     const first = await importJson(JSON.stringify(example));
-    expect(first).toEqual({ exercisesCreated: 14, routines: 1, programs: 0, imagesAdded: 0 });
+    expect(first).toEqual({ exercisesCreated: 14, routines: 1, programs: 0, imagesAdded: 0, chainsCreated: 0, stepsAdded: 0, linksAdded: 0 });
     const [routine] = await listMobilityRoutines();
     expect(routine.name).toBe('Tom Merrick - 15 Minute Full Body Mobility');
     expect(routine.steps).toHaveLength(15);
@@ -38,7 +38,7 @@ describe('importJson', () => {
 
   it('imports a program of existing movements, not only mobility', async () => {
     const file = { format: 'trackitbetter-import', version: 1, programs: [{ name: 'Pull day', sessions: [{ name: 'A', exercises: [{ exercise: 'pull-up', sets: 3, target: 6, restSeconds: 120 }] }] }] };
-    expect(await importJson(JSON.stringify(file))).toEqual({ exercisesCreated: 0, routines: 0, programs: 1, imagesAdded: 0 });
+    expect(await importJson(JSON.stringify(file))).toEqual({ exercisesCreated: 0, routines: 0, programs: 1, imagesAdded: 0, chainsCreated: 0, stepsAdded: 0, linksAdded: 0 });
     const [program] = await listUserPrograms();
     expect(program.sessions[0].exercises[0]).toMatchObject({ exerciseId: 'pull-up', sets: 3, target: 6, restSeconds: 120 });
   });

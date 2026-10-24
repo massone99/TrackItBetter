@@ -1,12 +1,16 @@
 import { z } from 'zod';
 import * as Crypto from 'expo-crypto';
 import { Directory, File, Paths } from 'expo-file-system';
+import { sql } from 'drizzle-orm';
+import { chainStepBackfill } from '../../db/migrations';
 import { db, initializeDatabase } from '../../db/client';
 import { bumpFinishedVersion } from '../../db/cache';
 import {
   bodyMeasurements,
+  chainSteps,
   exerciseEntries,
   exerciseImages,
+  exerciseLinks,
   exercises,
   levelCriteria,
   progressionChains,
@@ -293,6 +297,31 @@ const poseCaptureAssetSchema = z.object({
   base64: base64Schema,
 }).strict();
 
+const chainStepSchema = z.object({
+  id: z.string().min(1),
+  chainId: z.string().min(1),
+  exerciseId: z.string().min(1),
+  position: z.number().int(),
+  target: z.string().max(2000).nullable(),
+  requiredSessions: z.number().int().min(1),
+  reachedAt: timestamp.nullable(),
+}).strict();
+
+const exerciseLinkSchema = z.object({
+  id: z.string().min(1),
+  fromId: z.string().min(1),
+  toId: z.string().min(1),
+  kind: z.enum(['progression', 'prerequisite', 'variation']),
+  target: z.string().max(2000).nullable(),
+  requiredSessions: z.number().int().min(1),
+  note: z.string().max(500),
+}).strict();
+
+type ChainStepRow = z.infer<typeof chainStepSchema>;
+type ExerciseLinkRow = z.infer<typeof exerciseLinkSchema>;
+const stepOut = (row: typeof chainSteps.$inferSelect): ChainStepRow => ({ ...row, reachedAt: row.reachedAt?.toISOString() ?? null });
+const linkOut = (row: typeof exerciseLinks.$inferSelect): ExerciseLinkRow => ({ ...row, kind: row.kind as ExerciseLinkRow['kind'] });
+
 const exerciseImageAssetSchema = z.object({
   id: z.string().uuid(),
   exerciseId: z.string().min(1),
@@ -344,6 +373,9 @@ const backupV3Schema = z.object({
     poseCaptures: z.array(poseCaptureAssetSchema).max(500).optional(),
     // Added with exercise pictures; older backups omit it.
     exerciseImages: z.array(exerciseImageAssetSchema).optional(),
+    // Added with user chains and relations (schema v23); without them, chains are rebuilt from exercise.chain_id/level.
+    chainSteps: z.array(chainStepSchema).optional(),
+    exerciseLinks: z.array(exerciseLinkSchema).optional(),
   }).strict().superRefine((data, ctx) => {
     validateBackupData(data, ctx);
   }),
@@ -426,6 +458,7 @@ export async function createBackup(scope: BackupScope = { kind: 'full' }): Promi
     db.select().from(poseCaptures),
     db.select().from(exerciseImages),
   ]);
+  const [stepRows, linkRows] = await Promise.all([db.select().from(chainSteps), db.select().from(exerciseLinks)]);
   const images = await Promise.all(imageRows.map(async (row) => ({
     ...row,
     createdAt: row.createdAt.toISOString(),
@@ -459,6 +492,8 @@ export async function createBackup(scope: BackupScope = { kind: 'full' }): Promi
       progressPhotos: photos,
       poseCaptures: poses,
       exerciseImages: images,
+      chainSteps: stepRows.map(stepOut),
+      exerciseLinks: linkRows.map(linkOut),
     },
   });
 }
@@ -504,6 +539,9 @@ async function createPartialBackup(scope: Exclude<BackupScope, { kind: 'full' }>
       settings: [],
       progressPhotos: [],
       poseCaptures: [],
+      // The library carries the chains and relations; a range of workouts only the chains it uses, without steps.
+      chainSteps: scope.kind === 'library' ? (await db.select().from(chainSteps)).map(stepOut) : [],
+      exerciseLinks: scope.kind === 'library' ? (await db.select().from(exerciseLinks)).map(linkOut) : [],
     },
   });
 }
@@ -567,8 +605,34 @@ export async function mergeBackup(input: string): Promise<void> {
     await insertInChunks(data.bodyMeasurements, async (rows) => {
       await tx.insert(bodyMeasurements).values(rows.map((row) => ({ ...row, measuredAt: date(row.measuredAt) }))).onConflictDoNothing();
     });
+    await insertGraph(tx, data, true);
   });
   bumpFinishedVersion();
+}
+
+type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+/**
+ * Puts a backup's chain steps and relations in, keeping only rows whose chain and exercises exist;
+ * a backup without them (older than schema v23) gets its chains rebuilt from exercise.chain_id/level.
+ */
+async function insertGraph(tx: Tx, data: LocalBackup['data'], merge: boolean): Promise<void> {
+  const steps = 'chainSteps' in data ? data.chainSteps : undefined;
+  const links = 'exerciseLinks' in data ? data.exerciseLinks ?? [] : [];
+  const exerciseIds = new Set((await tx.select({ id: exercises.id }).from(exercises)).map((row) => row.id));
+  const chainIds = new Set((await tx.select({ id: progressionChains.id }).from(progressionChains)).map((row) => row.id));
+  if (steps) {
+    await insertInChunks(steps.filter((row) => chainIds.has(row.chainId) && exerciseIds.has(row.exerciseId)), async (rows) => {
+      const values = rows.map((row) => ({ ...row, reachedAt: row.reachedAt ? new Date(row.reachedAt) : null }));
+      if (merge) await tx.insert(chainSteps).values(values).onConflictDoNothing();
+      else await tx.insert(chainSteps).values(values);
+    });
+  }
+  await insertInChunks(links.filter((row) => exerciseIds.has(row.fromId) && exerciseIds.has(row.toId) && row.fromId !== row.toId), async (rows) => {
+    if (merge) await tx.insert(exerciseLinks).values(rows).onConflictDoNothing();
+    else await tx.insert(exerciseLinks).values(rows);
+  });
+  await tx.run(sql.raw(chainStepBackfill));
 }
 
 /** Import a backup either by replacing all local data or by merging it in. */
@@ -665,6 +729,8 @@ async function replaceWithBackup(input: string): Promise<void> {
     await tx.delete(poseCaptures);
     await tx.delete(exerciseImages);
     await tx.delete(settings);
+    await tx.delete(chainSteps);
+    await tx.delete(exerciseLinks);
     await tx.delete(levelCriteria);
     await tx.delete(exercises);
     await tx.delete(progressionChains);
@@ -705,6 +771,7 @@ async function replaceWithBackup(input: string): Promise<void> {
     await insertInChunks(data.settings, async (rows) => {
       await tx.insert(settings).values(rows);
     });
+    await insertGraph(tx, data, false);
       await insertInChunks(stagedPhotos, async (rows) => {
         await tx.insert(progressPhotos).values(rows);
       });

@@ -4,6 +4,8 @@ import { validateUserProgram, type UserProgram, type UserProgramExercise } from 
 import { EXERCISE_CATEGORIES } from '../exercises/categories';
 import { createCustomExercise } from '../exercises/customRepository';
 import { addImportedExerciseImages } from '../exercises/images';
+import { addLink, addStep, createChain, loadGraph } from '../progressions/chains';
+import { chainEdges, findCycle, linkProblem, type GraphEdge } from '../../domain/progressionGraph';
 import { listExercises } from '../exercises/repository';
 import { saveMobilityRoutine } from '../mobility/routines';
 import { saveUserProgram } from '../programs/userPrograms';
@@ -16,6 +18,8 @@ const count = (min: number, max: number) => z.number().int().min(min).max(max);
 const exerciseSchema = z.object({
   /** How routines and programs in the same file refer to this movement. */
   key: z.string().min(1),
+  /** The exercise's id in the app it was exported from: reused when this app has it, else the name decides. */
+  id: z.string().min(1).optional(),
   name: z.string().trim().min(1).max(80),
   metric: z.enum(['reps', 'time', 'reps_load', 'time_load', 'distance']),
   category: z.enum(EXERCISE_CATEGORIES),
@@ -73,19 +77,46 @@ const programSchema = z.object({
   })).min(1).max(30),
 });
 
+/** What to reach before moving on: sets of reps or of seconds, over some sessions in a row. */
+const criteriaSchema = z.object({
+  sets: count(1, 20),
+  reps: count(1, 1000).optional(),
+  seconds: count(1, 3600).optional(),
+  requiredSessions: count(1, 20).default(1),
+}).refine((value) => (value.reps === undefined) !== (value.seconds === undefined), { message: 'reps or seconds, one of the two' });
+
+const chainSchema = z.object({
+  /** How this file names the chain; a chain with the same name in the app gets only the missing steps. */
+  key: z.string().min(1).optional(),
+  name: z.string().trim().min(1).max(80),
+  description: z.string().max(500).default(''),
+  skill: z.string().max(60).default(''),
+  steps: z.array(z.object({ exercise: z.string().min(1), criteria: criteriaSchema.nullable().default(null) })).min(1).max(60),
+});
+
+const linkSchema = z.object({
+  from: z.string().min(1),
+  to: z.string().min(1),
+  kind: z.enum(['progression', 'prerequisite', 'variation']),
+  criteria: criteriaSchema.nullable().default(null),
+  note: z.string().max(500).default(''),
+});
+
 const fileSchema = z.object({
   format: z.literal(IMPORT_FORMAT),
   version: z.literal(1),
   exercises: z.array(exerciseSchema).default([]),
   mobilityRoutines: z.array(routineSchema).default([]),
   programs: z.array(programSchema).default([]),
+  chains: z.array(chainSchema).max(200).default([]),
+  links: z.array(linkSchema).max(2000).default([]),
 });
 
 export type ImportFile = z.infer<typeof fileSchema>;
 
 /** Why a file cannot be imported; `detail` names the offending part. */
 export class ImportError extends Error {
-  constructor(readonly code: 'invalid' | 'unknownExercise' | 'duplicateKey' | 'empty' | 'program', readonly detail: string) {
+  constructor(readonly code: 'invalid' | 'unknownExercise' | 'duplicateKey' | 'empty' | 'program' | 'cycle' | 'chainRepeat', readonly detail: string) {
     super(`${code}: ${detail}`);
   }
 }
@@ -109,7 +140,7 @@ export function planImport(text: string, known: readonly { id: string; name: str
   const parsed = fileSchema.safeParse(raw);
   if (!parsed.success) throw new ImportError('invalid', parsed.error.issues.slice(0, 3).map((issue) => `${issue.path.join('.') || 'file'}: ${issue.message}`).join('; '));
   const file = parsed.data;
-  if (file.exercises.length + file.mobilityRoutines.length + file.programs.length === 0) throw new ImportError('empty', '');
+  if (file.exercises.length + file.mobilityRoutines.length + file.programs.length + file.chains.length + file.links.length === 0) throw new ImportError('empty', '');
   const keys = new Set<string>();
   for (const exercise of file.exercises) {
     if (keys.has(exercise.key)) throw new ImportError('duplicateKey', exercise.key);
@@ -121,7 +152,7 @@ export function planImport(text: string, known: readonly { id: string; name: str
   const existing = new Map<string, string>();
   const create: ImportFile['exercises'] = [];
   for (const exercise of file.exercises) {
-    const same = byName.get(norm(exercise.name));
+    const same = (exercise.id ? byId.get(exercise.id) : undefined) ?? byName.get(norm(exercise.name));
     if (same) existing.set(exercise.key, same);
     else create.push(exercise);
   }
@@ -129,9 +160,19 @@ export function planImport(text: string, known: readonly { id: string; name: str
   const references = [
     ...file.mobilityRoutines.flatMap((routine) => routine.steps.map((step) => step.exercise)),
     ...file.programs.flatMap((program) => program.sessions.flatMap((session) => session.exercises.map((exercise) => exercise.exercise))),
+    ...file.chains.flatMap((chain) => chain.steps.map((step) => step.exercise)),
+    ...file.links.flatMap((link) => [link.from, link.to]),
   ];
   const missing = [...new Set(references.filter((reference) => !resolvable(reference)))];
   if (missing.length > 0) throw new ImportError('unknownExercise', missing.slice(0, 5).join(', '));
+  for (const chain of file.chains) {
+    const seen = new Set<string>();
+    for (const step of chain.steps) {
+      const id = keys.has(step.exercise) ? `key:${step.exercise}` : byId.get(step.exercise) ?? byName.get(norm(step.exercise)) ?? step.exercise;
+      if (seen.has(id)) throw new ImportError('chainRepeat', `${chain.name}: ${step.exercise}`);
+      seen.add(id);
+    }
+  }
   for (const program of file.programs) {
     const probe = toProgram(program, (reference) => reference);
     if (validateUserProgram(probe).length > 0) throw new ImportError('program', program.name);
@@ -154,7 +195,66 @@ function toProgram(program: ImportFile['programs'][number], idOf: (reference: st
   };
 }
 
-export interface ImportResult { exercisesCreated: number; routines: number; programs: number; imagesAdded: number }
+export interface ImportResult { exercisesCreated: number; routines: number; programs: number; imagesAdded: number; chainsCreated: number; stepsAdded: number; linksAdded: number }
+
+/** What the chains and relations of a file change: new chains, steps added to chains already there, new relations, and what is skipped. */
+export interface GraphPreview { chainsCreated: number; chainsExtended: number; stepsAdded: number; linksAdded: number; skipped: number }
+
+type GraphPlan = {
+  preview: GraphPreview;
+  /** Per chain of the file: the chain in the app (null = new) and the steps to append, as references of the file. */
+  chains: { chain: ImportFile['chains'][number]; existingId: string | null; steps: ImportFile['chains'][number]['steps'] }[];
+  links: ImportFile['links'];
+};
+
+/**
+ * Works out what the chains and relations of a file add to the app, writing nothing: a chain with the
+ * same name gets only its missing steps, a relation already there is skipped. Refuses a file that would
+ * make a loop (A → B → A), naming the exercises. `idOf` turns a reference of the file into an exercise
+ * id (a movement the file creates keeps `key:<key>` until it exists).
+ */
+export async function planGraph(plan: ImportPlan, idOf?: (reference: string) => string): Promise<GraphPlan> {
+  const known = await listExercises();
+  const byId = new Set(known.map((item) => item.id));
+  const byName = new Map(known.map((item) => [norm(item.name), item.id]));
+  const keys = new Set(plan.file.exercises.map((exercise) => exercise.key));
+  const resolve = idOf ?? ((reference: string) => plan.existing.get(reference) ?? (keys.has(reference) ? `key:${reference}` : byId.has(reference) ? reference : byName.get(norm(reference)) ?? reference));
+  const graph = await loadGraph();
+  const chainByName = new Map(graph.chains.map((chain) => [norm(chain.name), chain]));
+  const edges: GraphEdge[] = [...graph.edges];
+  const result: GraphPlan = { preview: { chainsCreated: 0, chainsExtended: 0, stepsAdded: 0, linksAdded: 0, skipped: 0 }, chains: [], links: [] };
+  const stepRefs = [...graph.steps];
+  for (const chain of plan.file.chains) {
+    const existing = chainByName.get(norm(chain.name)) ?? null;
+    const have = new Set(existing ? graph.steps.filter((step) => step.chainId === existing.id).map((step) => step.exerciseId) : []);
+    const steps = chain.steps.filter((step) => !have.has(resolve(step.exercise)));
+    result.preview.skipped += chain.steps.length - steps.length;
+    if (steps.length === 0) continue;
+    const chainId = existing?.id ?? `new:${chain.name}`;
+    let position = Math.max(0, ...stepRefs.filter((step) => step.chainId === chainId).map((step) => step.position));
+    for (const step of steps) stepRefs.push({ chainId, exerciseId: resolve(step.exercise), position: ++position });
+    if (existing) result.preview.chainsExtended += 1; else result.preview.chainsCreated += 1;
+    result.preview.stepsAdded += steps.length;
+    result.chains.push({ chain, existingId: existing?.id ?? null, steps });
+  }
+  edges.splice(0, edges.length, ...chainEdges(stepRefs), ...graph.links);
+  for (const link of plan.file.links) {
+    const candidate = { from: resolve(link.from), to: resolve(link.to), kind: link.kind } as const;
+    const problem = linkProblem(edges, candidate);
+    if (problem?.kind === 'duplicate') { result.preview.skipped += 1; continue; }
+    if (problem?.kind === 'self') throw new ImportError('invalid', `${link.from} → ${link.to}`);
+    edges.push(candidate);
+    result.links.push(link);
+    result.preview.linksAdded += 1;
+  }
+  const cycle = findCycle(edges);
+  if (cycle) {
+    const names = new Map(known.map((item) => [item.id, item.name]));
+    const label = (id: string) => (id.startsWith('key:') ? plan.file.exercises.find((exercise) => exercise.key === id.slice(4))?.name ?? id : names.get(id) ?? id);
+    throw new ImportError('cycle', cycle.map(label).join(' → '));
+  }
+  return result;
+}
 
 /** Writes a checked plan: the movements first, then the routines and programs that use them. */
 export async function applyImport(plan: ImportPlan): Promise<ImportResult> {
@@ -181,7 +281,16 @@ export async function applyImport(plan: ImportPlan): Promise<ImportResult> {
     });
   }
   for (const program of plan.file.programs) await saveUserProgram(toProgram(program, idOf));
-  return { exercisesCreated: plan.create.length, routines: plan.file.mobilityRoutines.length, programs: plan.file.programs.length, imagesAdded };
+  const graph = await planGraph(plan, idOf);
+  for (const { chain, existingId, steps } of graph.chains) {
+    const chainId = existingId ?? await createChain({ name: chain.name, description: chain.description, family: chain.skill });
+    for (const step of steps) await addStep(chainId, idOf(step.exercise), null, step.criteria);
+  }
+  for (const link of graph.links) await addLink({ fromId: idOf(link.from), toId: idOf(link.to), kind: link.kind, criteria: link.criteria, note: link.note });
+  return {
+    exercisesCreated: plan.create.length, routines: plan.file.mobilityRoutines.length, programs: plan.file.programs.length, imagesAdded,
+    chainsCreated: graph.preview.chainsCreated, stepsAdded: graph.preview.stepsAdded, linksAdded: graph.preview.linksAdded,
+  };
 }
 
 /** Reads, checks and applies a file in one go. */
