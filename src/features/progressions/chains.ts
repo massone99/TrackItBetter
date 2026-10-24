@@ -35,7 +35,8 @@ export function criteriaFromRow(target: string | null, requiredSessions: number)
 
 const toTarget = (criteria: Criteria): ProgressionTarget => (criteria.seconds !== undefined ? { sets: criteria.sets, durationSec: criteria.seconds } : { sets: criteria.sets, reps: criteria.reps ?? 1 });
 
-type History = { sessions: ProgressionSession[]; bestReps: number | null; bestSeconds: number | null };
+/** Sessions newest first, with the day each was trained (`dates[i]` goes with `sessions[i]`). */
+type History = { sessions: ProgressionSession[]; dates: Date[]; bestReps: number | null; bestSeconds: number | null };
 
 /** Finished working sets of some exercises, one session per workout (newest first), and their best single set. */
 async function historyOf(ids: readonly string[]): Promise<Map<string, History>> {
@@ -59,9 +60,11 @@ async function historyOf(ids: readonly string[]): Promise<Map<string, History>> 
     .where(and(inArray(exerciseEntries.exerciseId, [...ids]), isNotNull(workouts.endedAt), isNotNull(trainingSets.completedAt), eq(trainingSets.kind, 'working')))
     .orderBy(desc(workouts.startedAt), asc(trainingSets.index));
   const byExercise = new Map<string, Map<string, ProgressionSession['sets'][number][]>>();
+  const dateOf = new Map<string, Date>();
   for (const row of aggregatePairs(rows.map((row) => ({ ...row, side: row.side ?? undefined })))) {
     const sessions = byExercise.get(row.exerciseId) ?? new Map<string, ProgressionSession['sets'][number][]>();
     byExercise.set(row.exerciseId, sessions);
+    dateOf.set(row.workoutId, row.startedAt);
     sessions.set(row.workoutId, [...(sessions.get(row.workoutId) ?? []), { reps: row.reps ?? undefined, durationSec: row.durationSec ?? undefined, addedLoadKg: row.addedLoadKg ?? 0 }]);
   }
   for (const [exerciseId, sessions] of byExercise) {
@@ -69,6 +72,7 @@ async function historyOf(ids: readonly string[]): Promise<Map<string, History>> 
     const best = (values: (number | undefined)[]) => { const ok = values.filter((value): value is number => value !== undefined && value > 0); return ok.length ? Math.max(...ok) : null; };
     result.set(exerciseId, {
       sessions: [...sessions.values()].map((sets) => ({ completed: true, sets })),
+      dates: [...sessions.keys()].map((workoutId) => dateOf.get(workoutId)!),
       bestReps: best(all.map((set) => set.reps)),
       bestSeconds: best(all.map((set) => set.durationSec)),
     });
@@ -408,4 +412,40 @@ export async function unlinkedExercises(): Promise<{ id: string; name: string }[
   ]);
   const used = new Set([...steps.map((step) => step.id), ...links.flatMap((link) => [link.from, link.to])]);
   return all.filter((exercise) => !used.has(exercise.id));
+}
+
+export type HistoryMismatch = { chainId: string; chainName: string; fromName: string; toName: string; kind: 'early' | 'ready' };
+
+/**
+ * Where your history and the chains disagree: you started the next step before reaching the target of
+ * the one before it ("early"), or you reached a target and have not started the next step yet ("ready").
+ * Steps without a target, or marked reached by hand, are left out.
+ */
+export async function historyMismatches(): Promise<HistoryMismatch[]> {
+  await initializeDatabase();
+  const chains = await db.select().from(progressionChains).orderBy(asc(progressionChains.name));
+  const rows = await db.select().from(chainSteps).orderBy(asc(chainSteps.position));
+  const names = await exerciseNames();
+  const history = await historyOf([...new Set(rows.map((row) => row.exerciseId))]);
+  const result: HistoryMismatch[] = [];
+  for (const chain of chains) {
+    const steps = rows.filter((row) => row.chainId === chain.id);
+    for (let index = 0; index + 1 < steps.length; index += 1) {
+      const from = steps[index];
+      const to = steps[index + 1];
+      const criteria = criteriaFromRow(from.target, from.requiredSessions);
+      if (!criteria || from.reachedAt) continue;
+      const own = history.get(from.exerciseId);
+      const next = history.get(to.exerciseId);
+      const item = { chainId: chain.id, chainName: chain.name, fromName: names.get(from.exerciseId) ?? from.exerciseId, toName: names.get(to.exerciseId) ?? to.exerciseId };
+      if (next && next.dates.length > 0) {
+        const firstNext = Math.min(...next.dates.map((date) => date.getTime()));
+        const before = own ? { ...own, sessions: own.sessions.filter((_, i) => own.dates[i].getTime() < firstNext) } : undefined;
+        if (!criteriaMet(criteria, before)) result.push({ ...item, kind: 'early' });
+      } else if (criteriaMet(criteria, own)) {
+        result.push({ ...item, kind: 'ready' });
+      }
+    }
+  }
+  return result;
 }

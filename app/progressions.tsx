@@ -2,7 +2,7 @@ import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
-import { listChains, unlinkedExercises, type ChainView } from '../src/features/progressions/chains';
+import { historyMismatches, listChains, unlinkedExercises, type ChainView, type HistoryMismatch } from '../src/features/progressions/chains';
 import { shareChainsFile } from '../src/features/progressions/exportChains';
 import { usePaged, ShowMore } from '../src/shared/components/paging';
 import { ActionButton, Body, Chip, EmptyState, FooterAction, IconButton, ListGroup, ListRow, PageHeading, Screen, SectionTitle, Sheet } from '../src/shared/components/ui';
@@ -17,6 +17,7 @@ export default function ProgressionsScreen() {
   const { palette } = useTheme();
   const [chains, setChains] = useState<ChainView[] | null>(null);
   const [loose, setLoose] = useState<{ id: string; name: string }[]>([]);
+  const [mismatches, setMismatches] = useState<HistoryMismatch[]>([]);
   const [failed, setFailed] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
   const [picked, setPicked] = useState<string[]>([]);
@@ -24,9 +25,10 @@ export default function ProgressionsScreen() {
   const [showLoose, setShowLoose] = useState(false);
 
   const load = useCallback(() => {
-    void Promise.all([listChains(), unlinkedExercises()]).then(([nextChains, nextLoose]) => {
+    void Promise.all([listChains(), unlinkedExercises(), historyMismatches()]).then(([nextChains, nextLoose, nextMismatches]) => {
       setChains(nextChains);
       setLoose(nextLoose);
+      setMismatches(nextMismatches);
       setFailed(false);
     }, () => setFailed(true));
   }, []);
@@ -91,6 +93,24 @@ export default function ProgressionsScreen() {
           <ShowMore remaining={page.remaining} onPress={page.more} />
         </>
       )}
+
+      {mismatches.length > 0 ? (
+        <View style={styles.section}>
+          <SectionTitle title={t('chains.historyTitle')} />
+          <Body>{t('chains.historyBody')}</Body>
+          <ListGroup>
+            {mismatches.map((item) => (
+              <ListRow
+                key={`${item.chainId}-${item.fromName}-${item.kind}`}
+                icon={item.kind === 'early' ? 'alert-circle-outline' : 'arrow-forward-circle-outline'}
+                title={t(item.kind === 'early' ? 'chains.historyEarly' : 'chains.historyReady', { from: item.fromName, to: item.toName })}
+                subtitle={item.chainName}
+                onPress={() => router.push({ pathname: '/chain/[id]', params: { id: item.chainId } })}
+              />
+            ))}
+          </ListGroup>
+        </View>
+      ) : null}
 
       {loose.length > 0 ? (
         <View style={styles.section}>

@@ -2,10 +2,11 @@ import { migrateDatabase } from '../../../db/migrations';
 import { seedCatalogIfEmpty } from '../../../db/seed/import';
 import { transferExerciseHistory, deleteExerciseWithHistory } from '../../exercises/lifecycle';
 import {
-  addLink, addStep, createChain, deleteChain, deleteLink, duplicateChain, getChain, getExerciseProgressions, GraphError, listChains,
+  addLink, addStep, createChain, historyMismatches, deleteChain, deleteLink, duplicateChain, getChain, getExerciseProgressions, GraphError, listChains,
   listLinks, markStepReached, mergeChains, moveStep, removeStep, restoreLink, restoreStep, splitChain, unlinkedExercises, updateLink, updateStepCriteria,
 } from '../chains';
 import { getProgressionChain } from '../repository';
+import { logCompletedWorkout } from '../../session/repository';
 import chainsSeed from '../../../db/seed/progression-chains.json';
 import criteriaSeed from '../../../db/seed/level-criteria.json';
 
@@ -116,5 +117,24 @@ describe('progression chains', () => {
     await deleteExerciseWithHistory('target-x');
     expect(await names(id)).toEqual(['pike-push-up']);
     expect(await listLinks('decline-push-up')).toEqual([]);
+  });
+
+  it('lists where history and the chains disagree: moved on early, or ready and not started', async () => {
+    const early = await createChain({ name: 'Early', description: '', family: '' }, ['push-up', 'bench-dip']);
+    await updateStepCriteria((await getChain(early))!.steps[0].id, { sets: 1, reps: 5, requiredSessions: 1 });
+    const ready = await createChain({ name: 'Ready', description: '', family: '' }, ['parallel-bar-dip', 'ring-dip']);
+    await updateStepCriteria((await getChain(ready))!.steps[0].id, { sets: 1, reps: 5, requiredSessions: 1 });
+    await logCompletedWorkout({ name: 'Day 1', startedAt: new Date(1000), endedAt: new Date(2000), entries: [
+      { exerciseId: 'push-up', sets: [{ reps: 3, completedAt: new Date(1500) }] },
+      { exerciseId: 'parallel-bar-dip', sets: [{ reps: 6, completedAt: new Date(1500) }] },
+    ] });
+    await logCompletedWorkout({ name: 'Day 2', startedAt: new Date(5000), endedAt: new Date(6000), entries: [
+      { exerciseId: 'bench-dip', sets: [{ reps: 10, completedAt: new Date(5500) }] },
+    ] });
+    const found = (await historyMismatches()).filter((item) => item.chainId === early || item.chainId === ready);
+    expect(found.map((item) => [item.chainName, item.fromName, item.toName, item.kind])).toEqual([
+      ['Early', 'Push-up', 'Bench Dip', 'early'],
+      ['Ready', 'Parallel Bar Dip', 'Ring Dip', 'ready'],
+    ]);
   });
 });
