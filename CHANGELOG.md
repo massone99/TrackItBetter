@@ -2,6 +2,10 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.51.1 - 2026-10-24
+
+- Progressions: a "Compared with your history" list shows where what you did differs from the chain targets: a step started before reaching the target of the one before it, or a target reached with the next step not started yet. A tap opens the chain.
+
 ## 0.51.0 - 2026-10-24
 
 - Progressions: chains are yours. Create a chain (name, skill, description), add exercises in order, insert a step between two, reorder, set what to reach before moving on (sets × reps or seconds, sessions in a row), mark a step reached, remove a step with Restore; split, merge, duplicate, export or delete a chain. An exercise can be in several chains. The 15 catalog chains became editable chains with the same steps and targets (schema v23).
