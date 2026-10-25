@@ -208,7 +208,6 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
         >
                     <View style={styles.nameRow}>
             <Heading style={[styles.exerciseName, table && styles.exerciseNameCard, styles.flex]}>{exercise.name}</Heading>
-            <Icon name={collapsed ? 'chevron-down' : 'chevron-up'} size={18} color={palette.textMuted} />
           </View>
           <View style={styles.progressRow}>
             <Icon name={allDone ? 'checkmark-circle' : 'ellipse-outline'} size={14} color={allDone ? palette.success : palette.textMuted} />
@@ -244,6 +243,8 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
           {collapsed || hasComparison || !compare ? null : <Label>{previousText ? t('logger.lastTime', { value: previousText }) : firstTimeLabel ?? t('logger.firstTime')}</Label>}
           {exercise.notes ? <Text numberOfLines={3} style={[styles.exerciseNote, { color: palette.textMuted }]}>{exercise.notes}</Text> : null}
         </Pressable>
+        {/* The collapse chevron sits with the buttons, so all three share one row and one centre line. */}
+        <IconButton icon={collapsed ? 'chevron-down' : 'chevron-up'} label={t(collapsed ? 'logger.expand' : 'logger.collapse', { name: exercise.name })} tone="plain" onPress={onToggleCollapsed} />
         {exercise.demoUrl ? (
           <IconButton icon="play-circle-outline" label={t('logger.referenceOpen')} tone="plain" onPress={() => openReferenceVideo(exercise.demoUrl!)} />
         ) : null}
