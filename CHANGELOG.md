@@ -2,6 +2,11 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.52.0 - 2026-10-25
+
+- Workout: switch an exercise to one of its progression tree in two taps. The exercise's options open with "Switch to": the nearest easier and harder exercises, variations and prerequisites, one tap each; the one your sets point to comes first (easier after a working set at RPE 9.5 or more, or 1.5 above its target; harder once the target of its chain step is reached). Sets already done stay with the exercise they were done on, so its history and records do not change; the sets still to do go on with the new exercise (adapted when the measure changes, or started from its last time). "Restore" undoes the switch. "Choose another exercise" opens the classic search; changing the exercise there now keeps done sets the same way.
+- Fix: the exercise page had two sections with the same key, which could duplicate or hide a section.
+
 ## 0.51.1 - 2026-10-24
 
 - Progressions: a "Compared with your history" list shows where what you did differs from the chain targets: a step started before reaching the target of the one before it, or a target reached with the next step not started yet. A tap opens the chain.
