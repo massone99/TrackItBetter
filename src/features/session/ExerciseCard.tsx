@@ -338,7 +338,7 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
         const valueField = (done && !editableDone) || holding ? (
           <Text style={[styles.setValue, { color: holding ? palette.accentStrong : palette.text }]}>{value}</Text>
         ) : timed ? (
-          <HoldDurationField compact value={stored} label={`${t('logger.holdCol')} · ${t('logger.editValue', { number: set.index })}`} onChange={(next) => onSetValue(set, 'durationSec', next)} />
+          <HoldDurationField compact flat={table} value={stored} label={`${t('logger.holdCol')} · ${t('logger.editValue', { number: set.index })}`} onChange={(next) => onSetValue(set, 'durationSec', next)} />
         ) : (
           <NumberEdit
             value={stored}
@@ -407,7 +407,7 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
                 {valueDown}
                 <View style={styles.valueStack}>
                   {valueField}
-                  {set.id === exercise.sets[0]?.id ? <Text style={[styles.valueCaption, { color: palette.textMuted }]}>{fieldLabel.toLowerCase()}</Text> : null}
+                  {set.id === exercise.sets[0]?.id && !table ? <Text style={[styles.valueCaption, { color: palette.textMuted }]}>{fieldLabel.toLowerCase()}</Text> : null}
                 </View>
                 {valueUp}
               </View>

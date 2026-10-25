@@ -167,6 +167,7 @@ const baseStyles = StyleSheet.create({
   durationValue: { fontFamily: fonts.display, fontSize: 44, lineHeight: 50, minWidth: 120, textAlign: 'center', fontVariant: ['tabular-nums'] },
   compactDurationWrapper: { flexShrink: 1 },
   compactDuration: { minWidth: 64, minHeight: 48, paddingHorizontal: 8, paddingVertical: 8, borderRadius: 12, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  compactDurationFlat: { borderWidth: 0, backgroundColor: 'transparent', paddingHorizontal: 0, paddingVertical: 0, minWidth: 0 },
   compactDurationText: { fontFamily: fonts.display, fontSize: 24, lineHeight: 30, fontVariant: ['tabular-nums'] },
 });
 
@@ -174,7 +175,7 @@ const baseStyles = StyleSheet.create({
  * Edit an exact duration in minutes and seconds. The draft is applied only on Save;
  * opening or cancelling never writes a value. Existing row presets remain one-tap shortcuts.
  */
-export function DurationField({ label, value, min = 0, max = 600, step = 5, presets, format, compact = false, disabled = false, onChange }: {
+export function DurationField({ label, value, min = 0, max = 600, step = 5, presets, format, compact = false, flat = false, disabled = false, onChange }: {
   label: string;
   value: number;
   min?: number;
@@ -183,6 +184,8 @@ export function DurationField({ label, value, min = 0, max = 600, step = 5, pres
   presets?: number[];
   format: (seconds: number) => string;
   compact?: boolean;
+  /** Compact value without its tile, for a value that sits in a row of plain values. */
+  flat?: boolean;
   disabled?: boolean;
   onChange: (value: number) => void;
 }) {
@@ -213,7 +216,7 @@ export function DurationField({ label, value, min = 0, max = 600, step = 5, pres
         accessibilityRole="button" accessibilityLabel={`${label}: ${format(value)}`}
         accessibilityHint={t('durationPicker.hint')} accessibilityState={{ expanded: open, disabled }} disabled={disabled}
         onPress={() => { tapFeedback(); show(); }}
-        style={({ pressed }) => [styles.compactDuration, { backgroundColor: palette.surfaceMuted, borderColor: open ? palette.accentStrong : palette.border, opacity: disabled ? 0.45 : pressed ? 0.75 : 1 }]}
+        style={({ pressed }) => [styles.compactDuration, flat ? styles.compactDurationFlat : { backgroundColor: palette.surfaceMuted, borderColor: open ? palette.accentStrong : palette.border }, { opacity: disabled ? 0.45 : pressed ? 0.75 : 1 }]}
       >
         <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75} style={[styles.compactDurationText, { color: palette.text }]}>{format(value)}</Text>
       </Pressable> : <FieldRow label={label} icon="timer-outline" open={open} disabled={disabled} value={format(value)} onToggle={show} />}
@@ -248,6 +251,7 @@ export function HoldDurationField({ min = 0, max = Number.MAX_SAFE_INTEGER, ...p
   value: number;
   onChange: (seconds: number) => void;
   compact?: boolean;
+  flat?: boolean;
   disabled?: boolean;
   min?: number;
   max?: number;
