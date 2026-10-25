@@ -9,7 +9,7 @@ import type { RecordKind } from '../analytics/records';
 import { openExercisePage } from '../exercises/openExercise';
 import { openReferenceVideo } from '../exercises/ReferenceLinkSheet';
 import { HoldDurationField } from '../../shared/components/DateTimePickers';
-import { ActionButton, Heading, Icon, IconButton, Label, NumberEdit, ProgressMeter, tapFeedback, Text, TextField, type NumberEditControl } from '../../shared/components/ui';
+import { ActionButton, Heading, Icon, IconButton, Label, NumberEdit, ProgressMeter, tapFeedback, Text, TextField, useSurfaceDepth, type NumberEditControl } from '../../shared/components/ui';
 import { totalProgress } from '../../domain/totalGoal';
 import { useAnimationSettings } from '../../shared/settings/AnimationProvider';
 import { useTheme } from '../../shared/theme/ThemeProvider';
@@ -94,6 +94,7 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
 }) {
   const styles = useScaledStyles(baseStyles);
   const { width: windowWidth } = useWindowDimensions();
+  const depth = useSurfaceDepth();
   const { t, i18n } = useTranslation();
   // Very large text: each set stacks its fields (reps, then kg, then done) instead of one tight row.
   const { palette, largeText: textIsLarge } = useTheme();
@@ -186,7 +187,11 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
   const focusedId = hold && exercise.sets.some((set) => set.id === hold.setId) ? hold.setId : pickedSet?.id ?? nextSetId;
 
   return (
-    <View style={[styles.exerciseSection, { borderTopColor: nowLabel ? palette.accentStrong : palette.border }, nowLabel && styles.exerciseNow]}>
+    <View
+      style={table
+        ? [styles.exerciseCard, { backgroundColor: palette.surface, borderColor: nowLabel ? palette.accentStrong : palette.border }, nowLabel && styles.exerciseCardNow, depth]
+        : [styles.exerciseSection, { borderTopColor: nowLabel ? palette.accentStrong : palette.border }, nowLabel && styles.exerciseNow]}
+    >
       <View style={styles.exerciseHeader}>
         {handle}
         <Pressable
@@ -199,9 +204,9 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
           onAccessibilityAction={(event) => { if (event.nativeEvent.actionName === 'longpress') openExercisePage(exercise.exerciseId); }}
           style={styles.flex}
         >
-          {nowLabel ? <Label style={{ color: palette.accentStrong }}>{nowLabel}</Label> : null}
+          {nowLabel ? <Label style={[{ color: palette.accentStrong }, table && styles.nowLabel]}>{table ? nowLabel.toUpperCase() : nowLabel}</Label> : null}
           <View style={styles.nameRow}>
-            <Heading style={[styles.exerciseName, styles.flex]}>{exercise.name}</Heading>
+            <Heading style={[styles.exerciseName, table && styles.exerciseNameCard, styles.flex]}>{exercise.name}</Heading>
             <Icon name={collapsed ? 'chevron-down' : 'chevron-up'} size={18} color={palette.textMuted} />
           </View>
           <View style={styles.progressRow}>
@@ -274,15 +279,16 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
 
       {table && !collapsed && exercise.sets.length > 0 ? (
         <View style={styles.tableHead}>
-          <Label numberOfLines={1} style={styles.tableBadgeCol}>{t('logger.setCol')}</Label>
-          {withLoad ? <Label numberOfLines={1} style={styles.tableHeadText}>{t('logger.kgCol')}</Label> : null}
-          <Label numberOfLines={1} style={styles.tableHeadText}>{fieldLabel}</Label>
-          {showRpe ? <Label numberOfLines={1} style={styles.tableHeadText}>{t('logger.rpe')}</Label> : null}
-          <Label numberOfLines={1} style={styles.tableHeadText}>{t('lastTime.form')}</Label>
+          <Label numberOfLines={1} style={[styles.tableBadgeCol, styles.tableHeadLabel]}>{t('logger.setCol')}</Label>
+          {withLoad ? <Label numberOfLines={1} style={[styles.tableHeadText, styles.tableHeadLabel]}>{t('logger.kgCol')}</Label> : null}
+          <Label numberOfLines={1} style={[styles.tableHeadText, styles.tableHeadLabel]}>{fieldLabel}</Label>
+          {showRpe ? <Label numberOfLines={1} style={[styles.tableHeadText, styles.tableHeadLabel]}>{t('logger.rpe')}</Label> : null}
+          <Label numberOfLines={1} style={[styles.tableHeadText, styles.tableHeadLabel]}>{t('lastTime.form')}</Label>
           <View style={styles.tableTail} />
         </View>
       ) : null}
 
+      <View style={table ? styles.tableBleed : undefined}>
       {(collapsed ? [] : exercise.sets).map((set) => {
         const done = Boolean(set.completedAt);
         // In a running EMOM a recorded round stays editable in place and keeps its check, so the round count holds.
@@ -324,7 +330,7 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
         const romRow = canRom && active === 'rom';
         const noteRow = !!onNote && active === 'note';
         // The chip strip shows on done sets and the next one (every set in a finished workout); other sets show only what they carry.
-        const strip = done || editDone || set.id === nextSetId;
+        const strip = done || editDone || set.id === nextSetId || isOpen;
         const title = `${set.kind === 'warmup' ? t('workout.blocks.warmup') : t('logger.setTitle', { number: workingNumber })}${set.side === 'left' ? ' · L' : set.side === 'right' ? ' · R' : ''}`;
         const valueDown = showSteps ? <StepButton large={largeText} icon="remove" label={t('logger.stepDown', { field: fieldLabel, number: workingNumber, side: sideLabel }).trim()} onPress={(multiplier) => step(set, field, (distance ? -0.5 : timed ? -5 : -1) * multiplier)} /> : null;
         const valueUp = showSteps ? <StepButton large={largeText} icon="add" label={t('logger.stepUp', { field: fieldLabel, number: workingNumber, side: sideLabel }).trim()} onPress={(multiplier) => step(set, field, (distance ? 0.5 : timed ? 5 : 1) * multiplier)} /> : null;
@@ -394,9 +400,9 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
           <>
             {!largeText ? (
             /* Row 1: set, reps (or time, or distance), load, done, menu. */
-            <Pressable accessible={false} accessibilityRole="none" onLongPress={openMenu} delayLongPress={450} style={styles.setRow}>
+            <Pressable accessible={false} accessibilityRole="none" onLongPress={openMenu} delayLongPress={450} style={[styles.setRow, table && styles.tableSetRow]}>
               <View style={styles.colSet}>{badge}</View>
-              <View style={[styles.colValue, styles.stepper]}>
+              <View style={[styles.colValue, styles.stepper, table && [styles.tile, { backgroundColor: palette.surface }]]}>
                 {valueDown}
                 <View style={styles.valueStack}>
                   {valueField}
@@ -405,7 +411,7 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
                 {valueUp}
               </View>
               {!withLoad ? null : set.addedLoadKg !== 0 || loadShown.has(set.id) ? (
-                <View style={[styles.colLoad, styles.stepper]}>{loadDown}{loadField}{loadUp}</View>
+                <View style={[styles.colLoad, styles.stepper, table && [styles.tile, { backgroundColor: palette.surface }]]}>{loadDown}{loadField}{loadUp}</View>
               ) : done ? <View style={styles.colLoad} /> : (
                 <View style={[styles.colLoad, styles.stepper]}>
                   <Pressable
@@ -508,6 +514,7 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
             )}
           </>
         );
+        const current = holding || set.id === nextSetId;
         const sidePrefix = set.side === 'left' ? 'L ' : set.side === 'right' ? 'R ' : '';
         const tableRow = (
           <Pressable
@@ -518,11 +525,11 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
             onPress={() => { tapFeedback(); setExpanded((current) => new Map(current).set(set.id, !isOpen)); }}
             onLongPress={openMenu}
             delayLongPress={450}
-            style={({ pressed }) => [styles.tableRow, isOpen && { backgroundColor: palette.accentSoft }, pressed && { opacity: 0.7 }]}
+            style={({ pressed }) => [styles.tableRow, { backgroundColor: current ? palette.accentSoft : palette.surface }, pressed && { opacity: 0.7 }]}
           >
             <View style={styles.tableBadgeCol}>
-              <View style={[styles.summaryDot, done ? { backgroundColor: palette.success } : { borderColor: palette.border, borderWidth: 2 }]}>
-                {done ? <Icon name="checkmark" size={18} color={palette.successText} /> : <Text style={[styles.setBadgeText, { color: palette.textMuted }]}>{set.kind === 'warmup' ? 'W' : workingNumber}</Text>}
+              <View style={[styles.tableDot, done ? { backgroundColor: palette.success } : current ? { backgroundColor: palette.accentStrong } : { borderColor: palette.border, borderWidth: 2 }]}>
+                <Text style={[styles.setBadgeText, { color: done ? palette.successText : current ? palette.accentText : palette.textMuted }]}>{set.kind === 'warmup' ? 'W' : workingNumber}</Text>
               </View>
             </View>
             {withLoad ? <Text numberOfLines={1} adjustsFontSizeToFit style={[styles.tableValue, { color: set.addedLoadKg === 0 ? palette.textMuted : palette.text }]}>{loadText}</Text> : null}
@@ -538,8 +545,8 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
           </Pressable>
         );
         return (
-          <Animated.View key={`${set.id}${largeText ? "-f" : ""}`} entering={largeText ? undefined : setEntering} style={[styles.setBlock, largeText && !editing && styles.setBlockLine, editing && [styles.largeBlock, { borderColor: palette.border }]]}>
-            {editing ? null : <DoneTint done={done} color={palette.accentSoft} />}
+          <Animated.View key={`${set.id}${largeText ? "-f" : ""}`} entering={largeText ? undefined : setEntering} style={[styles.setBlock, largeText && !editing && styles.setBlockLine, editing && [styles.largeBlock, { borderColor: palette.border }], table && [styles.tableBlock, { borderTopColor: palette.border }, isOpen && { backgroundColor: palette.background }]]}>
+            {editing || table ? null : <DoneTint done={done} color={palette.accentSoft} />}
             {/* The set in hand with very large text is not swiped: its steppers and buttons own the gestures. */}
             {editing ? rowBody : (
             <SwipeableSetRow
@@ -559,20 +566,21 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
             {/* Row 3, once the set is done: how clean the form was. The exercise folds only after the last rating. */}
             {/* Only when there is something to show: PR, clips, note (and RPE when its row is hidden). */}
             {(!table || isOpen) && (strip || set.note || set.clipCount > 0 || (set.poseCount ?? 0) > 0 || set.rpe !== null || setRecords.has(set.id) || set.bands.length > 0) ? (
-              <View style={[styles.setMeta, editing && styles.setMetaLarge]}>
+              <View style={[styles.setMeta, editing && styles.setMetaLarge, table && styles.tableChips]}>
                 {canRpe && (strip || set.rpe !== null) ? (
-                  <ValueChip label={set.rpe !== null ? t('logger.rpeTag', { value: formatRpe(set.rpe) }) : t('lastTime.rpeChip')} icon="speedometer-outline" filled={set.rpe !== null} open={rpeRow} onPress={() => toggleOpen(set.id, 'rpe', rpeRow)} />
+                  <ValueChip flat={table} label={set.rpe !== null ? t('logger.rpeTag', { value: formatRpe(set.rpe) }) : t('lastTime.rpeChip')} icon="speedometer-outline" filled={set.rpe !== null} open={rpeRow} onPress={() => toggleOpen(set.id, 'rpe', rpeRow)} />
                 ) : null}
                 {canForm && (strip || set.formRating !== null) ? (
-                  <ValueChip label={set.formRating !== null ? `${t('lastTime.form')} ${formatNumber(set.formRating)}` : t('lastTime.form')} filled={set.formRating !== null} open={formRow} onPress={() => toggleOpen(set.id, 'form', formRow)} />
+                  <ValueChip flat={table} label={set.formRating !== null ? `${t('lastTime.form')} ${formatNumber(set.formRating)}` : t('lastTime.form')} filled={set.formRating !== null} open={formRow} onPress={() => toggleOpen(set.id, 'form', formRow)} />
                 ) : null}
                 {canRom && (strip || set.romRating !== null) ? (
-                  <ValueChip label={set.romRating !== null ? `${t('lastTime.rom')} ${formatNumber(set.romRating)}` : t('lastTime.rom')} filled={set.romRating !== null} open={romRow} onPress={() => toggleOpen(set.id, 'rom', romRow)} />
+                  <ValueChip flat={table} label={set.romRating !== null ? `${t('lastTime.rom')} ${formatNumber(set.romRating)}` : t('lastTime.rom')} filled={set.romRating !== null} open={romRow} onPress={() => toggleOpen(set.id, 'rom', romRow)} />
                 ) : null}
                 {(() => {
                   const described = set.bands.length > 0 ? describeBands?.(set) : null;
                   return strip || described ? (
                     <ValueChip
+                      flat={table}
                       label={described ? described.text : t('bands.chipEmpty')}
                       icon="git-commit-outline"
                       filled={Boolean(described)}
@@ -581,8 +589,15 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
                     />
                   ) : null;
                 })()}
+                {table ? (
+                  <>
+                    {(set.restSec ?? defaultRest) > 0 ? <ValueChip flat label={t('logger.restChip', { value: formatClock(set.restSec ?? defaultRest) })} filled={set.restSec !== null} onPress={() => { tapFeedback(); onSetOptions(set); }} /> : null}
+                    {set.side === 'left' || set.side === 'right' ? <ValueChip flat label={sideLabel} filled onPress={() => { tapFeedback(); onSetOptions(set); }} /> : null}
+                    {set.clipCount === 0 ? <ValueChip flat label={t('logger.videoChip')} icon="videocam" filled={false} onPress={() => { tapFeedback(); onSetOptions(set); }} /> : null}
+                  </>
+                ) : null}
                 {strip || set.note ? (
-                  <ValueChip label={set.note ? set.note : t('logger.noteChip')} icon="chatbubble-ellipses-outline" filled={Boolean(set.note)} grow lines={3} onPress={() => { if (onNote) toggleOpen(set.id, 'note', noteRow); else { tapFeedback(); onSetOptions(set, 'note'); } }} open={noteRow} />
+                  <ValueChip flat={table} label={set.note ? set.note : t('logger.noteChip')} icon="chatbubble-ellipses-outline" filled={Boolean(set.note)} grow lines={3} onPress={() => { if (onNote) toggleOpen(set.id, 'note', noteRow); else { tapFeedback(); onSetOptions(set, 'note'); } }} open={noteRow} />
                 ) : null}
                 {setRecords.has(set.id) ? (
                   <Pressable
@@ -611,7 +626,7 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
               </View>
             ) : null}
             {(!table || isOpen) && (rpeRow || formRow || romRow || noteRow) ? (
-              <View style={[styles.valuePanel, editing && styles.valuePanelLarge, { backgroundColor: editing ? undefined : done ? palette.background : palette.surface }]}>
+              <View style={[styles.valuePanel, editing && styles.valuePanelLarge, table && styles.tablePanel, { backgroundColor: editing ? undefined : done ? palette.background : palette.surface }]}>
                 {rpeRow ? <RpePicker compact grid={largeText} wrap sideLabel={sideLabel} value={set.rpe} target={set.targetRpe} onChange={(rpe) => onRpe(set, rpe)} /> : null}
                 {formRow ? <FormRating value={set.formRating} sideLabel={sideLabel} onChange={(rating) => onFormRating(set, rating)} /> : null}
                 {noteRow ? <NoteInput value={set.note ?? ''} label={t('logger.noteLabel')} placeholder={t('logger.notePlaceholder')} onSave={(note) => onNote!(set, note)} /> : null}
@@ -664,8 +679,9 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
           </Animated.View>
         );
       })}
+      </View>
 
-      {collapsed ? null : <View style={[styles.addRow, largeText && styles.addRowLarge]}>
+      {collapsed ? null : <View style={[styles.addRow, largeText && styles.addRowLarge, table && [styles.addRowTable, { borderTopColor: palette.border }]]}>
         <Pressable accessibilityRole="button" onPress={() => { tapFeedback(); onAddSet(); }} style={({ pressed }) => [styles.addSet, largeText && [styles.addSetLarge, { borderColor: palette.border }], { opacity: pressed ? 0.6 : 1 }]}>
           <Icon name="add" size={18} color={palette.accentStrong} />
           <Text style={[styles.addSetText, { color: palette.accentStrong }]}>{t('logger.addSet')}</Text>
@@ -713,7 +729,7 @@ export function holdDisplay(hold: ActiveHold): string {
 }
 
 /** One value of a set as a chip: filled with the value, or dashed when empty; a tap edits it. */
-function ValueChip({ label, icon, filled, open = false, grow = false, lines = 1, colors, onPress }: { lines?: number; label: string; icon?: Parameters<typeof Icon>[0]['name']; filled: boolean; open?: boolean; grow?: boolean; colors?: string[]; onPress: () => void }) {
+function ValueChip({ label, icon, filled, open = false, grow = false, lines = 1, colors, flat = false, onPress }: { flat?: boolean; lines?: number; label: string; icon?: Parameters<typeof Icon>[0]['name']; filled: boolean; open?: boolean; grow?: boolean; colors?: string[]; onPress: () => void }) {
   const styles = useScaledStyles(baseStyles);
   const { palette } = useTheme();
   return (
@@ -726,12 +742,14 @@ function ValueChip({ label, icon, filled, open = false, grow = false, lines = 1,
       style={[
         styles.valueChip,
         grow && styles.valueChipGrow,
-        filled ? { backgroundColor: palette.accentSoft, borderColor: open ? palette.accentStrong : 'transparent' } : { borderColor: open ? palette.accentStrong : palette.border, borderStyle: open ? 'solid' : 'dashed' },
+        flat
+          ? { backgroundColor: open ? palette.accentSoft : palette.surface, borderColor: open ? palette.accentStrong : palette.border, borderWidth: open ? 2 : 1 }
+          : filled ? { backgroundColor: palette.accentSoft, borderColor: open ? palette.accentStrong : 'transparent' } : { borderColor: open ? palette.accentStrong : palette.border, borderStyle: open ? 'solid' : 'dashed' },
       ]}
     >
       {colors?.map((color, index) => <View key={`${color}-${index}`} style={[styles.bandDot, { backgroundColor: color, borderColor: palette.border }]} />)}
       {icon && !colors?.length ? <Icon name={icon} size={14} color={filled ? palette.accentStrong : palette.textMuted} /> : null}
-      <Text numberOfLines={lines} style={[styles.valueChipText, { color: filled ? palette.accentStrong : palette.textMuted }]}>{label}</Text>
+      <Text numberOfLines={lines} style={[styles.valueChipText, { color: flat ? (open ? palette.accentStrong : palette.text) : filled ? palette.accentStrong : palette.textMuted }]}>{label}</Text>
     </Pressable>
   );
 }
@@ -785,12 +803,25 @@ const baseStyles = StyleSheet.create({
   summaryText: { flex: 1, fontFamily: fonts.semibold, fontSize: 15 },
   addRowLarge: { flexDirection: 'column', flexWrap: 'nowrap', alignItems: 'stretch', gap: 8, marginTop: 4 },
   addSetLarge: { justifyContent: 'center', borderWidth: 1, borderRadius: 14, paddingHorizontal: 12 },
-  tableHead: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 4 },
+  exerciseCard: { borderRadius: 24, borderWidth: 1, padding: 16, overflow: 'hidden', gap: 8 },
+  exerciseCardNow: { borderWidth: 2 },
+  nowLabel: { fontFamily: fonts.display, fontSize: 14, letterSpacing: 1.4 },
+  exerciseNameCard: { fontSize: 30, lineHeight: 32, textTransform: 'uppercase' },
+  tableBleed: { marginHorizontal: -16 },
+  tableBlock: { borderRadius: 0, marginBottom: 0, borderTopWidth: 1 },
+  tableDot: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
+  tableHeadLabel: { fontFamily: fonts.bold, fontSize: 12, letterSpacing: 0.7, textTransform: 'uppercase' },
+  addRowTable: { borderTopWidth: 1, marginHorizontal: -16, marginBottom: -16, marginTop: 0, paddingHorizontal: 16, justifyContent: 'center' },
+  tableChips: { paddingLeft: 16, paddingRight: 16, paddingBottom: 12 },
+  tablePanel: { marginLeft: 16, marginRight: 16 },
+  tableSetRow: { paddingHorizontal: 16 },
+  tile: { borderRadius: 16, paddingVertical: 4, marginHorizontal: 2 },
+  tableHead: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 0, paddingVertical: 4 },
   tableHeadText: { flex: 1, minWidth: 0, textAlign: 'center' },
   tableBadgeCol: { width: 40, alignItems: 'center' },
-  tableRow: { flexDirection: 'row', alignItems: 'center', minHeight: 56, paddingHorizontal: 4, borderRadius: 10 },
-  tableValue: { flex: 1, minWidth: 0, textAlign: 'center', fontFamily: fonts.display, fontSize: 22, lineHeight: 28, fontVariant: ['tabular-nums'] },
-  tableMeta: { flex: 1, minWidth: 0, textAlign: 'center', fontFamily: fonts.semibold, fontSize: 16 },
+  tableRow: { flexDirection: 'row', alignItems: 'center', minHeight: 56, paddingHorizontal: 16 },
+  tableValue: { flex: 1, minWidth: 0, textAlign: 'center', fontFamily: fonts.display, fontSize: 26, lineHeight: 30, fontVariant: ['tabular-nums'] },
+  tableMeta: { flex: 1, minWidth: 0, textAlign: 'center', fontFamily: fonts.display, fontSize: 22, lineHeight: 28, fontVariant: ['tabular-nums'] },
   tableTail: { width: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 4 },
   setRow: { flexDirection: 'row', alignItems: 'center', minHeight: 56, paddingTop: 4, paddingLeft: 2 },
   recordChip: { flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-start', borderRadius: 10, paddingHorizontal: 8, paddingVertical: 3, marginTop: 4 },

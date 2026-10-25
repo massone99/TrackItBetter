@@ -2,6 +2,10 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.54.1 - 2026-10-25
+
+- Workout: the exercise is now a card like the design: name in capitals with "Now · 2 of 5" above it, column labels in capitals, hairlines between the set rows, a numbered circle per set (green when done, blue for the one in hand), the open set on a grey band with its fields on white tiles, flat chips, and "Add set" closing the card. Opening a set also shows rest, side and video chips that open the set's sheet; the other chips and all fields are unchanged.
+
 ## 0.54.0 - 2026-10-25
 
 - Workout: the sets of an exercise are now a table (set, kg, reps, RPE, form) with one row each. The set to do next opens by itself with its steppers and the RPE, form, ROM, bands and note chips; a tap on any row opens or closes it, and a set that is done stays open until its form is rated. Swipe and long press work on the rows as before. Very large text, narrow screens, a running EMOM and finished workouts keep the previous layout.
