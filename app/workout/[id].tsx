@@ -15,6 +15,7 @@ import type { ScrollHandle } from '../../src/shared/components/keyboard';
 import { getSessionRecords } from '../../src/features/analytics/repository';
 import type { RecordKind } from '../../src/features/analytics/records';
 import { ExerciseCompareField } from '../../src/features/session/ExerciseCompareField';
+import { SwitchSection } from '../../src/features/progressions/SwitchSection';
 import { ExerciseAveragesField } from '../../src/features/session/ExerciseAveragesField';
 import { ExerciseRestFields } from '../../src/features/session/ExerciseRestFields';
 import {
@@ -27,7 +28,8 @@ import {
   addSet,
   completeSet,
   copyValuesToSet,
-  replaceEntryExercise,
+  switchEntryExercise,
+  undoSwitch,
   deleteWorkout,
   finishWorkout,
   IncompletePairError,
@@ -50,7 +52,7 @@ import {
   updateSet,
   setEntryTotalTarget,
 } from '../../src/features/session/repository';
-import type { ActiveWorkout, PreviousPerformance, PreviousSetValues, RemovedRows, SessionExercise, SessionSet } from '../../src/features/session/repository';
+import type { ActiveWorkout, PreviousPerformance, PreviousSetValues, RemovedRows, SessionExercise, SessionSet, SwitchSnapshot } from '../../src/features/session/repository';
 import { defaultHoldMode, rememberHoldMode, useHoldTimer, type ActiveHold } from '../../src/features/session/useHoldTimer';
 import { exerciseFinished, nextFolded } from '../../src/domain/folding';
 import { adjustedRest, REST_STEP_SEC } from '../../src/domain/restTimer';
@@ -150,10 +152,10 @@ export default function WorkoutScreen() {
   const [holdModes, setHoldModes] = useState<Map<string, HoldMode>>(new Map());
   const holdModeFor = (setId: string) => holdModes.get(setId) ?? defaultHoldMode();
   // The last removal, offered for a few seconds as "Restore".
-  const [undo, setUndo] = useState<{ message: string; removed: RemovedRows } | null>(null);
+  const [undo, setUndo] = useState<{ message: string; removed?: RemovedRows; switched?: SwitchSnapshot } | null>(null);
   // Once the Restore offer is gone, clip files kept for it are deleted (files restored meanwhile stay).
   const hideUndo = useCallback(() => setUndo((current) => {
-    if (current) void discardRemoved(current.removed).catch(() => undefined);
+    if (current?.removed) void discardRemoved(current.removed).catch(() => undefined);
     return null;
   }), []);
   const [clockNow, setClockNow] = useState<number | null>(null);
@@ -393,10 +395,25 @@ export default function WorkoutScreen() {
     if (await enableExerciseLoad(exercise.exerciseId)) setLoadNotice(t('logger.loadEnabled', { name: exercise.name }));
   };
 
+  /** Switches an exercise to one of its tree (or any other): sets done stay with the old one; "Restore" undoes it. */
+  const switchTo = async (exercise: SessionExercise, id: string, name: string) => {
+    if (!workout) return;
+    setOptionsFor(null);
+    if (exercise.entryId === emomEntryId) await emom.stop();
+    if (hold.active) hold.stop();
+    try {
+      const snapshot = await switchEntryExercise(exercise.entryId, id);
+      setUndo({ message: t('chains.switched', { name }), switched: snapshot });
+    } catch {
+      setLoadNotice(t('chains.switchError'));
+    }
+    await refresh(workout.id);
+  };
+
   const chooseExercise = async (exercise: ExerciseChoice) => {
     if (!workout) return;
     if (replacing) {
-      if (exercise.id !== replacing.exerciseId) await replaceEntryExercise(replacing.entryId, exercise.id);
+      if (exercise.id !== replacing.exerciseId) await switchTo(replacing, exercise.id, exercise.name);
       setReplacing(null);
     } else {
       await addExerciseToWorkout(workout.id, exercise.id);
@@ -907,6 +924,7 @@ export default function WorkoutScreen() {
         onAction={() => {
           const removed = undo?.removed;
           if (removed) void restoreRemoved(removed).then(() => refresh(workout.id));
+          if (undo?.switched) void undoSwitch(undo.switched).then(() => refresh(workout.id));
         }}
         onHide={hideUndo}
         bottomOffset={emom.plan ? 180 : hold.active || restEndsAt !== null ? 110 : 0}
@@ -985,6 +1003,7 @@ export default function WorkoutScreen() {
       <Sheet visible={optionsFor !== null} onClose={() => setOptionsFor(null)} title={optionsFor?.name ?? t('logger.options')}>
         {optionsFor ? (
           <>
+            <SwitchSection key={`switch-${optionsFor.entryId}-${optionsFor.exerciseId}`} exercise={optionsFor} onSwitch={(id, name) => void switchTo(optionsFor, id, name)} onOther={() => { setReplacing(optionsFor); setOptionsFor(null); setPickerOpen(true); }} />
             <ExerciseNoteField key={optionsFor.entryId} entryId={optionsFor.entryId} initial={optionsFor.notes} onSaved={() => void refresh(workout.id)} />
             {catalog && (optionsFor.apparatusIds?.length ?? 0) > 0 ? (
               <MenuGroup title={t('equipment.apparatusInWorkout')}>

@@ -1512,6 +1512,85 @@ export async function replaceEntryExercise(entryId: string, exerciseId: string):
   await bumpIfFinished({ entryId });
 }
 
+/** What `switchEntryExercise` changed, so `undoSwitch` can put it back. */
+export interface SwitchSnapshot {
+  entry: typeof exerciseEntries.$inferSelect;
+  sets: (typeof trainingSets.$inferSelect)[];
+  /** The entry made for the exercise left behind, holding the sets already done; null when none were done. */
+  keptEntryId: string | null;
+}
+
+/**
+ * Switches an exercise of a workout in progress to another one. Sets already done stay with the exercise
+ * they were done on (a new entry right before, so its history and records do not change); the sets still
+ * to do go on with the new exercise, adapted as in `replaceEntryExercise`, or start from its last time
+ * when none were left. With nothing done yet this is a plain replacement.
+ */
+export async function switchEntryExercise(entryId: string, exerciseId: string): Promise<SwitchSnapshot> {
+  await initializeDatabase();
+  const [entry] = await db.select().from(exerciseEntries).where(eq(exerciseEntries.id, entryId)).limit(1);
+  if (!entry) throw new Error('Exercise not found');
+  const sets = await db.select().from(trainingSets).where(eq(trainingSets.entryId, entryId)).orderBy(asc(trainingSets.index));
+  const done = sets.filter((set) => set.completedAt !== null);
+  let keptEntryId: string | null = null;
+  if (done.length > 0 && exerciseId !== entry.exerciseId) {
+    keptEntryId = id();
+    await db.transaction(async (tx) => {
+      await tx.update(exerciseEntries).set({ order: sql`${exerciseEntries.order} + 1` })
+        .where(and(eq(exerciseEntries.workoutId, entry.workoutId), gte(exerciseEntries.order, entry.order)));
+      await tx.insert(exerciseEntries).values({
+        id: keptEntryId!, workoutId: entry.workoutId, exerciseId: entry.exerciseId, order: entry.order, block: entry.block,
+        notes: entry.notes, apparatusId: entry.apparatusId, unilateralRestMode: entry.unilateralRestMode,
+      });
+      await tx.update(trainingSets).set({ entryId: keptEntryId! }).where(inArray(trainingSets.id, done.map((set) => set.id)));
+      await renumberSets(tx, keptEntryId!);
+      await renumberSets(tx, entryId);
+    });
+  }
+  await replaceEntryExercise(entryId, exerciseId);
+  const [left] = await db.select({ n: count() }).from(trainingSets).where(eq(trainingSets.entryId, entryId));
+  if ((left?.n ?? 0) === 0 && !(await prefillFromLastTime(entryId, entry.workoutId, exerciseId))) await addSet(entryId);
+  return { entry, sets, keptEntryId };
+}
+
+type SetTx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+/** Numbers an entry's sets 1, 2, … again, keeping a pair together. */
+async function renumberSets(tx: SetTx, entryId: string): Promise<void> {
+  const rows = await tx.select().from(trainingSets).where(eq(trainingSets.entryId, entryId)).orderBy(asc(trainingSets.index));
+  // Moved out of the way first, so a number is never held by two sets at once.
+  for (const [position, group] of groupSets(rows).entries()) {
+    for (const row of group) await tx.update(trainingSets).set({ index: 1000 + position + 1 }).where(eq(trainingSets.id, row.id));
+  }
+  for (const [position, group] of groupSets(rows).entries()) {
+    for (const row of group) await tx.update(trainingSets).set({ index: position + 1 }).where(eq(trainingSets.id, row.id));
+  }
+}
+
+/** Puts a switch back: the sets return to their entry as they were, and the entry made for the old exercise goes. */
+export async function undoSwitch(snapshot: SwitchSnapshot): Promise<void> {
+  await initializeDatabase();
+  const { entry, sets, keptEntryId } = snapshot;
+  await db.transaction(async (tx) => {
+    const keep = new Set(sets.map((set) => set.id));
+    const now = await tx.select({ id: trainingSets.id }).from(trainingSets).where(inArray(trainingSets.entryId, keptEntryId ? [entry.id, keptEntryId] : [entry.id]));
+    const extra = now.map((row) => row.id).filter((setId) => !keep.has(setId));
+    if (extra.length) await tx.delete(trainingSets).where(inArray(trainingSets.id, extra));
+    await tx.update(exerciseEntries).set({ exerciseId: entry.exerciseId, notes: entry.notes, apparatusId: entry.apparatusId }).where(eq(exerciseEntries.id, entry.id));
+    const present = new Set(now.map((row) => row.id));
+    for (const set of sets) {
+      if (present.has(set.id)) await tx.update(trainingSets).set({ ...set }).where(eq(trainingSets.id, set.id));
+      else await tx.insert(trainingSets).values(set);
+    }
+    if (keptEntryId) {
+      await tx.delete(exerciseEntries).where(eq(exerciseEntries.id, keptEntryId));
+      await tx.update(exerciseEntries).set({ order: sql`${exerciseEntries.order} - 1` })
+        .where(and(eq(exerciseEntries.workoutId, entry.workoutId), gt(exerciseEntries.order, entry.order)));
+    }
+  });
+  await bumpIfFinished({ entryId: entry.id });
+}
+
 /** Puts an exercise in a superset with the one after it, joining whichever superset either is in. */
 export async function linkWithNext(entryId: string): Promise<void> {
   await initializeDatabase();

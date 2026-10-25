@@ -236,7 +236,7 @@ export default function ExerciseRoute() {
         }
       />
 
-      <ExerciseImagesSection key={exercise.id} exerciseId={exercise.id} />
+      <ExerciseImagesSection key={`images-${exercise.id}`} exerciseId={exercise.id} />
 
       <ListGroup>
         <ListRow
