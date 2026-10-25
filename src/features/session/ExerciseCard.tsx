@@ -32,7 +32,7 @@ const NO_RECORDS: ReadonlyMap<string, RecordKind[]> = new Map();
  * and the add-set row. Shared by the workout in progress and a finished workout's page; the live-only
  * parts (hold timer, EMOM, comparison with last time, records) are optional.
  */
-export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, previous, hold = null, onChange, onSetValue, onComplete, onStartHold, onFinishHold, onAddSet, onAddWarmup, onCopyAllLast, onSetOptions, onUncomplete, onRemoveSet, onSwiped, showRpe, onRpe, onOptions, onToggleWarmup, setRecords = NO_RECORDS, volumeRecord = false, supersetLabel = null, emomLabel: emomBadgeLabel, defaultRest = 0, onFormRating, onRomRating, onNote, focus = false, editDone = false, typeDone = false, compare = true, apparatusLabel = null, firstTimeLabel, describeBands, compareBands }: {
+export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, previous, hold = null, onChange, onSetValue, onComplete, onStartHold, onFinishHold, onAddSet, onAddWarmup, onCopyAllLast, onSetOptions, onUncomplete, onRemoveSet, onSwiped, showRpe, onRpe, onOptions, onToggleWarmup, setRecords = NO_RECORDS, volumeRecord = false, supersetLabel = null, emomLabel: emomBadgeLabel, defaultRest = 0, onFormRating, onRomRating, onNote, focus = false, nowLabel = null, editDone = false, typeDone = false, compare = true, apparatusLabel = null, firstTimeLabel, describeBands, compareBands }: {
   handle?: ReactNode;
   exercise: SessionExercise;
   collapsed: boolean;
@@ -70,6 +70,8 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
   onRomRating?: (set: SessionSet, rating: number | null) => void;
   /** Saves a set's note typed in place; without it the Note chip opens the set's sheet. */
   onNote?: (set: SessionSet, note: string) => void;
+  /** Marks the exercise in hand ("Now · 2 of 5"); null for the others. */
+  nowLabel?: string | null;
   /** Focus mode: the set in hand opens as a large one-column block, the others fold to one line. */
   focus?: boolean;
   /** Done sets keep their − and + buttons (a finished workout, where every set is done). */
@@ -167,7 +169,7 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
   const focusedId = hold && exercise.sets.some((set) => set.id === hold.setId) ? hold.setId : pickedSet?.id ?? nextSetId;
 
   return (
-    <View style={[styles.exerciseSection, { borderTopColor: palette.border }]}>
+    <View style={[styles.exerciseSection, { borderTopColor: nowLabel ? palette.accentStrong : palette.border }, nowLabel && styles.exerciseNow]}>
       <View style={styles.exerciseHeader}>
         {handle}
         <Pressable
@@ -180,6 +182,7 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
           onAccessibilityAction={(event) => { if (event.nativeEvent.actionName === 'longpress') openExercisePage(exercise.exerciseId); }}
           style={styles.flex}
         >
+          {nowLabel ? <Label style={{ color: palette.accentStrong }}>{nowLabel}</Label> : null}
           <View style={styles.nameRow}>
             <Heading style={[styles.exerciseName, styles.flex]}>{exercise.name}</Heading>
             <Icon name={collapsed ? 'chevron-down' : 'chevron-up'} size={18} color={palette.textMuted} />
@@ -678,6 +681,7 @@ const baseStyles = StyleSheet.create({
   bandDot: { width: 12, height: 12, borderRadius: 6, borderWidth: 1 },
   flex: { flex: 1 },
   // Exercises are flat sections divided by a hairline, not cards: more room for the sets.
+  exerciseNow: { borderTopWidth: 2 },
   exerciseSection: { borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 16, gap: 8 },
   exerciseHeader: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, paddingHorizontal: 4, marginBottom: 4 },
   results: { fontFamily: fonts.semibold, fontSize: 15, marginTop: 2 },

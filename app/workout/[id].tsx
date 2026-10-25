@@ -79,7 +79,6 @@ import {
   FooterAction,
   Icon,
   PageHeading,
-  ProgressMeter,
   Screen,
   Sheet,
   Text,
@@ -87,7 +86,9 @@ import {
   tapFeedback,
 } from '../../src/shared/components/ui';
 import { ReorderableList } from '../../src/shared/components/ReorderableList';
+import { ExerciseSegments } from '../../src/features/session/ExerciseSegments';
 import { FreeRestBar } from '../../src/features/session/FreeRestBar';
+import { WorkoutMenuSheet } from '../../src/features/session/WorkoutMenuSheet';
 import { TotalGoalSheet } from '../../src/features/session/TotalGoalSheet';
 import { nextSetValue, totalProgress } from '../../src/domain/totalGoal';
 import { PrescriptionSyncSheet } from '../../src/features/programs/PrescriptionSyncSheet';
@@ -162,6 +163,7 @@ export default function WorkoutScreen() {
   const [focusMode, setFocusMode] = useState(() => readBooleanPreference(FOCUS_MODE_KEY, false));
   const [voiceCues, setVoiceCues] = useState(() => readBooleanPreference(VOICE_CUES_KEY, false));
   const [readinessOpen, setReadinessOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const { catalog, reload: reloadEquipment } = useEquipment();
   const bandIndex = catalog ? bandsById(catalog) : null;
@@ -584,6 +586,15 @@ export default function WorkoutScreen() {
     await completeRegularSet(set);
   };
 
+  /** Rating the set in hand completes it: one tap instead of two. Timed sets and EMOM rounds keep their own flow. */
+  const rateSet = async (set: SessionSet, rpe: number | null) => {
+    const exercise = workout?.exercises.find((item) => item.sets.some((candidate) => candidate.id === set.id));
+    await saveRpe(set, rpe);
+    if (!exercise) return;
+    const next = exercise.sets.find((item) => !item.completedAt);
+    if (rpe !== null && next?.id === set.id && exercise.metric !== 'time' && exercise.metric !== 'time_load' && exercise.entryId !== emomEntryId) await completeHoldManually(set);
+  };
+
   const startHoldFor = (set: SessionSet) => {
     if (hold.active || emom.plan) return;
     skipRest();
@@ -709,6 +720,9 @@ export default function WorkoutScreen() {
   const showBlocks = usesBlocks(workout.exercises);
   const volumeKg = allSets.reduce((sum, set) => (set.completedAt && set.kind === 'working' && set.reps && set.addedLoadKg > 0 ? sum + set.reps * set.addedLoadKg : sum), 0);
   const readinessCount = [workout.sleep, workout.energy, workout.soreness].filter((value) => value !== null).length;
+  // The exercise in hand: the first one with sets still to do.
+  const currentEntryId = workout.exercises.find((exercise) => exercise.sets.length > 0 && !exerciseFinished(exercise.sets))?.entryId ?? null;
+  const currentIndex = workout.exercises.findIndex((exercise) => exercise.entryId === currentEntryId);
   const timerRunning = hold.active !== null || restEndsAt !== null || Boolean(emom.plan && emom.phase);
   const lowReadiness = (workout.sleep !== null && workout.sleep <= 2) || (workout.energy !== null && workout.energy <= 2) || (workout.soreness !== null && workout.soreness >= 4);
 
@@ -754,21 +768,21 @@ export default function WorkoutScreen() {
           onTitleLongPress={() => setDetailsOpen(true)}
           titleLongPressLabel={t('workoutDetails.editHint')}
           title={displayWorkoutName(workout.name, t('log.pastName'))}
-          subtitle={volumeKg > 0 ? `${formatNumber(Math.round(volumeKg))} kg` : undefined}
-          action={<WorkoutStopwatch startedAt={workout.startedAt} size={26} />}
+          subtitle={[totalSets > 0 ? t('logger.setsProgress', { done: completedCount, total: totalSets }) : null, volumeKg > 0 ? `${formatNumber(Math.round(volumeKg))} kg` : null].filter(Boolean).join(' · ') || undefined}
+          action={(
+            <View style={styles.headingTools}>
+              <WorkoutStopwatch startedAt={workout.startedAt} size={26} />
+              <IconButton icon="ellipsis-horizontal" label={t('workout.menu')} onPress={() => setMenuOpen(true)} />
+            </View>
+          )}
         />
 
         {workout.notes ? <Body>{workout.notes}</Body> : null}
 
-        {totalSets > 0 ? (
-          <View style={styles.summary}>
-            <View style={styles.flex}><ProgressMeter value={completedCount} total={totalSets} label={t('logger.setsProgress', { done: completedCount, total: totalSets })} tone={completedCount === totalSets ? 'success' : 'accent'} /></View>
-            <Label importantForAccessibility="no-hide-descendants">{t('logger.setsProgress', { done: completedCount, total: totalSets })}</Label>
-          </View>
-        ) : null}
+        {workout.exercises.length > 0 ? <ExerciseSegments exercises={workout.exercises} currentId={currentEntryId} done={completedCount} total={totalSets} /> : null}
 
-        {/* Check-in and fold all on the left; narration and voice on the right. */}
-        <View style={styles.toolbar}>
+        {/* The check-in is asked once, before the first set; afterwards it lives in the menu. */}
+        {completedCount === 0 || readinessOpen ? (
           <Pressable
             accessibilityRole="button"
             accessibilityState={{ expanded: readinessOpen }}
@@ -782,34 +796,7 @@ export default function WorkoutScreen() {
             </View>
             <Icon name={readinessOpen ? 'chevron-up' : 'chevron-down'} size={18} color={palette.textMuted} />
           </Pressable>
-          {workout.exercises.length > 1 ? <Pressable
-            accessibilityRole="button" accessibilityState={{ expanded: !allCollapsed }}
-            onPress={() => { tapFeedback(); setCollapsedEntries(new Map(workout.exercises.map((exercise) => [exercise.entryId, !allCollapsed]))); }}
-            style={({ pressed }) => [styles.foldAll, { opacity: pressed ? 0.75 : 1 }]}
-          >
-            <Icon name={allCollapsed ? 'chevron-down' : 'chevron-up'} size={18} color={palette.accentStrong} />
-            <Text style={[styles.foldAllText, { color: palette.accentStrong }]}>{t(allCollapsed ? 'common.expandAll' : 'common.collapseAll')}</Text>
-          </Pressable> : null}
-          <View style={styles.headingActions}>
-            {narratable ? (
-              <Chip icon="mic-outline" label={t('narration.start')} accessibilityLabel={t('narration.startHint')} onPress={() => router.push({ pathname: '/workout/narrate/[id]', params: { id: workout.id } })} />
-            ) : null}
-            <Chip
-              icon="scan-outline"
-              label={t('logger.focusChip')}
-              accessibilityLabel={focusMode ? t('logger.focusOn') : t('logger.focusOff')}
-              selected={focusMode}
-              onPress={() => { tapFeedback(); setFocusMode(!focusMode); writePreference(FOCUS_MODE_KEY, String(!focusMode)); }}
-            />
-            <Chip
-              icon={voiceCues ? 'volume-high' : 'volume-mute-outline'}
-              label={t('logger.voiceChip')}
-              accessibilityLabel={voiceCues ? t('logger.voiceOn') : t('logger.voiceOff')}
-              selected={voiceCues}
-              onPress={toggleVoiceCues}
-            />
-          </View>
-        </View>
+        ) : null}
         {readinessOpen ? (
           <Card style={styles.readinessCard}>
             <Body>{t('workout.readinessHelp')}</Body>
@@ -859,6 +846,7 @@ export default function WorkoutScreen() {
           ) : null}
           <ExerciseCard
             focus={focusMode}
+            nowLabel={exercise.entryId === currentEntryId ? t('workout.now', { position: currentIndex + 1, total: workout.exercises.length }) : null}
             exercise={exercise}
             collapsed={collapsedEntries.get(exercise.entryId) ?? false}
             onToggleCollapsed={() => setCollapsedEntries((current) => new Map(current).set(exercise.entryId, !(current.get(exercise.entryId) ?? false)))}
@@ -892,7 +880,7 @@ export default function WorkoutScreen() {
             firstTimeLabel={exercise.apparatusAffectsDifficulty && exercise.apparatusId && catalog ? t('equipment.firstTimeOn', { name: apparatusName(catalog.apparatus.find((item) => item.id === exercise.apparatusId), t) }) : undefined}
             describeBands={(set) => (bandIndex ? describeSetBands(set, bandIndex, t) : null)}
             compareBands={compareBands}
-            onRpe={(set, rpe) => void saveRpe(set, rpe)}
+            onRpe={(set, rpe) => void rateSet(set, rpe)}
             onOptions={() => setOptionsFor(exercise)}
           />
             </Animated.View>
@@ -902,22 +890,27 @@ export default function WorkoutScreen() {
         </LayoutAnimationConfig>
         </View>
 
-        {workout.exercises.length > 0 ? (
-          <View style={styles.footerActions}>
-            <View style={styles.footerRow}>
-              <View style={styles.footerCellWide}><ActionButton icon="bookmark-outline" label={t('saveToProgram.action')} variant="ghost" onPress={() => setSaveOpen(true)} /></View>
-              <View style={styles.footerCellWide}><ActionButton icon="close-circle-outline" label={t('workout.discard')} variant="ghost" onPress={() => setDiscardOpen(true)} /></View>
-            </View>
-            {workout.exercises.some((exercise) => exercise.sets.length > 0) ? (
-              <View style={styles.footerRow}>
-                <View style={styles.footerCellWide}><ActionButton icon="remove-circle-outline" label={t('logger.clearAllSets')} variant="ghost" onPress={() => setClearAllOpen(true)} /></View>
-              </View>
-            ) : null}
-          </View>
-        ) : null}
       </Screen>
 
 
+      <WorkoutMenuSheet
+        visible={menuOpen}
+        onClose={() => setMenuOpen(false)}
+        focusMode={focusMode}
+        voiceCues={voiceCues}
+        canFold={workout.exercises.length > 1}
+        allCollapsed={allCollapsed}
+        canNarrate={narratable}
+        canClear={workout.exercises.some((exercise) => exercise.sets.length > 0)}
+        onCheckIn={() => setReadinessOpen(true)}
+        onFocus={() => { tapFeedback(); setFocusMode(!focusMode); writePreference(FOCUS_MODE_KEY, String(!focusMode)); }}
+        onVoice={toggleVoiceCues}
+        onNarrate={() => router.push({ pathname: '/workout/narrate/[id]', params: { id: workout.id } })}
+        onFoldAll={() => { tapFeedback(); setCollapsedEntries(new Map(workout.exercises.map((exercise) => [exercise.entryId, !allCollapsed]))); }}
+        onSave={() => setSaveOpen(true)}
+        onClear={() => setClearAllOpen(true)}
+        onDiscard={() => setDiscardOpen(true)}
+      />
       <Toast
         message={undo?.message ?? null}
         actionLabel={t('logger.restore')}
@@ -1372,7 +1365,7 @@ const baseStyles = StyleSheet.create({
   toolbar: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', columnGap: 8, rowGap: 12 },
   foldAll: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: MIN_TOUCH_TARGET, paddingHorizontal: 8 },
   foldAllText: { fontFamily: fonts.semibold, fontSize: 14 },
-  summary: { marginTop: -8, flexDirection: 'row', alignItems: 'center', gap: 12 },
+  headingTools: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   footerRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   // Long labels: side by side only when each gets room for one line.
   footerCellWide: { flex: 1, minWidth: 220 },

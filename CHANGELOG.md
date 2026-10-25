@@ -2,6 +2,12 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.53.0 - 2026-10-25
+
+- Workout: a lighter top. The title shows "x/y sets" and the volume, a bar with one segment per exercise replaces the set meter (green when finished), and the exercise in hand is marked "Now · 2 of 5". The check-in shows only before the first set.
+- Workout: a new menu (the three dots next to the clock) holds check-in, focus, voice, narration, collapse all, save as program workout, remove all sets and discard; the last two no longer sit at the bottom of the list.
+- Workout: tapping an RPE value on the set in hand completes it, so a set with RPE takes one tap less (not for timed sets or EMOM rounds).
+
 ## 0.52.1 - 2026-10-25
 
 - Progressions: tapping an exercise in the list opens it without the slide animation.
