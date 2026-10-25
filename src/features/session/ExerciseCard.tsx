@@ -13,6 +13,7 @@ import { ActionButton, Heading, Icon, IconButton, Label, NumberEdit, ProgressMet
 import { totalProgress } from '../../domain/totalGoal';
 import { useAnimationSettings } from '../../shared/settings/AnimationProvider';
 import { useTheme } from '../../shared/theme/ThemeProvider';
+import { MIN_TOUCH_TARGET, spacing } from '../../shared/theme/tokens';
 import { fonts } from '../../shared/theme/typography';
 import { useScaledStyles } from '../../shared/theme/useScaledStyles';
 import { formatClock, formatNumber } from '../../shared/utils/format';
@@ -515,6 +516,7 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
           </>
         );
         const current = holding || set.id === nextSetId;
+        const dotColor = done ? palette.successText : current ? palette.accentText : palette.textMuted;
         const tableRow = (
           <Pressable
             accessibilityRole="button"
@@ -528,10 +530,10 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
           >
             <View style={styles.tableBadgeCol}>
               <View style={[styles.tableDot, done ? { backgroundColor: palette.success } : current ? { backgroundColor: palette.accentStrong } : { borderColor: palette.border, borderWidth: 2 }]}>
-                <Text style={[styles.setBadgeText, { color: done ? palette.successText : current ? palette.accentText : palette.textMuted }]}>
-                  {set.kind === 'warmup' ? 'W' : workingNumber}
-                  {set.side === 'left' || set.side === 'right' ? <Text style={styles.tableDotSide}>{set.side === 'left' ? 'L' : 'R'}</Text> : null}
-                </Text>
+                <View style={styles.tableDotLabel}>
+                  <Text style={[styles.setBadgeText, { color: dotColor }]}>{set.kind === 'warmup' ? 'W' : workingNumber}</Text>
+                  {set.side === 'left' || set.side === 'right' ? <Text style={[styles.tableDotSide, { color: dotColor }]}>{set.side === 'left' ? 'L' : 'R'}</Text> : null}
+                </View>
               </View>
             </View>
             {withLoad ? <Text numberOfLines={1} adjustsFontSizeToFit style={[styles.tableValue, { color: set.addedLoadKg === 0 ? palette.textMuted : palette.text }]}>{loadText}</Text> : null}
@@ -805,27 +807,28 @@ const baseStyles = StyleSheet.create({
   summaryText: { flex: 1, fontFamily: fonts.semibold, fontSize: 15 },
   addRowLarge: { flexDirection: 'column', flexWrap: 'nowrap', alignItems: 'stretch', gap: 8, marginTop: 4 },
   addSetLarge: { justifyContent: 'center', borderWidth: 1, borderRadius: 14, paddingHorizontal: 12 },
-  exerciseCard: { borderRadius: 24, borderWidth: 1, padding: 16, overflow: 'hidden', gap: 8 },
+  exerciseCard: { borderRadius: spacing.section, borderWidth: 1, padding: spacing.lg, overflow: 'hidden', gap: spacing.sm },
   exerciseCardNow: { borderWidth: 2 },
   nowLabel: { fontFamily: fonts.display, fontSize: 14, letterSpacing: 1.4 },
   exerciseNameCard: { fontSize: 30, lineHeight: 32, textTransform: 'uppercase' },
-  tableBleed: { marginHorizontal: -16 },
+  tableBleed: { marginHorizontal: -spacing.lg },
   tableBlock: { borderRadius: 0, marginBottom: 0, borderTopWidth: 1 },
-  tableDot: { minWidth: 32, height: 32, borderRadius: 16, paddingHorizontal: 6, alignItems: 'center', justifyContent: 'center' },
+  tableDot: { minWidth: 32, height: 32, borderRadius: 16, paddingHorizontal: spacing.xs, flexShrink: 0, alignItems: 'center', justifyContent: 'center' },
+  tableDotLabel: { flexDirection: 'row', alignItems: 'baseline', gap: 1 },
   tableDotSide: { fontFamily: fonts.bold, fontSize: 12 },
   tableHeadLabel: { fontFamily: fonts.bold, fontSize: 12, letterSpacing: 0.7, textTransform: 'uppercase' },
-  addRowTable: { borderTopWidth: 1, marginHorizontal: -16, marginBottom: -16, marginTop: 0, paddingHorizontal: 16, justifyContent: 'center' },
-  tableChips: { paddingLeft: 16, paddingRight: 16, paddingBottom: 12 },
-  tablePanel: { marginLeft: 16, marginRight: 16 },
-  tableSetRow: { paddingHorizontal: 16 },
-  tile: { borderRadius: 16, paddingVertical: 4, marginHorizontal: 6 },
-  tableHead: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 0, paddingVertical: 4 },
+  addRowTable: { borderTopWidth: 1, marginHorizontal: -spacing.lg, marginBottom: -spacing.lg, marginTop: 0, paddingHorizontal: spacing.lg, justifyContent: 'center' },
+  tableChips: { paddingLeft: spacing.lg, paddingRight: spacing.lg, paddingBottom: spacing.md },
+  tablePanel: { marginLeft: spacing.lg, marginRight: spacing.lg },
+  tableSetRow: { paddingHorizontal: spacing.lg, paddingTop: spacing.sm, gap: spacing.xs },
+  tile: { borderRadius: spacing.lg, paddingVertical: spacing.xs, marginHorizontal: spacing.sm },
+  tableHead: { flexDirection: 'row', alignItems: 'center', paddingVertical: spacing.xs },
   tableHeadText: { flex: 1, minWidth: 0, textAlign: 'center' },
-  tableBadgeCol: { width: 40, alignItems: 'center' },
-  tableRow: { flexDirection: 'row', alignItems: 'center', minHeight: 56, paddingHorizontal: 16 },
+  tableBadgeCol: { width: spacing.section * 2, alignItems: 'center' },
+  tableRow: { flexDirection: 'row', alignItems: 'center', minHeight: MIN_TOUCH_TARGET + spacing.sm, paddingVertical: spacing.xs, paddingHorizontal: spacing.lg },
   tableValue: { flex: 1, minWidth: 0, textAlign: 'center', fontFamily: fonts.display, fontSize: 26, lineHeight: 30, fontVariant: ['tabular-nums'] },
   tableMeta: { flex: 1, minWidth: 0, textAlign: 'center', fontFamily: fonts.display, fontSize: 22, lineHeight: 28, fontVariant: ['tabular-nums'] },
-  tableTail: { width: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 4 },
+  tableTail: { minWidth: MIN_TOUCH_TARGET - spacing.xs, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: spacing.xs },
   setRow: { flexDirection: 'row', alignItems: 'center', minHeight: 56, paddingTop: 4, paddingLeft: 2 },
   recordChip: { flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-start', borderRadius: 10, paddingHorizontal: 8, paddingVertical: 3, marginTop: 4 },
   setMeta: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8, paddingLeft: 48, paddingRight: 12, paddingBottom: 8 }, // 48: under the values, after the set number

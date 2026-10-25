@@ -2,6 +2,10 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.54.3 - 2026-10-25
+
+- Workout: spacing of the set rows and card follows the spacing scale (4, 8, 12, 16, 24) and the 48 dp rows grow with the text; the L/R letter sits cleanly in the set number.
+
 ## 0.54.2 - 2026-10-25
 
 - Workout: left and right sets show L or R in their numbered circle instead of before the reps; a little more room between the set badge and the steppers.
