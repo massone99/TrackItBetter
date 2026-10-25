@@ -2,6 +2,10 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.54.7 - 2026-10-25
+
+- Workout: more space between a set's row and its chips.
+
 ## 0.54.6 - 2026-10-25
 
 - Workout: the exercise card has a clear header: name, collapse chevron, video and menu buttons share one row. The set number in a row turns a set into warm-up and back (W, dashed). A set opened in the table is one row whose value is the editable field (reps or hold time), with − and + around it and the close arrow after its chips. The timed value no longer has its own box and caption.
