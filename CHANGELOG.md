@@ -2,6 +2,10 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.54.5 - 2026-10-25
+
+- Workout: the exercise header lines up its name, chevron, video and menu buttons on one centre line; "Now" sits above the name.
+
 ## 0.54.4 - 2026-10-25
 
 - Workout: a tap on the set number in the row switches the set between working and warm-up (shown as a dashed circle with W); the small badge inside the open set is gone.

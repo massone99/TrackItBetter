@@ -193,6 +193,7 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
         ? [styles.exerciseCard, { backgroundColor: palette.surface, borderColor: nowLabel ? palette.accentStrong : palette.border }, nowLabel && styles.exerciseCardNow, depth]
         : [styles.exerciseSection, { borderTopColor: nowLabel ? palette.accentStrong : palette.border }, nowLabel && styles.exerciseNow]}
     >
+      {nowLabel ? <Label style={[styles.nowRow, { color: palette.accentStrong }, table && styles.nowLabel]}>{table ? nowLabel.toUpperCase() : nowLabel}</Label> : null}
       <View style={styles.exerciseHeader}>
         {handle}
         <Pressable
@@ -205,8 +206,7 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
           onAccessibilityAction={(event) => { if (event.nativeEvent.actionName === 'longpress') openExercisePage(exercise.exerciseId); }}
           style={styles.flex}
         >
-          {nowLabel ? <Label style={[{ color: palette.accentStrong }, table && styles.nowLabel]}>{table ? nowLabel.toUpperCase() : nowLabel}</Label> : null}
-          <View style={styles.nameRow}>
+                    <View style={styles.nameRow}>
             <Heading style={[styles.exerciseName, table && styles.exerciseNameCard, styles.flex]}>{exercise.name}</Heading>
             <Icon name={collapsed ? 'chevron-down' : 'chevron-up'} size={18} color={palette.textMuted} />
           </View>
@@ -783,7 +783,8 @@ const baseStyles = StyleSheet.create({
   exerciseHeader: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, paddingHorizontal: 4, marginBottom: 4 },
   results: { fontFamily: fonts.semibold, fontSize: 15, marginTop: 2 },
   prNotes: { fontFamily: fonts.semibold, fontSize: 13 },
-  nameRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  // As tall as the 48 dp buttons beside it, so the chevron and the buttons share one centre line.
+  nameRow: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: MIN_TOUCH_TARGET },
   progressRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', columnGap: 5 },
   exerciseName: { fontFamily: fonts.display, fontSize: 24, lineHeight: 28 },
   // Column labels only: the section's hairline above already separates it, a second line would be noise.
@@ -825,6 +826,7 @@ const baseStyles = StyleSheet.create({
   addSetLarge: { justifyContent: 'center', borderWidth: 1, borderRadius: 14, paddingHorizontal: 12 },
   exerciseCard: { borderRadius: spacing.section, borderWidth: 1, padding: spacing.lg, overflow: 'hidden', gap: spacing.sm },
   exerciseCardNow: { borderWidth: 2 },
+  nowRow: { paddingHorizontal: spacing.xs },
   nowLabel: { fontFamily: fonts.display, fontSize: 14, letterSpacing: 1.4 },
   exerciseNameCard: { fontSize: 30, lineHeight: 32, textTransform: 'uppercase' },
   tableBleed: { marginHorizontal: -spacing.lg },
