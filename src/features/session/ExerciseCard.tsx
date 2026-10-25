@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
 import Animated, { FadeIn, ZoomIn } from 'react-native-reanimated';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { compareWithLast } from '../../domain/lastTime';
@@ -23,6 +23,9 @@ import { RpePicker } from './RpePicker';
 import { formatLoad, LOAD_STEP_KG, StepButton } from './SetEntry';
 import { DoneTint, PopOnActivate, SwipeableSetRow } from './SwipeableSetRow';
 import type { ActiveHold } from './useHoldTimer';
+
+/** Narrowest screen width, in dp, that lists the sets as table rows. */
+const TABLE_MIN_WIDTH = 300;
 
 const NO_RECORDS: ReadonlyMap<string, RecordKind[]> = new Map();
 
@@ -90,6 +93,7 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
   compareBands?: (a: readonly SetBand[], b: readonly SetBand[]) => -1 | 0 | 1 | null;
 }) {
   const styles = useScaledStyles(baseStyles);
+  const { width: windowWidth } = useWindowDimensions();
   const { t, i18n } = useTranslation();
   // Very large text: each set stacks its fields (reps, then kg, then done) instead of one tight row.
   const { palette, largeText: textIsLarge } = useTheme();
@@ -154,9 +158,18 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
   // Large text opens one set at a time: the one being held, else the one tapped (until it is done or
   // reopened), else the next to do.
   const [picked, setPicked] = useState<{ id: string; done: boolean } | null>(null);
+  // Table rows (normal text): sets opened or closed by hand. Without an entry a set is open while it is in hand
+  // (running hold, next to do) or just done and not yet rated for form.
+  const [expanded, setExpanded] = useState<ReadonlyMap<string, boolean>>(() => new Map());
+  const forget = (setId: string) => setExpanded((current) => {
+    if (!current.has(setId)) return current;
+    const next = new Map(current);
+    next.delete(setId);
+    return next;
+  });
   // Completing or reopening a set lets the focus move to the next set to do.
-  const complete = (set: SessionSet) => { setPicked(null); onComplete(set); };
-  const uncomplete = (set: SessionSet) => { setPicked(null); onUncomplete(set); };
+  const complete = (set: SessionSet) => { setPicked(null); forget(set.id); onComplete(set); };
+  const uncomplete = (set: SessionSet) => { setPicked(null); forget(set.id); onUncomplete(set); };
   // Sets where "+ kg" was tapped: a set with no load shows only that chip until then.
   const [loadShown, setLoadShown] = useState<ReadonlySet<string>>(() => new Set());
   const pickedSet = picked ? exercise.sets.find((set) => set.id === picked.id && Boolean(set.completedAt) === picked.done) : undefined;
@@ -166,6 +179,10 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
   const [chosen, setChosen] = useState<ReadonlyMap<string, 'rpe' | 'form' | 'rom' | 'note' | null>>(() => new Map());
   const toggleOpen = (setId: string, kind: 'rpe' | 'form' | 'rom' | 'note', isOpen: boolean) => { tapFeedback(); setChosen((current) => new Map(current).set(setId, isOpen ? null : kind)); };
   const lastDoneId = [...exercise.sets].reverse().find((set) => set.completedAt)?.id ?? null;
+  // Normal text lists the sets as table rows that open on a tap; very large text, a finished workout and a running
+  // EMOM keep their own layouts.
+  // A very narrow screen (display zoom) keeps the set blocks too: five columns plus the tail do not fit.
+  const table = !largeText && !editDone && !emomBadgeLabel && windowWidth >= TABLE_MIN_WIDTH;
   const focusedId = hold && exercise.sets.some((set) => set.id === hold.setId) ? hold.setId : pickedSet?.id ?? nextSetId;
 
   return (
@@ -255,6 +272,17 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
         <ActionButton icon="arrow-undo-outline" label={t('logger.copyAllPrevious')} secondary onPress={() => { tapFeedback(); onCopyAllLast(); }} />
       ) : null}
 
+      {table && !collapsed && exercise.sets.length > 0 ? (
+        <View style={styles.tableHead}>
+          <Label numberOfLines={1} style={styles.tableBadgeCol}>{t('logger.setCol')}</Label>
+          {withLoad ? <Label numberOfLines={1} style={styles.tableHeadText}>{t('logger.kgCol')}</Label> : null}
+          <Label numberOfLines={1} style={styles.tableHeadText}>{fieldLabel}</Label>
+          {showRpe ? <Label numberOfLines={1} style={styles.tableHeadText}>{t('logger.rpe')}</Label> : null}
+          <Label numberOfLines={1} style={styles.tableHeadText}>{t('lastTime.form')}</Label>
+          <View style={styles.tableTail} />
+        </View>
+      ) : null}
+
       {(collapsed ? [] : exercise.sets).map((set) => {
         const done = Boolean(set.completedAt);
         // In a running EMOM a recorded round stays editable in place and keeps its check, so the round count holds.
@@ -268,6 +296,7 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
         const workingNumber = groupSets(exercise.sets.filter((item) => item.kind === 'working' && item.index <= set.index)).length;
         const sideLabel = set.side === 'left' ? t('logger.sideLeft') : set.side === 'right' ? t('logger.sideRight') : '';
         const holding = hold?.setId === set.id;
+        const isOpen = table && (expanded.get(set.id) ?? (holding || set.id === nextSetId || (done && set.id === lastDoneId && set.kind === 'working' && set.formRating === null)));
         // A held press anywhere on the set opens the same menu as its three dots.
         const openMenu = () => { tapFeedback(); onSetOptions(set); };
         const stored = timed ? set.durationSec ?? 0 : distance ? set.distanceM ?? 0 : set.reps ?? 0;
@@ -479,6 +508,35 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
             )}
           </>
         );
+        const sidePrefix = set.side === 'left' ? 'L ' : set.side === 'right' ? 'R ' : '';
+        const tableRow = (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`${summary}${done ? `, ${t('history.setCompleted')}` : ''}`}
+            accessibilityState={{ expanded: isOpen }}
+            accessibilityHint={t('logger.openSetHint')}
+            onPress={() => { tapFeedback(); setExpanded((current) => new Map(current).set(set.id, !isOpen)); }}
+            onLongPress={openMenu}
+            delayLongPress={450}
+            style={({ pressed }) => [styles.tableRow, isOpen && { backgroundColor: palette.accentSoft }, pressed && { opacity: 0.7 }]}
+          >
+            <View style={styles.tableBadgeCol}>
+              <View style={[styles.summaryDot, done ? { backgroundColor: palette.success } : { borderColor: palette.border, borderWidth: 2 }]}>
+                {done ? <Icon name="checkmark" size={18} color={palette.successText} /> : <Text style={[styles.setBadgeText, { color: palette.textMuted }]}>{set.kind === 'warmup' ? 'W' : workingNumber}</Text>}
+              </View>
+            </View>
+            {withLoad ? <Text numberOfLines={1} adjustsFontSizeToFit style={[styles.tableValue, { color: set.addedLoadKg === 0 ? palette.textMuted : palette.text }]}>{loadText}</Text> : null}
+            <Text numberOfLines={1} adjustsFontSizeToFit style={[styles.tableValue, { color: holding ? palette.accentStrong : palette.text }]}>{`${sidePrefix}${value}`}</Text>
+            {showRpe ? <Text style={[styles.tableMeta, { color: palette.textMuted }]}>{set.rpe !== null ? formatRpe(set.rpe) : '·'}</Text> : null}
+            <Text style={[styles.tableMeta, { color: palette.textMuted }]}>{set.kind !== 'working' ? '–' : set.formRating !== null ? formatNumber(set.formRating) : '·'}</Text>
+            <View style={styles.tableTail}>
+              {setRecords.has(set.id) ? <Icon name="trophy" size={14} color={palette.record} /> : null}
+              {set.note ? <Icon name="chatbubble-ellipses-outline" size={14} color={palette.textMuted} /> : null}
+              {set.clipCount > 0 ? <Icon name="videocam" size={14} color={palette.accentStrong} /> : null}
+              <Icon name={isOpen ? 'chevron-up' : 'chevron-down'} size={16} color={palette.textMuted} />
+            </View>
+          </Pressable>
+        );
         return (
           <Animated.View key={`${set.id}${largeText ? "-f" : ""}`} entering={largeText ? undefined : setEntering} style={[styles.setBlock, largeText && !editing && styles.setBlockLine, editing && [styles.largeBlock, { borderColor: palette.border }]]}>
             {editing ? null : <DoneTint done={done} color={palette.accentSoft} />}
@@ -493,13 +551,14 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
               onSwipeRight={() => { onSwiped?.(); if (done) uncomplete(set); else complete(set); }}
               onSwipeLeft={() => { onSwiped?.(); onRemoveSet(set); }}
             >
-              {rowBody}
+              {table ? tableRow : rowBody}
             </SwipeableSetRow>
             )}
+            {table && isOpen ? rowBody : null}
             {/* Row 2: how hard it was. */}
             {/* Row 3, once the set is done: how clean the form was. The exercise folds only after the last rating. */}
             {/* Only when there is something to show: PR, clips, note (and RPE when its row is hidden). */}
-            {strip || set.note || set.clipCount > 0 || (set.poseCount ?? 0) > 0 || set.rpe !== null || setRecords.has(set.id) || set.bands.length > 0 ? (
+            {(!table || isOpen) && (strip || set.note || set.clipCount > 0 || (set.poseCount ?? 0) > 0 || set.rpe !== null || setRecords.has(set.id) || set.bands.length > 0) ? (
               <View style={[styles.setMeta, editing && styles.setMetaLarge]}>
                 {canRpe && (strip || set.rpe !== null) ? (
                   <ValueChip label={set.rpe !== null ? t('logger.rpeTag', { value: formatRpe(set.rpe) }) : t('lastTime.rpeChip')} icon="speedometer-outline" filled={set.rpe !== null} open={rpeRow} onPress={() => toggleOpen(set.id, 'rpe', rpeRow)} />
@@ -551,7 +610,7 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
                 ) : null}
               </View>
             ) : null}
-            {rpeRow || formRow || romRow || noteRow ? (
+            {(!table || isOpen) && (rpeRow || formRow || romRow || noteRow) ? (
               <View style={[styles.valuePanel, editing && styles.valuePanelLarge, { backgroundColor: editing ? undefined : done ? palette.background : palette.surface }]}>
                 {rpeRow ? <RpePicker compact grid={largeText} wrap sideLabel={sideLabel} value={set.rpe} target={set.targetRpe} onChange={(rpe) => onRpe(set, rpe)} /> : null}
                 {formRow ? <FormRating value={set.formRating} sideLabel={sideLabel} onChange={(rating) => onFormRating(set, rating)} /> : null}
@@ -726,6 +785,13 @@ const baseStyles = StyleSheet.create({
   summaryText: { flex: 1, fontFamily: fonts.semibold, fontSize: 15 },
   addRowLarge: { flexDirection: 'column', flexWrap: 'nowrap', alignItems: 'stretch', gap: 8, marginTop: 4 },
   addSetLarge: { justifyContent: 'center', borderWidth: 1, borderRadius: 14, paddingHorizontal: 12 },
+  tableHead: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 4 },
+  tableHeadText: { flex: 1, minWidth: 0, textAlign: 'center' },
+  tableBadgeCol: { width: 40, alignItems: 'center' },
+  tableRow: { flexDirection: 'row', alignItems: 'center', minHeight: 56, paddingHorizontal: 4, borderRadius: 10 },
+  tableValue: { flex: 1, minWidth: 0, textAlign: 'center', fontFamily: fonts.display, fontSize: 22, lineHeight: 28, fontVariant: ['tabular-nums'] },
+  tableMeta: { flex: 1, minWidth: 0, textAlign: 'center', fontFamily: fonts.semibold, fontSize: 16 },
+  tableTail: { width: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 4 },
   setRow: { flexDirection: 'row', alignItems: 'center', minHeight: 56, paddingTop: 4, paddingLeft: 2 },
   recordChip: { flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-start', borderRadius: 10, paddingHorizontal: 8, paddingVertical: 3, marginTop: 4 },
   setMeta: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8, paddingLeft: 48, paddingRight: 12, paddingBottom: 8 }, // 48: under the values, after the set number

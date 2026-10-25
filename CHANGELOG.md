@@ -2,6 +2,10 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.54.0 - 2026-10-25
+
+- Workout: the sets of an exercise are now a table (set, kg, reps, RPE, form) with one row each. The set to do next opens by itself with its steppers and the RPE, form, ROM, bands and note chips; a tap on any row opens or closes it, and a set that is done stays open until its form is rated. Swipe and long press work on the rows as before. Very large text, narrow screens, a running EMOM and finished workouts keep the previous layout.
+
 ## 0.53.0 - 2026-10-25
 
 - Workout: a lighter top. The title shows "x/y sets" and the volume, a bar with one segment per exercise replaces the set meter (green when finished), and the exercise in hand is marked "Now · 2 of 5". The check-in shows only before the first set.
