@@ -47,6 +47,10 @@ workout, versioned): `docs/LANGUAGE.md`; use it in UI strings, code and answers.
 - Portrait only (`orientation: portrait` is a product decision; do not unlock it).
 - Colours from `src/shared/theme/palette.ts` only; touch targets at least 48 dp (hitSlop counts);
   text at least 12 sp; no fixed heights on text containers (users scale fonts).
+- Every screen, sheet and design mock-up must work at every zoom level and font size (up to 200 %,
+  small and large screens): nothing clipped or off screen, content scrolls, rows wrap
+  (`flexWrap`, `minWidth`/`flexBasis` instead of fixed widths), `minHeight` never `height`, main action
+  in the footer. Check it before calling a screen done.
 - Long lists render in pages ("Show more"), not all at once: `usePaged`, `usePagedSections` or `<Paged>`
   (`src/shared/components/paging.tsx`). The Log pages in the database (`listWorkoutsPage`, a cursor).
 - Open improvements and their status are in `AUDIT.md`.
