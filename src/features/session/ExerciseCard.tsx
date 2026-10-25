@@ -403,7 +403,7 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
             {!largeText ? (
             /* Row 1: set, reps (or time, or distance), load, done, menu. */
             <Pressable accessible={false} accessibilityRole="none" onLongPress={openMenu} delayLongPress={450} style={[styles.setRow, table && styles.tableSetRow]}>
-              {table ? null : <View style={styles.colSet}>{badge}</View>}
+              {table && !isOpen ? null : <View style={table ? styles.tableBadgeCol : styles.colSet}>{badge}</View>}
               <View style={[styles.colValue, styles.stepper, table && [styles.tile, { backgroundColor: palette.surface }]]}>
                 {valueDown}
                 <View style={styles.valueStack}>
@@ -579,10 +579,9 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
               onSwipeRight={() => { onSwiped?.(); if (done) uncomplete(set); else complete(set); }}
               onSwipeLeft={() => { onSwiped?.(); onRemoveSet(set); }}
             >
-              {table ? tableRow : rowBody}
+              {table && !isOpen ? tableRow : rowBody}
             </SwipeableSetRow>
             )}
-            {table && isOpen ? rowBody : null}
             {/* Row 2: how hard it was. */}
             {/* Row 3, once the set is done: how clean the form was. The exercise folds only after the last rating. */}
             {/* Only when there is something to show: PR, clips, note (and RPE when its row is hidden). */}
@@ -638,6 +637,7 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
                     <Text style={[styles.clipChipText, { color: palette.accentStrong }]}>{t('logger.clip', { count: set.clipCount })}</Text>
                   </Pressable>
                 ) : null}
+                {table && isOpen ? <IconButton icon="chevron-up" label={t('common.close')} tone="plain" onPress={() => setExpanded((current) => new Map(current).set(set.id, false))} /> : null}
                 {(set.poseCount ?? 0) > 0 ? (
                   <Pressable accessibilityRole="button" accessibilityLabel={t('poseLink.setActionCount', { count: set.poseCount })} hitSlop={8} onPress={() => onSetOptions(set)} style={[styles.clipChip, { backgroundColor: palette.surface }]}>
                     <Icon name="scan-outline" size={13} color={palette.accentStrong} />

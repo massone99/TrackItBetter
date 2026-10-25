@@ -82,17 +82,18 @@ describe('ExerciseCard table rows', () => {
 
   it('opens only the set to do next, with one row per set', () => {
     show([set(1, { completedAt: new Date(), rpe: 8, formRating: 4 }), set(2), set(3)]);
-    // The three rows are buttons; only set 2 (next) shows its Complete button.
-    expect(screen.getAllByRole('button', { name: /^Set [123] ·/ })).toHaveLength(3);
+    // Closed rows are buttons; the set to do next (2) is open, so its value is the editable field of its one row.
+    expect(screen.getAllByRole('button', { name: /^Set [13] ·/ })).toHaveLength(2);
+    expect(screen.getAllByLabelText('Set 2 options')).toHaveLength(1);
     expect(screen.getAllByLabelText(/Complete set/)).toHaveLength(1);
   });
 
   it('opens and closes a row on tap', () => {
     show([set(1, { completedAt: new Date(), rpe: 8, formRating: 4 }), set(2), set(3)]);
     fireEvent.press(screen.getByRole('button', { name: /^Set 3 ·/ }));
-    expect(screen.getAllByLabelText(/Complete set/)).toHaveLength(2);
-    fireEvent.press(screen.getByRole('button', { name: /^Set 3 ·/ }));
-    expect(screen.getAllByLabelText(/Complete set/)).toHaveLength(1);
+    expect(screen.getAllByLabelText('Set 3 options')).toHaveLength(1);
+    fireEvent.press(screen.getAllByRole('button', { name: /^Close$/ }).at(-1)!);
+    expect(screen.queryAllByLabelText('Set 3 options')).toHaveLength(0);
   });
 
   it('keeps a done set open until its form is rated', () => {
