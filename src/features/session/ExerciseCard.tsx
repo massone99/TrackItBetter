@@ -402,7 +402,7 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
             {!largeText ? (
             /* Row 1: set, reps (or time, or distance), load, done, menu. */
             <Pressable accessible={false} accessibilityRole="none" onLongPress={openMenu} delayLongPress={450} style={[styles.setRow, table && styles.tableSetRow]}>
-              <View style={styles.colSet}>{badge}</View>
+              {table ? null : <View style={styles.colSet}>{badge}</View>}
               <View style={[styles.colValue, styles.stepper, table && [styles.tile, { backgroundColor: palette.surface }]]}>
                 {valueDown}
                 <View style={styles.valueStack}>
@@ -518,35 +518,51 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
         const current = holding || set.id === nextSetId;
         const dotColor = done ? palette.successText : current ? palette.accentText : palette.textMuted;
         const tableRow = (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={`${summary}${done ? `, ${t('history.setCompleted')}` : ''}`}
-            accessibilityState={{ expanded: isOpen }}
-            accessibilityHint={t('logger.openSetHint')}
-            onPress={() => { tapFeedback(); setExpanded((current) => new Map(current).set(set.id, !isOpen)); }}
-            onLongPress={openMenu}
-            delayLongPress={450}
-            style={({ pressed }) => [styles.tableRow, { backgroundColor: current ? palette.accentSoft : palette.surface }, pressed && { opacity: 0.7 }]}
-          >
+          <View style={[styles.tableRow, { backgroundColor: current ? palette.accentSoft : palette.surface }]}>
+            {/* The numbered circle switches the set between working and warm-up; the rest of the row opens it. */}
             <View style={styles.tableBadgeCol}>
-              <View style={[styles.tableDot, done ? { backgroundColor: palette.success } : current ? { backgroundColor: palette.accentStrong } : { borderColor: palette.border, borderWidth: 2 }]}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={set.kind === 'warmup' ? t('logger.warmupOn') : t('logger.warmupOff', { number: workingNumber })}
+                accessibilityHint={t('logger.warmupHint')}
+                hitSlop={spacing.sm}
+                onPress={() => { tapFeedback(); onToggleWarmup(set); }}
+                onLongPress={openMenu}
+                delayLongPress={450}
+                style={[
+                  styles.tableDot,
+                  done ? { backgroundColor: palette.success } : current ? { backgroundColor: palette.accentStrong } : { borderColor: set.kind === 'warmup' ? palette.textMuted : palette.border, borderWidth: 2 },
+                  set.kind === 'warmup' && !done && !current && { borderStyle: 'dashed' },
+                ]}
+              >
                 <View style={styles.tableDotLabel}>
                   <Text style={[styles.setBadgeText, { color: dotColor }]}>{set.kind === 'warmup' ? 'W' : workingNumber}</Text>
                   {set.side === 'left' || set.side === 'right' ? <Text style={[styles.tableDotSide, { color: dotColor }]}>{set.side === 'left' ? 'L' : 'R'}</Text> : null}
                 </View>
+              </Pressable>
+            </View>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`${summary}${done ? `, ${t('history.setCompleted')}` : ''}`}
+              accessibilityState={{ expanded: isOpen }}
+              accessibilityHint={t('logger.openSetHint')}
+              onPress={() => { tapFeedback(); setExpanded((currentOpen) => new Map(currentOpen).set(set.id, !isOpen)); }}
+              onLongPress={openMenu}
+              delayLongPress={450}
+              style={({ pressed }) => [styles.tableRowMain, pressed && { opacity: 0.7 }]}
+            >
+              {withLoad ? <Text numberOfLines={1} adjustsFontSizeToFit style={[styles.tableValue, { color: set.addedLoadKg === 0 ? palette.textMuted : palette.text }]}>{loadText}</Text> : null}
+              <Text numberOfLines={1} adjustsFontSizeToFit style={[styles.tableValue, { color: holding ? palette.accentStrong : palette.text }]}>{value}</Text>
+              {showRpe ? <Text style={[styles.tableMeta, { color: palette.textMuted }]}>{set.rpe !== null ? formatRpe(set.rpe) : '·'}</Text> : null}
+              <Text style={[styles.tableMeta, { color: palette.textMuted }]}>{set.kind !== 'working' ? '–' : set.formRating !== null ? formatNumber(set.formRating) : '·'}</Text>
+              <View style={styles.tableTail}>
+                {setRecords.has(set.id) ? <Icon name="trophy" size={14} color={palette.record} /> : null}
+                {set.note ? <Icon name="chatbubble-ellipses-outline" size={14} color={palette.textMuted} /> : null}
+                {set.clipCount > 0 ? <Icon name="videocam" size={14} color={palette.accentStrong} /> : null}
+                <Icon name={isOpen ? 'chevron-up' : 'chevron-down'} size={16} color={palette.textMuted} />
               </View>
-            </View>
-            {withLoad ? <Text numberOfLines={1} adjustsFontSizeToFit style={[styles.tableValue, { color: set.addedLoadKg === 0 ? palette.textMuted : palette.text }]}>{loadText}</Text> : null}
-            <Text numberOfLines={1} adjustsFontSizeToFit style={[styles.tableValue, { color: holding ? palette.accentStrong : palette.text }]}>{value}</Text>
-            {showRpe ? <Text style={[styles.tableMeta, { color: palette.textMuted }]}>{set.rpe !== null ? formatRpe(set.rpe) : '·'}</Text> : null}
-            <Text style={[styles.tableMeta, { color: palette.textMuted }]}>{set.kind !== 'working' ? '–' : set.formRating !== null ? formatNumber(set.formRating) : '·'}</Text>
-            <View style={styles.tableTail}>
-              {setRecords.has(set.id) ? <Icon name="trophy" size={14} color={palette.record} /> : null}
-              {set.note ? <Icon name="chatbubble-ellipses-outline" size={14} color={palette.textMuted} /> : null}
-              {set.clipCount > 0 ? <Icon name="videocam" size={14} color={palette.accentStrong} /> : null}
-              <Icon name={isOpen ? 'chevron-up' : 'chevron-down'} size={16} color={palette.textMuted} />
-            </View>
-          </Pressable>
+            </Pressable>
+          </View>
         );
         return (
           <Animated.View key={`${set.id}${largeText ? "-f" : ""}`} entering={largeText ? undefined : setEntering} style={[styles.setBlock, largeText && !editing && styles.setBlockLine, editing && [styles.largeBlock, { borderColor: palette.border }], table && [styles.tableBlock, { borderTopColor: palette.border }, isOpen && { backgroundColor: palette.background }]]}>
@@ -825,7 +841,8 @@ const baseStyles = StyleSheet.create({
   tableHead: { flexDirection: 'row', alignItems: 'center', paddingVertical: spacing.xs },
   tableHeadText: { flex: 1, minWidth: 0, textAlign: 'center' },
   tableBadgeCol: { width: spacing.section * 2, alignItems: 'center' },
-  tableRow: { flexDirection: 'row', alignItems: 'center', minHeight: MIN_TOUCH_TARGET + spacing.sm, paddingVertical: spacing.xs, paddingHorizontal: spacing.lg },
+  tableRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: spacing.lg },
+  tableRowMain: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', minHeight: MIN_TOUCH_TARGET + spacing.sm, paddingVertical: spacing.xs },
   tableValue: { flex: 1, minWidth: 0, textAlign: 'center', fontFamily: fonts.display, fontSize: 26, lineHeight: 30, fontVariant: ['tabular-nums'] },
   tableMeta: { flex: 1, minWidth: 0, textAlign: 'center', fontFamily: fonts.display, fontSize: 22, lineHeight: 28, fontVariant: ['tabular-nums'] },
   tableTail: { minWidth: MIN_TOUCH_TARGET - spacing.xs, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: spacing.xs },

@@ -121,6 +121,14 @@ describe('ExerciseCard table rows', () => {
     expect(screen.queryAllByRole('button', { name: /^Set [123]/ }).filter((node) => node.props.accessibilityState?.expanded !== undefined)).toHaveLength(0);
   });
 
+  it('switches a set between working and warm-up from its numbered circle', () => {
+    const onToggleWarmup = jest.fn();
+    show([set(1, { completedAt: new Date(), rpe: 8, formRating: 4 }), set(2), set(3)], { onToggleWarmup });
+    fireEvent.press(screen.getByLabelText('Set 3, tap to mark as warm-up'));
+    expect(onToggleWarmup).toHaveBeenCalledTimes(1);
+    expect(onToggleWarmup.mock.calls[0][0].id).toBe('s3');
+  });
+
   it('does not use rows in a finished workout', () => {
     show([set(1, { completedAt: new Date() }), set(2, { completedAt: new Date() })], { editDone: true });
     expect(screen.queryAllByRole('button', { name: /^Set [12] ·/ }).filter((node) => node.props.accessibilityState?.expanded !== undefined)).toHaveLength(0);

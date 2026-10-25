@@ -2,6 +2,10 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.54.4 - 2026-10-25
+
+- Workout: a tap on the set number in the row switches the set between working and warm-up (shown as a dashed circle with W); the small badge inside the open set is gone.
+
 ## 0.54.3 - 2026-10-25
 
 - Workout: spacing of the set rows and card follows the spacing scale (4, 8, 12, 16, 24) and the 48 dp rows grow with the text; the L/R letter sits cleanly in the set number.
