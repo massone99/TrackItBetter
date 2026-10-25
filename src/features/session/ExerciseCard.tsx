@@ -837,7 +837,7 @@ const baseStyles = StyleSheet.create({
   tableDotSide: { fontFamily: fonts.bold, fontSize: 12 },
   tableHeadLabel: { fontFamily: fonts.bold, fontSize: 12, letterSpacing: 0.7, textTransform: 'uppercase' },
   addRowTable: { borderTopWidth: 1, marginHorizontal: -spacing.lg, marginBottom: -spacing.lg, marginTop: 0, paddingHorizontal: spacing.lg, justifyContent: 'center' },
-  tableChips: { paddingLeft: spacing.lg, paddingRight: spacing.lg, paddingBottom: spacing.md },
+  tableChips: { paddingLeft: spacing.lg, paddingRight: spacing.lg, paddingTop: spacing.lg, paddingBottom: spacing.md },
   tablePanel: { marginLeft: spacing.lg, marginRight: spacing.lg },
   tableSetRow: { paddingHorizontal: spacing.lg, paddingTop: spacing.sm, gap: spacing.xs },
   tile: { borderRadius: spacing.lg, paddingVertical: spacing.xs, marginHorizontal: spacing.sm },
