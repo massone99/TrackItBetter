@@ -2,6 +2,10 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.54.2 - 2026-10-25
+
+- Workout: left and right sets show L or R in their numbered circle instead of before the reps; a little more room between the set badge and the steppers.
+
 ## 0.54.1 - 2026-10-25
 
 - Workout: the exercise is now a card like the design: name in capitals with "Now · 2 of 5" above it, column labels in capitals, hairlines between the set rows, a numbered circle per set (green when done, blue for the one in hand), the open set on a grey band with its fields on white tiles, flat chips, and "Add set" closing the card. Opening a set also shows rest, side and video chips that open the set's sheet; the other chips and all fields are unchanged.

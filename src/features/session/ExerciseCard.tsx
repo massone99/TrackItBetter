@@ -515,7 +515,6 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
           </>
         );
         const current = holding || set.id === nextSetId;
-        const sidePrefix = set.side === 'left' ? 'L ' : set.side === 'right' ? 'R ' : '';
         const tableRow = (
           <Pressable
             accessibilityRole="button"
@@ -529,11 +528,14 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
           >
             <View style={styles.tableBadgeCol}>
               <View style={[styles.tableDot, done ? { backgroundColor: palette.success } : current ? { backgroundColor: palette.accentStrong } : { borderColor: palette.border, borderWidth: 2 }]}>
-                <Text style={[styles.setBadgeText, { color: done ? palette.successText : current ? palette.accentText : palette.textMuted }]}>{set.kind === 'warmup' ? 'W' : workingNumber}</Text>
+                <Text style={[styles.setBadgeText, { color: done ? palette.successText : current ? palette.accentText : palette.textMuted }]}>
+                  {set.kind === 'warmup' ? 'W' : workingNumber}
+                  {set.side === 'left' || set.side === 'right' ? <Text style={styles.tableDotSide}>{set.side === 'left' ? 'L' : 'R'}</Text> : null}
+                </Text>
               </View>
             </View>
             {withLoad ? <Text numberOfLines={1} adjustsFontSizeToFit style={[styles.tableValue, { color: set.addedLoadKg === 0 ? palette.textMuted : palette.text }]}>{loadText}</Text> : null}
-            <Text numberOfLines={1} adjustsFontSizeToFit style={[styles.tableValue, { color: holding ? palette.accentStrong : palette.text }]}>{`${sidePrefix}${value}`}</Text>
+            <Text numberOfLines={1} adjustsFontSizeToFit style={[styles.tableValue, { color: holding ? palette.accentStrong : palette.text }]}>{value}</Text>
             {showRpe ? <Text style={[styles.tableMeta, { color: palette.textMuted }]}>{set.rpe !== null ? formatRpe(set.rpe) : '·'}</Text> : null}
             <Text style={[styles.tableMeta, { color: palette.textMuted }]}>{set.kind !== 'working' ? '–' : set.formRating !== null ? formatNumber(set.formRating) : '·'}</Text>
             <View style={styles.tableTail}>
@@ -809,13 +811,14 @@ const baseStyles = StyleSheet.create({
   exerciseNameCard: { fontSize: 30, lineHeight: 32, textTransform: 'uppercase' },
   tableBleed: { marginHorizontal: -16 },
   tableBlock: { borderRadius: 0, marginBottom: 0, borderTopWidth: 1 },
-  tableDot: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
+  tableDot: { minWidth: 32, height: 32, borderRadius: 16, paddingHorizontal: 6, alignItems: 'center', justifyContent: 'center' },
+  tableDotSide: { fontFamily: fonts.bold, fontSize: 12 },
   tableHeadLabel: { fontFamily: fonts.bold, fontSize: 12, letterSpacing: 0.7, textTransform: 'uppercase' },
   addRowTable: { borderTopWidth: 1, marginHorizontal: -16, marginBottom: -16, marginTop: 0, paddingHorizontal: 16, justifyContent: 'center' },
   tableChips: { paddingLeft: 16, paddingRight: 16, paddingBottom: 12 },
   tablePanel: { marginLeft: 16, marginRight: 16 },
   tableSetRow: { paddingHorizontal: 16 },
-  tile: { borderRadius: 16, paddingVertical: 4, marginHorizontal: 2 },
+  tile: { borderRadius: 16, paddingVertical: 4, marginHorizontal: 6 },
   tableHead: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 0, paddingVertical: 4 },
   tableHeadText: { flex: 1, minWidth: 0, textAlign: 'center' },
   tableBadgeCol: { width: 40, alignItems: 'center' },
