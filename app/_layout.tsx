@@ -98,7 +98,7 @@ function AppNavigator() {
         <Stack.Screen name="workout/recap/[id]" />
         <Stack.Screen name="workout/entry/[entryId]" />
         <Stack.Screen name="workout/share/[id]" />
-        <Stack.Screen name="exercise/[id]" />
+        <Stack.Screen name="exercise/[id]" options={({ route }) => ((route.params as { instant?: string } | undefined)?.instant ? { animation: 'none' } : {})} />
         <Stack.Screen name="exercise/new" />
         <Stack.Screen name="exercise/history/[id]" />
         <Stack.Screen name="skill/[chainId]" />

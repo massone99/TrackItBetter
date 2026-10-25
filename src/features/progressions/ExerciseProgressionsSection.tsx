@@ -85,7 +85,7 @@ export function ExerciseProgressionsSection({ exerciseId, exerciseName }: { exer
       key={`${tone}-${item.id}`}
       accessibilityRole="button"
       accessibilityLabel={`${nameOf(item.id)}${data.reached.has(item.id) ? `, ${t('chains.reached')}` : ''}`}
-      onPress={() => router.push({ pathname: '/exercise/[id]', params: { id: item.id } })}
+      onPress={() => router.push({ pathname: '/exercise/[id]', params: { id: item.id, instant: '1' } })}
       style={({ pressed }) => [styles.node, { marginLeft: Math.min(item.depth - 1, 4) * 16, borderColor: palette.border, backgroundColor: palette.surface, opacity: pressed ? 0.7 : 1 }]}
     >
       <Icon name={tone === 'easier' ? 'arrow-down' : 'arrow-up'} size={16} color={palette.textMuted} />
