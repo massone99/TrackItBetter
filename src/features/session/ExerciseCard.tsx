@@ -1,4 +1,5 @@
 import { useTranslation } from 'react-i18next';
+import { router } from 'expo-router';
 import { Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
 import Animated, { FadeIn, ZoomIn } from 'react-native-reanimated';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
@@ -55,7 +56,7 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
   /** Fills every open set from last time's matching set; given only when there is one to fill. */
   onCopyAllLast?: () => void;
   /** Opens the set's sheet; `view` goes straight to its bands or its note. */
-  onSetOptions: (set: SessionSet, view?: 'bands' | 'note') => void;
+  onSetOptions: (set: SessionSet, view?: 'bands' | 'note' | 'rest') => void;
   onUncomplete: (set: SessionSet) => void;
   onRemoveSet: (set: SessionSet) => void;
   onSwiped?: () => void;
@@ -668,9 +669,9 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
                 })()}
                 {table ? (
                   <>
-                    {(set.restSec ?? defaultRest) > 0 ? <ValueChip flat label={t('logger.restChip', { value: formatClock(set.restSec ?? defaultRest) })} filled={set.restSec !== null} onPress={() => { tapFeedback(); onSetOptions(set); }} /> : null}
+                    {(set.restSec ?? defaultRest) > 0 ? <ValueChip flat label={t('logger.restChip', { value: formatClock(set.restSec ?? defaultRest) })} filled={set.restSec !== null} onPress={() => { tapFeedback(); onSetOptions(set, 'rest'); }} /> : null}
                     {set.side === 'left' || set.side === 'right' ? <ValueChip flat label={sideLabel} filled onPress={() => { tapFeedback(); onSetOptions(set); }} /> : null}
-                    {set.clipCount === 0 ? <ValueChip flat label={t('logger.videoChip')} icon="videocam" filled={false} onPress={() => { tapFeedback(); onSetOptions(set); }} /> : null}
+                    {set.clipCount === 0 ? <ValueChip flat label={t('logger.videoChip')} icon="videocam" filled={false} onPress={() => { tapFeedback(); router.push({ pathname: '/form-check/[setId]', params: { setId: set.id } }); }} /> : null}
                   </>
                 ) : null}
                 {strip || set.note ? (

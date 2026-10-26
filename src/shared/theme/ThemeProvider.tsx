@@ -4,7 +4,7 @@ import { readPreference, writePreference } from "../settings/preferences";
 import { Palette, palettes, ThemeMode } from "./palette";
 import { DEFAULT_FONTS, FONT_PRESETS, FONT_ROLES, isFontFamilyId, type FontFamilyId, type FontPresetId, type FontRole, type FontSelection } from "./fontChoices";
 import { parseSetLayout, setLayoutKey, type SetLayout } from "./setLayout";
-import { effectiveScale, LARGE_TEXT_SCALE, TEXT_SCALE_CAPS, toUiScale, type TextScaleMode, type UiScale } from "./scale";
+import { effectiveScale, LARGE_TEXT_SCALE, STACK_TEXT_SCALE, TEXT_SCALE_CAPS, toUiScale, type TextScaleMode, type UiScale } from "./scale";
 
 type ThemePreference = ThemeMode | "system";
 
@@ -66,8 +66,9 @@ export function ThemeProvider({ children }: PropsWithChildren) {
   // Development builds on web can simulate a phone font size with globalThis.__fontScale.
   const simulated = (globalThis as { __fontScale?: number }).__fontScale;
   const fontScale = Math.round(Math.min(Math.max(1, simulated ?? systemFontScale ?? 1), TEXT_SCALE_CAPS[textScaleMode]) * 100) / 100;
-  const largeText = fontScale >= LARGE_TEXT_SCALE;
   const layoutScale = effectiveScale(scale, width);
+  // Text size and interface size multiply: 130 % text at 100 % size is as big as 110 % text at 120 %.
+  const largeText = fontScale >= LARGE_TEXT_SCALE || fontScale * layoutScale >= STACK_TEXT_SCALE;
   const mode = preference === "system" ? (systemScheme === "dark" ? "dark" : "light") : preference;
   const setMode = useCallback((next: ThemePreference) => {
     setPreference(next);

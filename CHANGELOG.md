@@ -2,6 +2,12 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.57.0 - 2026-10-26
+
+- Compare with: the picker is now a full sheet over the exercise's whole history. One-tap shortcuts (last time, same workout, most work, best set, heaviest, first time), search, filters (period, workout name, RPE 8+, with note), sorting, a monthly list that loads in pages, a bar chart of every workout and a calendar.
+- Large text: rows stack one field per line as soon as text size times interface size reaches 125 %, so steppers no longer overlap.
+- Set chips: Rest opens the rest settings and Video opens the technique check directly, instead of the set menu.
+
 ## 0.56.2 - 2026-10-26
 
 - Profile: interface size now has six steps (85, 92, 100, 110, 120 and 130 %), shown as percentages.

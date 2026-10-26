@@ -87,7 +87,7 @@ export default function PastWorkoutScreen() {
   const [error, setError] = useState<string | null>(null);
   const [blockedBy, setBlockedBy] = useState<{ id: string; name: string } | null>(null);
   const [loadError, setLoadError] = useState(false);
-  const [setFor, setSetFor] = useState<(SetTarget & { view?: 'bands' | 'note' }) | null>(null);
+  const [setFor, setSetFor] = useState<(SetTarget & { view?: 'bands' | 'note' | 'rest' | 'rest' }) | null>(null);
   const [pairFor, setPairFor] = useState<(SetTarget & { pairedSet: SessionSet | null }) | null>(
     null,
   );

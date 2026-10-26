@@ -24,6 +24,8 @@ export type TextScaleMode = 'limited' | 'full';
 export const TEXT_SCALE_CAPS: Record<TextScaleMode, number> = { limited: 1.4, full: 2 };
 /** From this font scale on, shared layouts stack rows that would no longer fit side by side. */
 export const LARGE_TEXT_SCALE = 1.5;
+/** Text size times interface size from which the same stacking applies (a row of steppers no longer fits). */
+export const STACK_TEXT_SCALE = 1.25;
 
 /**
  * Growth applied to one text size for a system font scale. Body text follows it fully; headings grow

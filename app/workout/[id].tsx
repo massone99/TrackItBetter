@@ -185,7 +185,7 @@ export default function WorkoutScreen() {
   const [records, setRecords] = useState<{ sets: Map<string, RecordKind[]>; volume: Set<string> }>(() => ({ sets: new Map(), volume: new Set() }));
   const [referenceFor, setReferenceFor] = useState<SessionExercise | null>(null);
   const [removeExerciseFor, setRemoveExerciseFor] = useState<SessionExercise | null>(null);
-  const [setSheet, setSetSheet] = useState<{ exercise: SessionExercise; setId: string; view?: 'bands' | 'note' } | null>(null);
+  const [setSheet, setSetSheet] = useState<{ exercise: SessionExercise; setId: string; view?: 'bands' | 'note' | 'rest' } | null>(null);
   // Set that just got completed and is waiting for an optional RPE tap.
   // RPE chips under every working set; Profile can hide them.
   const [showRpe] = useState(() => readBooleanPreference(RPE_PROMPT_KEY, true));
@@ -1013,7 +1013,7 @@ export default function WorkoutScreen() {
                 {optionsFor.apparatusAffectsDifficulty ? <Label>{t('equipment.apparatusCompareHint')}</Label> : null}
               </MenuGroup>
             ) : null}
-            <ExerciseCompareField key={`compare-${optionsFor.entryId}`} exercise={optionsFor} workoutId={workout.id} onChanged={() => void refresh(workout.id)} />
+            <ExerciseCompareField key={`compare-${optionsFor.entryId}`} exercise={optionsFor} workoutId={workout.id} workoutName={workout.name} onChanged={() => void refresh(workout.id)} />
             <ExerciseAveragesField key={`averages-${optionsFor.entryId}`} exercise={optionsFor} onChanged={() => void refresh(workout.id)} />
             <ExerciseBlockField key={`block-${optionsFor.entryId}-${optionsFor.block}`} entryId={optionsFor.entryId} value={optionsFor.block} onChanged={() => { setOptionsFor(null); void refresh(workout.id); }} />
             <SupersetSettings key={`superset-${optionsFor.entryId}-${optionsFor.groupId ?? ''}`} exercise={optionsFor} />

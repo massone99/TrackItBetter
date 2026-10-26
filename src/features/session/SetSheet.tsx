@@ -1,3 +1,4 @@
+import { ExerciseRestFields } from './ExerciseRestFields';
 import { router } from 'expo-router';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -20,7 +21,7 @@ import { bandsById, describeSetBands, useEquipment } from '../equipment/useEquip
  */
 export function SetSheet({ initialView, exercise, set, holdMode, onHoldMode, onClose, onChanged, onRemoved, onCompleteManually, lastTime, onCopyLast, onPair }: {
   /** Opens straight on the set's bands or its note. */
-  initialView?: 'bands' | 'note';
+  initialView?: 'bands' | 'note' | 'rest';
   exercise: SessionExercise;
   set: SessionSet;
   holdMode?: HoldMode;
@@ -45,6 +46,7 @@ export function SetSheet({ initialView, exercise, set, holdMode, onHoldMode, onC
   const [confirming, setConfirming] = useState(false);
   // Bands open in their own view of the sheet, so the main view stays short.
   const [bandsOpen, setBandsOpen] = useState(initialView === 'bands');
+  const [restOpen] = useState(initialView === 'rest');
   const { catalog } = useEquipment();
   const bandsText = catalog ? describeSetBands(set, bandsById(catalog), t)?.text ?? null : null;
   // Clips cannot be restored, so only a set with clips asks first; any other removal can be undone.
@@ -75,16 +77,22 @@ export function SetSheet({ initialView, exercise, set, holdMode, onHoldMode, onC
     <Sheet
       visible
       onClose={close}
-      title={bandsOpen ? `${t('bands.title')} · ${t('logger.setTitle', { number: set.index })}` : `${exercise.name} · ${t('logger.setTitle', { number: set.index })}`}
+      title={restOpen ? `${t('logger.restGroup')} · ${exercise.name}` : bandsOpen ? `${t('bands.title')} · ${t('logger.setTitle', { number: set.index })}` : `${exercise.name} · ${t('logger.setTitle', { number: set.index })}`}
       body={confirming ? t('logger.removeCompletedWarning') : undefined}
     >
+      {restOpen ? (
+        <>
+          <ExerciseRestFields exercise={exercise} onSaved={() => void onChanged()} />
+          <ActionButton label={t('logger.done')} onPress={close} />
+        </>
+      ) : null}
       {bandsOpen ? (
         <>
           <SetBandsField exercise={exercise} set={set} onChanged={onChanged} />
           <ActionButton icon="arrow-back" label={t('bands.back')} onPress={() => setBandsOpen(false)} />
         </>
       ) : null}
-      {confirming || bandsOpen ? null : (
+      {confirming || bandsOpen || restOpen ? null : (
         <>
           {timed && holdMode && onHoldMode ? (
             <View style={{ gap: 6 }}>
@@ -143,8 +151,8 @@ export function SetSheet({ initialView, exercise, set, holdMode, onHoldMode, onC
           ) : null}
         </>
       )}
-      {bandsOpen ? null : <ActionButton icon="trash-outline" label={confirming ? t('logger.confirmRemove') : t('logger.removeSet')} variant="danger" onPress={() => void remove()} />}
-      {bandsOpen ? null : confirming
+      {bandsOpen || restOpen ? null : <ActionButton icon="trash-outline" label={confirming ? t('logger.confirmRemove') : t('logger.removeSet')} variant="danger" onPress={() => void remove()} />}
+      {bandsOpen || restOpen ? null : confirming
         ? <ActionButton label={t('common.cancel')} secondary onPress={() => setConfirming(false)} />
         : <ActionButton label={t('logger.done')} onPress={close} />}
     </Sheet>
