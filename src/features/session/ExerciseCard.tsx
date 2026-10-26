@@ -640,7 +640,7 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
           </View>
         );
         return (
-          <Animated.View key={`${set.id}${largeText ? (editing ? "-e" : "-f") : ""}`} entering={largeText ? undefined : setEntering} style={[styles.setBlock, largeText && !editing && styles.setBlockLine, editing && [styles.largeBlock, { borderColor: palette.border }], table && [styles.tableBlock, { borderTopColor: palette.border }, isOpen && { backgroundColor: palette.background }]]}>
+          <Animated.View key={`${set.id}${largeText ? (editing ? "-e" : "-f") : ""}`} entering={largeText ? undefined : setEntering} style={[styles.setBlock, largeText && !editing && styles.setBlockLine, editing && [styles.largeBlock, { borderColor: done ? palette.success : palette.border, backgroundColor: done ? palette.successSoft : undefined }], table && [styles.tableBlock, { borderTopColor: palette.border }, isOpen && { backgroundColor: palette.background }]]}>
             {editing || table ? null : <DoneTint done={done} color={palette.accentSoft} />}
             {/* The set in hand with very large text is not swiped: its steppers and buttons own the gestures. */}
             {editing ? rowBody : (

@@ -2,6 +2,10 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.58.5 - 2026-10-26
+
+- Workout, large text: a completed set has a green background and border, so it stands out from the sets still to do.
+
 ## 0.58.4 - 2026-10-26
 
 - Exercise history: under each set that used bands, the band names and tension are written next to their colour swatches.
