@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { useAppInsets } from "../../src/shared/layout/useAppInsets";
 import { Icon, IconName } from "../../src/shared/components/Icon";
 import { Text } from "../../src/shared/components/Text";
+import { useInk } from "../../src/shared/theme/ink";
 import { useTheme } from "../../src/shared/theme/ThemeProvider";
 import { fonts } from "../../src/shared/theme/typography";
 import { MIN_TOUCH_TARGET, radii } from "../../src/shared/theme/tokens";
@@ -20,6 +21,7 @@ const icons: Record<string, [IconName, IconName]> = {
 
 export default function TabLayout() {
   const { palette, layoutScale: scale, fontScale } = useTheme();
+  const ink = useInk();
   const { t } = useTranslation();
   const insets = useAppInsets();
   const expanded = useWindowDimensions().width >= 768;
@@ -40,19 +42,20 @@ export default function TabLayout() {
         tabBarStyle: expanded ? {
           backgroundColor: palette.tabBar,
           borderRightWidth: 1,
-          borderRightColor: palette.border,
+          borderRightColor: ink,
           width: 100,
           paddingTop: insets.top + 20,
           paddingBottom: insets.bottom + 12,
         } : {
           backgroundColor: palette.tabBar,
-          borderTopColor: palette.border,
+          borderTopColor: ink,
+          borderTopWidth: 1,
           height: barHeight + insets.bottom,
           paddingTop: 8,
           paddingBottom: insets.bottom + 8,
         },
         tabBarLabel: ({ color, children }) => (
-          <Text numberOfLines={1} maxFontSizeMultiplier={LABEL_MAX_SCALE} style={{ color: String(color), fontFamily: fonts.semibold, fontSize: 12, lineHeight: 16, textAlign: "center", marginTop: 3 }}>{children}</Text>
+          <Text numberOfLines={1} maxFontSizeMultiplier={LABEL_MAX_SCALE} style={{ color: String(color), fontFamily: fonts.monoSemibold, fontSize: 12, lineHeight: 16, textAlign: "center", marginTop: 3, textTransform: "uppercase" }}>{children}</Text>
         ),
         tabBarIcon: ({ color, focused }) => (
           <View style={{ width: 56, height: 30, borderRadius: radii.pill, alignItems: "center", justifyContent: "center", backgroundColor: focused ? palette.accentSoft : "transparent" }}>

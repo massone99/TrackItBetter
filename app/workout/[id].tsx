@@ -87,7 +87,7 @@ import {
 } from '../../src/shared/components/ui';
 import { ReorderableList } from '../../src/shared/components/ReorderableList';
 import { ExerciseSegments } from '../../src/features/session/ExerciseSegments';
-import { DotGrid, Tag, useInk } from '../../src/features/session/instrument';
+import { Tag, useInk } from '../../src/features/session/instrument';
 import { WorkoutHeader } from '../../src/features/session/WorkoutHeader';
 import { FreeRestBar } from '../../src/features/session/FreeRestBar';
 import { WorkoutMenuSheet } from '../../src/features/session/WorkoutMenuSheet';
@@ -730,7 +730,6 @@ export default function WorkoutScreen() {
   return (
     <View style={[styles.root, { backgroundColor: palette.background }]}>
       <Screen
-        backdrop={<DotGrid />}
         scrollRef={scrollRef}
         // The running clock sits right above Add and Finish, so both stay in reach during rest.
         footerAccessory={!timerRunning && freeRest ? (

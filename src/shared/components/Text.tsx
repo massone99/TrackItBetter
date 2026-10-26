@@ -4,7 +4,7 @@ import { FONT_KEYS, scaleStyle, textGrowth } from "../theme/scale";
 import { bodyFamilyForWeight } from "../theme/typography";
 
 /**
- * App-wide Text: applies the Barlow family for the requested weight, a themed default color, the
+ * App-wide Text: applies the IBM Plex family for the requested weight, a themed default color, the
  * interface scale chosen in settings and the phone's font size (the one place font sizes are scaled).
  * The system scaling is applied here rather than by the OS, so it can be capped by the setting and
  * eased for large sizes (see textGrowth).

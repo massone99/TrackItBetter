@@ -1,3 +1,4 @@
+import { fonts } from '../src/shared/theme/typography';
 import { Paged } from '../src/shared/components/paging';
 import { useCallback, useMemo, useState } from 'react';
 import { useFocusEffect } from 'expo-router';
@@ -85,7 +86,7 @@ export default function StatsScreen() {
         {(['all', 'active', 'passive'] as const).map((kind, index) => <View key={kind} style={styles.quietItem}>
           {index > 0 && <Text style={{ color: palette.textMuted }}>·</Text>}
           <Pressable accessibilityRole="button" accessibilityState={{ selected: mobilityKind === kind }} hitSlop={10} onPress={() => remember<MobilityKind>('stats.mobilityKind', setMobilityKind)(kind)}>
-            <Text style={[styles.quietText, { color: mobilityKind === kind ? palette.text : palette.textMuted, fontFamily: mobilityKind === kind ? 'Barlow_600SemiBold' : undefined }]}>{kind === 'all' ? t('trainingStats.modeAll') : kind === 'active' ? t('trainingStats.modeActive') : t('trainingStats.modePassive')}</Text>
+            <Text style={[styles.quietText, { color: mobilityKind === kind ? palette.text : palette.textMuted, fontFamily: mobilityKind === kind ? fonts.semibold : undefined }]}>{kind === 'all' ? t('trainingStats.modeAll') : kind === 'active' ? t('trainingStats.modeActive') : t('trainingStats.modePassive')}</Text>
           </Pressable>
         </View>)}
       </View>}
@@ -94,7 +95,7 @@ export default function StatsScreen() {
         {(['group', 'tag'] as const).map((kind, index) => <View key={kind} style={styles.quietItem}>
           {index > 0 && <Text style={{ color: palette.textMuted }}>·</Text>}
           <Pressable accessibilityRole="button" accessibilityState={{ selected: patternKind === kind }} hitSlop={10} onPress={() => remember<PatternKind>('stats.patternKind', setPatternKind)(kind)}>
-            <Text style={[styles.quietText, { color: patternKind === kind ? palette.text : palette.textMuted, fontFamily: patternKind === kind ? 'Barlow_600SemiBold' : undefined }]}>{kind === 'group' ? t('trainingStats.groups') : t('trainingStats.tags')}</Text>
+            <Text style={[styles.quietText, { color: patternKind === kind ? palette.text : palette.textMuted, fontFamily: patternKind === kind ? fonts.semibold : undefined }]}>{kind === 'group' ? t('trainingStats.groups') : t('trainingStats.tags')}</Text>
           </Pressable>
         </View>)}
       </View>}
@@ -167,16 +168,16 @@ const baseStyles = StyleSheet.create({
   quietText: { fontSize: 14, paddingVertical: 12 },
   loadingCard: { minHeight: 120, alignItems: 'center', justifyContent: 'center', gap: 10 },
   navigator: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 },
-  periodLabel: { flex: 1, textAlign: 'center', fontSize: 16, fontFamily: 'Barlow_600SemiBold' },
+  periodLabel: { flex: 1, textAlign: 'center', fontSize: 16, fontFamily: fonts.semibold },
   latest: { alignSelf: 'center', minHeight: 48, justifyContent: 'center', paddingHorizontal: 12, marginBottom: 4 },
-  latestText: { fontSize: 13, fontFamily: 'Barlow_600SemiBold' },
+  latestText: { fontSize: 13, fontFamily: fonts.semibold },
   summary: { flexDirection: 'row', alignItems: 'baseline', gap: 6, marginTop: 14 },
-  summaryValue: { fontSize: 40, lineHeight: 44, fontFamily: 'BarlowCondensed_700Bold', fontVariant: ['tabular-nums'] },
+  summaryValue: { fontSize: 40, lineHeight: 44, fontFamily: fonts.display, fontVariant: ['tabular-nums'] },
   summaryUnit: { fontSize: 15 },
   row: { paddingVertical: 14, gap: 8 },
   rowHead: { flexDirection: 'row', alignItems: 'baseline', gap: 10 },
-  rowName: { flex: 1, fontSize: 15, fontFamily: 'Barlow_600SemiBold' },
-  rowValue: { fontSize: 24, lineHeight: 28, fontFamily: 'BarlowCondensed_700Bold', fontVariant: ['tabular-nums'] },
+  rowName: { flex: 1, fontSize: 15, fontFamily: fonts.semibold },
+  rowValue: { fontSize: 24, lineHeight: 28, fontFamily: fonts.display, fontVariant: ['tabular-nums'] },
   rowBar: { height: 6, borderRadius: 3 },
   rowDetail: { fontSize: 14, lineHeight: 20 },
 });

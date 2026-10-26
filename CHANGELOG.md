@@ -2,6 +2,10 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.55.2 - 2026-10-26
+
+- Whole app, technical look: IBM Plex everywhere (Sans for text, Sans Condensed in capitals for titles and buttons, Mono for figures, tags and units), a dot-grid ground on every screen, registration marks at the corners of cards and lists, section titles as ruled mono tags, ink-lined buttons, icon tiles, segments, chips and fields, graduated progress bars, and mono capitals in the tab bar.
+
 ## 0.55.1 - 2026-10-26
 
 - Whole app, squared look: every corner is now 4 dp (cards, lists, buttons, chips, fields, sheets, pills and icon buttons), surfaces have no shadow and are drawn with thin ink lines, and the corner sizes come from one token (`radii`).

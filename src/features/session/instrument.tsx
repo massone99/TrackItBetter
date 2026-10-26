@@ -1,12 +1,11 @@
 import { useEffect } from 'react';
-import { Image, StyleSheet, View, type StyleProp, type TextStyle } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withDelay, withTiming } from 'react-native-reanimated';
-import { Text } from '../../shared/components/ui';
+import { DotGrid, RegistrationMarks, Tag } from '../../shared/components/ui';
 import { useAnimationSettings } from '../../shared/settings/AnimationProvider';
 import { useInk } from '../../shared/theme/ink';
 import { useTheme } from '../../shared/theme/ThemeProvider';
 import { instrument } from '../../shared/theme/tokens';
-import { fonts } from '../../shared/theme/typography';
 
 /**
  * Pieces of the "instrument" look of the workout: thin ink lines, square corners, mono figures, a dot-grid
@@ -15,36 +14,7 @@ import { fonts } from '../../shared/theme/typography';
 
 export { useInk };
 
-/** The dot-grid ground of the workout page: one small translucent dot tiled and tinted with the muted text colour. */
-export function DotGrid() {
-  const { palette } = useTheme();
-  return (
-    <Image
-      accessible={false}
-      importantForAccessibility="no"
-      source={require('../../../assets/images/dot-grid.png')}
-      resizeMode="repeat"
-      style={[styles.dots, { tintColor: palette.textMuted }]}
-    />
-  );
-}
-
-/** A small technical label: "FIG. 02 · NOW · 2/9". */
-export function Tag({ children, color, style }: { children: string; color?: string; style?: StyleProp<TextStyle> }) {
-  const { palette } = useTheme();
-  return <Text style={[styles.tag, { color: color ?? palette.textMuted }, style]}>{children}</Text>;
-}
-
-/** Two "+" registration marks at the top-left and bottom-right corners, outside the border. */
-export function RegistrationMarks() {
-  const ink = useInk();
-  return (
-    <>
-      <Text accessible={false} importantForAccessibility="no" style={[styles.mark, styles.markStart, { color: ink }]}>+</Text>
-      <Text accessible={false} importantForAccessibility="no" style={[styles.mark, styles.markEnd, { color: ink }]}>+</Text>
-    </>
-  );
-}
+export { DotGrid, RegistrationMarks, Tag };
 
 /** Where a value sits on its scale: a "nice" maximum above both the value and last time's. */
 export function gaugeMax(value: number, ghost: number | null): number {
@@ -83,11 +53,6 @@ export function Gauge({ value, ghost, color, delay = 0 }: { value: number; ghost
 }
 
 const styles = StyleSheet.create({
-  dots: { width: '100%', height: '100%' },
-  tag: { fontFamily: fonts.monoSemibold, fontSize: 12, letterSpacing: 1.2, textTransform: 'uppercase' },
-  mark: { position: 'absolute', fontFamily: fonts.monoSemibold, fontSize: 14, lineHeight: 14 },
-  markStart: { left: -instrument.mark, top: -instrument.mark - 1 },
-  markEnd: { right: -instrument.mark, bottom: -instrument.mark - 1 },
   gauge: { height: instrument.gauge, borderWidth: instrument.line, justifyContent: 'center' },
   tick: { position: 'absolute', top: 0, bottom: 0, width: StyleSheet.hairlineWidth },
   fill: { position: 'absolute', left: 0, top: 0, bottom: 0 },

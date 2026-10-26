@@ -77,5 +77,5 @@ npx expo-doctor
 ## Design
 
 "Chalk, steel, birch": a cool chalk background, steel-ink text, gym-mat blue for actions and birch for
-records. Barlow Condensed carries headlines and the scoreboard numerals for reps and holds; Barlow is the
+records. IBM Plex Sans Condensed carries headlines and the scoreboard numerals for reps and holds; IBM Plex Sans is the
 body face. Tokens live in `src/shared/theme/`, shared components in `src/shared/components/ui.tsx`.

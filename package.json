@@ -1,6 +1,6 @@
 {
   "name": "track-it-better",
-  "version": "0.55.1",
+  "version": "0.55.2",
   "private": true,
   "main": "expo-router/entry",
   "scripts": {
@@ -20,9 +20,9 @@
     "version:bump": "node scripts/bump-version.mjs"
   },
   "dependencies": {
-    "@expo-google-fonts/barlow": "^0.4.1",
-    "@expo-google-fonts/barlow-condensed": "^0.4.1",
-    "@expo-google-fonts/martian-mono": "^0.4.2",
+    "@expo-google-fonts/ibm-plex-mono": "^0.4.1",
+    "@expo-google-fonts/ibm-plex-sans": "^0.4.1",
+    "@expo-google-fonts/ibm-plex-sans-condensed": "^0.4.1",
     "@expo/metro-runtime": "~57.0.16",
     "@expo/vector-icons": "^15.0.2",
     "@hookform/resolvers": "^5.2.2",

@@ -1,43 +1,43 @@
 import {
-  Barlow_400Regular,
-  Barlow_500Medium,
-  Barlow_600SemiBold,
-  Barlow_700Bold,
-} from "@expo-google-fonts/barlow";
+  IBMPlexSans_400Regular,
+  IBMPlexSans_500Medium,
+  IBMPlexSans_600SemiBold,
+  IBMPlexSans_700Bold,
+} from "@expo-google-fonts/ibm-plex-sans";
 import {
-  BarlowCondensed_600SemiBold,
-  BarlowCondensed_700Bold,
-} from "@expo-google-fonts/barlow-condensed";
-
+  IBMPlexSansCondensed_600SemiBold,
+  IBMPlexSansCondensed_700Bold,
+} from "@expo-google-fonts/ibm-plex-sans-condensed";
 import {
-  MartianMono_400Regular,
-  MartianMono_600SemiBold,
-  MartianMono_800ExtraBold,
-} from "@expo-google-fonts/martian-mono";
+  IBMPlexMono_400Regular,
+  IBMPlexMono_600SemiBold,
+  IBMPlexMono_700Bold,
+} from "@expo-google-fonts/ibm-plex-mono";
 
+/** IBM Plex: Sans for text, Sans Condensed for capitals headings and buttons, Mono for figures and tags. */
 export const fontAssets = {
-  MartianMono_400Regular,
-  MartianMono_600SemiBold,
-  MartianMono_800ExtraBold,
-  Barlow_400Regular,
-  Barlow_500Medium,
-  Barlow_600SemiBold,
-  Barlow_700Bold,
-  BarlowCondensed_600SemiBold,
-  BarlowCondensed_700Bold,
+  IBMPlexSans_400Regular,
+  IBMPlexSans_500Medium,
+  IBMPlexSans_600SemiBold,
+  IBMPlexSans_700Bold,
+  IBMPlexSansCondensed_600SemiBold,
+  IBMPlexSansCondensed_700Bold,
+  IBMPlexMono_400Regular,
+  IBMPlexMono_600SemiBold,
+  IBMPlexMono_700Bold,
 };
 
 export const fonts = {
-  body: "Barlow_400Regular",
-  medium: "Barlow_500Medium",
-  semibold: "Barlow_600SemiBold",
-  bold: "Barlow_700Bold",
-  display: "BarlowCondensed_700Bold",
-  displayMedium: "BarlowCondensed_600SemiBold",
-  /** Figures, tags and units of the instrument look (tabular, technical). */
-  mono: "MartianMono_400Regular",
-  monoSemibold: "MartianMono_600SemiBold",
-  monoBold: "MartianMono_800ExtraBold",
+  body: "IBMPlexSans_400Regular",
+  medium: "IBMPlexSans_500Medium",
+  semibold: "IBMPlexSans_600SemiBold",
+  bold: "IBMPlexSans_700Bold",
+  display: "IBMPlexSansCondensed_700Bold",
+  displayMedium: "IBMPlexSansCondensed_600SemiBold",
+  /** Figures, tags and units (tabular, technical). */
+  mono: "IBMPlexMono_400Regular",
+  monoSemibold: "IBMPlexMono_600SemiBold",
+  monoBold: "IBMPlexMono_700Bold",
 } as const;
 
 /** Custom fonts ignore fontWeight on Android, so weights map to explicit families. */

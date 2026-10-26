@@ -1,7 +1,7 @@
 import * as Haptics from "expo-haptics";
 import { router, useSegments } from "expo-router";
 import { Children, PropsWithChildren, ReactNode, Ref, createContext, useContext, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
-import { Animated, Modal, PanResponder, Platform, Pressable, ScrollView, StyleSheet, Switch, TextInput, TextInputProps, TextProps, useWindowDimensions, View, ViewProps } from "react-native";
+import { Animated, Image, Modal, PanResponder, Platform, Pressable, ScrollView, StyleProp, StyleSheet, Switch, TextInput, TextInputProps, TextProps, TextStyle, useWindowDimensions, View, ViewProps } from "react-native";
 import { KeyboardLift, KeyboardScroll, useKeyboardVisible, type ScrollHandle } from "./keyboard";
 import { useAppInsets } from "../layout/useAppInsets";
 import { useTranslation } from "react-i18next";
@@ -9,7 +9,7 @@ import { useTheme } from "../theme/ThemeProvider";
 import { useAnimationSettings } from "../settings/AnimationProvider";
 import { fonts } from "../theme/typography";
 import { useInk } from "../theme/ink";
-import { MIN_TOUCH_TARGET, radii, spacing, typeScale } from "../theme/tokens";
+import { instrument, MIN_TOUCH_TARGET, radii, spacing, typeScale } from "../theme/tokens";
 import { Icon, IconName } from "./Icon";
 import { Text } from "./Text";
 import { useScaledStyles } from "../theme/useScaledStyles";
@@ -37,7 +37,7 @@ export const useScrollControl = () => useContext(ScrollControlContext);
  * aside while the keyboard is open so it never covers the field being typed in.
  */
 export function Screen({ children, contentContainerStyle, overlay, footer, footerAccessory, scrollRef, backdrop }: PropsWithChildren<{
-  /** Drawn behind the scrolling content (the page background becomes transparent over it). */
+  /** Drawn behind the scrolling content; the dot grid by default, `null` for a plain page. */
   backdrop?: ReactNode;
   contentContainerStyle?: ViewProps["style"];
   overlay?: ReactNode;
@@ -62,12 +62,12 @@ export function Screen({ children, contentContainerStyle, overlay, footer, foote
   useImperativeHandle(scrollRef, () => ({ scrollTo: (options) => inner.current?.scrollTo(options) }), []);
   return (
     <View style={[styles.flexFill, { backgroundColor: palette.background }]}>
-      {backdrop ? <View pointerEvents="none" style={StyleSheet.absoluteFill}>{backdrop}</View> : null}
+      {backdrop === null ? null : <View pointerEvents="none" style={StyleSheet.absoluteFill}>{backdrop ?? <DotGrid />}</View>}
       <KeyboardScroll
         scrollRef={inner}
         scrollEventThrottle={16}
         onScroll={(event) => { offset.current = event.nativeEvent.contentOffset.y; }}
-        style={{ backgroundColor: backdrop ? 'transparent' : palette.background }}
+        style={{ backgroundColor: backdrop === null ? palette.background : 'transparent' }}
         contentContainerStyle={[styles.screen, { paddingTop: Math.max(insets.top, 14) + 10, paddingBottom: footer ? spacing.xl : insets.bottom + 36 }, contentContainerStyle]}
         showsVerticalScrollIndicator={false}
       >
@@ -106,6 +106,39 @@ export function Label({ children, style, ...props }: TextProps) {
   const styles = useScaledStyles(baseStyles);
   const { palette } = useTheme();
   return <Text {...props} style={[styles.label, { color: palette.textMuted }, style]}>{children}</Text>;
+}
+
+/** A small technical label: mono, capitals, letter-spaced ("FIG. 02 · LOG"). */
+export function Tag({ children, color, style }: { children: string; color?: string; style?: StyleProp<TextStyle> }) {
+  const styles = useScaledStyles(baseStyles);
+  const { palette } = useTheme();
+  return <Text style={[styles.tag, { color: color ?? palette.textMuted }, style]}>{children}</Text>;
+}
+
+/** Two "+" registration marks at the top-left and bottom-right corners, outside the border. */
+export function RegistrationMarks() {
+  const styles = useScaledStyles(baseStyles);
+  const ink = useInk();
+  return (
+    <>
+      <Text accessible={false} importantForAccessibility="no" style={[styles.mark, styles.markStart, { color: ink }]}>+</Text>
+      <Text accessible={false} importantForAccessibility="no" style={[styles.mark, styles.markEnd, { color: ink }]}>+</Text>
+    </>
+  );
+}
+
+/** The dot-grid ground of the pages: one small translucent dot tiled and tinted with the muted text colour. */
+export function DotGrid() {
+  const { palette } = useTheme();
+  return (
+    <Image
+      accessible={false}
+      importantForAccessibility="no"
+      source={require("../../../assets/images/dot-grid.png")}
+      resizeMode="repeat"
+      style={[{ width: "100%", height: "100%" }, { tintColor: palette.textMuted }]}
+    />
+  );
 }
 
 export function Title({ children, style, ...props }: TextProps) {
@@ -153,13 +186,14 @@ export function Card({ children, style, ...props }: PropsWithChildren<ViewProps>
   const { palette } = useTheme();
   const depth = useSurfaceDepth();
   const ink = useInk();
-  return <View {...props} style={[styles.card, { backgroundColor: palette.surface, borderColor: ink }, depth, style]}>{children}</View>;
+  return <View {...props} style={[styles.card, { backgroundColor: palette.surface, borderColor: ink }, depth, style]}><RegistrationMarks />{children}</View>;
 }
 
 export function SectionTitle({ title, action }: { title: string; action?: ReactNode }) {
   const styles = useScaledStyles(baseStyles);
   const { palette } = useTheme();
-  return <View style={styles.sectionTitle}><Text accessibilityRole="header" style={[styles.sectionHeading, { color: palette.text }]}>{title}</Text>{action}</View>;
+  const ink = useInk();
+  return <View style={[styles.sectionTitle, { borderBottomColor: ink }]}><Text accessibilityRole="header" style={[styles.sectionHeading, { color: palette.text }]}>{title}</Text>{action}</View>;
 }
 
 /** A real count or measurement, with its label kept beside the value in the reading order. */
@@ -182,8 +216,9 @@ export function ProgressMeter({ value, total, label, tone = "accent" }: { value:
     accessibilityRole="progressbar"
     accessibilityLabel={label}
     accessibilityValue={{ min: 0, max, now }}
-    style={[styles.progressTrack, { backgroundColor: palette.surfaceMuted }]}
+    style={[styles.progressTrack, { backgroundColor: palette.surfaceMuted, borderColor: palette.border }]}
   >
+    {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((tick) => <View key={tick} style={[styles.progressTick, { left: `${tick * 10}%`, backgroundColor: palette.border }]} />)}
     <View style={[styles.progressFill, { width: `${max > 0 ? (now / max) * 100 : 0}%`, backgroundColor: tone === "success" ? palette.success : palette.accentStrong }]} />
   </View>;
 }
@@ -202,6 +237,7 @@ export function ActionButton({ label, onPress, secondary = false, variant, icon,
   const { palette } = useTheme();
   const kind: ButtonVariant = variant ?? (secondary ? "secondary" : "primary");
   const pressScale = usePressScale(0.98);
+  const ink = useInk();
   const background = kind === "primary" ? palette.accent : kind === "secondary" ? palette.surfaceMuted : kind === "inverse" ? palette.heroText : "transparent";
   const color = kind === "primary" ? palette.accentText : kind === "danger" ? palette.warning : kind === "ghost" ? palette.accentStrong : kind === "inverse" ? palette.hero : palette.text;
   return (
@@ -215,7 +251,7 @@ export function ActionButton({ label, onPress, secondary = false, variant, icon,
         { minHeight: Math.max(MIN_TOUCH_TARGET, styles.button.minHeight) },
         { backgroundColor: background, opacity: disabled ? 0.45 : pressed ? 0.8 : 1 },
         pressScale(pressed),
-        kind === "danger" && { borderWidth: 1, borderColor: palette.border },
+        kind !== "ghost" && { borderWidth: 1, borderColor: kind === "danger" ? palette.warning : ink },
       ]}
     >
       {icon ? <Icon name={icon} size={19} color={color} /> : null}
@@ -240,6 +276,7 @@ export function IconButton({ icon, onPress, label, tone = "muted", size = 40, co
   const background = tone === "accent" ? palette.accent : tone === "muted" ? palette.surfaceMuted : "transparent";
   const color = colorOverride ?? (tone === "accent" ? palette.accentText : palette.text);
   const pressScale = usePressScale(0.92);
+  const ink = useInk();
   return (
     <Pressable
       accessibilityRole="button"
@@ -248,7 +285,7 @@ export function IconButton({ icon, onPress, label, tone = "muted", size = 40, co
       disabled={disabled}
       hitSlop={6}
       onPress={() => { tapFeedback(); onPress(); }}
-      style={({ pressed }) => [styles.iconButton, { width: box, height: box, borderRadius: radii.control, backgroundColor: background, opacity: disabled ? 0.3 : pressed ? 0.7 : 1 }, pressScale(pressed)]}
+      style={({ pressed }) => [styles.iconButton, { width: box, height: box, borderRadius: radii.control, backgroundColor: background, borderWidth: tone === "plain" ? 0 : 1, borderColor: ink, opacity: disabled ? 0.3 : pressed ? 0.7 : 1 }, pressScale(pressed)]}
     >
       <Icon name={icon} size={Math.round(size * 0.5)} color={color} />
     </Pressable>
@@ -307,10 +344,11 @@ export function ListRow({ icon, title, subtitle, onPress, onLongPress, longPress
 }) {
   const styles = useScaledStyles(baseStyles);
   const { palette } = useTheme();
+  const ink = useInk();
   const content = (
     <>
       {icon ? (
-        <View style={[styles.listIcon, { backgroundColor: tint ? `${tint}22` : palette.accentSoft }]}>
+        <View style={[styles.listIcon, { backgroundColor: tint ? `${tint}22` : palette.accentSoft, borderColor: ink }]}>
           <Icon name={icon} size={18} color={tint ?? palette.accentStrong} />
         </View>
       ) : null}
@@ -506,6 +544,7 @@ export function ListGroup({ children }: PropsWithChildren) {
   const ink = useInk();
   return (
     <View style={[styles.listGroup, { backgroundColor: palette.surface, borderColor: ink }, depth]}>
+      <RegistrationMarks />
       {items.map((child, index) => (
         <View key={index} style={index > 0 ? { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: palette.border } : undefined}>{child}</View>
       ))}
@@ -541,7 +580,8 @@ export function EmptyState({ icon, title, body, action }: { icon: IconName; titl
   const ink = useInk();
   return (
     <View style={[styles.empty, { backgroundColor: palette.surface, borderColor: ink }, depth]}>
-      <View style={[styles.emptyIcon, { backgroundColor: palette.accentSoft }]}><Icon name={icon} size={24} color={palette.accentStrong} /></View>
+      <RegistrationMarks />
+      <View style={[styles.emptyIcon, { backgroundColor: palette.accentSoft, borderColor: ink }]}><Icon name={icon} size={24} color={palette.accentStrong} /></View>
       <Heading style={styles.center}>{title}</Heading>
       <Body style={styles.center}>{body}</Body>
       {action}
@@ -554,8 +594,9 @@ export function SegmentedControl<T extends string>({ value, options, onChange }:
   const { palette, largeText } = useTheme();
   // Large text: options wrap two per row (or one per row when only two) and their labels may wrap too.
   const stacked = largeText && options.length > 1;
+  const ink = useInk();
   return (
-    <View style={[styles.segment, stacked && styles.segmentWrap, { backgroundColor: palette.surfaceMuted }]}>
+    <View style={[styles.segment, stacked && styles.segmentWrap, { backgroundColor: palette.surfaceMuted, borderColor: ink }]}>
       {options.map((option) => {
         const selected = option.value === value;
         return (
@@ -564,9 +605,9 @@ export function SegmentedControl<T extends string>({ value, options, onChange }:
             accessibilityRole="button"
             accessibilityState={{ selected }}
             onPress={() => { tapFeedback(); onChange(option.value); }}
-            style={({ pressed }) => [styles.segmentOption, stacked && (options.length === 2 ? styles.segmentFull : styles.segmentHalf), { minHeight: MIN_TOUCH_TARGET, opacity: pressed ? 0.75 : 1 }, selected && { backgroundColor: palette.surface }]}
+            style={({ pressed }) => [styles.segmentOption, stacked && (options.length === 2 ? styles.segmentFull : styles.segmentHalf), { minHeight: MIN_TOUCH_TARGET, opacity: pressed ? 0.75 : 1 }, selected && { backgroundColor: ink }]}
           >
-            <Text numberOfLines={stacked ? 2 : 1} adjustsFontSizeToFit={!stacked} minimumFontScale={0.7} style={[styles.segmentText, { color: selected ? palette.accentStrong : palette.textMuted }]}>{option.label}</Text>
+            <Text numberOfLines={stacked ? 2 : 1} adjustsFontSizeToFit={!stacked} minimumFontScale={0.7} style={[styles.segmentText, { color: selected ? palette.surface : palette.textMuted }]}>{option.label}</Text>
           </Pressable>
         );
       })}
@@ -638,6 +679,7 @@ export function Sheet({ visible, onClose, title, body, children }: PropsWithChil
   const styles = useScaledStyles(baseStyles);
   const { t } = useTranslation();
   const { palette } = useTheme();
+  const ink = useInk();
   const insets = useAppInsets();
   const { speed, reducedMotion } = useAnimationSettings();
   return (
@@ -647,7 +689,7 @@ export function Sheet({ visible, onClose, title, body, children }: PropsWithChil
         <View style={[styles.sheetBackdrop, { paddingTop: insets.top + 12 }]}>
           {/* A sibling of the sheet, not its parent: content inside a button breaks screen readers and web. */}
           <Pressable accessibilityRole="button" accessibilityLabel={t("common.close")} style={StyleSheet.absoluteFill} onPress={onClose} />
-          <View style={[styles.sheet, { backgroundColor: palette.surface, paddingBottom: insets.bottom + 20, maxHeight: "100%" }]}>
+          <View style={[styles.sheet, { backgroundColor: palette.surface, borderTopColor: ink, paddingBottom: insets.bottom + 20, maxHeight: "100%" }]}>
             <View style={[styles.sheetHandle, { backgroundColor: palette.border }]} />
             <ScrollView bounces={false} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} contentContainerStyle={styles.sheetContent}>
               <View style={styles.sheetHeading}>
@@ -835,7 +877,7 @@ export function Toast({ message, actionLabel, onAction, onHide, bottomOffset = 0
       accessibilityLiveRegion="polite"
       accessibilityActions={[{ name: "escape", label: "dismiss" }]}
       onAccessibilityEscape={onHide}
-      style={[styles.toast, { bottom: insets.bottom + 16 + bottomOffset, backgroundColor: palette.text, transform: [{ translateX: drag }], opacity: drag.interpolate({ inputRange: [-300, 0, 300], outputRange: [0.2, 1, 0.2] }) }]}
+      style={[styles.toast, { bottom: insets.bottom + 16 + bottomOffset, backgroundColor: palette.text, borderColor: palette.surface, transform: [{ translateX: drag }], opacity: drag.interpolate({ inputRange: [-300, 0, 300], outputRange: [0.2, 1, 0.2] }) }]}
     >
       <Text style={[styles.toastText, { color: palette.background }]}>{message}</Text>
       {actionLabel && onAction ? (
@@ -878,7 +920,7 @@ export function TextField({ label, hint, error, style, multiline, onFocus, onBlu
 
 const baseStyles = StyleSheet.create({
   flexFill: { flex: 1 },
-  toast: { position: "absolute", left: 16, right: 16, minHeight: 52, borderRadius: radii.control, paddingHorizontal: 16, paddingVertical: 10, flexDirection: "row", alignItems: "center", gap: 12, elevation: 6, shadowColor: "#000", shadowOpacity: 0.2, shadowRadius: 10, shadowOffset: { width: 0, height: 4 } },
+  toast: { position: "absolute", left: 16, right: 16, minHeight: 52, borderRadius: radii.control, paddingHorizontal: 16, paddingVertical: 10, flexDirection: "row", alignItems: "center", gap: 12, borderWidth: 1 },
   toastText: { flex: 1, fontFamily: fonts.medium, fontSize: 15 },
   toastAction: { paddingHorizontal: 6, paddingVertical: 6 },
   toastActionText: { fontFamily: fonts.semibold, fontSize: 15 },
@@ -907,7 +949,7 @@ const baseStyles = StyleSheet.create({
   inputMultiline: { minHeight: 84, paddingTop: 12, paddingBottom: 12 },
   fieldNote: { fontFamily: fonts.body, fontSize: 13, lineHeight: 18 },
   sheetBackdrop: { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(10, 18, 26, 0.6)" },
-  sheet: { borderTopLeftRadius: radii.sheet, borderTopRightRadius: radii.sheet, paddingHorizontal: spacing.page, paddingTop: 12, gap: 10, width: "100%", maxWidth: 640, alignSelf: "center" },
+  sheet: { borderTopLeftRadius: radii.sheet, borderTopRightRadius: radii.sheet, borderTopWidth: 1, paddingHorizontal: spacing.page, paddingTop: 12, gap: 10, width: "100%", maxWidth: 640, alignSelf: "center" },
   sheetHandle: { width: 40, height: 4, borderRadius: 2, alignSelf: "center", marginBottom: 8 },
   sheetHeading: { flexDirection: "row", alignItems: "center", gap: spacing.md },
   sheetTitle: { flex: 1, fontFamily: fonts.display, fontSize: 28, lineHeight: 32 },
@@ -932,41 +974,46 @@ const baseStyles = StyleSheet.create({
   pageTitleStacked: { flexDirection: "column", alignItems: "flex-start" },
   pageTitlePress: { flex: 1 },
   pageSubtitle: { fontSize: 15, lineHeight: 22 },
-  title: { fontFamily: fonts.display, ...typeScale.title },
-  heading: { fontFamily: fonts.semibold, ...typeScale.heading },
+  title: { fontFamily: fonts.display, ...typeScale.title, textTransform: "uppercase" },
+  heading: { fontFamily: fonts.display, ...typeScale.heading, textTransform: "uppercase" },
   label: { fontFamily: fonts.medium, ...typeScale.label },
   body: { fontFamily: fonts.body, ...typeScale.body },
-  numeral: { fontFamily: fonts.display, ...typeScale.metric, fontVariant: ["tabular-nums"] },
+  numeral: { fontFamily: fonts.monoBold, ...typeScale.metric, fontVariant: ["tabular-nums"] },
   metric: { flex: 1, gap: spacing.xs },
   metricValue: { fontSize: 32, lineHeight: 36 },
-  progressTrack: { height: 8, borderRadius: radii.pill, overflow: "hidden" },
+  progressTrack: { height: 12, borderRadius: radii.pill, borderWidth: 1, overflow: "hidden" },
+  progressTick: { position: "absolute", top: 0, bottom: 0, width: StyleSheet.hairlineWidth },
   progressFill: { height: "100%", borderRadius: radii.pill },
   card: { borderWidth: 1, borderRadius: radii.surface, padding: spacing.lg, gap: spacing.md },
-  sectionTitle: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: spacing.md, marginTop: spacing.sm },
-  sectionHeading: { flex: 1, fontFamily: fonts.displayMedium, ...typeScale.section },
+  sectionTitle: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: spacing.md, marginTop: spacing.sm, paddingBottom: spacing.xs, borderBottomWidth: 1 },
+  sectionHeading: { flex: 1, fontFamily: fonts.monoSemibold, fontSize: 13, lineHeight: 20, letterSpacing: 1.4, textTransform: "uppercase" },
   button: { minHeight: 54, borderRadius: radii.control, paddingHorizontal: 18, paddingVertical: 13, flexDirection: "row", justifyContent: "center", alignItems: "center", gap: 9 },
-  buttonText: { flexShrink: 1, textAlign: "center", fontFamily: fonts.semibold, fontSize: 16, lineHeight: 22 },
+  buttonText: { flexShrink: 1, textAlign: "center", fontFamily: fonts.display, fontSize: 18, lineHeight: 22, letterSpacing: 1.2, textTransform: "uppercase" },
   iconButton: { alignItems: "center", justifyContent: "center" },
-  listGroup: { borderRadius: radii.surface, borderWidth: 1, overflow: "hidden" },
+  listGroup: { borderRadius: radii.surface, borderWidth: 1 },
   listRowOuter: { flexDirection: "row", alignItems: "center" },
   listRow: { flex: 1, minHeight: 68, paddingHorizontal: spacing.lg, paddingVertical: 14, flexDirection: "row", alignItems: "center", gap: spacing.md },
   listTrailing: { flexShrink: 0, paddingRight: 10, paddingLeft: 4 },
-  listIcon: { width: 36, height: 36, borderRadius: radii.control, alignItems: "center", justifyContent: "center" },
+  listIcon: { width: 36, height: 36, borderWidth: 1, borderRadius: radii.control, alignItems: "center", justifyContent: "center" },
   listCopy: { flex: 1, minWidth: 0, gap: 3 },
   checkbox: { width: 26, height: 26, borderRadius: radii.control, borderWidth: 2, alignItems: "center", justifyContent: "center" },
   listTitle: { fontFamily: fonts.semibold, fontSize: 16, lineHeight: 22 },
   listTitleSelected: { fontFamily: fonts.semibold },
   listCheck: { width: 22, alignItems: "center" },
-  listSubtitle: { fontFamily: fonts.body, fontSize: 14, lineHeight: 20 },
+  listSubtitle: { fontFamily: fonts.mono, fontSize: 12, lineHeight: 18 },
   chip: { minHeight: 44, paddingHorizontal: 14, paddingVertical: 10, borderRadius: radii.control, borderWidth: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6 },
-  chipText: { flexShrink: 1, fontFamily: fonts.semibold, fontSize: 14, lineHeight: 20 },
+  chipText: { flexShrink: 1, fontFamily: fonts.monoSemibold, fontSize: 12, lineHeight: 20, textTransform: "uppercase" },
   empty: { borderWidth: 1, borderRadius: radii.surface, padding: spacing.section, alignItems: "center", gap: spacing.md },
-  emptyIcon: { width: 52, height: 52, borderRadius: radii.control, alignItems: "center", justifyContent: "center", marginBottom: 4 },
+  emptyIcon: { width: 52, height: 52, borderWidth: 1, borderRadius: radii.control, alignItems: "center", justifyContent: "center", marginBottom: 4 },
   center: { textAlign: "center" },
-  segment: { flexDirection: "row", borderRadius: radii.surface, padding: 4, gap: 4 },
+  segment: { flexDirection: "row", borderRadius: radii.surface, borderWidth: 1, padding: 4, gap: 4 },
   segmentOption: { flex: 1, minWidth: 0, minHeight: 44, paddingHorizontal: 6, paddingVertical: 10, alignItems: "center", justifyContent: "center", borderRadius: radii.control },
   segmentWrap: { flexWrap: "wrap" },
   segmentHalf: { flexBasis: "47%", flexGrow: 1 },
   segmentFull: { flexBasis: "100%" },
-  segmentText: { fontFamily: fonts.semibold, fontSize: 14, lineHeight: 20, textAlign: "center" },
+  tag: { fontFamily: fonts.monoSemibold, fontSize: 12, letterSpacing: 1.2, textTransform: "uppercase" },
+  mark: { position: "absolute", fontFamily: fonts.monoSemibold, fontSize: 14, lineHeight: 14 },
+  markStart: { left: -instrument.mark, top: -instrument.mark - 1 },
+  markEnd: { right: -instrument.mark, bottom: -instrument.mark - 1 },
+  segmentText: { fontFamily: fonts.monoSemibold, fontSize: 12, lineHeight: 20, textAlign: "center", textTransform: "uppercase" },
 });

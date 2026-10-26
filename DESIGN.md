@@ -42,28 +42,28 @@ colors:
   dark-hero-text: "#FFFFFF"
 typography:
   title:
-    fontFamily: BarlowCondensed_700Bold
+    fontFamily: IBMPlexSansCondensed_700Bold
     fontSize: "36px"
     lineHeight: "40px"
     letterSpacing: "-0.4px"
   section:
-    fontFamily: BarlowCondensed_600SemiBold
+    fontFamily: IBMPlexSansCondensed_600SemiBold
     fontSize: "23px"
     lineHeight: "28px"
   heading:
-    fontFamily: Barlow_600SemiBold
+    fontFamily: IBMPlexSans_600SemiBold
     fontSize: "18px"
     lineHeight: "25px"
   body:
-    fontFamily: Barlow_400Regular
+    fontFamily: IBMPlexSans_400Regular
     fontSize: "15px"
     lineHeight: "22px"
   label:
-    fontFamily: Barlow_500Medium
+    fontFamily: IBMPlexSans_500Medium
     fontSize: "13px"
     lineHeight: "19px"
   metric:
-    fontFamily: BarlowCondensed_700Bold
+    fontFamily: IBMPlexSansCondensed_700Bold
     fontSize: "40px"
     lineHeight: "44px"
 rounded:
@@ -124,7 +124,7 @@ Blue identifies actions and selection. Green identifies completed work and reach
 
 ## Typography
 
-`src/shared/theme/typography.ts` loads Barlow for reading and Barlow Condensed for page titles, section titles, and measurement values. `tokens.ts` defines the shared type roles. Numeric measurements use tabular figures.
+`src/shared/theme/typography.ts` loads IBM Plex Sans for reading and IBM Plex Sans Condensed for page titles, section titles, and measurement values. `tokens.ts` defines the shared type roles. Numeric measurements use tabular figures.
 
 The shared `Text` component applies the chosen interface scale once to font metrics and resolves explicit font families for Android. Native system font scaling remains enabled. The portable values above describe logical sizes at the default scale; React Native renders them as logical units, not fixed screen pixels.
 
