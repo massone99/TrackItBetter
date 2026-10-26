@@ -13,7 +13,7 @@ type ThemeContextValue = {
   preference: ThemePreference;
   palette: Palette;
   setMode: (mode: ThemePreference) => void;
-  /** Interface size multiplier chosen in settings (85–130 %). */
+  /** Interface size multiplier chosen in settings (70–130 %). */
   scale: UiScale;
   /** `scale` adjusted to the window width: what layouts and text are multiplied by. */
   layoutScale: number;

@@ -2,6 +2,10 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.57.1 - 2026-10-26
+
+- Profile: two smaller interface sizes (70 and 78 %), eight steps in all.
+
 ## 0.57.0 - 2026-10-26
 
 - Compare with: the picker is now a full sheet over the exercise's whole history. One-tap shortcuts (last time, same workout, most work, best set, heaviest, first time), search, filters (period, workout name, RPE 8+, with note), sorting, a monthly list that loads in pages, a bar chart of every workout and a calendar.
