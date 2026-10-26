@@ -7,6 +7,7 @@ import { useTheme } from '../../shared/theme/ThemeProvider';
 import { fonts } from '../../shared/theme/typography';
 import { useScaledStyles } from '../../shared/theme/useScaledStyles';
 import { describeSets } from './describeSets';
+import { useEquipment, bandsById } from '../equipment/useEquipment';
 import { amountOf, perSet } from '../../domain/lastTime';
 import { formatClock, formatNumber } from '../../shared/utils/format';
 
@@ -15,7 +16,11 @@ export function HistoryRow({ session, older, metric, locale, first, exerciseId, 
   const styles = useScaledStyles(baseStyles);
   const { palette } = useTheme();
   const { t } = useTranslation();
+  const { catalog } = useEquipment();
+  const colorOf = catalog ? bandsById(catalog) : null;
   const date = session.startedAt.toLocaleDateString(locale, { day: 'numeric', month: 'short' });
+  // Bands read by colour at a glance: one swatch per band, a gap between sets; the text keeps only the loads.
+  const banded = session.sets.filter((set) => (set.bands?.length ?? 0) > 0);
   const working = session.sets.filter((set) => set.kind !== 'warmup');
   const mean = (values: (number | null | undefined)[]) => { const ok = values.filter((value): value is number => value != null); return ok.length ? Math.round((ok.reduce((sum, value) => sum + value, 0) / ok.length) * 10) / 10 : null; };
   const rpe = mean(working.map((set) => set.rpe));
@@ -41,7 +46,19 @@ export function HistoryRow({ session, older, metric, locale, first, exerciseId, 
       </View>
       <View style={styles.flex}>
         <Text numberOfLines={1} style={[styles.historyWorkout, { color: palette.textMuted }]}>{session.workoutName}</Text>
-        <Text style={[styles.historySets, { color: palette.text }]}>{describeSets(session.sets, metric)}</Text>
+        <Text style={[styles.historySets, { color: palette.text }]}>{describeSets(session.sets.map(({ bandCount: _bands, ...set }) => set), metric)}</Text>
+        {banded.length > 0 ? (
+          <View style={styles.bandRow} accessibilityLabel={t('bands.title')}>
+            {banded.map((set, index) => (
+              <View key={set.id} style={styles.bandSet}>
+                {index > 0 ? <Text style={[styles.bandGap, { color: palette.textMuted }]}>·</Text> : null}
+                {(set.bands ?? []).map((band, position) => (
+                  <View key={`${set.id}-${position}`} style={[styles.swatch, { backgroundColor: colorOf?.get(band.bandId)?.color ?? palette.textMuted, borderColor: palette.text }]} />
+                ))}
+              </View>
+            ))}
+          </View>
+        ) : null}
         {averages ? <Text style={[styles.historyAverages, { color: palette.textMuted }]}>{averages}</Text> : null}
       </View>
       {trend ? <Text style={[styles.historyTrend, { color: trend.color }]}>{trend.text}</Text> : null}
@@ -61,4 +78,8 @@ const baseStyles = StyleSheet.create({
   historyAverages: { fontFamily: fonts.body, fontSize: 13, lineHeight: 18, marginTop: 2 },
   historyTrend: { fontFamily: fonts.semibold, fontSize: 13, fontVariant: ['tabular-nums'] },
   historySets: { fontFamily: fonts.semibold, fontSize: 16, lineHeight: 23, marginTop: 4, fontVariant: ['tabular-nums'] },
+  bandRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 6, marginTop: 6 },
+  bandSet: { flexDirection: 'row', alignItems: 'center', gap: 3 },
+  bandGap: { fontFamily: fonts.semibold, fontSize: 14, marginHorizontal: 2 },
+  swatch: { width: 14, height: 14, borderRadius: 3, borderWidth: StyleSheet.hairlineWidth },
 });

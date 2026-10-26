@@ -10,7 +10,7 @@ import type { StatsSetRow } from './trainingStats';
 import { detectSetRecords, detectVolumeRecords, exerciseRecordSummary, type BandHelpComparer, type ExerciseRecordSummary, type RecordRow, type SetRecord, type VolumeRecord } from './records';
 import { getEffectiveLoad } from './summary';
 import { aggregatePairs, groupSets, type PairScope } from '../../domain/setPairs';
-import { bandRanks, compareBandHelp, parseSetBands } from '../../domain/equipment';
+import { bandRanks, compareBandHelp, parseSetBands, type SetBand } from '../../domain/equipment';
 import { getEquipment } from '../equipment/repository';
 import { repsAtLoadFromRows, type RepsAtLoadGroup } from './repsAtLoad';
 
@@ -275,6 +275,8 @@ export interface ExerciseHistorySet {
   assistKg?: number | null;
   /** Names are not stored on the set: the number of bands tells there were some. */
   bandCount?: number;
+  /** The bands of the set, in order (empty without bands). */
+  bands?: readonly SetBand[];
   rpe: number | null;
   formRating?: number | null;
   romRating?: number | null;
@@ -356,7 +358,7 @@ export async function getExerciseHistory(exerciseId: string, limit?: number): Pr
       session = { entryId: row.entryId, workoutId: row.workoutId, workoutName: row.workoutName, startedAt: row.startedAt, notes: row.notes, sets: [] };
       sessions.set(row.workoutId, session);
     }
-    session.sets.push({ id: row.setId, pairId: row.pairId, side: row.side, kind: row.kind, reps: row.reps, durationSec: row.durationSec, distanceM: row.distanceM, addedLoadKg: row.addedLoadKg, assistKg: row.assistKg, bandCount: parseSetBands(row.bands).length, rpe: row.rpe, formRating: row.formRating, romRating: row.romRating });
+    session.sets.push({ id: row.setId, pairId: row.pairId, side: row.side, kind: row.kind, reps: row.reps, durationSec: row.durationSec, distanceM: row.distanceM, addedLoadKg: row.addedLoadKg, assistKg: row.assistKg, bandCount: parseSetBands(row.bands).length, bands: parseSetBands(row.bands), rpe: row.rpe, formRating: row.formRating, romRating: row.romRating });
   }
   return [...sessions.values()];
 }

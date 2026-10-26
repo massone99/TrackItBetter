@@ -2,6 +2,10 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.58.1 - 2026-10-26
+
+- Exercise history: the bands of each set show as colour swatches (one per band, a gap between sets), so the elastici used are readable at a glance; the text keeps the loads.
+
 ## 0.58.0 - 2026-10-26
 
 - Program editor: each prescribed exercise can be set as warm-up, main work or mobility. The choice is kept when the workout starts, and when a workout is saved into a program.
