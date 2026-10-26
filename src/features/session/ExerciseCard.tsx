@@ -167,6 +167,19 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
   // Table rows (normal text): sets opened or closed by hand. Without an entry a set is open while it is in hand
   // (running hold, next to do) or just done and not yet rated for form.
   const [expanded, setExpanded] = useState<ReadonlyMap<string, boolean>>(() => new Map());
+  // Large text: the set in hand can be folded to its one-line summary by its title, and opened again the same way.
+  const [folded, setFolded] = useState<ReadonlySet<string>>(() => new Set());
+  const toggleFold = (setId: string) => setFolded((current) => {
+    const next = new Set(current);
+    if (next.has(setId)) next.delete(setId); else next.add(setId);
+    return next;
+  });
+  const unfold = (setId: string) => setFolded((current) => {
+    if (!current.has(setId)) return current;
+    const next = new Set(current);
+    next.delete(setId);
+    return next;
+  });
   const forget = (setId: string) => setExpanded((current) => {
     if (!current.has(setId)) return current;
     const next = new Map(current);
@@ -324,7 +337,7 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
         // In a running EMOM a recorded round stays editable in place and keeps its check, so the round count holds.
         const emomLocked = done && Boolean(emomBadgeLabel);
         // Very large text: the set in hand opens as a one-column block, the others fold to one line.
-        const open = !largeText || set.id === focusedId;
+        const open = (!largeText || set.id === focusedId) && !folded.has(set.id);
         const editing = largeText && open;
         // Done rows drop − and +: a running EMOM or a long workout would otherwise be a wall of buttons.
         const showSteps = !done || editDone || editing;
@@ -512,7 +525,16 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
             <Pressable accessible={false} accessibilityRole="none" onLongPress={openMenu} delayLongPress={450} style={styles.largeFields}>
               <View style={styles.largeHeader}>
                 {badge}
-                <Text style={[styles.largeTitle, { color: palette.text }]}>{title}</Text>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityState={{ expanded: true }}
+                  accessibilityLabel={`${title}, ${t('logger.foldSet')}`}
+                  onPress={() => { tapFeedback(); toggleFold(set.id); }}
+                  hitSlop={spacing.sm}
+                  style={styles.largeTitleTap}
+                >
+                  <Text style={[styles.largeTitle, { color: palette.text }]}>{title}</Text>
+                </Pressable>
                 {menu}
               </View>
               <View style={styles.largeField}>
@@ -533,7 +555,7 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
               accessibilityRole="button"
               accessibilityLabel={`${summary}${done ? `, ${t('history.setCompleted')}` : ''}`}
               accessibilityHint={t('logger.openSetHint')}
-              onPress={() => setPicked({ id: set.id, done })}
+              onPress={() => { unfold(set.id); setPicked({ id: set.id, done }); }}
               onLongPress={openMenu}
               delayLongPress={450}
               style={styles.summaryRow}
@@ -933,6 +955,7 @@ const baseStyles = StyleSheet.create({
   loadValue: { fontFamily: fonts.display, fontSize: 20, lineHeight: 26, minWidth: 34, textAlign: 'center', fontVariant: ['tabular-nums'] },
   openAll: { alignSelf: 'flex-end', flexDirection: 'row', alignItems: 'center', gap: spacing.xs, minHeight: MIN_TOUCH_TARGET - spacing.sm, paddingHorizontal: spacing.xs },
   openAllText: { fontSize: 13, lineHeight: 18, fontWeight: '600' },
+  largeTitleTap: { flex: 1, minHeight: MIN_TOUCH_TARGET, justifyContent: 'center' },
   colActionBig: { width: 56 },
   checkButtonBig: { width: 52, height: 52 },
   checkButton: { width: 44, height: 44, borderRadius: radii.control, alignItems: 'center', justifyContent: 'center' },

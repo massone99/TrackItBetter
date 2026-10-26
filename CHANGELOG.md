@@ -2,6 +2,11 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.58.2 - 2026-10-26
+
+- Workout: the bottom bar (rest countdown and Finish) folds to a strip and opens again; the rest bar has its own fold control.
+- Workout, large text: tapping the set title ("Set N") folds the set to its one-line summary; tapping the summary opens it again.
+
 ## 0.58.1 - 2026-10-26
 
 - Exercise history: the bands of each set show as colour swatches (one per band, a gap between sets), so the elastici used are readable at a glance; the text keeps the loads.

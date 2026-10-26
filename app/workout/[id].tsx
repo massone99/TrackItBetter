@@ -143,6 +143,8 @@ export default function WorkoutScreen() {
   const [loadFailed, setLoadFailed] = useState(false);
   const [loadAttempt, setLoadAttempt] = useState(0);
   const [pickerOpen, setPickerOpen] = useState(false);
+  // The bottom dock (rest countdown and Finish) can be folded to a strip to see more of the sets.
+  const [dockOpen, setDockOpen] = useState(true);
   // Entry whose exercise is being replaced; null when the picker adds an exercise instead.
   const [replacing, setReplacing] = useState<SessionExercise | null>(null);
   // A rest keeps running when the screen is left: its end time lives outside the component.
@@ -732,7 +734,9 @@ export default function WorkoutScreen() {
       <Screen
         scrollRef={scrollRef}
         // The running clock sits right above Add and Finish, so both stay in reach during rest.
-        footerAccessory={!timerRunning && freeRest ? (
+        footerAccessory={!dockOpen ? (
+          <CollapsedDock restEndsAt={timerRunning ? restEndsAt : null} voiceCues={voiceCues} onRestEnd={endRest} onOpen={() => setDockOpen(true)} />
+        ) : !timerRunning && freeRest ? (
           <FreeRestBar since={freeRest.since} restSec={freeRest.restSec} onStartRest={() => startRestTimer(freeRest.restSec)} onClose={() => setFreeRest(null)} />
         ) : timerRunning ? (
           <TimerBar
@@ -755,13 +759,15 @@ export default function WorkoutScreen() {
             onExtend={() => adjustRest(REST_STEP_SEC)}
             onReduce={() => adjustRest(-REST_STEP_SEC)}
             onSkip={skipRest}
+            onCollapse={() => setDockOpen(false)}
           />
         ) : undefined}
         // Add and Finish stay in reach however long the workout gets.
-        footer={workout.exercises.length > 0 ? (
+        footer={workout.exercises.length > 0 && dockOpen ? (
           <>
             <IconButton icon="add" label={t('workout.addExercise')} size={56} onPress={() => setPickerOpen(true)} />
             <FooterAction icon="flag-outline" label={t('workout.finish')} onPress={() => setFinishOpen(true)} />
+            <IconButton icon="chevron-down" label={t('workout.collapseDock')} size={56} onPress={() => setDockOpen(false)} />
           </>
         ) : undefined}
       >
@@ -1197,7 +1203,7 @@ function emomBarLabel(phase: EmomPhase, plan: EmomPlan, t: (key: string, options
   return t('emom.notifyDone');
 }
 
-function TimerBar({ emom, hold, restEndsAt, voiceCues, onRestEnd, onFinishHold, onExtend, onReduce, onSkip }: {
+function TimerBar({ emom, hold, restEndsAt, voiceCues, onRestEnd, onFinishHold, onExtend, onReduce, onSkip, onCollapse }: {
   emom: EmomBar | null;
   hold: ActiveHold | null;
   /** When the running rest ends; the bar counts it down and calls onRestEnd at zero. */
@@ -1208,6 +1214,7 @@ function TimerBar({ emom, hold, restEndsAt, voiceCues, onRestEnd, onFinishHold, 
   onExtend: () => void;
   onReduce: () => void;
   onSkip: () => void;
+  onCollapse: () => void;
 }) {
   const styles = useScaledStyles(baseStyles);
   const { t } = useTranslation();
@@ -1251,6 +1258,7 @@ function TimerBar({ emom, hold, restEndsAt, voiceCues, onRestEnd, onFinishHold, 
   return (
     <View style={[styles.timerBar, { backgroundColor: palette.hero }]}>
       <View style={styles.timerInner}>
+      <IconButton icon="chevron-down" label={t('workout.collapseDock')} tone="plain" color={palette.heroText} onPress={onCollapse} />
       <View style={styles.timerReadout}>
         <Text style={[styles.timerLabel, { color: palette.heroText }]}>{label}</Text>
         {hold || restEndsAt === null
@@ -1267,6 +1275,19 @@ function TimerBar({ emom, hold, restEndsAt, voiceCues, onRestEnd, onFinishHold, 
         </View>
       )}
       </View>
+    </View>
+  );
+}
+
+/** The dock folded to one strip: the rest countdown when one runs, and a control to open it again. */
+function CollapsedDock({ restEndsAt, voiceCues, onRestEnd, onOpen }: { restEndsAt: number | null; voiceCues: boolean; onRestEnd: () => void; onOpen: () => void }) {
+  const styles = useScaledStyles(baseStyles);
+  const { t } = useTranslation();
+  const { palette } = useTheme();
+  return (
+    <View style={[styles.collapsed, { backgroundColor: palette.hero }]}>
+      {restEndsAt === null ? null : <RestCountdown key={restEndsAt} endsAt={restEndsAt} voiceCues={voiceCues} onEnd={onRestEnd} />}
+      <IconButton icon="chevron-up" label={t('workout.expandDock')} tone="plain" color={palette.heroText} onPress={onOpen} />
     </View>
   );
 }
@@ -1373,6 +1394,7 @@ const baseStyles = StyleSheet.create({
   swipeHintText: { flex: 1, fontFamily: fonts.medium, fontSize: 14 },
   footerActions: { gap: 10, marginTop: 4 },
   timerBar: { borderRadius: instrument.radius, paddingHorizontal: 16, paddingVertical: 12 },
+  collapsed: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderRadius: instrument.radius, paddingLeft: 16, paddingRight: 4, minHeight: 48 },
   timerInner: { width: '100%', maxWidth: 640, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
   timerLabel: { fontFamily: fonts.medium, fontSize: 14, opacity: 0.85 },
   timerValue: { fontFamily: fonts.monoBold, fontSize: 32, lineHeight: 40, fontVariant: ['tabular-nums'] },
