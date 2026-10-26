@@ -1,4 +1,4 @@
-export const UI_SCALES = [0.85, 0.92, 1, 1.1] as const;
+export const UI_SCALES = [0.85, 0.92, 1, 1.1, 1.2, 1.3] as const;
 export type UiScale = (typeof UI_SCALES)[number];
 
 export function toUiScale(value: unknown): UiScale {

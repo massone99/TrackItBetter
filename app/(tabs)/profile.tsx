@@ -27,7 +27,6 @@ export default function ProfileScreen() {
   const [prepSec, setPrepSec] = useState(readNarrationPrepSec);
   const [rest, setRest] = useState(() => ({ working: readDefaultRest("working"), warmup: readDefaultRest("warmup") }));
   const changeRest = (kind: "working" | "warmup", seconds: number) => { setRest((current) => ({ ...current, [kind]: seconds })); writeDefaultRest(kind, seconds); };
-  const sizeLabels = [t("profile.sizeCompact"), t("profile.sizeSnug"), t("profile.sizeDefault"), t("profile.sizeLarge")];
   const language = i18n.language.startsWith("it") ? "it" : "en";
   return (
     <Screen>
@@ -58,7 +57,7 @@ export default function ProfileScreen() {
         <SegmentedControl<string>
           value={String(scale)}
           onChange={(next) => setScale(Number(next) as UiScale)}
-          options={UI_SCALES.map((value, index) => ({ value: String(value), label: sizeLabels[index] }))}
+          options={UI_SCALES.map((value) => ({ value: String(value), label: `${Math.round(value * 100)}%` }))}
         />
         <Body>{t("profile.interfaceSizeHint")}</Body>
         <Label style={styles.spaced}>{t("profile.textScale")}</Label>

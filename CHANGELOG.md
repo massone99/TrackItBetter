@@ -2,6 +2,10 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.56.2 - 2026-10-26
+
+- Profile: interface size now has six steps (85, 92, 100, 110, 120 and 130 %), shown as percentages.
+
 ## 0.56.1 - 2026-10-26
 
 - Workout: one set open at a time (opening a set folds the others), completing a set folds it and opens the next, and an "Open all / Close all" button on each exercise.
