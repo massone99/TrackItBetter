@@ -31,7 +31,7 @@ export function ExerciseSegments({ exercises, currentId, done, total }: { exerci
 }
 
 const styles = StyleSheet.create({
-  row: { flexDirection: 'row', gap: 4 },
-  segment: { flex: 1, minWidth: 6, height: 6, borderRadius: 3, overflow: 'hidden' },
-  fill: { height: 6, borderRadius: 3 },
+  row: { flexDirection: 'row', gap: 2 },
+  segment: { flex: 1, minWidth: 6, height: 8, overflow: 'hidden' },
+  fill: { height: 8 },
 });

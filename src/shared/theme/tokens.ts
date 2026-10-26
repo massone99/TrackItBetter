@@ -22,3 +22,6 @@ export const typeScale = {
 
 /** Touch targets stay usable even at the smallest interface setting. */
 export const MIN_TOUCH_TARGET = 48;
+
+/** Instrument look (workout): square-cornered sheets drawn with thin ink lines. */
+export const instrument = { radius: 4, line: 1, mark: 8, gauge: 14 } as const;

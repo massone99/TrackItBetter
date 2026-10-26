@@ -35,7 +35,9 @@ export const useScrollControl = () => useContext(ScrollControlContext);
  * pins the page's main actions to the bottom, so they never need a scroll to the end; it steps
  * aside while the keyboard is open so it never covers the field being typed in.
  */
-export function Screen({ children, contentContainerStyle, overlay, footer, footerAccessory, scrollRef }: PropsWithChildren<{
+export function Screen({ children, contentContainerStyle, overlay, footer, footerAccessory, scrollRef, backdrop }: PropsWithChildren<{
+  /** Drawn behind the scrolling content (the page background becomes transparent over it). */
+  backdrop?: ReactNode;
   contentContainerStyle?: ViewProps["style"];
   overlay?: ReactNode;
   footer?: ReactNode;
@@ -59,11 +61,12 @@ export function Screen({ children, contentContainerStyle, overlay, footer, foote
   useImperativeHandle(scrollRef, () => ({ scrollTo: (options) => inner.current?.scrollTo(options) }), []);
   return (
     <View style={[styles.flexFill, { backgroundColor: palette.background }]}>
+      {backdrop ? <View pointerEvents="none" style={StyleSheet.absoluteFill}>{backdrop}</View> : null}
       <KeyboardScroll
         scrollRef={inner}
         scrollEventThrottle={16}
         onScroll={(event) => { offset.current = event.nativeEvent.contentOffset.y; }}
-        style={{ backgroundColor: palette.background }}
+        style={{ backgroundColor: backdrop ? 'transparent' : palette.background }}
         contentContainerStyle={[styles.screen, { paddingTop: Math.max(insets.top, 14) + 10, paddingBottom: footer ? spacing.xl : insets.bottom + 36 }, contentContainerStyle]}
         showsVerticalScrollIndicator={false}
       >

@@ -2,6 +2,11 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.55.0 - 2026-10-26
+
+- Workout, "instrument" look (preview branch): the workout page is redrawn like a technical sheet. A dot-grid ground, square 4 dp sheets with thin ink lines and registration marks, "Fig. 01 · Now" tags, a header with three readings (time, sets, volume) in a mono face (Martian Mono), flat segments for progress and mono tags for the blocks.
+- Workout: every set is a row with its value, a graduated bar (the fill is the set, the brown marker is last time's value), its RPE, form and ROM, and a check box that completes it or reopens it. The open set keeps its steppers, chips and pickers; chips are square and invert when open.
+
 ## 0.54.8 - 2026-10-26
 
 - Workout: tapping the empty part of an open set's row closes it again.

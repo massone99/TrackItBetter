@@ -14,6 +14,7 @@ jest.mock('react-native-reanimated', () => {
     useSharedValue: (initial: unknown) => ({ value: initial }),
     useAnimatedStyle: (factory: () => object) => factory(),
     withTiming: (value: unknown) => value,
+    withDelay: (_delay: number, value: unknown) => value,
     FadeIn: { duration: () => undefined },
     ZoomIn: { duration: () => undefined },
   };
@@ -85,7 +86,9 @@ describe('ExerciseCard table rows', () => {
     // Closed rows are buttons; the set to do next (2) is open, so its value is the editable field of its one row.
     expect(screen.getAllByRole('button', { name: /^Set [13] ·/ })).toHaveLength(2);
     expect(screen.getAllByLabelText('Set 2 options')).toHaveLength(1);
-    expect(screen.getAllByLabelText(/Complete set/)).toHaveLength(1);
+    // Each closed row has its own check box: a done one and a not-done one, plus the open set's complete button.
+    expect(screen.getAllByLabelText('Set completed')).toHaveLength(1);
+    expect(screen.getAllByLabelText('Complete set')).toHaveLength(2);
   });
 
   it('opens and closes a row on tap', () => {
@@ -107,13 +110,21 @@ describe('ExerciseCard table rows', () => {
   it('opens the last done set while its form is missing', () => {
     show([set(1, { completedAt: new Date(), rpe: 8 }), set(2)]);
     expect(screen.getAllByLabelText('Set 1 options')).toHaveLength(1);
+    // Both open sets carry a gauge.
+    expect(screen.getAllByTestId('set-gauge', { includeHiddenElements: true })).toHaveLength(2);
   });
 
   it('shows the set in the row values', () => {
     show([set(1, { completedAt: new Date(), rpe: 7.5, formRating: 4, reps: 9, addedLoadKg: 62.5 })]);
-    expect(screen.getByText('+62.5')).toBeTruthy();
-    expect(screen.getByText('9')).toBeTruthy();
-    expect(screen.getByText('7.5')).toBeTruthy();
+    expect(screen.getByRole('button', { name: /^Set 1 · 9 reps · \+62\.5 kg · RPE 7\.5/ })).toBeTruthy();
+    expect(screen.getByText('RPE 7.5 · F 4')).toBeTruthy();
+  });
+
+  it('completes a not-done row from its check box', () => {
+    const { onComplete } = show([set(1, { completedAt: new Date(), rpe: 8, formRating: 4 }), set(2), set(3)]);
+    fireEvent.press(screen.getAllByLabelText('Complete set')[1]);
+    expect(onComplete).toHaveBeenCalledTimes(1);
+    expect(onComplete.mock.calls[0][0].id).toBe('s3');
   });
 
   it('keeps the large-text layout at very large font sizes', () => {

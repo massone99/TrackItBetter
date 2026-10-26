@@ -1,0 +1,67 @@
+name: Android preview
+
+# Builds the APK of a design branch and publishes it as a pre-release, so it never becomes the latest release.
+on:
+  push:
+    branches: [design/l3-instrument]
+
+permissions:
+  contents: write
+
+jobs:
+  preview:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Check code
+        run: |
+          npm run typecheck
+          npm run lint
+          npm test -- --ci
+      - name: Read version
+        id: version
+        run: echo "value=$(node -p "require('./app.json').expo.version")" >> "$GITHUB_OUTPUT"
+      - name: Build arm64 APK
+        run: npm run build:apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: TrackItBetter-${{ steps.version.outputs.value }}-preview-apk
+          path: build/TrackItBetter-${{ steps.version.outputs.value }}.apk
+          if-no-files-found: error
+      - name: Verify signing certificate matches v0.2.2
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.value }}
+        run: |
+          mkdir -p previous
+          gh release download v0.2.2 --pattern 'TrackItBetter-0.2.2.apk' --dir previous
+          sdk="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
+          apksigner=$(find "$sdk/build-tools" -name apksigner -type f | sort -V | tail -n 1)
+          if [[ -z "$apksigner" ]]; then echo "::error::apksigner unavailable in $sdk"; exit 1; fi
+          previous_info=$("$apksigner" verify --print-certs previous/TrackItBetter-0.2.2.apk)
+          current_info=$("$apksigner" verify --print-certs "build/TrackItBetter-${VERSION}.apk")
+          previous_cert=$(echo "$previous_info" | sed -nE 's/^.*[Ss]igner.*certificate SHA-256 digest: //p' | head -n 1)
+          current_cert=$(echo "$current_info" | sed -nE 's/^.*[Ss]igner.*certificate SHA-256 digest: //p' | head -n 1)
+          if [[ -z "$previous_cert" || -z "$current_cert" ]]; then echo "::error::Could not read APK signing certificates"; exit 1; fi
+          if [[ "$previous_cert" != "$current_cert" ]]; then echo "::error::APK signature differs from v0.2.2"; exit 1; fi
+      - name: Publish pre-release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.value }}
+        run: |
+          gh release create "preview-l3-${VERSION}-${GITHUB_RUN_NUMBER}" "build/TrackItBetter-${VERSION}.apk" \
+            --prerelease \
+            --target "$GITHUB_SHA" \
+            --title "TrackItBetter ${VERSION} (instrument look, preview)" \
+            --notes "Preview of the instrument look from branch design/l3-instrument. Not a regular release."

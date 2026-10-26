@@ -9,7 +9,16 @@ import {
   BarlowCondensed_700Bold,
 } from "@expo-google-fonts/barlow-condensed";
 
+import {
+  MartianMono_400Regular,
+  MartianMono_600SemiBold,
+  MartianMono_800ExtraBold,
+} from "@expo-google-fonts/martian-mono";
+
 export const fontAssets = {
+  MartianMono_400Regular,
+  MartianMono_600SemiBold,
+  MartianMono_800ExtraBold,
   Barlow_400Regular,
   Barlow_500Medium,
   Barlow_600SemiBold,
@@ -25,6 +34,10 @@ export const fonts = {
   bold: "Barlow_700Bold",
   display: "BarlowCondensed_700Bold",
   displayMedium: "BarlowCondensed_600SemiBold",
+  /** Figures, tags and units of the instrument look (tabular, technical). */
+  mono: "MartianMono_400Regular",
+  monoSemibold: "MartianMono_600SemiBold",
+  monoBold: "MartianMono_800ExtraBold",
 } as const;
 
 /** Custom fonts ignore fontWeight on Android, so weights map to explicit families. */

@@ -87,6 +87,8 @@ import {
 } from '../../src/shared/components/ui';
 import { ReorderableList } from '../../src/shared/components/ReorderableList';
 import { ExerciseSegments } from '../../src/features/session/ExerciseSegments';
+import { DotGrid, Tag, useInk } from '../../src/features/session/instrument';
+import { WorkoutHeader } from '../../src/features/session/WorkoutHeader';
 import { FreeRestBar } from '../../src/features/session/FreeRestBar';
 import { WorkoutMenuSheet } from '../../src/features/session/WorkoutMenuSheet';
 import { TotalGoalSheet } from '../../src/features/session/TotalGoalSheet';
@@ -104,11 +106,10 @@ import { ExerciseCard, holdDisplay } from '../../src/features/session/ExerciseCa
 import Animated, { FadeInDown, FadeOutLeft, LayoutAnimationConfig } from 'react-native-reanimated';
 import { readBooleanPreference, RPE_PROMPT_KEY, writePreference } from '../../src/shared/settings/preferences';
 
-import { MIN_TOUCH_TARGET } from '../../src/shared/theme/tokens';
-import { WorkoutStopwatch } from '../../src/features/session/WorkoutStopwatch';
+import { instrument, MIN_TOUCH_TARGET } from '../../src/shared/theme/tokens';
 import { useTheme } from '../../src/shared/theme/ThemeProvider';
 import { fonts } from '../../src/shared/theme/typography';
-import { formatClock, formatNumber } from '../../src/shared/utils/format';
+import { formatClock } from '../../src/shared/utils/format';
 import { useScaledStyles } from '../../src/shared/theme/useScaledStyles';
 import { useAnimationSettings } from '../../src/shared/settings/AnimationProvider';
 
@@ -729,6 +730,7 @@ export default function WorkoutScreen() {
   return (
     <View style={[styles.root, { backgroundColor: palette.background }]}>
       <Screen
+        backdrop={<DotGrid />}
         scrollRef={scrollRef}
         // The running clock sits right above Add and Finish, so both stay in reach during rest.
         footerAccessory={!timerRunning && freeRest ? (
@@ -764,17 +766,15 @@ export default function WorkoutScreen() {
           </>
         ) : undefined}
       >
-        <PageHeading
+        <WorkoutHeader
+          title={displayWorkoutName(workout.name, t('log.pastName'))}
+          startedAt={workout.startedAt}
+          done={completedCount}
+          total={totalSets}
+          volumeKg={volumeKg}
           onTitleLongPress={() => setDetailsOpen(true)}
           titleLongPressLabel={t('workoutDetails.editHint')}
-          title={displayWorkoutName(workout.name, t('log.pastName'))}
-          subtitle={[totalSets > 0 ? t('logger.setsProgress', { done: completedCount, total: totalSets }) : null, volumeKg > 0 ? `${formatNumber(Math.round(volumeKg))} kg` : null].filter(Boolean).join(' · ') || undefined}
-          action={(
-            <View style={styles.headingTools}>
-              <WorkoutStopwatch startedAt={workout.startedAt} size={26} />
-              <IconButton icon="ellipsis-horizontal" label={t('workout.menu')} onPress={() => setMenuOpen(true)} />
-            </View>
-          )}
+          onMenu={() => setMenuOpen(true)}
         />
 
         {workout.notes ? <Body>{workout.notes}</Body> : null}
@@ -846,6 +846,7 @@ export default function WorkoutScreen() {
           ) : null}
           <ExerciseCard
             focus={focusMode}
+            figure={index + 1}
             nowLabel={exercise.entryId === currentEntryId ? t('workout.now', { position: currentIndex + 1, total: workout.exercises.length }) : null}
             exercise={exercise}
             collapsed={collapsedEntries.get(exercise.entryId) ?? false}
@@ -1134,12 +1135,13 @@ function BlockHeader({ block, exercises }: { block: Block; exercises: SessionExe
   const styles = useScaledStyles(baseStyles);
   const { t } = useTranslation();
   const { palette } = useTheme();
+  const ink = useInk();
   const done = exercises.reduce((sum, exercise) => sum + completedSetCount(exercise.sets), 0);
   const total = exercises.reduce((sum, exercise) => sum + groupSets(exercise.sets).length, 0);
   return (
-    <View accessibilityRole="header" style={[styles.blockHeader, { borderBottomColor: palette.border }]}>
-      <Text style={[styles.blockTitle, { color: palette.text }]}>{t(`workout.blocks.${block}`)}</Text>
-      <Text style={[styles.blockCount, { color: palette.textMuted }]}>{t('logger.setsProgress', { done, total })}</Text>
+    <View accessibilityRole="header" accessibilityLabel={`${t(`workout.blocks.${block}`)}, ${t('logger.setsProgress', { done, total })}`} style={[styles.blockHeader, { borderBottomColor: ink }]}>
+      <Tag color={palette.text}>{t(`workout.blocks.${block}`)}</Tag>
+      <Text style={[styles.blockCount, { color: palette.textMuted }]}>{`${done}/${total}`}</Text>
     </View>
   );
 }
@@ -1359,9 +1361,8 @@ const baseStyles = StyleSheet.create({
   readinessOption: { width: 44, height: MIN_TOUCH_TARGET, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
   readinessValue: { fontFamily: fonts.display, fontSize: 18 },
   emptyAction: { alignSelf: 'stretch', marginTop: 6, gap: 8 },
-  blockHeader: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: 12, paddingBottom: 6, marginBottom: 10, borderBottomWidth: StyleSheet.hairlineWidth },
-  blockTitle: { fontFamily: fonts.semibold, fontSize: 16 },
-  blockCount: { fontFamily: fonts.medium, fontSize: 13 },
+  blockHeader: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: 12, paddingBottom: 6, marginBottom: 10, borderBottomWidth: 1 },
+  blockCount: { fontFamily: fonts.monoSemibold, fontSize: 12 },
   toolbar: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', columnGap: 8, rowGap: 12 },
   foldAll: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: MIN_TOUCH_TARGET, paddingHorizontal: 8 },
   foldAllText: { fontFamily: fonts.semibold, fontSize: 14 },
@@ -1372,10 +1373,10 @@ const baseStyles = StyleSheet.create({
   swipeHint: { flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: 14, paddingHorizontal: 14, paddingVertical: 10 },
   swipeHintText: { flex: 1, fontFamily: fonts.medium, fontSize: 14 },
   footerActions: { gap: 10, marginTop: 4 },
-  timerBar: { borderRadius: 16, paddingHorizontal: 16, paddingVertical: 12 },
+  timerBar: { borderRadius: instrument.radius, paddingHorizontal: 16, paddingVertical: 12 },
   timerInner: { width: '100%', maxWidth: 640, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
   timerLabel: { fontFamily: fonts.medium, fontSize: 14, opacity: 0.85 },
-  timerValue: { fontFamily: fonts.display, fontSize: 38, lineHeight: 42, fontVariant: ['tabular-nums'] },
+  timerValue: { fontFamily: fonts.monoBold, fontSize: 32, lineHeight: 40, fontVariant: ['tabular-nums'] },
   timerReadout: { flexGrow: 1, minWidth: 110 },
   timerActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   // No wrapping here: a wrapping column lays the two rows side by side and squeezes the labels to nothing.
@@ -1388,7 +1389,7 @@ const baseStyles = StyleSheet.create({
   emomFill: { height: 6, borderRadius: 3 },
   emomValueLabel: { flexGrow: 1, flexShrink: 1, minWidth: 80 },
   emomValueText: { fontFamily: fonts.display, fontSize: 26, lineHeight: 30, minWidth: 72, textAlign: 'center', fontVariant: ['tabular-nums'] },
-  timerAction: { minWidth: 56, minHeight: 48, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10, alignItems: 'center', justifyContent: 'center' },
+  timerAction: { minWidth: 56, minHeight: 48, borderRadius: instrument.radius, paddingHorizontal: 14, paddingVertical: 10, alignItems: 'center', justifyContent: 'center' },
   timerActionText: { fontFamily: fonts.semibold, fontSize: 15 },
   timerActionSymbol: { fontSize: 26, lineHeight: 30 },
   // The surrounding box carries the border, so the browser focus outline is replaced by it.
