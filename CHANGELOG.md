@@ -2,6 +2,10 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.54.8 - 2026-10-26
+
+- Workout: tapping the empty part of an open set's row closes it again.
+
 ## 0.54.7 - 2026-10-25
 
 - Workout: more space between a set's row and its chips.
