@@ -85,6 +85,39 @@ workout, versioned): `docs/LANGUAGE.md`; use it in UI strings, code and answers.
 - Tests that render components need `jest.mock('react-native-keyboard-controller', () =>
   jest.requireActual('react-native-keyboard-controller/jest'))`.
 
+## UI checks on every change (recurring problems)
+
+Every UI change is checked at three sizes before release: smallest (interface size 70 %, text 100 %), middle
+(100 %) and largest (interface size 130 % and system text 200 %, `globalThis.__fontScale = 2`; set it with
+Playwright `addInitScript` before the page loads, setting it later does not re-render). Check light and dark.
+Problems that keep coming back, look for each of them:
+
+- **Overlap / squeezed rows**: steppers, − and + and value fields overlap when text size times interface size is
+  about 1.25 or more. `largeText` in `ThemeProvider` is true from `STACK_TEXT_SCALE` (1.25, text times interface
+  size) or from 150 % text; shared layouts must stack one field per line when it is true. Use `flexWrap`,
+  `minWidth`/`flexBasis`, `minHeight`, never fixed widths or heights on text.
+- **Missing chips / controls at the largest size**: a layout branch for large text (the open set, `editing`) must
+  show everything the normal branch shows (RPE, form, ROM, bands, rest, video, note). Do not hide an empty chip
+  behind a condition that only the "next set" satisfies (`strip` includes `editing`). When a chip is added to one
+  branch, add it to the others.
+- **Wrong destination from a chip or button**: a chip opens what its label says (Rest opens the rest settings,
+  Video opens the technique check), never the generic set menu. `onSetOptions(set, view)` takes a view
+  (`bands`, `note`, `rest`).
+- **Vanishing or blank block after a state change**: a block that changes layout (open to completed, table to
+  stacked, with or without `SwipeableSetRow`) must remount cleanly: put the mode in its `key`
+  (`${set.id}-e` / `-f`). Check the block right after the change, not only the first render. Reanimated
+  `entering` animations, shared values and gestures only misbehave on the phone: say so when it cannot be checked
+  on web, and name what to try.
+- **Redraw checks**: after every action that changes state (complete a set, open or close, change a filter,
+  switch size or theme) look at the screen again: nothing disappeared, nothing moved off screen, scroll position
+  and open sections are kept, the main action is still in the footer.
+- **Content cut off at the bottom**: sheets and long screens scroll to the last control; the footer never hides
+  one.
+- **Settings that change sizes** (`UI_SCALES` 70 to 130 %, `appearance.sets.*`, fonts): test each end of the range
+  and the middle, and a long Italian label.
+- **Seeding web data**: `__seed(4, false, n * 4, 16)` after waiting about 15 s; "Sync operation timeout" means
+  wait longer, fewer workouts per call. Native-only behaviour is confirmed by the owner: list it in the answer.
+
 ## UX and UI principles (owner's standing brief)
 
 Apply these to every screen you touch; the measurable targets are in `src/shared/theme/tokens.ts`.
