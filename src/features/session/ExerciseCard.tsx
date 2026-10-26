@@ -487,9 +487,9 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
         )}
       </View>
         );
-        const compact = [timed ? value : distance ? `${value} m` : `${value} ${t('history.units.reps')}`, withLoad ? `${loadText} kg` : null, set.rpe !== null ? t('logger.rpeTag', { value: formatRpe(set.rpe) }) : null].filter(Boolean).join(' · ');
-        // Large text: a folded set is one quiet row; only a rating still to give keeps its panel under it.
-        const quiet = largeText && !editing && !(done && (formRow || romRow));
+        const compact = [timed ? value : distance ? `${value} m` : `${value} ${t('history.units.reps')}`, withLoad ? `${loadText} kg` : null, set.rpe !== null ? t('logger.rpeTag', { value: formatRpe(set.rpe) }) : null, set.formRating !== null ? `${t('lastTime.form')} ${formatNumber(set.formRating)}` : done && canForm ? `${t('lastTime.form')}?` : null].filter(Boolean).join(' · ');
+        // Large text: a folded set is always one quiet row, like the compact list; ratings are given from the open set.
+        const quiet = largeText && !editing;
         const rowBody = (
           <>
             {!largeText ? (
@@ -926,7 +926,7 @@ const baseStyles = StyleSheet.create({
   largeActionText: { flexShrink: 1, fontFamily: fonts.semibold, fontSize: 17, textAlign: 'center' },
   summaryLine: { flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1, borderStyle: 'dashed' },
   summaryRow: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 56, paddingVertical: 4, paddingLeft: 4 },
-  summaryNum: { minWidth: 44, fontFamily: fonts.monoSemibold, fontSize: 14 },
+  summaryNum: { minWidth: 36, fontFamily: fonts.monoSemibold, fontSize: 14 },
   stripBadge: { minWidth: 40, minHeight: 40, paddingHorizontal: 6, borderRadius: radii.control, alignItems: 'center', justifyContent: 'center' },
   summaryBox: { width: 28, height: 28, borderRadius: radii.control, alignItems: 'center', justifyContent: 'center' },
   summaryText: { flex: 1, fontFamily: fonts.semibold, fontSize: 15 },

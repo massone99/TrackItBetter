@@ -8,6 +8,7 @@ import { formatRecordValue } from '../../../src/features/analytics/recordLabels'
 import { getCompletedWorkout, getPreviousPerformance, type CompletedWorkout, type PreviousPerformance } from '../../../src/features/session/repository';
 import { restForSet } from '../../../src/features/session/restDefaults';
 import { displayWorkoutName } from '../../../src/features/session/workoutName';
+import { BandsLine } from '../../../src/features/equipment/BandsLine';
 import { describeSetToken } from '../../../src/features/exercises/describeSets';
 import { openExercisePage } from '../../../src/features/exercises/openExercise';
 import { totalProgress } from '../../../src/domain/totalGoal';
@@ -159,9 +160,10 @@ export default function WorkoutEntryScreen() {
               </View>
               <View style={styles.setCopy}>
                 <View style={styles.setValueRow}>
-                  <Text style={[styles.setValue, { color: working ? palette.text : palette.textMuted }]}>{describeSetToken({ ...set, kind: 'working', bandCount: set.bands.length }, metric)}</Text>
+                  <Text style={[styles.setValue, { color: working ? palette.text : palette.textMuted }]}>{describeSetToken({ ...set, kind: 'working' }, metric)}</Text>
                   {record ? <Icon name="trophy" size={16} color={palette.record} /> : null}
                 </View>
+                {set.bands.length > 0 ? <BandsLine bands={set.bands} assistKg={set.assistKg ?? null} /> : null}
                 {extras ? <Text style={[styles.setExtras, { color: palette.textMuted }]}>{extras}</Text> : null}
                 {set.note ? <Text style={[styles.setExtras, { color: palette.textMuted }]}>{`“${set.note}”`}</Text> : null}
               </View>

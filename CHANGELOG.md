@@ -2,6 +2,11 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.59.1 - 2026-10-26
+
+- Exercise in a finished workout: under each set, the exact bands used (colour, name, tension and kg of help).
+- Workout, large text: a folded set is always a single row (number, values, form to give, check box), like the compact list; no chips or scale under it.
+
 ## 0.59.0 - 2026-10-26
 
 - Workout, large text: the open set is a sheet with a dark strip (number, name, fold, menu) and a 2 dp border, wider than the rows; the other sets are quiet one-line rows (number, values, check box) with a dashed rule, with their chips and scale hidden until you open them. A rating still to give stays under its row.

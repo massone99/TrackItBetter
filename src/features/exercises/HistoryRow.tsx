@@ -7,7 +7,7 @@ import { useTheme } from '../../shared/theme/ThemeProvider';
 import { fonts } from '../../shared/theme/typography';
 import { useScaledStyles } from '../../shared/theme/useScaledStyles';
 import { describeSets } from './describeSets';
-import { useEquipment, bandsById } from '../equipment/useEquipment';
+import { BandsLine } from '../equipment/BandsLine';
 import { amountOf, perSet } from '../../domain/lastTime';
 import { formatClock, formatNumber } from '../../shared/utils/format';
 
@@ -16,8 +16,6 @@ export function HistoryRow({ session, older, metric, locale, first, exerciseId, 
   const styles = useScaledStyles(baseStyles);
   const { palette } = useTheme();
   const { t } = useTranslation();
-  const { catalog } = useEquipment();
-  const colorOf = catalog ? bandsById(catalog) : null;
   const date = session.startedAt.toLocaleDateString(locale, { day: 'numeric', month: 'short' });
   // Bands read at a glance: a colour swatch per band and its name, one line per set that used bands.
   const banded = session.sets.filter((set) => (set.bands?.length ?? 0) > 0);
@@ -49,20 +47,7 @@ export function HistoryRow({ session, older, metric, locale, first, exerciseId, 
         <Text style={[styles.historySets, { color: palette.text }]}>{describeSets(session.sets.map(({ bandCount: _bands, ...set }) => set), metric)}</Text>
         {banded.length > 0 ? (
           <View style={styles.bandList}>
-            {banded.map((set) => {
-              const bands = set.bands ?? [];
-              const names = bands.map((band) => t('bands.chip', { name: colorOf?.get(band.bandId)?.name ?? t('bands.unknown'), tension: band.tension }));
-              return (
-                <View key={set.id} style={styles.bandLine} accessibilityLabel={`${t('bands.title')}: ${names.join(' + ')}`}>
-                  <View style={styles.bandSwatches}>
-                    {bands.map((band, position) => (
-                      <View key={`${set.id}-${position}`} style={[styles.swatch, { backgroundColor: colorOf?.get(band.bandId)?.color ?? palette.textMuted, borderColor: palette.text }]} />
-                    ))}
-                  </View>
-                  <Text style={[styles.bandName, { color: palette.textMuted }]}>{names.join(' + ')}</Text>
-                </View>
-              );
-            })}
+            {banded.map((set) => <BandsLine key={set.id} bands={set.bands ?? []} assistKg={set.assistKg ?? null} />)}
           </View>
         ) : null}
         {averages ? <Text style={[styles.historyAverages, { color: palette.textMuted }]}>{averages}</Text> : null}
@@ -85,8 +70,5 @@ const baseStyles = StyleSheet.create({
   historyTrend: { fontFamily: fonts.semibold, fontSize: 13, fontVariant: ['tabular-nums'] },
   historySets: { fontFamily: fonts.semibold, fontSize: 16, lineHeight: 23, marginTop: 4, fontVariant: ['tabular-nums'] },
   bandList: { gap: 4, marginTop: 6 },
-  bandLine: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8 },
-  bandSwatches: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  bandName: { fontFamily: fonts.body, fontSize: 13, lineHeight: 18, flexShrink: 1 },
-  swatch: { width: 14, height: 14, borderRadius: 3, borderWidth: StyleSheet.hairlineWidth },
+
 });
