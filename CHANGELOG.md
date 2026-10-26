@@ -2,6 +2,10 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.58.6 - 2026-10-26
+
+- Workout: the exercise card is an opaque card at every text size, and the open set sits inside it on its own background, so the dot grid shows only outside the cards.
+
 ## 0.58.5 - 2026-10-26
 
 - Workout, large text: a completed set has a green background and border, so it stands out from the sets still to do.

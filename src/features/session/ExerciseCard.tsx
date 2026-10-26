@@ -224,12 +224,11 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
 
   return (
     <View
-      style={table
-        ? [styles.exerciseCard, { backgroundColor: palette.surface, borderColor: nowLabel ? palette.accentStrong : ink }]
-        : [styles.exerciseSection, { borderTopColor: nowLabel ? palette.accentStrong : palette.border }, nowLabel && styles.exerciseNow]}
+      // Always an opaque card: the dot grid stays outside the exercises and their sets, at every text size.
+      style={[styles.exerciseCard, { backgroundColor: palette.surface, borderColor: nowLabel ? palette.accentStrong : ink }]}
     >
-      {table ? <RegistrationMarks /> : null}
-      {table && nowLabel ? <View pointerEvents="none" style={[styles.halo, { borderColor: palette.accentSoft }]} /> : null}
+      <RegistrationMarks />
+      {nowLabel ? <View pointerEvents="none" style={[styles.halo, { borderColor: palette.accentSoft }]} /> : null}
       {table && (figure !== null || nowLabel) ? (
         <Tag color={nowLabel ? palette.accentStrong : undefined} style={styles.nowRow}>{[figure !== null ? `Fig. ${String(figure).padStart(2, '0')}` : null, nowLabel].filter(Boolean).join(' · ')}</Tag>
       ) : nowLabel ? <Label style={[styles.nowRow, { color: palette.accentStrong }]}>{nowLabel}</Label> : null}
@@ -640,7 +639,7 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
           </View>
         );
         return (
-          <Animated.View key={`${set.id}${largeText ? (editing ? "-e" : "-f") : ""}`} entering={largeText ? undefined : setEntering} style={[styles.setBlock, largeText && !editing && styles.setBlockLine, editing && [styles.largeBlock, { borderColor: done ? palette.success : palette.border, backgroundColor: done ? palette.successSoft : undefined }], table && [styles.tableBlock, { borderTopColor: palette.border }, isOpen && { backgroundColor: palette.background }]]}>
+          <Animated.View key={`${set.id}${largeText ? (editing ? "-e" : "-f") : ""}`} entering={largeText ? undefined : setEntering} style={[styles.setBlock, largeText && !editing && styles.setBlockLine, editing && [styles.largeBlock, { borderColor: done ? palette.success : palette.border, backgroundColor: done ? palette.successSoft : palette.background }], table && [styles.tableBlock, { borderTopColor: palette.border }, isOpen && { backgroundColor: palette.background }]]}>
             {editing || table ? null : <DoneTint done={done} color={palette.accentSoft} />}
             {/* The set in hand with very large text is not swiped: its steppers and buttons own the gestures. */}
             {editing ? rowBody : (
