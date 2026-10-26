@@ -402,7 +402,7 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
           <>
             {!largeText ? (
             /* Row 1: set, reps (or time, or distance), load, done, menu. */
-            <Pressable accessible={false} accessibilityRole="none" onLongPress={openMenu} delayLongPress={450} style={[styles.setRow, table && styles.tableSetRow]}>
+            <Pressable accessible={false} accessibilityRole="none" onLongPress={openMenu} onPress={table ? () => { tapFeedback(); setExpanded((current) => new Map(current).set(set.id, false)); } : undefined} delayLongPress={450} style={[styles.setRow, table && styles.tableSetRow]}>
               {table && !isOpen ? null : <View style={table ? styles.tableBadgeCol : styles.colSet}>{badge}</View>}
               <View style={[styles.colValue, styles.stepper, table && [styles.tile, { backgroundColor: palette.surface }]]}>
                 {valueDown}
