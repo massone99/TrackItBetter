@@ -173,7 +173,8 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
     return next;
   });
   // Completing or reopening a set lets the focus move to the next set to do.
-  const complete = (set: SessionSet) => { setPicked(null); forget(set.id); onComplete(set); };
+  // Completing a set drops every manual choice: the done set folds and the next one opens by itself.
+  const complete = (set: SessionSet) => { setPicked(null); setExpanded(new Map()); onComplete(set); };
   const uncomplete = (set: SessionSet) => { setPicked(null); forget(set.id); onUncomplete(set); };
   // Sets where "+ kg" was tapped: a set with no load shows only that chip until then.
   const [loadShown, setLoadShown] = useState<ReadonlySet<string>>(() => new Set());
@@ -190,6 +191,12 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
   const table = !largeText && !editDone && !emomBadgeLabel && windowWidth >= TABLE_MIN_WIDTH && setLayout.rows === 'table';
   const bigButtons = setLayout.buttons === 'large';
   const checkLeft = setLayout.check === 'left';
+  // A set is open when the user said so, else the one in hand (or just done, still to rate); the others show one line.
+  const openOf = (set: SessionSet) => table && (expanded.get(set.id) ?? (hold?.setId === set.id || set.id === nextSetId || (!!set.completedAt && set.id === lastDoneId && set.kind === 'working' && set.formRating === null)));
+  // One set open at a time: opening one folds the rest. "Open all" is the explicit way to see every set.
+  const openOnly = (setId: string) => setExpanded(new Map(exercise.sets.map((item) => [item.id, item.id === setId] as const)));
+  const setAllOpen = (value: boolean) => setExpanded(new Map(exercise.sets.map((item) => [item.id, value] as const)));
+  const allOpen = table && exercise.sets.length > 1 && exercise.sets.every(openOf);
   const focusedId = hold && exercise.sets.some((set) => set.id === hold.setId) ? hold.setId : pickedSet?.id ?? nextSetId;
   // Last time's value of the same set (same position and kind, same side for L/R pairs): the marker on the set's gauge.
   const ghostFor = (set: SessionSet): number | null => {
@@ -298,6 +305,18 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
       ) : null}
 
 
+      {!collapsed && table && exercise.sets.length > 1 ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={t(allOpen ? 'logger.closeAllSets' : 'logger.openAllSets')}
+          hitSlop={spacing.sm}
+          onPress={() => { tapFeedback(); setAllOpen(!allOpen); }}
+          style={({ pressed }) => [styles.openAll, pressed && { opacity: 0.6 }]}
+        >
+          <Icon name={allOpen ? 'contract-outline' : 'expand-outline'} size={16} color={palette.accentStrong} />
+          <Text style={[styles.openAllText, { color: palette.accentStrong }]}>{t(allOpen ? 'logger.closeAllSets' : 'logger.openAllSets')}</Text>
+        </Pressable>
+      ) : null}
       <View style={table ? styles.tableBleed : undefined}>
       {(collapsed ? [] : exercise.sets).map((set) => {
         const done = Boolean(set.completedAt);
@@ -312,7 +331,7 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
         const workingNumber = groupSets(exercise.sets.filter((item) => item.kind === 'working' && item.index <= set.index)).length;
         const sideLabel = set.side === 'left' ? t('logger.sideLeft') : set.side === 'right' ? t('logger.sideRight') : '';
         const holding = hold?.setId === set.id;
-        const isOpen = table && (expanded.get(set.id) ?? (holding || set.id === nextSetId || (done && set.id === lastDoneId && set.kind === 'working' && set.formRating === null)));
+        const isOpen = openOf(set);
         // A held press anywhere on the set opens the same menu as its three dots.
         const openMenu = () => { tapFeedback(); onSetOptions(set); };
         const stored = timed ? set.durationSec ?? 0 : distance ? set.distanceM ?? 0 : set.reps ?? 0;
@@ -545,7 +564,7 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
             onPress={() => {
               tapFeedback();
               if (done) uncomplete(set);
-              else if (timed && onStartHold) setExpanded((currentOpen) => new Map(currentOpen).set(set.id, true));
+              else if (timed && onStartHold) openOnly(set.id);
               else complete(set);
             }}
             style={[styles.tableCheck, bigButtons && styles.tableCheckBig, { borderColor: done ? palette.success : current ? palette.accentStrong : ink, borderWidth: current && !done ? 3 : 1.5 }, done && { backgroundColor: palette.success }]}
@@ -576,7 +595,7 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
               accessibilityLabel={`${summary}${done ? `, ${t('history.setCompleted')}` : ''}`}
               accessibilityState={{ expanded: isOpen }}
               accessibilityHint={t('logger.openSetHint')}
-              onPress={() => { tapFeedback(); setExpanded((currentOpen) => new Map(currentOpen).set(set.id, !isOpen)); }}
+              onPress={() => { tapFeedback(); if (isOpen) setExpanded((currentOpen) => new Map(currentOpen).set(set.id, false)); else openOnly(set.id); }}
               onLongPress={openMenu}
               delayLongPress={450}
               style={({ pressed }) => [styles.tableRowMain, pressed && { opacity: 0.7 }]}
@@ -911,6 +930,8 @@ const baseStyles = StyleSheet.create({
   stepper: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4 },
   setValue: { fontFamily: fonts.display, fontSize: 24, lineHeight: 30, minWidth: 34, textAlign: 'center', fontVariant: ['tabular-nums'] },
   loadValue: { fontFamily: fonts.display, fontSize: 20, lineHeight: 26, minWidth: 34, textAlign: 'center', fontVariant: ['tabular-nums'] },
+  openAll: { alignSelf: 'flex-end', flexDirection: 'row', alignItems: 'center', gap: spacing.xs, minHeight: MIN_TOUCH_TARGET - spacing.sm, paddingHorizontal: spacing.xs },
+  openAllText: { fontSize: 13, lineHeight: 18, fontWeight: '600' },
   colActionBig: { width: 56 },
   checkButtonBig: { width: 52, height: 52 },
   checkButton: { width: 44, height: 44, borderRadius: radii.control, alignItems: 'center', justifyContent: 'center' },

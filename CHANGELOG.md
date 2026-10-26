@@ -2,6 +2,10 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.56.1 - 2026-10-26
+
+- Workout: one set open at a time (opening a set folds the others), completing a set folds it and opens the next, and an "Open all / Close all" button on each exercise.
+
 ## 0.56.0 - 2026-10-26
 
 - Technical look across the whole app: IBM Plex, dot-grid ground, registration marks, squared 4 dp corners, ink-lined surfaces, ruled mono tags, graduated bars.
