@@ -1258,7 +1258,7 @@ function TimerBar({ emom, hold, restEndsAt, voiceCues, onRestEnd, onFinishHold, 
   return (
     <View style={[styles.timerBar, { backgroundColor: palette.hero }]}>
       <View style={styles.timerInner}>
-      <IconButton icon="chevron-down" label={t('workout.collapseDock')} tone="plain" color={palette.heroText} onPress={onCollapse} />
+      <IconButton icon="chevron-down" label={t('workout.collapseDock')} tone="plain" size={48} color={palette.heroText} onPress={onCollapse} />
       <View style={styles.timerReadout}>
         <Text style={[styles.timerLabel, { color: palette.heroText }]}>{label}</Text>
         {hold || restEndsAt === null
@@ -1287,7 +1287,7 @@ function CollapsedDock({ restEndsAt, voiceCues, onRestEnd, onOpen }: { restEndsA
   return (
     <View style={[styles.collapsed, { backgroundColor: palette.hero }]}>
       {restEndsAt === null ? null : <RestCountdown key={restEndsAt} endsAt={restEndsAt} voiceCues={voiceCues} onEnd={onRestEnd} />}
-      <IconButton icon="chevron-up" label={t('workout.expandDock')} tone="plain" color={palette.heroText} onPress={onOpen} />
+      <IconButton icon="chevron-up" label={t('workout.expandDock')} tone="plain" size={48} color={palette.heroText} onPress={onOpen} />
     </View>
   );
 }

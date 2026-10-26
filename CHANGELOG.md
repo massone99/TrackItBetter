@@ -2,6 +2,10 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.58.3 - 2026-10-26
+
+- Fix: the fold controls of the workout bar and the set title meet the 48 dp touch target; the large-text set layout test passes again.
+
 ## 0.58.2 - 2026-10-26
 
 - Workout: the bottom bar (rest countdown and Finish) folds to a strip and opens again; the rest bar has its own fold control.

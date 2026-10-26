@@ -527,7 +527,6 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
                 {badge}
                 <Pressable
                   accessibilityRole="button"
-                  accessibilityState={{ expanded: true }}
                   accessibilityLabel={`${title}, ${t('logger.foldSet')}`}
                   onPress={() => { tapFeedback(); toggleFold(set.id); }}
                   hitSlop={spacing.sm}
