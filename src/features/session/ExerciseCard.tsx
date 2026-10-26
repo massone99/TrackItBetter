@@ -619,7 +619,7 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
           </View>
         );
         return (
-          <Animated.View key={`${set.id}${largeText ? "-f" : ""}`} entering={largeText ? undefined : setEntering} style={[styles.setBlock, largeText && !editing && styles.setBlockLine, editing && [styles.largeBlock, { borderColor: palette.border }], table && [styles.tableBlock, { borderTopColor: palette.border }, isOpen && { backgroundColor: palette.background }]]}>
+          <Animated.View key={`${set.id}${largeText ? (editing ? "-e" : "-f") : ""}`} entering={largeText ? undefined : setEntering} style={[styles.setBlock, largeText && !editing && styles.setBlockLine, editing && [styles.largeBlock, { borderColor: palette.border }], table && [styles.tableBlock, { borderTopColor: palette.border }, isOpen && { backgroundColor: palette.background }]]}>
             {editing || table ? null : <DoneTint done={done} color={palette.accentSoft} />}
             {/* The set in hand with very large text is not swiped: its steppers and buttons own the gestures. */}
             {editing ? rowBody : (
@@ -667,7 +667,7 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
                     />
                   ) : null;
                 })()}
-                {table ? (
+                {table || editing ? (
                   <>
                     {(set.restSec ?? defaultRest) > 0 ? <ValueChip flat label={t('logger.restChip', { value: formatClock(set.restSec ?? defaultRest) })} filled={set.restSec !== null} onPress={() => { tapFeedback(); onSetOptions(set, 'rest'); }} /> : null}
                     {set.side === 'left' || set.side === 'right' ? <ValueChip flat label={sideLabel} filled onPress={() => { tapFeedback(); onSetOptions(set); }} /> : null}

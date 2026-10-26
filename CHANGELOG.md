@@ -2,6 +2,10 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.57.3 - 2026-10-26
+
+- Maximum zoom: the open set now shows its Rest chip too, and a set you complete is rebuilt cleanly so it no longer vanishes.
+
 ## 0.57.2 - 2026-10-26
 
 - Large text and zoom: the set you open from the list now shows all its chips (RPE, form, ROM, bands, rest, video, note), not only the ones already filled.
