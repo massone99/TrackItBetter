@@ -9,6 +9,7 @@ import { fonts } from '../../shared/theme/typography';
 import { angleLabelSize, labelBand, mainLabelSize, placeAngleLabels, sampleSegments, type LabelRequest } from './labelLayout';
 import { AngleLayer, JointHandles, Loupe, SkeletonLayer } from './overlay/layers';
 import { DEFAULT_OVERLAY, handleIndices, JOINT_COLORS, skeletonSegments, visibleJoints, type OverlaySettings } from './overlay/model';
+import { radii } from '../../shared/theme/tokens';
 
 const TOUCH_RADIUS = 36;
 const DRAG_DELAY_MS = 150;
@@ -149,7 +150,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 8,
+    borderRadius: radii.control,
     borderWidth: 2,
     backgroundColor: LABEL_BACKGROUND,
   },

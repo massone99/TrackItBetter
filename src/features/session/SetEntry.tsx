@@ -4,6 +4,7 @@ import { useTheme } from '../../shared/theme/ThemeProvider';
 import { fonts } from '../../shared/theme/typography';
 import { useScaledStyles } from '../../shared/theme/useScaledStyles';
 import { formatNumber } from '../../shared/utils/format';
+import { radii } from '../../shared/theme/tokens';
 
 /** Step of the load buttons: the smallest common plate pair. */
 export const LOAD_STEP_KG = 1.25;
@@ -50,13 +51,13 @@ export const setEntryStyles = StyleSheet.create({
   colHeader: { textAlign: 'center' },
   colAction: { width: 44, alignItems: 'center' },
   colMenu: { width: 32, alignItems: 'center' },
-  badge: { width: 36, height: 36, borderRadius: 9, alignItems: 'center', justifyContent: 'center' },
+  badge: { width: 36, height: 36, borderRadius: radii.control, alignItems: 'center', justifyContent: 'center' },
   badgeText: { fontFamily: fonts.display, fontSize: 16 },
   stepper: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4 },
   value: { fontFamily: fonts.display, fontSize: 24, lineHeight: 30, minWidth: 36, textAlign: 'center', fontVariant: ['tabular-nums'] },
   loadValue: { fontFamily: fonts.display, fontSize: 20, lineHeight: 26, minWidth: 44, textAlign: 'center', fontVariant: ['tabular-nums'] },
-  stepButton: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
+  stepButton: { width: 28, height: 28, borderRadius: radii.control, alignItems: 'center', justifyContent: 'center' },
   // Very large text: a full 56 dp key on each side of the value.
-  stepButtonLarge: { width: 56, height: 56, borderRadius: 14 },
-  checkButton: { width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  stepButtonLarge: { width: 56, height: 56, borderRadius: radii.control },
+  checkButton: { width: 44, height: 44, borderRadius: radii.control, alignItems: 'center', justifyContent: 'center' },
 });

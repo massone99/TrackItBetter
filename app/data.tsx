@@ -9,6 +9,7 @@ import { useTheme } from "../src/shared/theme/ThemeProvider";
 import { importBackup, type BackupScope, type ImportMode } from "../src/features/data/backup";
 import { shareBackupFile } from "../src/features/data/shareBackup";
 import { useScaledStyles } from "../src/shared/theme/useScaledStyles";
+import { radii } from '../src/shared/theme/tokens';
 
 export default function DataScreen() {
   const styles = useScaledStyles(baseStyles);
@@ -186,5 +187,5 @@ export default function DataScreen() {
 const baseStyles = StyleSheet.create({
   card: { padding: 20, gap: 14 },
   presets: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  icon: { width: 42, height: 42, borderRadius: 14, alignItems: "center", justifyContent: "center" },
+  icon: { width: 42, height: 42, borderRadius: radii.control, alignItems: "center", justifyContent: "center" },
 });

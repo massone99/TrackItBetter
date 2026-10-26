@@ -14,6 +14,7 @@ import { Body, Card, Chip, EmptyState, FooterAction, PageHeading, Screen, Sectio
 import { useTheme } from '../../src/shared/theme/ThemeProvider';
 import { fonts } from '../../src/shared/theme/typography';
 import { useScaledStyles } from '../../src/shared/theme/useScaledStyles';
+import { radii } from '../../src/shared/theme/tokens';
 
 type Mode = 'workout' | 'program';
 interface Source { id: string; name: string; sessions: { id: string; name: string; exercises: ImportExercise[] }[] }
@@ -178,11 +179,11 @@ function Badge({ compatibility }: { compatibility: ImportCompatibility }) {
 
 const baseStyles = StyleSheet.create({
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  row: { borderRadius: 16, padding: 16, gap: 6, minHeight: 48 },
+  row: { borderRadius: radii.control, padding: 16, gap: 6, minHeight: 48 },
   rowHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
   rowName: { flex: 1, fontFamily: fonts.semibold, fontSize: 17, lineHeight: 22 },
   rowMeta: { fontFamily: fonts.body, fontSize: 14, lineHeight: 20 },
-  badge: { paddingHorizontal: 10, minHeight: 26, borderRadius: 999, justifyContent: 'center' },
+  badge: { paddingHorizontal: 10, minHeight: 26, borderRadius: radii.pill, justifyContent: 'center' },
   badgeText: { fontFamily: fonts.semibold, fontSize: 13 },
   previewRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 12, paddingVertical: 8 },
   previewName: { flex: 1, fontFamily: fonts.medium, fontSize: 16, lineHeight: 22 },

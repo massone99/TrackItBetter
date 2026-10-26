@@ -10,6 +10,7 @@ import { useScaledStyles } from '../../shared/theme/useScaledStyles';
 import { saveWorkoutToProgram } from './saveWorkout';
 import { listUserPrograms } from './userPrograms';
 import { MAX_FONT_SCALE } from '../../shared/theme/scale';
+import { radii } from '../../shared/theme/tokens';
 
 type Choice = 'new' | string;
 
@@ -147,11 +148,11 @@ function Option({ icon, title, body, selected, onPress }: { icon: 'add-circle' |
 }
 
 const baseStyles = StyleSheet.create({
-  searchBox: { flexDirection: 'row', alignItems: 'center', gap: 8, borderWidth: 1, borderRadius: 14, paddingHorizontal: 12, minHeight: 46 },
+  searchBox: { flexDirection: 'row', alignItems: 'center', gap: 8, borderWidth: 1, borderRadius: radii.control, paddingHorizontal: 12, minHeight: 46 },
   searchInput: { flex: 1, fontFamily: fonts.body, fontSize: 16, paddingVertical: 10 },
   heading: { fontFamily: fonts.medium, fontSize: 13, marginTop: 4 },
-  option: { flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 18, paddingHorizontal: 14, paddingVertical: 12, minHeight: 64 },
-  optionIcon: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  option: { flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: radii.control, paddingHorizontal: 14, paddingVertical: 12, minHeight: 64 },
+  optionIcon: { width: 40, height: 40, borderRadius: radii.control, alignItems: 'center', justifyContent: 'center' },
   optionText: { flex: 1, gap: 1 },
   optionTitle: { fontFamily: fonts.display, fontSize: 18, lineHeight: 22 },
   optionBody: { fontFamily: fonts.body, fontSize: 13 },

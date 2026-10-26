@@ -8,6 +8,7 @@ import { useTheme } from '../../shared/theme/ThemeProvider';
 import { fonts } from '../../shared/theme/typography';
 import { useScaledStyles } from '../../shared/theme/useScaledStyles';
 import { formatNumber } from '../../shared/utils/format';
+import { radii } from '../../shared/theme/tokens';
 
 /**
  * This session against the last one: a title line ("Vs last time · Sat 3 Oct", with a button that shows
@@ -170,7 +171,7 @@ const FORM_STEP = 40 + 8;
 const baseStyles = StyleSheet.create({
   wrap: { gap: 6, marginTop: 8 },
   flex: { flex: 1, gap: 2 },
-  compact: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8, borderWidth: 1, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8, minHeight: 48 },
+  compact: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8, borderWidth: 1, borderRadius: radii.control, paddingHorizontal: 10, paddingVertical: 8, minHeight: 48 },
   compactLine: { fontFamily: fonts.medium, fontSize: 13, lineHeight: 18, fontVariant: ['tabular-nums'] },
   titleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
   title: { flexShrink: 1, fontFamily: fonts.semibold, fontSize: 13 },
@@ -178,7 +179,7 @@ const baseStyles = StyleSheet.create({
   toggleText: { fontFamily: fonts.semibold, fontSize: 13 },
   // Cells wrap onto a second line at large font sizes instead of squeezing.
   cells: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
-  cell: { flexGrow: 1, flexBasis: 96, borderWidth: 1, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8, gap: 2 },
+  cell: { flexGrow: 1, flexBasis: 96, borderWidth: 1, borderRadius: radii.control, paddingHorizontal: 10, paddingVertical: 8, gap: 2 },
   cellLabel: { fontFamily: fonts.medium, fontSize: 12 },
   values: { flexDirection: 'row', alignItems: 'baseline', gap: 4, flexWrap: 'wrap' },
   now: { fontFamily: fonts.display, fontSize: 20, lineHeight: 24, fontVariant: ['tabular-nums'] },
@@ -193,6 +194,6 @@ const baseStyles = StyleSheet.create({
   formStrip: { flex: 1, marginRight: 76 },
   formScroll: { gap: 8, paddingRight: 8 },
   formChips: { flex: 1, flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  chip: { minWidth: 40, paddingHorizontal: 4, minHeight: 36, borderRadius: 10, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  chip: { minWidth: 40, paddingHorizontal: 4, minHeight: 36, borderRadius: radii.control, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
   chipText: { fontFamily: fonts.semibold, fontSize: 14, fontVariant: ['tabular-nums'] },
 });

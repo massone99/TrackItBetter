@@ -13,6 +13,7 @@ import { movementTagLabel } from '../exercises/ClassificationChoices';
 import { MOVEMENT_GROUPS, MOVEMENT_TAG_SECTIONS } from '../exercises/movementCatalog';
 import { goalAmount, goalKeyLabel } from './labels';
 import { GOAL_STEPS } from './DailyGoalViews';
+import { radii } from '../../shared/theme/tokens';
 
 export type { GoalDraft } from '../../domain/tagGoals';
 
@@ -209,10 +210,10 @@ function TagRowCard({ name, row, period, onChange }: { name: TagRowKey; row: Tag
 }
 
 const baseStyles = StyleSheet.create({
-  rowCard: { borderWidth: 1, borderRadius: 16, padding: 12, gap: 12 },
+  rowCard: { borderWidth: 1, borderRadius: radii.control, padding: 12, gap: 12 },
   rowBody: { gap: 12 },
   field: { gap: 8 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
-  tags: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, borderWidth: 1, borderRadius: 14, padding: 10 },
-  search: { minHeight: 48, borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, fontSize: 15 },
+  tags: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, borderWidth: 1, borderRadius: radii.control, padding: 10 },
+  search: { minHeight: 48, borderWidth: 1, borderRadius: radii.control, paddingHorizontal: 12, fontSize: 15 },
 });

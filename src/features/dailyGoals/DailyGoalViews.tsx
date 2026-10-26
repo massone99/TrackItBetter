@@ -6,7 +6,7 @@ import { Card, Icon, type IconName, SectionTitle, SegmentedControl, Stepper, Tex
 import { useTheme } from '../../shared/theme/ThemeProvider';
 import { useScaledStyles } from '../../shared/theme/useScaledStyles';
 import { fonts } from '../../shared/theme/typography';
-import { MIN_TOUCH_TARGET } from '../../shared/theme/tokens';
+import { MIN_TOUCH_TARGET, radii } from '../../shared/theme/tokens';
 import { targetMax } from '../../domain/dailyGoals';
 import { useGoalT } from './period';
 import { goalAmount, goalKeyLabel } from './labels';
@@ -240,7 +240,7 @@ const baseStyles = StyleSheet.create({
   fill: { height: '100%' },
   panel: { paddingHorizontal: 14, paddingBottom: 12, gap: 10 },
   actions: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
-  action: { flexGrow: 1, flexBasis: '30%', minHeight: MIN_TOUCH_TARGET, borderRadius: 12, borderWidth: 1, paddingHorizontal: 8, paddingVertical: 6, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
+  action: { flexGrow: 1, flexBasis: '30%', minHeight: MIN_TOUCH_TARGET, borderRadius: radii.control, borderWidth: 1, paddingHorizontal: 8, paddingVertical: 6, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
   actionText: { fontSize: 14, fontFamily: fonts.semibold },
   summary: { gap: 8 },
   summaryHead: { flexDirection: 'row', alignItems: 'center', gap: 10 },

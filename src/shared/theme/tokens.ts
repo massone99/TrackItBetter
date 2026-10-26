@@ -9,7 +9,8 @@ export const elevation = {
   surface: { shadowColor: '#1C2330', shadowOpacity: 0.07, shadowRadius: 10, shadowOffset: { width: 0, height: 3 }, elevation: 2 },
 } as const;
 
-export const radii = { small: 8, control: 12, surface: 16, sheet: 28, pill: 999 } as const;
+/** Squared look: every corner is 4 dp (pill and sheet included), small details 2 dp. */
+export const radii = { small: 2, control: 4, surface: 4, sheet: 4, pill: 4 } as const;
 
 export const typeScale = {
   title: { fontSize: 36, lineHeight: 40, letterSpacing: -0.4 },
@@ -24,4 +25,4 @@ export const typeScale = {
 export const MIN_TOUCH_TARGET = 48;
 
 /** Instrument look (workout): square-cornered sheets drawn with thin ink lines. */
-export const instrument = { radius: 4, line: 1, mark: 8, gauge: 14 } as const;
+export const instrument = { radius: radii.control, line: 1, mark: 8, gauge: 14 } as const;

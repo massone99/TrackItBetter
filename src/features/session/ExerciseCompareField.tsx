@@ -8,6 +8,7 @@ import { readCompareMode, type CompareMode } from '../../shared/settings/prefere
 import { useTheme } from '../../shared/theme/ThemeProvider';
 import { fonts } from '../../shared/theme/typography';
 import { setEntryCompareWorkout, type SessionExercise } from './repository';
+import { radii } from '../../shared/theme/tokens';
 
 type Mode = CompareMode | 'pick';
 
@@ -80,7 +81,7 @@ export function ExerciseCompareField({ exercise, workoutId, onChanged }: { exerc
 }
 
 const styles = StyleSheet.create({
-  list: { borderRadius: 16, borderWidth: StyleSheet.hairlineWidth, overflow: 'hidden' },
+  list: { borderRadius: radii.control, borderWidth: StyleSheet.hairlineWidth, overflow: 'hidden' },
   more: { minHeight: 48, alignItems: 'center', justifyContent: 'center', borderTopWidth: StyleSheet.hairlineWidth },
   moreText: { fontFamily: fonts.semibold, fontSize: 14 },
 });

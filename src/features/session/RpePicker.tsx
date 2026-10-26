@@ -6,6 +6,7 @@ import { Icon, Label, tapFeedback, Text } from '../../shared/components/ui';
 import { useTheme } from '../../shared/theme/ThemeProvider';
 import { fonts } from '../../shared/theme/typography';
 import { useScaledStyles } from '../../shared/theme/useScaledStyles';
+import { radii } from '../../shared/theme/tokens';
 
 /**
  * RPE chips from 6 to 10. `inline` is the one-line strip shown under a just-completed set;
@@ -140,8 +141,8 @@ const baseStyles = StyleSheet.create({
   stripLabel: { fontFamily: fonts.semibold, fontSize: 12 },
   scroll: { flex: 1 },
   row: { gap: 4, paddingRight: 4 },
-  stripChip: { minWidth: 44, minHeight: 48, paddingHorizontal: 8, paddingVertical: 8, borderRadius: 12, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
-  chip: { minWidth: 48, minHeight: 48, paddingHorizontal: 10, paddingVertical: 8, borderRadius: 12, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  stripChip: { minWidth: 44, minHeight: 48, paddingHorizontal: 8, paddingVertical: 8, borderRadius: radii.control, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  chip: { minWidth: 48, minHeight: 48, paddingHorizontal: 10, paddingVertical: 8, borderRadius: radii.control, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
   chipText: { fontFamily: fonts.display, fontSize: 20 },
   compactRow: { flexDirection: 'row', alignItems: 'flex-start' },
   // Spans the reps and kg columns; the done and menu columns (44 + 32) stay clear.
@@ -150,11 +151,11 @@ const baseStyles = StyleSheet.create({
   compactLabel: { minWidth: 40, minHeight: 36, paddingRight: 4, alignItems: 'center', justifyContent: 'center' },
   compactChips: { gap: 8, paddingRight: 8 },
   // Width grows with the text (large system fonts); the strip scrolls sideways.
-  compactChip: { minWidth: 40, minHeight: 36, paddingHorizontal: 4, borderRadius: 10, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  compactChip: { minWidth: 40, minHeight: 36, paddingHorizontal: 4, borderRadius: radii.control, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
   gridBlock: { gap: 8, paddingBottom: 12 },
   gridWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   // Five to a row: every value in view, none cut at the edge.
-  gridChip: { width: '17.5%', minHeight: 48, borderRadius: 12, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  gridChip: { width: '17.5%', minHeight: 48, borderRadius: radii.control, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
   plannedChip: { borderStyle: 'dashed', borderWidth: 1.5 },
   overChip: { borderWidth: 2 },
   compactChipText: { fontFamily: fonts.semibold, fontSize: 14, fontVariant: ['tabular-nums'] },

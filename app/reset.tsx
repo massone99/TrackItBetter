@@ -9,6 +9,7 @@ import type { IconName } from '../src/shared/components/ui';
 import { useTheme } from '../src/shared/theme/ThemeProvider';
 import { fonts } from '../src/shared/theme/typography';
 import { useScaledStyles } from '../src/shared/theme/useScaledStyles';
+import { radii } from '../src/shared/theme/tokens';
 
 type Step = 'choose' | 'backup' | 'confirm' | 'working' | 'done' | 'failed';
 
@@ -197,7 +198,7 @@ const baseStyles = StyleSheet.create({
   progress: { flexDirection: 'row', gap: 6 },
   progressBar: { flex: 1, height: 5, borderRadius: 3 },
   card: { gap: 12 },
-  icon: { width: 42, height: 42, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
+  icon: { width: 42, height: 42, borderRadius: radii.control, alignItems: 'center', justifyContent: 'center' },
   item: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   itemText: { fontFamily: fonts.medium, fontSize: 15 },
 });

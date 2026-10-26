@@ -6,6 +6,7 @@ import { useTheme } from '../../shared/theme/ThemeProvider';
 import { fonts } from '../../shared/theme/typography';
 import { useScaledStyles } from '../../shared/theme/useScaledStyles';
 import { formatClock } from '../../shared/utils/format';
+import { radii } from '../../shared/theme/tokens';
 
 /**
  * Self-regulated rest after a set under a total goal: a clock counting up from the set, with the
@@ -34,7 +35,7 @@ export function FreeRestBar({ since, restSec, onStartRest, onClose }: { since: n
 }
 
 const baseStyles = StyleSheet.create({
-  bar: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8, borderRadius: 18, borderWidth: 1, paddingVertical: 8, paddingLeft: 16, paddingRight: 4 },
+  bar: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8, borderRadius: radii.control, borderWidth: 1, paddingVertical: 8, paddingLeft: 16, paddingRight: 4 },
   copy: { flexGrow: 1, minWidth: 96 },
   label: { fontFamily: fonts.medium, fontSize: 13 },
   value: { fontFamily: fonts.display, fontSize: 32, lineHeight: 36, fontVariant: ['tabular-nums'] },

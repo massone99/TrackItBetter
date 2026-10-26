@@ -4,6 +4,7 @@ import { useTheme } from '../theme/ThemeProvider';
 import { fonts } from '../theme/typography';
 import { Text } from './Text';
 import { tapFeedback } from './ui';
+import { radii } from '../theme/tokens';
 
 const ITEM = 44;
 const VISIBLE = 5;
@@ -93,7 +94,7 @@ export function Wheel({ items, value, label, width = 84, onChange }: {
 }
 
 const styles = StyleSheet.create({
-  band: { position: 'absolute', left: 0, right: 0, height: ITEM, borderRadius: 12 },
+  band: { position: 'absolute', left: 0, right: 0, height: ITEM, borderRadius: radii.control },
   item: { height: ITEM, alignItems: 'center', justifyContent: 'center' },
   text: { fontFamily: fonts.display, fontVariant: ['tabular-nums'] },
 });

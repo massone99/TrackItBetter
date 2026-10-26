@@ -21,6 +21,7 @@ import { JointPicker, useJointSelection } from '../../src/features/pose/JointPic
 import { useTheme } from '../../src/shared/theme/ThemeProvider';
 import { fonts } from '../../src/shared/theme/typography';
 import { useScaledStyles } from '../../src/shared/theme/useScaledStyles';
+import { radii } from '../../src/shared/theme/tokens';
 
 /** The message with the technical cause in brackets, so a failure on a phone can be reported. */
 const FRAME_WIDTH = 76;
@@ -408,7 +409,7 @@ function SourceButton({ icon, label, onPress }: { icon: 'camera-outline' | 'imag
 
 const baseStyles = StyleSheet.create({
   editRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  setupSummary: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 56, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 16, borderWidth: 1 },
+  setupSummary: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 56, paddingHorizontal: 14, paddingVertical: 8, borderRadius: radii.control, borderWidth: 1 },
   setupName: { fontFamily: fonts.display, fontSize: 18, lineHeight: 22 },
   setupChange: { fontFamily: fonts.semibold, fontSize: 14 },
   hintRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
@@ -417,16 +418,16 @@ const baseStyles = StyleSheet.create({
   frameCount: { fontFamily: fonts.medium, fontSize: 13 },
   saveBar: { position: 'absolute', left: 0, right: 0, bottom: 0, paddingTop: 12, paddingHorizontal: 20, borderTopWidth: StyleSheet.hairlineWidth },
   sources: { flexDirection: 'row', gap: 10 },
-  source: { flex: 1, alignItems: 'center', gap: 10, paddingVertical: 16, paddingHorizontal: 6, borderRadius: 16, borderWidth: 1 },
+  source: { flex: 1, alignItems: 'center', gap: 10, paddingVertical: 16, paddingHorizontal: 6, borderRadius: radii.control, borderWidth: 1 },
   sourceLabel: { fontFamily: fonts.semibold, fontSize: 14, lineHeight: 20, textAlign: 'center' },
-  iconCircle: { width: 44, height: 44, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
+  iconCircle: { width: 44, height: 44, borderRadius: radii.control, alignItems: 'center', justifyContent: 'center' },
   flex: { flex: 1 },
   sourceBar: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   frames: { gap: 10 },
   framesHead: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   frameStrip: { gap: FRAME_GAP },
   angles: { gap: 12 },
-  frame: { width: FRAME_WIDTH, height: 100, borderRadius: 10, borderWidth: 3 },
+  frame: { width: FRAME_WIDTH, height: 100, borderRadius: radii.control, borderWidth: 3 },
   frameTime: { fontFamily: fonts.medium, fontSize: 12, textAlign: 'center', marginTop: 2 },
   busy: { flexDirection: 'row', alignItems: 'center', gap: 10, justifyContent: 'center' },
   error: { fontFamily: fonts.medium, fontSize: 14, textAlign: 'center' },

@@ -32,6 +32,7 @@ import { fonts } from '../../src/shared/theme/typography';
 import { linkHost } from '../../src/shared/utils/url';
 import { useScaledStyles } from '../../src/shared/theme/useScaledStyles';
 import { goBack } from '../../src/shared/navigation/goBack';
+import { radii } from '../../src/shared/theme/tokens';
 
 function readList(value: string): string[] {
   try {
@@ -592,17 +593,17 @@ const baseStyles = StyleSheet.create({
   estimateChips: { flexDirection: 'row', gap: 8, paddingRight: 8 },
   section: { gap: 10 },
   flex: { flex: 1 },
-  history: { borderRadius: 16, borderWidth: 1, overflow: 'hidden' },
+  history: { borderRadius: radii.control, borderWidth: 1, overflow: 'hidden' },
   historyMore: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, minHeight: 48, borderTopWidth: StyleSheet.hairlineWidth },
   historyMoreText: { fontFamily: fonts.semibold, fontSize: 14 },
   choiceHint: { marginTop: -4, marginBottom: 4 },
-  transferPair: { flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 16, paddingHorizontal: 16, paddingVertical: 14 },
+  transferPair: { flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: radii.control, paddingHorizontal: 16, paddingVertical: 14 },
   transferName: { flex: 1, fontFamily: fonts.semibold, fontSize: 16 },
   transferNote: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
-  cues: { borderRadius: 16, borderWidth: 1, paddingHorizontal: 16, paddingVertical: 8 },
+  cues: { borderRadius: radii.control, borderWidth: 1, paddingHorizontal: 16, paddingVertical: 8 },
   cue: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, paddingVertical: 9 },
   cueText: { flex: 1 },
   tags: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  tag: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 11, minHeight: 30, borderRadius: 999 },
+  tag: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 11, minHeight: 30, borderRadius: radii.pill },
   tagText: { fontFamily: fonts.medium, fontSize: 13, textTransform: 'capitalize' },
 });

@@ -2,6 +2,10 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.55.1 - 2026-10-26
+
+- Whole app, squared look: every corner is now 4 dp (cards, lists, buttons, chips, fields, sheets, pills and icon buttons), surfaces have no shadow and are drawn with thin ink lines, and the corner sizes come from one token (`radii`).
+
 ## 0.55.0 - 2026-10-26
 
 - Workout, "instrument" look (preview branch): the workout page is redrawn like a technical sheet. A dot-grid ground, square 4 dp sheets with thin ink lines and registration marks, "Fig. 01 · Now" tags, a header with three readings (time, sets, volume) in a mono face (Martian Mono), flat segments for progress and mono tags for the blocks.

@@ -19,6 +19,7 @@ import {
 import { useTheme } from "../../shared/theme/ThemeProvider";
 import { fonts } from "../../shared/theme/typography";
 import { useScaledStyles } from "../../shared/theme/useScaledStyles";
+import { radii } from '../../shared/theme/tokens';
 
 export type PairEditorProps = {
   visible: boolean;
@@ -273,7 +274,7 @@ const baseStyles = StyleSheet.create({
   assignment: { gap: 6 },
   label: { fontFamily: fonts.medium, fontSize: 13 },
   sideGrid: { gap: 12 },
-  side: { borderWidth: StyleSheet.hairlineWidth, borderRadius: 14, padding: 12, gap: 10 },
+  side: { borderWidth: StyleSheet.hairlineWidth, borderRadius: radii.control, padding: 12, gap: 10 },
   sideTitle: { fontSize: 20, lineHeight: 24 },
   mainValue: { alignSelf: "flex-start", fontFamily: fonts.display, fontSize: 28, lineHeight: 34 },
   loadValue: { alignSelf: "flex-start", fontFamily: fonts.display, fontSize: 20, lineHeight: 26 },

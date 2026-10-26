@@ -12,6 +12,7 @@ import { ActionButton, Label, PageHeading, Screen } from '../../../src/shared/co
 import { useTheme } from '../../../src/shared/theme/ThemeProvider';
 import { useScaledStyles } from '../../../src/shared/theme/useScaledStyles';
 import { goBack } from '../../../src/shared/navigation/goBack';
+import { radii } from '../../../src/shared/theme/tokens';
 
 export default function ShareWorkoutScreen() {
   const styles = useScaledStyles(baseStyles);
@@ -97,8 +98,8 @@ function Stat({ value, label, palette }: { value: string; label: string; palette
 }
 
 const baseStyles = StyleSheet.create({
-  shareCanvas: { width: '100%', padding: 24, borderRadius: 26, gap: 14 },
-  brandMark: { alignSelf: 'flex-start', paddingHorizontal: 11, paddingVertical: 7, borderRadius: 9 },
+  shareCanvas: { width: '100%', padding: 24, borderRadius: radii.control, gap: 14 },
+  brandMark: { alignSelf: 'flex-start', paddingHorizontal: 11, paddingVertical: 7, borderRadius: radii.control },
   brandText: { fontSize: 11, fontWeight: '900', letterSpacing: 1.2 },
   cardTitle: { fontSize: 28, lineHeight: 34, fontWeight: '900', marginTop: 4 },
   cardDate: { fontSize: 14 },

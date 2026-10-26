@@ -7,6 +7,7 @@ import { useScaledStyles } from '../theme/useScaledStyles';
 import { ActionButton, Chip, Icon, IconButton, NumberEdit, Sheet, Text, tapFeedback } from './ui';
 import { Wheel } from './Wheel';
 import { formatClock } from '../utils/format';
+import { radii } from '../theme/tokens';
 
 const dayStart = (date: Date) => new Date(date.getFullYear(), date.getMonth(), date.getDate());
 const sameDay = (a: Date, b: Date) => a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
@@ -146,14 +147,14 @@ export function TimeField({ label, hour, minute, locale, minuteStep = 5, default
 const baseStyles = StyleSheet.create({
   row: { minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
   rowLabel: { flex: 1, fontFamily: fonts.medium, fontSize: 15 },
-  rowValue: { flexDirection: 'row', alignItems: 'center', flexShrink: 0, gap: 8, paddingHorizontal: 12, paddingVertical: 8, minHeight: 48, borderRadius: 12 },
+  rowValue: { flexDirection: 'row', alignItems: 'center', flexShrink: 0, gap: 8, paddingHorizontal: 12, paddingVertical: 8, minHeight: 48, borderRadius: radii.control },
   rowValueText: { fontFamily: fonts.semibold, fontSize: 16, fontVariant: ['tabular-nums'] },
-  panel: { borderWidth: StyleSheet.hairlineWidth, borderRadius: 16, padding: 12, gap: 8, marginBottom: 6 },
+  panel: { borderWidth: StyleSheet.hairlineWidth, borderRadius: radii.control, padding: 12, gap: 8, marginBottom: 6 },
   monthHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   monthTitle: { fontFamily: fonts.display, fontSize: 20, textTransform: 'capitalize' },
   grid: { flexDirection: 'row', flexWrap: 'wrap' },
   weekday: { width: `${100 / 7}%`, textAlign: 'center', fontFamily: fonts.medium, fontSize: 12, paddingBottom: 4 },
-  cell: { width: `${100 / 7}%`, aspectRatio: 1, maxHeight: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 999 },
+  cell: { width: `${100 / 7}%`, aspectRatio: 1, maxHeight: 44, alignItems: 'center', justifyContent: 'center', borderRadius: radii.pill },
   cellText: { fontFamily: fonts.semibold, fontSize: 15, fontVariant: ['tabular-nums'] },
   shortcuts: { flexDirection: 'row', gap: 8 },
   wheels: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4 },
@@ -166,7 +167,7 @@ const baseStyles = StyleSheet.create({
   durationAdjust: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 20 },
   durationValue: { fontFamily: fonts.display, fontSize: 44, lineHeight: 50, minWidth: 120, textAlign: 'center', fontVariant: ['tabular-nums'] },
   compactDurationWrapper: { flexShrink: 1 },
-  compactDuration: { minWidth: 64, minHeight: 48, paddingHorizontal: 8, paddingVertical: 8, borderRadius: 12, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  compactDuration: { minWidth: 64, minHeight: 48, paddingHorizontal: 8, paddingVertical: 8, borderRadius: radii.control, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
   compactDurationFlat: { borderWidth: 0, backgroundColor: 'transparent', paddingHorizontal: 0, paddingVertical: 0, minWidth: 0 },
   compactDurationText: { fontFamily: fonts.display, fontSize: 24, lineHeight: 30, fontVariant: ['tabular-nums'] },
 });

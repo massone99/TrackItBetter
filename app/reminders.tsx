@@ -14,6 +14,7 @@ import { ActionButton, Body, Card, Heading, Label, PageHeading, Screen } from ".
 import { TimeField } from "../src/shared/components/DateTimePickers";
 import { useTheme } from "../src/shared/theme/ThemeProvider";
 import { useScaledStyles } from "../src/shared/theme/useScaledStyles";
+import { radii } from '../src/shared/theme/tokens';
 
 const weekdays = [
   { value: 1, key: "sun" },
@@ -151,7 +152,7 @@ export default function RemindersScreen() {
 const baseStyles = StyleSheet.create({
   statusRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   statusText: { flex: 1, gap: 5 },
-  statusDot: { width: 13, height: 13, borderRadius: 7, marginLeft: 12 },
+  statusDot: { width: 13, height: 13, borderRadius: radii.control, marginLeft: 12 },
   dayRow: { flexDirection: "row", justifyContent: "space-between", gap: 5 },
-  day: { flex: 1, minWidth: 0, minHeight: 48, alignItems: "center", justifyContent: "center", borderRadius: 12, borderWidth: 1 },
+  day: { flex: 1, minWidth: 0, minHeight: 48, alignItems: "center", justifyContent: "center", borderRadius: radii.control, borderWidth: 1 },
 });

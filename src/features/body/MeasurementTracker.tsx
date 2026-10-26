@@ -19,6 +19,7 @@ import { useSaveOnLeave } from '../../shared/forms/useSaveOnLeave';
 import { ActionButton, Body, Card, Chip, Heading, Label, PageHeading, Screen, SectionTitle, SegmentedControl, TextField } from '../../shared/components/ui';
 import { useTheme } from '../../shared/theme/ThemeProvider';
 import { useScaledStyles } from '../../shared/theme/useScaledStyles';
+import { radii } from '../../shared/theme/tokens';
 
 type TrackerMode = 'measurements' | 'mobility';
 
@@ -161,11 +162,11 @@ const baseStyles = StyleSheet.create({
   options: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   historyGroup: { gap: 8 },
   historyRow: { minHeight: 56, borderBottomWidth: StyleSheet.hairlineWidth, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 8, paddingVertical: 10 },
-  chart: { borderRadius: 14, padding: 12, marginTop: 8, marginBottom: 8, gap: 10 },
+  chart: { borderRadius: radii.control, padding: 12, marginTop: 8, marginBottom: 8, gap: 10 },
   chartLabel: { fontSize: 13, fontWeight: '600' },
   chartBars: { height: 76, flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-around', gap: 6 },
   chartColumn: { flex: 1, alignItems: 'center', justifyContent: 'flex-end', gap: 5 },
-  chartBarTrack: { width: '65%', height: 58, borderRadius: 5, justifyContent: 'flex-end', overflow: 'hidden' },
-  chartBar: { width: '100%', borderRadius: 5 },
+  chartBarTrack: { width: '65%', height: 58, borderRadius: radii.control, justifyContent: 'flex-end', overflow: 'hidden' },
+  chartBar: { width: '100%', borderRadius: radii.control },
   chartDate: { fontSize: 12 },
 });

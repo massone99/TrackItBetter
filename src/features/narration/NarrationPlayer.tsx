@@ -16,6 +16,7 @@ import { useScaledStyles } from '../../shared/theme/useScaledStyles';
 import { formatClock } from '../../shared/utils/format';
 import { playBeep } from '../../shared/audio/beeps';
 import { goBack } from '../../shared/navigation/goBack';
+import { radii } from '../../shared/theme/tokens';
 
 /** Longest wait for an announcement to end before the countdown starts anyway. */
 const ANNOUNCEMENT_TIMEOUT_MS = 8000;
@@ -403,7 +404,7 @@ const baseStyles = StyleSheet.create({
   phase: { fontFamily: fonts.semibold, fontSize: 17 },
   drillName: { fontFamily: fonts.display, fontSize: 40, lineHeight: 44, textAlign: 'center' },
   badges: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 8, minHeight: 30 },
-  badge: { paddingHorizontal: 12, minHeight: 30, borderRadius: 999, justifyContent: 'center' },
+  badge: { paddingHorizontal: 12, minHeight: 30, borderRadius: radii.pill, justifyContent: 'center' },
   badgeText: { fontFamily: fonts.semibold, fontSize: 14 },
   timer: { width: '100%', textAlign: 'center', fontFamily: fonts.display, fontSize: 104, lineHeight: 114, fontVariant: ['tabular-nums'] },
   cue: { fontFamily: fonts.body, fontSize: 16, lineHeight: 23, textAlign: 'center', maxWidth: 420 },
@@ -411,8 +412,8 @@ const baseStyles = StyleSheet.create({
   referenceText: { fontFamily: fonts.semibold, fontSize: 15, textDecorationLine: 'underline' },
   nextUp: { textAlign: 'center', fontFamily: fonts.medium, fontSize: 15, marginBottom: 18 },
   controls: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 24 },
-  mainButton: { width: 84, height: 84, borderRadius: 42, alignItems: 'center', justifyContent: 'center' },
-  sideButton: { width: 58, height: 58, borderRadius: 29, alignItems: 'center', justifyContent: 'center' },
+  mainButton: { width: 84, height: 84, borderRadius: radii.control, alignItems: 'center', justifyContent: 'center' },
+  sideButton: { width: 58, height: 58, borderRadius: radii.control, alignItems: 'center', justifyContent: 'center' },
   addTen: { alignSelf: 'center', minHeight: 48, justifyContent: 'center', paddingVertical: 12, paddingHorizontal: 20 },
   addTenText: { fontFamily: fonts.semibold, fontSize: 16 },
   addTenSpacer: { height: 44 },

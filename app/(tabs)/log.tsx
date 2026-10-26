@@ -12,6 +12,7 @@ import { useTheme } from '../../src/shared/theme/ThemeProvider';
 import { useScaledStyles } from '../../src/shared/theme/useScaledStyles';
 import { fonts } from '../../src/shared/theme/typography';
 import { dateKey } from '../../src/shared/utils/date';
+import { radii } from '../../src/shared/theme/tokens';
 
 /** Workouts read from the database per page, so years of training load as fast as a week. */
 const PAGE_SIZE = 30;
@@ -169,7 +170,7 @@ const baseStyles = StyleSheet.create({
   monthHint: { fontFamily: fonts.semibold, fontSize: 12 },
   calendarGrid: { flexDirection: 'row', flexWrap: 'wrap' },
   weekday: { width: '14.2857%', minHeight: 24, textAlign: 'center', textAlignVertical: 'center', fontSize: 12, fontFamily: fonts.semibold },
-  day: { width: '14.2857%', minHeight: 48, alignItems: 'center', justifyContent: 'center', borderRadius: 12 },
+  day: { width: '14.2857%', minHeight: 48, alignItems: 'center', justifyContent: 'center', borderRadius: radii.control },
   dayNumber: { fontFamily: fonts.medium, fontSize: 15 },
   dayDot: { width: 5, height: 5, borderRadius: 3, marginTop: 3 },
   calendarFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', minHeight: 32, paddingHorizontal: 4 },

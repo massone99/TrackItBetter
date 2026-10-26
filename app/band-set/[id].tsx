@@ -14,6 +14,7 @@ import { fonts } from '../../src/shared/theme/typography';
 import { useScaledStyles } from '../../src/shared/theme/useScaledStyles';
 import { useSaveOnLeave } from '../../src/shared/forms/useSaveOnLeave';
 import { parseNumberInput, sanitizeNumberInput } from '../../src/shared/utils/format';
+import { radii } from '../../src/shared/theme/tokens';
 
 /** A band set: its name and its bands, lightest first. */
 export default function BandSetScreen() {
@@ -159,14 +160,14 @@ const baseStyles = StyleSheet.create({
   flex: { flex: 1, gap: 2 },
   bandRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 8 },
   bandMain: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 48 },
-  swatch: { width: 28, height: 28, borderRadius: 14, borderWidth: 1 },
+  swatch: { width: 28, height: 28, borderRadius: radii.control, borderWidth: 1 },
   bandName: { fontFamily: fonts.semibold, fontSize: 16 },
   bandKg: { fontFamily: fonts.medium, fontSize: 14 },
   colors: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-  colorOption: { width: 44, height: 44, borderRadius: 22 },
+  colorOption: { width: 44, height: 44, borderRadius: radii.control },
   kgRow: { flexDirection: 'row', gap: 12 },
   hexRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 12 },
-  hexSwatch: { width: 48, height: 48, borderRadius: 24, borderWidth: 1, marginBottom: 2 },
+  hexSwatch: { width: 48, height: 48, borderRadius: radii.control, borderWidth: 1, marginBottom: 2 },
   removeRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   removeText: { flex: 1, fontFamily: fonts.medium, fontSize: 13 },
 });

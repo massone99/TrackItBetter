@@ -10,6 +10,7 @@ import { addProgressPhoto, deleteProgressPhoto, listProgressPhotos, type Progres
 import { ActionButton, Body, Card, Heading, PageHeading, Screen, Sheet, TextField } from '../src/shared/components/ui';
 import { useTheme } from '../src/shared/theme/ThemeProvider';
 import { useScaledStyles } from '../src/shared/theme/useScaledStyles';
+import { radii } from '../src/shared/theme/tokens';
 
 function photoDateFromExif(value?: string): Date {
   if (!value) return new Date();
@@ -152,20 +153,20 @@ export default function ProgressPhotosScreen() {
 
 const baseStyles = StyleSheet.create({
   photoCard: { padding: 10, overflow: 'hidden' },
-  image: { width: '100%', aspectRatio: 0.85, borderRadius: 15 },
+  image: { width: '100%', aspectRatio: 0.85, borderRadius: radii.control },
   caption: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, paddingHorizontal: 5 },
   captionText: { flex: 1, gap: 4 },
   date: { fontSize: 15, fontWeight: '800' },
-  compareButton: { minHeight: 48, borderRadius: 13, alignItems: 'center', justifyContent: 'center', marginTop: 2 },
+  compareButton: { minHeight: 48, borderRadius: radii.control, alignItems: 'center', justifyContent: 'center', marginTop: 2 },
   compareHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
-  comparison: { width: '100%', aspectRatio: 0.9, overflow: 'hidden', borderRadius: 15 },
+  comparison: { width: '100%', aspectRatio: 0.9, overflow: 'hidden', borderRadius: radii.control },
   comparisonImage: { height: '100%' },
   comparisonMask: { position: 'absolute', top: 0, bottom: 0, left: 0, overflow: 'hidden' },
   comparisonLabels: { ...StyleSheet.absoluteFill, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', padding: 10 },
-  comparisonTag: { paddingHorizontal: 8, paddingVertical: 5, borderRadius: 9, fontWeight: '800', overflow: 'hidden' },
+  comparisonTag: { paddingHorizontal: 8, paddingVertical: 5, borderRadius: radii.control, fontWeight: '800', overflow: 'hidden' },
   textButton: { minHeight: 48, justifyContent: 'center', paddingHorizontal: 8 },
   compareDates: { flexDirection: 'row', justifyContent: 'space-between' },
-  sliderTrack: { minHeight: 48, borderRadius: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 3, overflow: 'hidden' },
+  sliderTrack: { minHeight: 48, borderRadius: radii.control, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 3, overflow: 'hidden' },
   sliderFill: { position: 'absolute', height: 4, left: 0 },
-  sliderButton: { width: 48, height: 48, borderRadius: 12, zIndex: 1, alignItems: 'center', justifyContent: 'center' },
+  sliderButton: { width: 48, height: 48, borderRadius: radii.control, zIndex: 1, alignItems: 'center', justifyContent: 'center' },
 });

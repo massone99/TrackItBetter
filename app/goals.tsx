@@ -8,6 +8,7 @@ import { ActionButton, Body, Card, Heading, PageHeading, ProgressMeter, Screen, 
 import { useTheme } from '../src/shared/theme/ThemeProvider';
 import { useScaledStyles } from '../src/shared/theme/useScaledStyles';
 import { fonts } from '../src/shared/theme/typography';
+import { radii } from '../src/shared/theme/tokens';
 
 const ACHIEVEMENTS = ['first-session', 'five-sessions', 'ten-sessions', 'week-goal', 'three-day-streak', 'seven-day-streak'] as const;
 
@@ -140,7 +141,7 @@ function heatColor(count: number, palette: ReturnType<typeof useTheme>['palette'
 const baseStyles = StyleSheet.create({
   targetRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   targetText: { flex: 1, gap: 3 },
-  adjustButton: { width: 48, height: 48, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
+  adjustButton: { width: 48, height: 48, borderRadius: radii.control, alignItems: 'center', justifyContent: 'center' },
   adjustText: { fontSize: 24, fontWeight: '800' },
   streakRow: { flexDirection: 'row', gap: 12 },
   recapRow: { flexDirection: 'row', gap: 12 },
@@ -156,7 +157,7 @@ const baseStyles = StyleSheet.create({
   weekdayLabels: { justifyContent: 'space-between', paddingVertical: 1 },
   weekday: { minHeight: 16, width: 16, textAlign: 'center', fontSize: 12, fontWeight: '700' },
   achievementRow: { minHeight: 75, borderTopWidth: StyleSheet.hairlineWidth, flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 8 },
-  badge: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
+  badge: { width: 36, height: 36, borderRadius: radii.control, alignItems: 'center', justifyContent: 'center' },
   badgeText: { fontSize: 20, fontWeight: '900' },
   achievementText: { flex: 1, gap: 2 },
   achievementTitle: { fontSize: 16, lineHeight: 22, fontWeight: '600' },

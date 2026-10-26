@@ -7,6 +7,7 @@ import type { IconName } from '../../shared/components/ui';
 import { useTheme } from '../../shared/theme/ThemeProvider';
 import { fonts } from '../../shared/theme/typography';
 import { useScaledStyles } from '../../shared/theme/useScaledStyles';
+import { radii } from '../../shared/theme/tokens';
 
 export const GROUP_ICONS: Record<PositionGroup, IconName> = {
   free: 'scan-outline',
@@ -125,13 +126,13 @@ export function PositionPicker({ value, onChange }: { value: PositionDefinition;
 
 const baseStyles = StyleSheet.create({
   groups: { gap: 10 },
-  group: { borderRadius: 20, borderWidth: StyleSheet.hairlineWidth, overflow: 'hidden' },
+  group: { borderRadius: radii.control, borderWidth: StyleSheet.hairlineWidth, overflow: 'hidden' },
   header: { minHeight: 60, flexDirection: 'row', alignItems: 'center', gap: 13, paddingHorizontal: 16, paddingVertical: 11 },
-  icon: { width: 34, height: 34, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  icon: { width: 34, height: 34, borderRadius: radii.control, alignItems: 'center', justifyContent: 'center' },
   copy: { flex: 1, gap: 2 },
   title: { fontFamily: fonts.semibold, fontSize: 16 },
   names: { fontFamily: fonts.body, fontSize: 13 },
   picker: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12 },
-  change: { paddingHorizontal: 14, height: 38, borderRadius: 12, justifyContent: 'center' },
+  change: { paddingHorizontal: 14, height: 38, borderRadius: radii.control, justifyContent: 'center' },
   changeText: { fontFamily: fonts.semibold, fontSize: 15 },
 });

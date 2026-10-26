@@ -4,6 +4,7 @@ import { Text } from '../../../shared/components/ui';
 import { useTheme } from '../../../shared/theme/ThemeProvider';
 import { fonts } from '../../../shared/theme/typography';
 import { useScaledStyles } from '../../../shared/theme/useScaledStyles';
+import { radii } from '../../../shared/theme/tokens';
 
 /** A bordered row of big numbers with their labels: the estimates, records and week figures of an exercise, and the estimator. */
 export function StatRow({ children }: PropsWithChildren) {
@@ -24,7 +25,7 @@ export function StatTile({ value, label }: { value: string; label: string }) {
 }
 
 const baseStyles = StyleSheet.create({
-  row: { flexDirection: 'row', borderRadius: 16, borderWidth: 1, paddingVertical: 18 },
+  row: { flexDirection: 'row', borderRadius: radii.control, borderWidth: 1, paddingVertical: 18 },
   item: { flex: 1, alignItems: 'center', gap: 2, paddingHorizontal: 6 },
   value: { fontFamily: fonts.display, fontSize: 30, lineHeight: 34, fontVariant: ['tabular-nums'] },
   label: { fontFamily: fonts.medium, fontSize: 14, lineHeight: 20, textAlign: 'center' },

@@ -17,6 +17,7 @@ import { fonts } from '../../src/shared/theme/typography';
 import { formatBestValue, formatDuration, formatNumber } from '../../src/shared/utils/format';
 import { useScaledStyles } from '../../src/shared/theme/useScaledStyles';
 import { openExercisePage } from '../../src/features/exercises/openExercise';
+import { radii } from '../../src/shared/theme/tokens';
 
 
 export default function ProgressScreen() {
@@ -265,10 +266,10 @@ const baseStyles = StyleSheet.create({
   balanceCount: { width: 52, textAlign: 'right', fontSize: 12 },
   legsNudge: { marginTop: 8, fontSize: 13, lineHeight: 19 },
   bestRow: { borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 10, gap: 7 },
-  bestShareCard: { padding: 14, borderRadius: 15, gap: 4 },
+  bestShareCard: { padding: 14, borderRadius: radii.control, gap: 4 },
   bestBrand: { fontSize: 11, fontWeight: '900', letterSpacing: 1 },
   shareControl: { gap: 4 },
-  shareBestButton: { minHeight: 48, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  shareBestButton: { minHeight: 48, borderRadius: radii.control, alignItems: 'center', justifyContent: 'center' },
   trendCard: { borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 12, paddingBottom: 8, gap: 8 },
   trendHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
   trendLatest: { alignItems: 'flex-end' },

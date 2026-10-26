@@ -6,7 +6,7 @@ import type { DailyGoal, DaySet, GoalPeriod } from '../../domain/dailyGoals';
 import { periodResults, periodStarts, streaks, type PeriodResult } from '../../domain/goalHistory';
 import { ActionButton, Body, Card, EmptyState, Icon, IconButton, ListGroup, ListRow, PageHeading, Screen, SectionTitle, SegmentedControl, Text, tapFeedback } from '../../shared/components/ui';
 import { ShowMore, usePaged } from '../../shared/components/paging';
-import { MIN_TOUCH_TARGET } from '../../shared/theme/tokens';
+import { MIN_TOUCH_TARGET, radii } from '../../shared/theme/tokens';
 import { useTheme } from '../../shared/theme/ThemeProvider';
 import { useScaledStyles } from '../../shared/theme/useScaledStyles';
 import { fonts } from '../../shared/theme/typography';
@@ -239,14 +239,14 @@ const baseStyles = StyleSheet.create({
   grid: { flexDirection: 'row', flexWrap: 'wrap' },
   weekday: { width: `${100 / 7}%`, textAlign: 'center', fontSize: 12, fontFamily: fonts.semibold, paddingBottom: 4 },
   cell: { width: `${100 / 7}%`, padding: 2, alignItems: 'center' },
-  day: { width: '100%', minHeight: MIN_TOUCH_TARGET, borderRadius: 14, borderWidth: 2, alignItems: 'center', justifyContent: 'center', paddingVertical: 2 },
+  day: { width: '100%', minHeight: MIN_TOUCH_TARGET, borderRadius: radii.control, borderWidth: 2, alignItems: 'center', justifyContent: 'center', paddingVertical: 2 },
   dayNumber: { fontSize: 15, fontFamily: fonts.semibold },
   dayCount: { fontSize: 12, fontFamily: fonts.semibold },
   legend: { flexDirection: 'row', flexWrap: 'wrap', gap: 16 },
   legendItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  dot: { width: 14, height: 14, borderRadius: 7, borderWidth: 1 },
+  dot: { width: 14, height: 14, borderRadius: radii.control, borderWidth: 1 },
   weekBlock: { gap: 8 },
-  weekRow: { borderRadius: 16, borderWidth: 1, padding: 14, gap: 10, minHeight: MIN_TOUCH_TARGET },
+  weekRow: { borderRadius: radii.control, borderWidth: 1, padding: 14, gap: 10, minHeight: MIN_TOUCH_TARGET },
   weekHead: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   weekCopy: { flex: 1 },
   weekTitle: { fontSize: 16, fontFamily: fonts.semibold },

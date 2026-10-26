@@ -33,6 +33,7 @@ import { WorkoutInProgressSheet } from '../../../src/features/session/WorkoutInP
 import { useSaveOnLeave } from '../../../src/shared/forms/useSaveOnLeave';
 import { DurationField, HoldDurationField } from '../../../src/shared/components/DateTimePickers';
 import { formatClock } from '../../../src/shared/utils/format';
+import { radii } from '../../../src/shared/theme/tokens';
 
 type ExerciseInfo = { name: string; metric: string };
 
@@ -317,12 +318,12 @@ const baseStyles = StyleSheet.create({
   prepHint: { fontSize: 13, lineHeight: 18, marginTop: -4 },
   stepCard: { gap: 16, paddingBottom: 12 },
   stepHeader: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  stepNumber: { width: 28, height: 28, borderRadius: 9, alignItems: 'center', justifyContent: 'center', marginRight: 4 },
+  stepNumber: { width: 28, height: 28, borderRadius: radii.control, alignItems: 'center', justifyContent: 'center', marginRight: 4 },
   stepNumberText: { fontFamily: fonts.display, fontSize: 16 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   stepTitle: { flex: 1, minHeight: 48, justifyContent: 'center' },
   stepSummary: { fontFamily: fonts.body, fontSize: 14, lineHeight: 20 },
-  toast: { flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 14, paddingLeft: 16, paddingRight: 4, minHeight: 48 },
+  toast: { flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: radii.control, paddingLeft: 16, paddingRight: 4, minHeight: 48 },
   toastText: { flex: 1, fontFamily: fonts.medium, fontSize: 15, lineHeight: 20 },
   toastAction: { minHeight: 48, paddingHorizontal: 14, justifyContent: 'center' },
   toastUndo: { fontFamily: fonts.semibold, fontSize: 15 },

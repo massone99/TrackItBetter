@@ -18,6 +18,7 @@ import { groupExercises } from './groupExercises';
 import { ExerciseGroupingControls, ExerciseGroupingHeader, useExerciseGrouping } from './ExerciseGrouping';
 import { useAnimationSettings } from '../../shared/settings/AnimationProvider';
 import { MAX_FONT_SCALE } from '../../shared/theme/scale';
+import { radii } from '../../shared/theme/tokens';
 
 export type ExerciseChoice = {
   id: string; name: string; metric: string; category: string; extraCategories: string; level: number | null;
@@ -151,7 +152,7 @@ const baseStyles = StyleSheet.create({
   flex: { flex: 1 },
   header: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, paddingHorizontal: 20 },
   title: { fontFamily: fonts.display, fontSize: 34, lineHeight: 38 },
-  searchBox: { flexDirection: 'row', alignItems: 'center', gap: 10, marginHorizontal: 20, marginTop: 16, paddingHorizontal: 14, borderWidth: 1, borderRadius: 14, minHeight: 50 },
+  searchBox: { flexDirection: 'row', alignItems: 'center', gap: 10, marginHorizontal: 20, marginTop: 16, paddingHorizontal: 14, borderWidth: 1, borderRadius: radii.control, minHeight: 50 },
   searchInput: { flex: 1, fontFamily: fonts.body, fontSize: 16, minHeight: 48, outlineWidth: 0 },
   chipScroll: { flexGrow: 0, flexShrink: 0, marginTop: 12 },
   chips: { gap: 8, paddingHorizontal: 20, paddingVertical: 4, alignItems: 'center' },

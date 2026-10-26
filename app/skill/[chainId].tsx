@@ -8,6 +8,7 @@ import { getProgressionChain } from '../../src/features/progressions/repository'
 import { Body, Card, Heading, IconButton, Label, PageHeading, Screen, Icon } from '../../src/shared/components/ui';
 import { useTheme } from '../../src/shared/theme/ThemeProvider';
 import { useScaledStyles } from '../../src/shared/theme/useScaledStyles';
+import { radii } from '../../src/shared/theme/tokens';
 
 type Chain = Awaited<ReturnType<typeof getProgressionChain>>;
 
@@ -96,10 +97,10 @@ const baseStyles = StyleSheet.create({
   path: { gap: 4 },
   levelRow: { minHeight: 112, flexDirection: 'row', gap: 13 },
   markerColumn: { width: 30, alignItems: 'center' },
-  marker: { width: 28, height: 28, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  marker: { width: 28, height: 28, borderRadius: radii.control, alignItems: 'center', justifyContent: 'center' },
   connector: { flex: 1, width: 2, marginVertical: 4 },
   levelContent: { flex: 1, paddingBottom: 12 },
-  levelCard: { flex: 1, gap: 10, paddingVertical: 16, borderRadius: 16 },
+  levelCard: { flex: 1, gap: 10, paddingVertical: 16, borderRadius: radii.control },
   levelTitle: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: 8 },
   exerciseName: { fontSize: 16 },
 });

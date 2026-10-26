@@ -19,6 +19,7 @@ import { ActionButton, Chip, EmptyState, Icon, IconButton, ListGroup, ListRow, P
 import { useTheme } from '../../src/shared/theme/ThemeProvider';
 import { fonts } from '../../src/shared/theme/typography';
 import { useScaledStyles } from '../../src/shared/theme/useScaledStyles';
+import { radii } from '../../src/shared/theme/tokens';
 
 const COLLAPSED_KEY = 'mobility.collapsedGroups';
 const CYCLES_OPEN_KEY = 'mobility.cyclesOpen';
@@ -386,17 +387,17 @@ function MoveChoices({ routine, programs, groupPrograms, onPick }: { routine: Mo
 
 const baseStyles = StyleSheet.create({
   emptyAction: { alignSelf: 'stretch', marginTop: 6 },
-  week: { flexDirection: 'row', flexWrap: 'wrap', borderRadius: 16, borderWidth: 1, paddingVertical: 18 },
+  week: { flexDirection: 'row', flexWrap: 'wrap', borderRadius: radii.control, borderWidth: 1, paddingVertical: 18 },
   weekItem: { flex: 1, alignItems: 'center', gap: 2, paddingHorizontal: 8 },
   weekValue: { fontFamily: fonts.display, fontSize: 32, lineHeight: 36, fontVariant: ['tabular-nums'] },
   weekLabel: { fontFamily: fonts.medium, fontSize: 14, lineHeight: 20, textAlign: 'center' },
   weekDivider: { width: StyleSheet.hairlineWidth },
   flex: { flex: 1 },
   fabLayer: { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, alignItems: 'flex-end', justifyContent: 'flex-end', padding: 20, gap: 10 },
-  fab: { minHeight: 56, borderRadius: 28, paddingHorizontal: 20, flexDirection: 'row', alignItems: 'center', gap: 8, elevation: 6 },
+  fab: { minHeight: 56, borderRadius: radii.control, paddingHorizontal: 20, flexDirection: 'row', alignItems: 'center', gap: 8, elevation: 6 },
   fabText: { fontFamily: fonts.semibold, fontSize: 16 },
   fabSpace: { height: 72 },
-  createMenu: { width: 244, borderRadius: 16, borderWidth: 1, paddingVertical: 6, elevation: 6 },
+  createMenu: { width: 244, borderRadius: radii.control, borderWidth: 1, paddingVertical: 6, elevation: 6 },
   createItem: { minHeight: 52, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', gap: 12 },
   createItemText: { fontFamily: fonts.medium, fontSize: 16, flexShrink: 1 },
   filterRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' },
@@ -406,27 +407,27 @@ const baseStyles = StyleSheet.create({
   group: { gap: 4 },
   groupHead: { minHeight: 56, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 4 },
   groupName: { flex: 1, fontFamily: fonts.semibold, fontSize: 17, lineHeight: 22 },
-  rows: { borderRadius: 16, borderWidth: 1, overflow: 'hidden' },
+  rows: { borderRadius: radii.control, borderWidth: 1, overflow: 'hidden' },
   row: { flexDirection: 'row', alignItems: 'center', paddingLeft: 16, paddingRight: 4, paddingVertical: 4, minHeight: 64 },
   rowCopy: { flex: 1, minHeight: 48, justifyContent: 'center', gap: 1, paddingRight: 4 },
   rowName: { fontFamily: fonts.semibold, fontSize: 17, lineHeight: 22, flexShrink: 1 },
   moveList: { gap: 10 },
   moveLabel: { fontFamily: fonts.semibold, fontSize: 13, letterSpacing: 0.6, textTransform: 'uppercase' },
-  suggested: { flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 20, paddingVertical: 16, paddingLeft: 20, paddingRight: 16 },
+  suggested: { flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: radii.control, paddingVertical: 16, paddingLeft: 20, paddingRight: 16 },
   suggestedCopy: { flex: 1, gap: 2 },
   suggestedLabel: { fontFamily: fonts.semibold, fontSize: 12, letterSpacing: 0.7, textTransform: 'uppercase' },
   suggestedName: { fontFamily: fonts.display, fontSize: 28, lineHeight: 32 },
   suggestedMeta: { fontFamily: fonts.body, fontSize: 14, lineHeight: 20 },
-  suggestedPlay: { width: 56, height: 56, borderRadius: 28, alignItems: 'center', justifyContent: 'center' },
+  suggestedPlay: { width: 56, height: 56, borderRadius: radii.control, alignItems: 'center', justifyContent: 'center' },
   goal: { flexBasis: '100%', minHeight: 48, justifyContent: 'center', gap: 6, paddingHorizontal: 16 },
   goalTrack: { height: 8, borderRadius: 4, overflow: 'hidden' },
   goalFill: { height: '100%', borderRadius: 4 },
   goalSet: { fontFamily: fonts.semibold, fontSize: 15 },
   createRow: { flexDirection: 'row', gap: 10 },
-  tile: { flex: 1, minHeight: 88, borderRadius: 16, borderWidth: 1, padding: 12, justifyContent: 'space-between', gap: 8 },
+  tile: { flex: 1, minHeight: 88, borderRadius: radii.control, borderWidth: 1, padding: 12, justifyContent: 'space-between', gap: 8 },
   tileLabel: { fontFamily: fonts.semibold, fontSize: 15, lineHeight: 19 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  routine: { gap: 12, borderRadius: 16, borderWidth: 1, paddingLeft: 16, paddingRight: 8, paddingVertical: 12 },
+  routine: { gap: 12, borderRadius: radii.control, borderWidth: 1, paddingLeft: 16, paddingRight: 8, paddingVertical: 12 },
   routineHead: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   nameRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   startRow: { flexDirection: 'row', gap: 8, paddingRight: 8 },

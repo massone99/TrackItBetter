@@ -10,6 +10,7 @@ import { useScaledStyles } from '../../shared/theme/useScaledStyles';
 import { formatNumber } from '../../shared/utils/format';
 import { RenameBandSheet } from './RenameBandSheet';
 import { bandRange, bandsById, useEquipment } from './useEquipment';
+import { radii } from '../../shared/theme/tokens';
 
 const TENSIONS: Tension[] = [1, 2, 3];
 
@@ -105,12 +106,12 @@ const baseStyles = StyleSheet.create({
   flex: { flex: 1, gap: 2 },
   bandRow: { gap: 8 },
   bandHead: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  swatch: { width: 24, height: 24, borderRadius: 12, borderWidth: 1 },
+  swatch: { width: 24, height: 24, borderRadius: radii.control, borderWidth: 1 },
   bandName: { fontFamily: fonts.semibold, fontSize: 16 },
   bandMeta: { fontFamily: fonts.medium, fontSize: 13 },
   assist: { fontFamily: fonts.semibold, fontSize: 15 },
   picker: { gap: 8 },
   choices: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  option: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 48, paddingHorizontal: 12, borderRadius: 12, borderWidth: 1 },
+  option: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 48, paddingHorizontal: 12, borderRadius: radii.control, borderWidth: 1 },
   optionText: { fontFamily: fonts.medium, fontSize: 15 },
 });

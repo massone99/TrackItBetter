@@ -14,6 +14,7 @@ import { useTheme } from '../../src/shared/theme/ThemeProvider';
 import { fonts } from '../../src/shared/theme/typography';
 import { useScaledStyles } from '../../src/shared/theme/useScaledStyles';
 import { formatClock } from '../../src/shared/utils/format';
+import { radii } from '../../src/shared/theme/tokens';
 
 type Details = { name: string; description: string; family: string };
 
@@ -207,8 +208,8 @@ export default function ChainScreen() {
 
 const baseStyles = StyleSheet.create({
   steps: { gap: 8 },
-  step: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 64, paddingHorizontal: 12, paddingVertical: 10, borderRadius: 16, borderWidth: 1 },
-  badge: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
+  step: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 64, paddingHorizontal: 12, paddingVertical: 10, borderRadius: radii.control, borderWidth: 1 },
+  badge: { width: 32, height: 32, borderRadius: radii.control, alignItems: 'center', justifyContent: 'center' },
   badgeText: { fontFamily: fonts.bold, fontSize: 15 },
   stepText: { flex: 1, minWidth: 0 },
   stepName: { fontFamily: fonts.semibold, fontSize: 16 },

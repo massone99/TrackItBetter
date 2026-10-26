@@ -55,6 +55,7 @@ import { fonts } from '../src/shared/theme/typography';
 import { useScaledStyles } from '../src/shared/theme/useScaledStyles';
 import { formatClock, formatMinutes } from '../src/shared/utils/format';
 import { TotalTargetField, totalDefaultFor } from '../src/features/programs/TotalTargetField';
+import { radii } from '../src/shared/theme/tokens';
 
 type ExerciseInfo = { name: string; metric: string };
 type Draft = { name: string; sessions: UserProgramSession[] };
@@ -515,18 +516,18 @@ function newSession(name: string): UserProgramSession {
 
 const baseStyles = StyleSheet.create({
   rpeBlock: { gap: 8 },
-  totalHint: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, borderRadius: 14, padding: 14 },
+  totalHint: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, borderRadius: radii.control, padding: 14 },
   moveRow: { flexDirection: 'row', justifyContent: 'flex-end', gap: 4, marginTop: -8 },
   sheetButtons: { gap: 8 },
   exerciseRow: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 56 },
   exerciseMain: { flex: 1, gap: 6, minHeight: 48, justifyContent: 'center' },
   summaryChips: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 6 },
-  summaryChip: { paddingHorizontal: 10, paddingVertical: 3, borderRadius: 10 },
+  summaryChip: { paddingHorizontal: 10, paddingVertical: 3, borderRadius: radii.control },
   summaryChipText: { fontFamily: fonts.body, fontSize: 13 },
   flex: { flex: 1, gap: 4 },
   dayCard: { gap: 16 },
   header: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  number: { width: 28, height: 28, borderRadius: 9, alignItems: 'center', justifyContent: 'center', marginRight: 6 },
+  number: { width: 28, height: 28, borderRadius: radii.control, alignItems: 'center', justifyContent: 'center', marginRight: 6 },
   numberText: { fontFamily: fonts.display, fontSize: 16 },
   dayTitle: { fontFamily: fonts.display, fontSize: 24, lineHeight: 28 },
   field: { gap: 8 },

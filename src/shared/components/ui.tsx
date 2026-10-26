@@ -8,7 +8,8 @@ import { useTranslation } from "react-i18next";
 import { useTheme } from "../theme/ThemeProvider";
 import { useAnimationSettings } from "../settings/AnimationProvider";
 import { fonts } from "../theme/typography";
-import { MIN_TOUCH_TARGET, elevation, radii, spacing, typeScale } from "../theme/tokens";
+import { useInk } from "../theme/ink";
+import { MIN_TOUCH_TARGET, radii, spacing, typeScale } from "../theme/tokens";
 import { Icon, IconName } from "./Icon";
 import { Text } from "./Text";
 import { useScaledStyles } from "../theme/useScaledStyles";
@@ -132,10 +133,9 @@ export function Numeral({ children, style, ...props }: TextProps) {
   return <Text {...props} style={[styles.numeral, { color: palette.text }, style]}>{children}</Text>;
 }
 
-/** The light theme lifts surfaces with a soft shadow; the dark theme relies on border and tone. */
+/** Surfaces are flat in both themes: thin ink lines, no shadow. Kept so call sites need no change. */
 export function useSurfaceDepth() {
-  const { mode } = useTheme();
-  return mode === "light" ? elevation.surface : undefined;
+  return undefined;
 }
 
 /**
@@ -152,7 +152,8 @@ export function Card({ children, style, ...props }: PropsWithChildren<ViewProps>
   const styles = useScaledStyles(baseStyles);
   const { palette } = useTheme();
   const depth = useSurfaceDepth();
-  return <View {...props} style={[styles.card, { backgroundColor: palette.surface, borderColor: palette.border }, depth, style]}>{children}</View>;
+  const ink = useInk();
+  return <View {...props} style={[styles.card, { backgroundColor: palette.surface, borderColor: ink }, depth, style]}>{children}</View>;
 }
 
 export function SectionTitle({ title, action }: { title: string; action?: ReactNode }) {
@@ -247,7 +248,7 @@ export function IconButton({ icon, onPress, label, tone = "muted", size = 40, co
       disabled={disabled}
       hitSlop={6}
       onPress={() => { tapFeedback(); onPress(); }}
-      style={({ pressed }) => [styles.iconButton, { width: box, height: box, borderRadius: box / 2.6, backgroundColor: background, opacity: disabled ? 0.3 : pressed ? 0.7 : 1 }, pressScale(pressed)]}
+      style={({ pressed }) => [styles.iconButton, { width: box, height: box, borderRadius: radii.control, backgroundColor: background, opacity: disabled ? 0.3 : pressed ? 0.7 : 1 }, pressScale(pressed)]}
     >
       <Icon name={icon} size={Math.round(size * 0.5)} color={color} />
     </Pressable>
@@ -502,8 +503,9 @@ export function ListGroup({ children }: PropsWithChildren) {
   const depth = useSurfaceDepth();
   // toArray flattens nested arrays (a mapped list beside fixed rows) and drops false/null.
   const items = Children.toArray(children);
+  const ink = useInk();
   return (
-    <View style={[styles.listGroup, { backgroundColor: palette.surface, borderColor: palette.border }, depth]}>
+    <View style={[styles.listGroup, { backgroundColor: palette.surface, borderColor: ink }, depth]}>
       {items.map((child, index) => (
         <View key={index} style={index > 0 ? { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: palette.border } : undefined}>{child}</View>
       ))}
@@ -516,6 +518,7 @@ export function Chip({ label, selected = false, onPress, icon, accessibilityLabe
   const { palette } = useTheme();
   const color = selected ? palette.accentStrong : palette.textMuted;
   const pressScale = usePressScale(0.95);
+  const ink = useInk();
   return (
     <Pressable
       accessibilityRole="button"
@@ -523,7 +526,7 @@ export function Chip({ label, selected = false, onPress, icon, accessibilityLabe
       accessibilityState={{ selected }}
       hitSlop={4}
       onPress={() => { tapFeedback(); onPress?.(); }}
-      style={({ pressed }) => [styles.chip, { minHeight: MIN_TOUCH_TARGET, backgroundColor: selected ? palette.accentSoft : palette.surface, borderColor: selected ? palette.accentStrong : palette.border, opacity: pressed ? 0.75 : 1 }, pressScale(pressed)]}
+      style={({ pressed }) => [styles.chip, { minHeight: MIN_TOUCH_TARGET, backgroundColor: selected ? palette.accentSoft : palette.surface, borderColor: selected ? palette.accentStrong : ink, opacity: pressed ? 0.75 : 1 }, pressScale(pressed)]}
     >
       {icon ? <Icon name={icon} size={14} color={color} /> : null}
       <Text style={[styles.chipText, { color }]}>{label}</Text>
@@ -535,8 +538,9 @@ export function EmptyState({ icon, title, body, action }: { icon: IconName; titl
   const styles = useScaledStyles(baseStyles);
   const { palette } = useTheme();
   const depth = useSurfaceDepth();
+  const ink = useInk();
   return (
-    <View style={[styles.empty, { backgroundColor: palette.surface, borderColor: palette.border }, depth]}>
+    <View style={[styles.empty, { backgroundColor: palette.surface, borderColor: ink }, depth]}>
       <View style={[styles.emptyIcon, { backgroundColor: palette.accentSoft }]}><Icon name={icon} size={24} color={palette.accentStrong} /></View>
       <Heading style={styles.center}>{title}</Heading>
       <Body style={styles.center}>{body}</Body>
@@ -848,6 +852,7 @@ export function TextField({ label, hint, error, style, multiline, onFocus, onBlu
   const styles = useScaledStyles(baseStyles);
   const { palette, layoutScale: scale } = useTheme();
   const [focused, setFocused] = useState(false);
+  const ink = useInk();
   return (
     <View style={styles.field}>
       {label ? <Label>{label}</Label> : null}
@@ -862,7 +867,7 @@ export function TextField({ label, hint, error, style, multiline, onFocus, onBlu
         style={[
           styles.input,
           multiline && styles.inputMultiline,
-          { minHeight: Math.max(MIN_TOUCH_TARGET, multiline ? styles.inputMultiline.minHeight : styles.input.minHeight), backgroundColor: palette.surface, borderColor: error ? palette.warning : focused ? palette.accentStrong : palette.border, color: palette.text, fontSize: 16 * scale },
+          { minHeight: Math.max(MIN_TOUCH_TARGET, multiline ? styles.inputMultiline.minHeight : styles.input.minHeight), backgroundColor: palette.surface, borderColor: error ? palette.warning : focused ? palette.accentStrong : ink, color: palette.text, fontSize: 16 * scale },
           style,
         ]}
       />
@@ -873,11 +878,11 @@ export function TextField({ label, hint, error, style, multiline, onFocus, onBlu
 
 const baseStyles = StyleSheet.create({
   flexFill: { flex: 1 },
-  toast: { position: "absolute", left: 16, right: 16, minHeight: 52, borderRadius: 16, paddingHorizontal: 16, paddingVertical: 10, flexDirection: "row", alignItems: "center", gap: 12, elevation: 6, shadowColor: "#000", shadowOpacity: 0.2, shadowRadius: 10, shadowOffset: { width: 0, height: 4 } },
+  toast: { position: "absolute", left: 16, right: 16, minHeight: 52, borderRadius: radii.control, paddingHorizontal: 16, paddingVertical: 10, flexDirection: "row", alignItems: "center", gap: 12, elevation: 6, shadowColor: "#000", shadowOpacity: 0.2, shadowRadius: 10, shadowOffset: { width: 0, height: 4 } },
   toastText: { flex: 1, fontFamily: fonts.medium, fontSize: 15 },
   toastAction: { paddingHorizontal: 6, paddingVertical: 6 },
   toastActionText: { fontFamily: fonts.semibold, fontSize: 15 },
-  numberInput: { minWidth: 64, minHeight: 40, borderRadius: 10, borderWidth: 2, textAlign: "center", fontFamily: fonts.display, fontSize: 22, paddingHorizontal: 6, paddingVertical: 0 },
+  numberInput: { minWidth: 64, minHeight: 40, borderRadius: radii.control, borderWidth: 2, textAlign: "center", fontFamily: fonts.display, fontSize: 22, paddingHorizontal: 6, paddingVertical: 0 },
   statusScrim: { position: "absolute", top: 0, left: 0, right: 0 },
   footer: { borderTopWidth: StyleSheet.hairlineWidth, paddingTop: spacing.md, paddingHorizontal: spacing.page, alignItems: "center" },
   footerColumn: { width: "100%", maxWidth: 640, flexDirection: "row", gap: spacing.md },
@@ -948,7 +953,7 @@ const baseStyles = StyleSheet.create({
   listTrailing: { flexShrink: 0, paddingRight: 10, paddingLeft: 4 },
   listIcon: { width: 36, height: 36, borderRadius: radii.control, alignItems: "center", justifyContent: "center" },
   listCopy: { flex: 1, minWidth: 0, gap: 3 },
-  checkbox: { width: 26, height: 26, borderRadius: 8, borderWidth: 2, alignItems: "center", justifyContent: "center" },
+  checkbox: { width: 26, height: 26, borderRadius: radii.control, borderWidth: 2, alignItems: "center", justifyContent: "center" },
   listTitle: { fontFamily: fonts.semibold, fontSize: 16, lineHeight: 22 },
   listTitleSelected: { fontFamily: fonts.semibold },
   listCheck: { width: 22, alignItems: "center" },
@@ -956,7 +961,7 @@ const baseStyles = StyleSheet.create({
   chip: { minHeight: 44, paddingHorizontal: 14, paddingVertical: 10, borderRadius: radii.control, borderWidth: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6 },
   chipText: { flexShrink: 1, fontFamily: fonts.semibold, fontSize: 14, lineHeight: 20 },
   empty: { borderWidth: 1, borderRadius: radii.surface, padding: spacing.section, alignItems: "center", gap: spacing.md },
-  emptyIcon: { width: 52, height: 52, borderRadius: 16, alignItems: "center", justifyContent: "center", marginBottom: 4 },
+  emptyIcon: { width: 52, height: 52, borderRadius: radii.control, alignItems: "center", justifyContent: "center", marginBottom: 4 },
   center: { textAlign: "center" },
   segment: { flexDirection: "row", borderRadius: radii.surface, padding: 4, gap: 4 },
   segmentOption: { flex: 1, minWidth: 0, minHeight: 44, paddingHorizontal: 6, paddingVertical: 10, alignItems: "center", justifyContent: "center", borderRadius: radii.control },

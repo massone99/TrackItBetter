@@ -6,6 +6,7 @@ import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { useTheme } from '../theme/ThemeProvider';
 import { useAnimationSettings } from '../settings/AnimationProvider';
 import { tapFeedback, useScrollControl } from './ui';
+import { radii } from '../theme/tokens';
 
 /** Distance from the screen's top and bottom edge inside which a drag scrolls the page, and its top speed (px per frame). */
 const EDGE_TOP = 150;
@@ -232,5 +233,5 @@ const styles = StyleSheet.create({
   dots: { gap: 4 },
   dotRow: { flexDirection: 'row', gap: 4 },
   dot: { width: 4, height: 4, borderRadius: 2 },
-  lifted: { zIndex: 10, borderWidth: StyleSheet.hairlineWidth, borderRadius: 12, marginHorizontal: -8, paddingHorizontal: 7, elevation: 8, shadowColor: '#000', shadowOpacity: 0.18, shadowRadius: 14, shadowOffset: { width: 0, height: 8 } },
+  lifted: { zIndex: 10, borderWidth: StyleSheet.hairlineWidth, borderRadius: radii.control, marginHorizontal: -8, paddingHorizontal: 7, elevation: 8, shadowColor: '#000', shadowOpacity: 0.18, shadowRadius: 14, shadowOffset: { width: 0, height: 8 } },
 });

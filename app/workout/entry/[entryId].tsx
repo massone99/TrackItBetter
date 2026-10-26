@@ -20,6 +20,7 @@ import { useTheme } from '../../../src/shared/theme/ThemeProvider';
 import { fonts } from '../../../src/shared/theme/typography';
 import { useScaledStyles } from '../../../src/shared/theme/useScaledStyles';
 import { formatClock, formatNumber } from '../../../src/shared/utils/format';
+import { radii } from '../../../src/shared/theme/tokens';
 
 type Measure = 'amount' | 'rest' | 'rpe' | 'form' | 'kg';
 
@@ -222,11 +223,11 @@ const baseStyles = StyleSheet.create({
   topBar: { flexDirection: 'row', alignItems: 'center', marginLeft: -8 },
   stepper: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end' },
   stepperText: { fontFamily: fonts.medium, fontSize: 14, marginRight: 4 },
-  tiles: { flexDirection: 'row', flexWrap: 'wrap', borderRadius: 20, paddingVertical: 12, paddingHorizontal: 8, rowGap: 12 },
+  tiles: { flexDirection: 'row', flexWrap: 'wrap', borderRadius: radii.control, paddingVertical: 12, paddingHorizontal: 8, rowGap: 12 },
   tile: { width: '33.3%', minWidth: 96, flexGrow: 1, gap: 2, paddingHorizontal: 8 },
-  card: { borderRadius: 16, overflow: 'hidden' },
+  card: { borderRadius: radii.control, overflow: 'hidden' },
   setRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, paddingVertical: 12, paddingHorizontal: 16 },
-  setBadge: { width: 32, height: 32, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
+  setBadge: { width: 32, height: 32, borderRadius: radii.control, alignItems: 'center', justifyContent: 'center' },
   setBadgeText: { fontFamily: fonts.display, fontSize: 16 },
   setCopy: { flex: 1, gap: 2 },
   setValueRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8 },
@@ -243,7 +244,7 @@ const baseStyles = StyleSheet.create({
   // Very large text: two numbers per row, and a record's value moves under its text.
   tileLarge: { width: '50%' },
   recordCopyLarge: { minWidth: '75%' },
-  record: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 12, borderRadius: 16, padding: 16 },
+  record: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 12, borderRadius: radii.control, padding: 16 },
   recordCopy: { flex: 1, minWidth: 160, gap: 2 },
   recordName: { fontFamily: fonts.semibold, fontSize: 16 },
   recordValue: { fontFamily: fonts.display, fontSize: 26, lineHeight: 30, fontVariant: ['tabular-nums'] },

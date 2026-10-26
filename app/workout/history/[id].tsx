@@ -72,6 +72,7 @@ import {
 } from "../../../src/shared/components/DateTimePickers";
 import { ReorderableList } from "../../../src/shared/components/ReorderableList";
 import { goBack } from "../../../src/shared/navigation/goBack";
+import { radii } from '../../../src/shared/theme/tokens';
 
 type SetTarget = { exercise: SessionExercise; set: SessionSet };
 
@@ -742,7 +743,7 @@ const baseStyles = StyleSheet.create({
     alignItems: "center",
     gap: 8,
     alignSelf: "flex-start",
-    borderRadius: 999,
+    borderRadius: radii.pill,
     paddingHorizontal: 12,
     paddingVertical: 6,
     marginTop: -8,

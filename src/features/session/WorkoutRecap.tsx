@@ -23,6 +23,7 @@ import { formatBestValue, formatNumber } from '../../shared/utils/format';
 import { useScaledStyles } from '../../shared/theme/useScaledStyles';
 import { averageRpe, formatRpe } from '../../domain/rpe';
 import { openExercisePage } from '../exercises/openExercise';
+import { radii } from '../../shared/theme/tokens';
 
 /**
  * The recap of one finished workout: its numbers, records, what beat last time and every exercise
@@ -301,22 +302,22 @@ const baseStyles = StyleSheet.create({
   logHeader: { gap: 6 },
   topBar: { flexDirection: 'row', justifyContent: 'space-between', marginLeft: -8, marginRight: -8 },
   badges: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingTop: 4 },
-  pill: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 32, paddingHorizontal: 12, borderRadius: 16 },
+  pill: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 32, paddingHorizontal: 12, borderRadius: radii.control },
   pillText: { fontFamily: fonts.semibold, fontSize: 14 },
-  badge: { width: 72, height: 72, borderRadius: 36, alignItems: 'center', justifyContent: 'center', marginBottom: 6 },
+  badge: { width: 72, height: 72, borderRadius: radii.control, alignItems: 'center', justifyContent: 'center', marginBottom: 6 },
   subtitle: { fontSize: 16, textAlign: 'center' },
-  stats: { flexDirection: 'row', flexWrap: 'wrap', borderRadius: 20, paddingVertical: 12, paddingHorizontal: 8, rowGap: 12 },
+  stats: { flexDirection: 'row', flexWrap: 'wrap', borderRadius: radii.control, paddingVertical: 12, paddingHorizontal: 8, rowGap: 12 },
   stat: { width: '33.3%', minWidth: 96, flexGrow: 1, gap: 2, paddingHorizontal: 8 },
   records: { gap: 10 },
   // Very large text: two numbers per row, and a record's value moves under its text.
   tileLarge: { width: '50%' },
   recordCopyLarge: { minWidth: '75%' },
-  record: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 12, borderRadius: 16, padding: 16 },
+  record: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 12, borderRadius: radii.control, padding: 16 },
   recordCopy: { flex: 1, minWidth: 160, gap: 2 },
   recordName: { fontFamily: fonts.semibold, fontSize: 16 },
   recordValue: { fontFamily: fonts.display, fontSize: 26, lineHeight: 30, fontVariant: ['tabular-nums'] },
   noRecords: { textAlign: 'center', paddingHorizontal: 12 },
-  exerciseList: { borderRadius: 16, overflow: 'hidden' },
+  exerciseList: { borderRadius: radii.control, overflow: 'hidden' },
   exerciseRow: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 64, paddingVertical: 10, paddingHorizontal: 16 },
   exerciseCopy: { flex: 1, gap: 2 },
   exerciseName: { fontFamily: fonts.semibold, fontSize: 16 },

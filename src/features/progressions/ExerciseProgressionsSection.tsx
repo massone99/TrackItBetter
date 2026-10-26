@@ -13,6 +13,7 @@ import {
 } from './chains';
 import { graphProblemText } from './CriteriaEditor';
 import { LinkSheet } from './LinkSheet';
+import { radii } from '../../shared/theme/tokens';
 
 type Line = { id: string; depth: number; also: string[] };
 
@@ -216,7 +217,7 @@ const baseStyles = StyleSheet.create({
   section: { gap: 8 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   tree: { gap: 6 },
-  node: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 48, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 14, borderWidth: 1 },
+  node: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 48, paddingHorizontal: 12, paddingVertical: 8, borderRadius: radii.control, borderWidth: 1 },
   current: { borderWidth: 2 },
   nodeText: { flex: 1, minWidth: 0 },
   nodeName: { fontFamily: fonts.semibold, fontSize: 15 },

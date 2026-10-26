@@ -12,6 +12,7 @@ import { ActionButton, Body, Card, Heading, PageHeading, Screen, Icon, Sheet } f
 import { useTheme } from '../../src/shared/theme/ThemeProvider';
 import { useScaledStyles } from '../../src/shared/theme/useScaledStyles';
 import { goBack } from '../../src/shared/navigation/goBack';
+import { radii } from '../../src/shared/theme/tokens';
 
 const MAX_VIDEO_BYTES = 100 * 1024 * 1024;
 
@@ -171,12 +172,12 @@ const baseStyles = StyleSheet.create({
   actions: { gap: 4 },
   videoPanel: { flex: 1, gap: 8 },
   compactPanel: { minWidth: 140 },
-  video: { width: '100%', aspectRatio: 1.35, borderRadius: 14 },
+  video: { width: '100%', aspectRatio: 1.35, borderRadius: radii.control },
   compareRow: { flexDirection: 'row', gap: 8 },
-  slowButton: { minHeight: 48, paddingHorizontal: 12, alignItems: 'center', justifyContent: 'center', borderRadius: 11 },
+  slowButton: { minHeight: 48, paddingHorizontal: 12, alignItems: 'center', justifyContent: 'center', borderRadius: radii.control },
   clipCard: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 12 },
   clipDetails: { flex: 1, gap: 4 },
   clipDate: { fontSize: 14, fontWeight: '800' },
   iconButton: { minWidth: 48, minHeight: 48, alignItems: 'center', justifyContent: 'center' },
-  compareButton: { minHeight: 48, paddingHorizontal: 12, alignItems: 'center', justifyContent: 'center', borderRadius: 11 },
+  compareButton: { minHeight: 48, paddingHorizontal: 12, alignItems: 'center', justifyContent: 'center', borderRadius: radii.control },
 });

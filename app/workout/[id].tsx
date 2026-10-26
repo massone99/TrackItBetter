@@ -106,7 +106,7 @@ import { ExerciseCard, holdDisplay } from '../../src/features/session/ExerciseCa
 import Animated, { FadeInDown, FadeOutLeft, LayoutAnimationConfig } from 'react-native-reanimated';
 import { readBooleanPreference, RPE_PROMPT_KEY, writePreference } from '../../src/shared/settings/preferences';
 
-import { instrument, MIN_TOUCH_TARGET } from '../../src/shared/theme/tokens';
+import { instrument, MIN_TOUCH_TARGET, radii } from '../../src/shared/theme/tokens';
 import { useTheme } from '../../src/shared/theme/ThemeProvider';
 import { fonts } from '../../src/shared/theme/typography';
 import { formatClock } from '../../src/shared/utils/format';
@@ -1358,7 +1358,7 @@ const baseStyles = StyleSheet.create({
   readinessRow: { minHeight: 40, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
   readinessLabel: { flex: 1, fontFamily: fonts.medium, fontSize: 14 },
   readinessOptions: { flexDirection: 'row', gap: 6 },
-  readinessOption: { width: 44, height: MIN_TOUCH_TARGET, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  readinessOption: { width: 44, height: MIN_TOUCH_TARGET, borderRadius: radii.control, alignItems: 'center', justifyContent: 'center' },
   readinessValue: { fontFamily: fonts.display, fontSize: 18 },
   emptyAction: { alignSelf: 'stretch', marginTop: 6, gap: 8 },
   blockHeader: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: 12, paddingBottom: 6, marginBottom: 10, borderBottomWidth: 1 },
@@ -1370,7 +1370,7 @@ const baseStyles = StyleSheet.create({
   footerRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   // Long labels: side by side only when each gets room for one line.
   footerCellWide: { flex: 1, minWidth: 220 },
-  swipeHint: { flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: 14, paddingHorizontal: 14, paddingVertical: 10 },
+  swipeHint: { flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: radii.control, paddingHorizontal: 14, paddingVertical: 10 },
   swipeHintText: { flex: 1, fontFamily: fonts.medium, fontSize: 14 },
   footerActions: { gap: 10, marginTop: 4 },
   timerBar: { borderRadius: instrument.radius, paddingHorizontal: 16, paddingVertical: 12 },

@@ -8,6 +8,7 @@ import { useTheme } from '../../shared/theme/ThemeProvider';
 import { fonts } from '../../shared/theme/typography';
 import { useScaledStyles } from '../../shared/theme/useScaledStyles';
 import { addExerciseImage, deleteExerciseImage, listExerciseImages, moveExerciseImage, type ExerciseImage } from './images';
+import { radii } from '../../shared/theme/tokens';
 
 const THUMB = 112;
 
@@ -170,10 +171,10 @@ export function ExerciseImagesSection({ exerciseId }: { exerciseId: string }) {
 const baseStyles = StyleSheet.create({
   section: { gap: 8 },
   strip: { gap: 8, paddingRight: 8 },
-  thumb: { width: THUMB, height: THUMB, borderRadius: 14, borderWidth: StyleSheet.hairlineWidth, overflow: 'hidden', alignItems: 'center', justifyContent: 'center' },
+  thumb: { width: THUMB, height: THUMB, borderRadius: radii.control, borderWidth: StyleSheet.hairlineWidth, overflow: 'hidden', alignItems: 'center', justifyContent: 'center' },
   thumbImage: { width: '100%', height: '100%' },
   addThumb: { borderStyle: 'dashed', borderWidth: 1 },
-  viewer: { borderRadius: 16, overflow: 'hidden', alignItems: 'center', justifyContent: 'center' },
+  viewer: { borderRadius: radii.control, overflow: 'hidden', alignItems: 'center', justifyContent: 'center' },
   viewerNav: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   counter: { fontFamily: fonts.semibold, fontSize: 14 },
   actions: { flexDirection: 'row', gap: 8 },

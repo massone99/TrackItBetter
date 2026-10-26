@@ -3,6 +3,7 @@ import { Image, StyleSheet, View, type StyleProp, type TextStyle } from 'react-n
 import Animated, { useAnimatedStyle, useSharedValue, withDelay, withTiming } from 'react-native-reanimated';
 import { Text } from '../../shared/components/ui';
 import { useAnimationSettings } from '../../shared/settings/AnimationProvider';
+import { useInk } from '../../shared/theme/ink';
 import { useTheme } from '../../shared/theme/ThemeProvider';
 import { instrument } from '../../shared/theme/tokens';
 import { fonts } from '../../shared/theme/typography';
@@ -12,11 +13,7 @@ import { fonts } from '../../shared/theme/typography';
  * ground, bar gauges and registration marks. The colours all come from the palette.
  */
 
-/** The ink of the lines: the text colour in the light theme, a softer one in the dark theme. */
-export function useInk(): string {
-  const { mode, palette } = useTheme();
-  return mode === 'light' ? palette.text : palette.textMuted;
-}
+export { useInk };
 
 /** The dot-grid ground of the workout page: one small translucent dot tiled and tinted with the muted text colour. */
 export function DotGrid() {

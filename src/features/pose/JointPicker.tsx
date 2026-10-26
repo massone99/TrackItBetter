@@ -8,6 +8,7 @@ import { useTheme } from '../../shared/theme/ThemeProvider';
 import { fonts } from '../../shared/theme/typography';
 import { useScaledStyles } from '../../shared/theme/useScaledStyles';
 import { JOINT_COLORS } from './overlay/model';
+import { radii } from '../../shared/theme/tokens';
 
 const key = (positionId: string) => `pose.joints.${positionId}`;
 
@@ -110,8 +111,8 @@ const baseStyles = StyleSheet.create({
   root: { gap: 8 },
   // Chips wrap so every joint is visible without scrolling sideways.
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  chip: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 44, paddingHorizontal: 14, borderRadius: 999 },
-  dot: { width: 10, height: 10, borderRadius: 5 },
+  chip: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 44, paddingHorizontal: 14, borderRadius: radii.pill },
+  dot: { width: 10, height: 10, borderRadius: radii.control },
   name: { fontFamily: fonts.medium, fontSize: 15 },
   value: { fontFamily: fonts.display, fontSize: 18 },
   hint: { fontFamily: fonts.body, fontSize: 13, lineHeight: 18 },

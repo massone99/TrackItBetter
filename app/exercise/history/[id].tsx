@@ -10,6 +10,7 @@ import { Body, PageHeading, Screen, SectionTitle } from '../../../src/shared/com
 import { useTheme } from '../../../src/shared/theme/ThemeProvider';
 import { useScaledStyles } from '../../../src/shared/theme/useScaledStyles';
 import { HistoryRow } from '../../../src/features/exercises/HistoryRow';
+import { radii } from '../../../src/shared/theme/tokens';
 
 /** Every session of one exercise, grouped by month, newest first. */
 export default function ExerciseHistoryRoute() {
@@ -60,5 +61,5 @@ export default function ExerciseHistoryRoute() {
 
 const baseStyles = StyleSheet.create({
   month: { gap: 10 },
-  card: { borderRadius: 16, borderWidth: 1, overflow: 'hidden' },
+  card: { borderRadius: radii.control, borderWidth: 1, overflow: 'hidden' },
 });

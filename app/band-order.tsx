@@ -12,6 +12,7 @@ import { RenameBandSheet } from '../src/features/equipment/RenameBandSheet';
 import { useTheme } from '../src/shared/theme/ThemeProvider';
 import { fonts } from '../src/shared/theme/typography';
 import { useScaledStyles } from '../src/shared/theme/useScaledStyles';
+import { radii } from '../src/shared/theme/tokens';
 
 /** Every band of every band set in one strength order, lightest first; it compares assistance when kg are unknown. */
 export default function BandOrderScreen() {
@@ -67,7 +68,7 @@ export default function BandOrderScreen() {
 const baseStyles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 8, minHeight: 56 },
   rank: { fontFamily: fonts.semibold, fontSize: 14, minWidth: 20, textAlign: 'right', fontVariant: ['tabular-nums'] },
-  swatch: { width: 24, height: 24, borderRadius: 12, borderWidth: 1 },
+  swatch: { width: 24, height: 24, borderRadius: radii.control, borderWidth: 1 },
   flex: { flex: 1, gap: 2 },
   name: { fontFamily: fonts.semibold, fontSize: 16 },
   meta: { fontFamily: fonts.medium, fontSize: 13 },

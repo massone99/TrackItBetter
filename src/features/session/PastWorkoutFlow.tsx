@@ -14,6 +14,7 @@ import { logPastUserProgramSession } from '../programs/startUserSession';
 import { listUserPrograms } from '../programs/userPrograms';
 import { defaultPastStart } from './pastStart';
 import { createPastWorkout } from './repository';
+import { radii } from '../../shared/theme/tokens';
 
 type Step = { name: 'start' } | { name: 'programs' } | { name: 'sessions'; programId: string };
 const withMovements = (program: UserProgram) => program.sessions.filter((session) => session.exercises.length > 0);
@@ -210,17 +211,17 @@ const baseStyles = StyleSheet.create({
   title: { fontFamily: fonts.display, fontSize: 32, lineHeight: 36 },
   content: { paddingHorizontal: 20, paddingTop: 22 },
   stack: { gap: 14 },
-  tile: { flexDirection: 'row', alignItems: 'center', gap: 14, borderWidth: 1, borderRadius: 16, padding: 18 },
-  tileIcon: { width: 52, height: 52, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
+  tile: { flexDirection: 'row', alignItems: 'center', gap: 14, borderWidth: 1, borderRadius: radii.control, padding: 18 },
+  tileIcon: { width: 52, height: 52, borderRadius: radii.control, alignItems: 'center', justifyContent: 'center' },
   tileText: { flex: 1, gap: 3 },
   tileTitle: { fontFamily: fonts.display, fontSize: 22, lineHeight: 26 },
   tileBody: { fontFamily: fonts.body, fontSize: 15, lineHeight: 22 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 6 },
-  chip: { borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4, maxWidth: 160 },
+  chip: { borderRadius: radii.pill, paddingHorizontal: 10, paddingVertical: 4, maxWidth: 160 },
   chipText: { fontFamily: fonts.medium, fontSize: 12 },
   sessionTile: { flexDirection: 'column', alignItems: 'stretch', gap: 12 },
   sessionHead: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  number: { width: 36, height: 36, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  number: { width: 36, height: 36, borderRadius: radii.control, alignItems: 'center', justifyContent: 'center' },
   numberText: { fontFamily: fonts.display, fontSize: 18 },
   movements: { borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 10, gap: 4 },
   movement: { fontFamily: fonts.medium, fontSize: 14 },

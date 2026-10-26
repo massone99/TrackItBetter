@@ -13,7 +13,7 @@ import { ActionButton, Heading, Icon, IconButton, Label, NumberEdit, ProgressMet
 import { totalProgress } from '../../domain/totalGoal';
 import { useAnimationSettings } from '../../shared/settings/AnimationProvider';
 import { useTheme } from '../../shared/theme/ThemeProvider';
-import { instrument, MIN_TOUCH_TARGET, spacing } from '../../shared/theme/tokens';
+import { instrument, MIN_TOUCH_TARGET, radii, spacing } from '../../shared/theme/tokens';
 import { fonts } from '../../shared/theme/typography';
 import { useScaledStyles } from '../../shared/theme/useScaledStyles';
 import { formatClock, formatNumber } from '../../shared/utils/format';
@@ -805,7 +805,7 @@ function ValueChip({ label, icon, filled, open = false, grow = false, lines = 1,
 }
 
 const baseStyles = StyleSheet.create({
-  bandDot: { width: 12, height: 12, borderRadius: 6, borderWidth: 1 },
+  bandDot: { width: 12, height: 12, borderRadius: radii.control, borderWidth: 1 },
   flex: { flex: 1 },
   // Exercises are flat sections divided by a hairline, not cards: more room for the sets.
   exerciseNow: { borderTopWidth: 2 },
@@ -826,19 +826,19 @@ const baseStyles = StyleSheet.create({
   colAction: { width: 44, alignItems: 'center' },
   colMenu: { width: 36, alignItems: 'center' },
   menuButton: { width: 36, minHeight: 48, alignItems: 'center', justifyContent: 'center' },
-  goalCard: { borderWidth: 1, borderRadius: 16, padding: 12, gap: 8, marginBottom: 8 },
+  goalCard: { borderWidth: 1, borderRadius: radii.control, padding: 12, gap: 8, marginBottom: 8 },
   goalRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'baseline', columnGap: 8 },
   goalDone: { fontFamily: fonts.display, fontSize: 32, lineHeight: 36, fontVariant: ['tabular-nums'] },
   goalTarget: { fontFamily: fonts.medium, fontSize: 16 },
   goalState: { fontFamily: fonts.semibold, fontSize: 15 },
-  setBlock: { borderRadius: 10, overflow: 'hidden', marginBottom: 8 },
+  setBlock: { borderRadius: radii.control, overflow: 'hidden', marginBottom: 8 },
   valueStack: { alignItems: 'center' },
   valueCaption: { fontFamily: fonts.body, fontSize: 12, lineHeight: 14 },
-  addLoad: { minWidth: 56, minHeight: 48, paddingHorizontal: 10, borderRadius: 12, borderWidth: 1, borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center' },
+  addLoad: { minWidth: 56, minHeight: 48, paddingHorizontal: 10, borderRadius: radii.control, borderWidth: 1, borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center' },
   addLoadText: { fontFamily: fonts.semibold, fontSize: 15 },
   // Large text: the open set is a card of one-column fields; the other sets are one line each.
   // Focus card: one 16 rhythm between header, fields, chips, scale and button.
-  largeBlock: { borderRadius: 20, borderWidth: 1, padding: 16, gap: 16, marginVertical: 8 },
+  largeBlock: { borderRadius: radii.control, borderWidth: 1, padding: 16, gap: 16, marginVertical: 8 },
   largeFields: { gap: 16 },
   setBlockLine: { marginBottom: 0 },
   largeHeader: { flexDirection: 'row', alignItems: 'center', gap: 12 },
@@ -846,14 +846,14 @@ const baseStyles = StyleSheet.create({
   largeField: { gap: 8 },
   largeStepper: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   largeValue: { flex: 1, alignItems: 'center' },
-  largeAction: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, minHeight: 56, paddingHorizontal: 16, paddingVertical: 8, borderRadius: 16 },
+  largeAction: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, minHeight: 56, paddingHorizontal: 16, paddingVertical: 8, borderRadius: radii.control },
   largeActionText: { flexShrink: 1, fontFamily: fonts.semibold, fontSize: 17, textAlign: 'center' },
   summaryLine: { flexDirection: 'row', alignItems: 'center' },
   summaryRow: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 56, paddingVertical: 4, paddingLeft: 4 },
-  summaryDot: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
+  summaryDot: { width: 32, height: 32, borderRadius: radii.control, alignItems: 'center', justifyContent: 'center' },
   summaryText: { flex: 1, fontFamily: fonts.semibold, fontSize: 15 },
   addRowLarge: { flexDirection: 'column', flexWrap: 'nowrap', alignItems: 'stretch', gap: 8, marginTop: 4 },
-  addSetLarge: { justifyContent: 'center', borderWidth: 1, borderRadius: 14, paddingHorizontal: 12 },
+  addSetLarge: { justifyContent: 'center', borderWidth: 1, borderRadius: radii.control, paddingHorizontal: 12 },
   exerciseCard: { borderRadius: instrument.radius, borderWidth: instrument.line, padding: spacing.lg, gap: spacing.sm },
   halo: { position: 'absolute', top: -4, left: -4, right: -4, bottom: -4, borderWidth: 3, borderRadius: instrument.radius + 3 },
   nowRow: { paddingHorizontal: spacing.xs },
@@ -878,29 +878,29 @@ const baseStyles = StyleSheet.create({
   tableChips: { paddingLeft: spacing.lg, paddingRight: spacing.lg, paddingTop: spacing.lg, paddingBottom: spacing.md },
   tablePanel: { marginLeft: spacing.lg, marginRight: spacing.lg },
   tableSetRow: { paddingHorizontal: spacing.lg, paddingTop: spacing.sm, gap: spacing.xs },
-  tile: { borderRadius: spacing.lg, paddingVertical: spacing.xs, marginHorizontal: spacing.sm },
+  tile: { borderRadius: radii.control, paddingVertical: spacing.xs, marginHorizontal: spacing.sm },
   setRow: { flexDirection: 'row', alignItems: 'center', minHeight: 56, paddingTop: 4, paddingLeft: 2 },
-  recordChip: { flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-start', borderRadius: 10, paddingHorizontal: 8, paddingVertical: 3, marginTop: 4 },
+  recordChip: { flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-start', borderRadius: radii.control, paddingHorizontal: 8, paddingVertical: 3, marginTop: 4 },
   setMeta: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8, paddingLeft: 48, paddingRight: 12, paddingBottom: 8 }, // 48: under the values, after the set number
-  clipChip: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, minHeight: 32, borderRadius: 999 },
+  clipChip: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, minHeight: 32, borderRadius: radii.pill },
   clipChipText: { fontFamily: fonts.semibold, fontSize: 12 },
   setMetaLarge: { paddingLeft: 0, paddingRight: 0, paddingBottom: 0 },
   valuePanelLarge: { marginLeft: 0, marginRight: 0, marginBottom: 0, padding: 0 },
-  valuePanel: { marginLeft: 48, marginRight: 12, marginBottom: 12, borderRadius: 14, padding: 8 },
-  valueChip: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 36, paddingHorizontal: 12, borderRadius: 18, borderWidth: 1, maxWidth: '100%' },
+  valuePanel: { marginLeft: 48, marginRight: 12, marginBottom: 12, borderRadius: radii.control, padding: 8 },
+  valueChip: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 36, paddingHorizontal: 12, borderRadius: radii.control, borderWidth: 1, maxWidth: '100%' },
   noteInput: { maxHeight: 220 },
   valueChipGrow: { flexShrink: 1 },
   valueChipText: { fontFamily: fonts.semibold, fontSize: 14, flexShrink: 1 },
   noteChip: { flexDirection: 'row', alignItems: 'center', gap: 6, flexShrink: 1, minHeight: 32 },
   setNote: { flex: 1, fontFamily: fonts.body, fontSize: 13, lineHeight: 18 },
   exerciseNote: { fontFamily: fonts.body, fontSize: 13, lineHeight: 18, marginTop: 4 },
-  setBadge: { width: 36, height: 36, borderRadius: 9, alignItems: 'center', justifyContent: 'center' },
+  setBadge: { width: 36, height: 36, borderRadius: radii.control, alignItems: 'center', justifyContent: 'center' },
   setBadgeText: { fontFamily: fonts.display, fontSize: 16 },
   setBadgeSide: { fontFamily: fonts.semibold, fontSize: 10, lineHeight: 11, marginTop: -2 },
   stepper: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4 },
   setValue: { fontFamily: fonts.display, fontSize: 24, lineHeight: 30, minWidth: 34, textAlign: 'center', fontVariant: ['tabular-nums'] },
   loadValue: { fontFamily: fonts.display, fontSize: 20, lineHeight: 26, minWidth: 34, textAlign: 'center', fontVariant: ['tabular-nums'] },
-  checkButton: { width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  checkButton: { width: 44, height: 44, borderRadius: radii.control, alignItems: 'center', justifyContent: 'center' },
   checkPressed: { opacity: 0.7, transform: [{ scale: 0.94 }] },
   addSet: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 48, paddingHorizontal: 4 },
   addRow: { flexDirection: 'row', flexWrap: 'wrap', columnGap: 20 },

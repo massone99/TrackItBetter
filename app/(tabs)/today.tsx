@@ -344,7 +344,7 @@ const baseStyles = StyleSheet.create({
   weekCountText: { fontFamily: fonts.semibold, fontSize: 15 },
   days: { flexDirection: "row", justifyContent: "space-between" },
   day: { alignItems: "center", gap: 6 },
-  dayDot: { width: 36, height: 36, borderRadius: 18, borderWidth: 2, alignItems: "center", justifyContent: "center" },
+  dayDot: { width: 36, height: 36, borderRadius: radii.control, borderWidth: 2, alignItems: "center", justifyContent: "center" },
   dayLabel: { fontFamily: fonts.semibold, fontSize: 12, textTransform: "capitalize" },
   bestValue: { fontFamily: fonts.display, fontSize: 22 },
 });

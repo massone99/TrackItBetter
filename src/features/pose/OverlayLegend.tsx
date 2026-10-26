@@ -8,6 +8,7 @@ import { useTheme } from '../../shared/theme/ThemeProvider';
 import { fonts } from '../../shared/theme/typography';
 import { useScaledStyles } from '../../shared/theme/useScaledStyles';
 import { DEFAULT_OVERLAY, JOINT_COLORS, type OverlaySettings } from './overlay/model';
+import { radii } from '../../shared/theme/tokens';
 
 const KEY = 'pose.overlay';
 
@@ -138,8 +139,8 @@ export function OverlayLegend({ angles, settings, focused, onSettings, onFocus, 
 const baseStyles = StyleSheet.create({
   root: { gap: 8 },
   angles: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  angle: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 40, paddingHorizontal: 12, borderRadius: 999, borderWidth: 2 },
-  dot: { width: 10, height: 10, borderRadius: 5 },
+  angle: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 40, paddingHorizontal: 12, borderRadius: radii.pill, borderWidth: 2 },
+  dot: { width: 10, height: 10, borderRadius: radii.control },
   angleName: { fontFamily: fonts.medium, fontSize: 14 },
   angleValue: { fontFamily: fonts.display, fontSize: 17 },
   toggles: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 2 },

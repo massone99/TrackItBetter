@@ -115,8 +115,8 @@ Apply these to every screen you touch; the measurable targets are in `src/shared
   Validate with real users when possible: about five per iteration, realistic tasks, track
   completion, time, errors and confusion.
 - Visual language (the owner's 12 concepts, applied at design-system level): hierarchy, type scale,
-  whitespace and rhythm come from `tokens.ts`; depth is `elevation.surface` via `useSurfaceDepth()`
-  (light theme only); press feedback is `usePressScale()` (skipped under reduced motion); moments of
+  whitespace and rhythm come from `tokens.ts`; surfaces are flat with thin ink lines (`useInk()`), no shadows; every corner comes
+  from `radii` (4 dp, squared look), never a hard-coded number; press feedback is `usePressScale()` (skipped under reduced motion); moments of
   arrival use `Arrive`. Prefer these shared pieces over per-screen shadows or animations. Skip
   glassmorphism, heavy shadows and decorative loops; typography, composition, spacing and colour
   matter most.
