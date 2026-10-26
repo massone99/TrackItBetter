@@ -360,7 +360,7 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
         const romRow = canRom && active === 'rom';
         const noteRow = !!onNote && active === 'note';
         // The chip strip shows on done sets and the next one (every set in a finished workout); other sets show only what they carry.
-        const strip = done || editDone || set.id === nextSetId || isOpen;
+        const strip = done || editDone || set.id === nextSetId || isOpen || editing;
         const title = `${set.kind === 'warmup' ? t('workout.blocks.warmup') : t('logger.setTitle', { number: workingNumber })}${set.side === 'left' ? ' · L' : set.side === 'right' ? ' · R' : ''}`;
         const valueDown = showSteps ? <StepButton large={largeText || bigButtons} icon="remove" label={t('logger.stepDown', { field: fieldLabel, number: workingNumber, side: sideLabel }).trim()} onPress={(multiplier) => step(set, field, (distance ? -0.5 : timed ? -5 : -1) * multiplier)} /> : null;
         const valueUp = showSteps ? <StepButton large={largeText || bigButtons} icon="add" label={t('logger.stepUp', { field: fieldLabel, number: workingNumber, side: sideLabel }).trim()} onPress={(multiplier) => step(set, field, (distance ? 0.5 : timed ? 5 : 1) * multiplier)} /> : null;

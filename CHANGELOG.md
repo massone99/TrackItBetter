@@ -2,6 +2,10 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.57.2 - 2026-10-26
+
+- Large text and zoom: the set you open from the list now shows all its chips (RPE, form, ROM, bands, rest, video, note), not only the ones already filled.
+
 ## 0.57.1 - 2026-10-26
 
 - Profile: two smaller interface sizes (70 and 78 %), eight steps in all.
