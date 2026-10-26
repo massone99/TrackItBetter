@@ -2,6 +2,10 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.59.0 - 2026-10-26
+
+- Workout, large text: the open set is a sheet with a dark strip (number, name, fold, menu) and a 2 dp border, wider than the rows; the other sets are quiet one-line rows (number, values, check box) with a dashed rule, with their chips and scale hidden until you open them. A rating still to give stays under its row.
+
 ## 0.58.6 - 2026-10-26
 
 - Workout: the exercise card is an opaque card at every text size, and the open set sits inside it on its own background, so the dot grid shows only outside the cards.
