@@ -2,6 +2,10 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.58.4 - 2026-10-26
+
+- Exercise history: under each set that used bands, the band names and tension are written next to their colour swatches.
+
 ## 0.58.3 - 2026-10-26
 
 - Fix: the fold controls of the workout bar and the set title meet the 48 dp touch target; the large-text set layout test passes again.
