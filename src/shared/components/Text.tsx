@@ -1,6 +1,7 @@
 import { Text as NativeText, StyleSheet, TextProps } from "react-native";
 import { useTheme } from "../theme/ThemeProvider";
 import { FONT_KEYS, scaleStyle, textGrowth } from "../theme/scale";
+import { resolveFont } from "../theme/fontChoices";
 import { bodyFamilyForWeight } from "../theme/typography";
 
 /**
@@ -9,8 +10,8 @@ import { bodyFamilyForWeight } from "../theme/typography";
  * The system scaling is applied here rather than by the OS, so it can be capped by the setting and
  * eased for large sizes (see textGrowth).
  */
-export function Text({ style, maxFontSizeMultiplier, ...props }: TextProps) {
-  const { palette, layoutScale: scale, fontScale } = useTheme();
+export function Text({ style, maxFontSizeMultiplier, fixedFont = false, ...props }: TextProps & { /** Keep the family the style names, whatever the user chose (the font samples in settings). */ fixedFont?: boolean }) {
+  const { palette, layoutScale: scale, fontScale, fontSelection } = useTheme();
   const flat = StyleSheet.flatten(style) ?? {};
   const { fontWeight, fontFamily, ...rest } = flat;
   const sized = scaleStyle({ fontSize: 14, ...rest }, scale, FONT_KEYS);
@@ -25,7 +26,7 @@ export function Text({ style, maxFontSizeMultiplier, ...props }: TextProps) {
     <NativeText
       {...props}
       allowFontScaling={false}
-      style={[{ color: palette.text }, grown, { fontFamily: fontFamily ?? bodyFamilyForWeight(fontWeight) }]}
+      style={[{ color: palette.text }, grown, fixedFont ? { fontFamily: fontFamily ?? bodyFamilyForWeight(fontWeight) } : resolveFont(fontFamily ?? bodyFamilyForWeight(fontWeight), fontSelection)]}
     />
   );
 }

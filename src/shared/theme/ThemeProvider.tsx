@@ -2,6 +2,7 @@ import { createContext, PropsWithChildren, useCallback, useContext, useMemo, use
 import { useColorScheme, useWindowDimensions } from "react-native";
 import { readPreference, writePreference } from "../settings/preferences";
 import { Palette, palettes, ThemeMode } from "./palette";
+import { DEFAULT_FONTS, FONT_PRESETS, FONT_ROLES, isFontFamilyId, type FontFamilyId, type FontPresetId, type FontRole, type FontSelection } from "./fontChoices";
 import { effectiveScale, LARGE_TEXT_SCALE, TEXT_SCALE_CAPS, toUiScale, type TextScaleMode, type UiScale } from "./scale";
 
 type ThemePreference = ThemeMode | "system";
@@ -22,11 +23,16 @@ type ThemeContextValue = {
   largeText: boolean;
   textScaleMode: TextScaleMode;
   setTextScaleMode: (mode: TextScaleMode) => void;
+  /** The family chosen for each role (text, titles, figures). */
+  fontSelection: FontSelection;
+  setFontFamily: (role: FontRole, family: FontFamilyId) => void;
+  setFontPreset: (preset: FontPresetId) => void;
 };
 
 const THEME_KEY = "appearance.theme";
 const SCALE_KEY = "appearance.scale";
 const TEXT_SCALE_KEY = "appearance.textScale";
+const fontKey = (role: FontRole) => `appearance.font.${role}`;
 const ThemeContext = createContext<ThemeContextValue | null>(null);
 
 function initialPreference(): ThemePreference {
@@ -39,6 +45,14 @@ export function ThemeProvider({ children }: PropsWithChildren) {
   const [preference, setPreference] = useState<ThemePreference>(initialPreference);
   const [scale, setScaleState] = useState<UiScale>(() => toUiScale(readPreference(SCALE_KEY)));
   const [textScaleMode, setTextScaleModeState] = useState<TextScaleMode>(() => (readPreference(TEXT_SCALE_KEY) === "limited" ? "limited" : "full"));
+  const [fontSelection, setFontSelection] = useState<FontSelection>(() => {
+    const chosen = { ...DEFAULT_FONTS };
+    for (const role of FONT_ROLES) {
+      const stored = readPreference(fontKey(role));
+      if (isFontFamilyId(stored)) chosen[role] = stored;
+    }
+    return chosen;
+  });
   const { width, fontScale: systemFontScale } = useWindowDimensions();
   // Development builds on web can simulate a phone font size with globalThis.__fontScale.
   const simulated = (globalThis as { __fontScale?: number }).__fontScale;
@@ -58,9 +72,17 @@ export function ThemeProvider({ children }: PropsWithChildren) {
     setTextScaleModeState(next);
     writePreference(TEXT_SCALE_KEY, next);
   }, []);
+  const setFontFamily = useCallback((role: FontRole, family: FontFamilyId) => {
+    setFontSelection((current) => ({ ...current, [role]: family }));
+    writePreference(fontKey(role), family);
+  }, []);
+  const setFontPreset = useCallback((preset: FontPresetId) => {
+    setFontSelection({ ...FONT_PRESETS[preset] });
+    for (const role of FONT_ROLES) writePreference(fontKey(role), FONT_PRESETS[preset][role]);
+  }, []);
   const value = useMemo(
-    () => ({ mode, preference, palette: palettes[mode], setMode, scale, layoutScale, setScale, fontScale, largeText, textScaleMode, setTextScaleMode }),
-    [mode, preference, setMode, scale, layoutScale, setScale, fontScale, largeText, textScaleMode, setTextScaleMode],
+    () => ({ mode, preference, palette: palettes[mode], setMode, scale, layoutScale, setScale, fontScale, largeText, textScaleMode, setTextScaleMode, fontSelection, setFontFamily, setFontPreset }),
+    [mode, preference, setMode, scale, layoutScale, setScale, fontScale, largeText, textScaleMode, setTextScaleMode, fontSelection, setFontFamily, setFontPreset],
   );
 
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;

@@ -1,13 +1,14 @@
 import * as Haptics from "expo-haptics";
 import { router, useSegments } from "expo-router";
 import { Children, PropsWithChildren, ReactNode, Ref, createContext, useContext, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
-import { Animated, Image, Modal, PanResponder, Platform, Pressable, ScrollView, StyleProp, StyleSheet, Switch, TextInput, TextInputProps, TextProps, TextStyle, useWindowDimensions, View, ViewProps } from "react-native";
+import { Animated, Image, Modal, PanResponder, Platform, Pressable, ScrollView, StyleProp, StyleSheet, Switch, TextInputProps, TextProps, TextStyle, useWindowDimensions, View, ViewProps } from "react-native";
 import { KeyboardLift, KeyboardScroll, useKeyboardVisible, type ScrollHandle } from "./keyboard";
 import { useAppInsets } from "../layout/useAppInsets";
 import { useTranslation } from "react-i18next";
 import { useTheme } from "../theme/ThemeProvider";
 import { useAnimationSettings } from "../settings/AnimationProvider";
 import { fonts } from "../theme/typography";
+import { TextInput } from "./AppTextInput";
 import { useInk } from "../theme/ink";
 import { instrument, MIN_TOUCH_TARGET, radii, spacing, typeScale } from "../theme/tokens";
 import { Icon, IconName } from "./Icon";

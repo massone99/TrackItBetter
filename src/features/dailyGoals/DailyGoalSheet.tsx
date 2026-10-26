@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { StyleSheet, TextInput, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
+import { TextInput } from '../../shared/components/AppTextInput';
 import { targetMax, type DailyGoal, type DailyGoalMeasure, type DailyGoalScope, type GoalPeriod } from '../../domain/dailyGoals';
 import { TAG_ROWS, tagRowsFor, tagRowsToChange, type GoalChange, type GoalDraft, type TagRow, type TagRowKey, type TagRows } from '../../domain/tagGoals';
 import { useGoalT } from './period';

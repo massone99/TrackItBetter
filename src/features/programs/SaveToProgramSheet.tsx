@@ -1,7 +1,8 @@
 import { groupSets } from '../../domain/setPairs';
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
+import { TextInput } from '../../shared/components/AppTextInput';
 import { sessionSetCount, type UserProgram, type WorkoutExerciseLike } from '../../domain/userProgram';
 import { ActionButton, Body, Icon, Sheet, Text, TextField, tapFeedback } from '../../shared/components/ui';
 import { useTheme } from '../../shared/theme/ThemeProvider';

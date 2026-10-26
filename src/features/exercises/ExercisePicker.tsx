@@ -1,7 +1,8 @@
 import { ShowMore, usePagedSections } from '../../shared/components/paging';
 import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Modal, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { TextInput } from '../../shared/components/AppTextInput';
 import { useAppInsets } from '../../shared/layout/useAppInsets';
 import { ActionButton, Body, Chip, Heading, Icon, IconButton, Label, ListRow, tapFeedback } from '../../shared/components/ui';
 import { KeyboardScroll } from '../../shared/components/keyboard';

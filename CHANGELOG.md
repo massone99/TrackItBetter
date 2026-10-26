@@ -2,6 +2,10 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.55.3 - 2026-10-26
+
+- Profile, new Font section: choose the app font per role (text, titles and buttons, figures and tags) or a preset (technical, classic, system), with a live preview built from the real components.
+
 ## 0.55.2 - 2026-10-26
 
 - Whole app, technical look: IBM Plex everywhere (Sans for text, Sans Condensed in capitals for titles and buttons, Mono for figures, tags and units), a dot-grid ground on every screen, registration marks at the corners of cards and lists, section titles as ruled mono tags, ink-lined buttons, icon tiles, segments, chips and fields, graduated progress bars, and mono capitals in the tab bar.

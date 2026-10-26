@@ -14,6 +14,7 @@ import i18n, { setAppLanguage } from "../../src/shared/i18n";
 import { useTheme } from "../../src/shared/theme/ThemeProvider";
 import { useScaledStyles } from "../../src/shared/theme/useScaledStyles";
 import { useAnimationSettings } from "../../src/shared/settings/AnimationProvider";
+import { FontSettings } from "../../src/shared/settings/FontSettings";
 
 export default function ProfileScreen() {
   const styles = useScaledStyles(baseStyles);
@@ -78,6 +79,8 @@ export default function ProfileScreen() {
         />
         {reducedMotion ? <Body>{t("profile.animationReducedMotion")}</Body> : null}
       </Card>
+      <SectionTitle title={t("profile.fontTitle")} />
+      <FontSettings />
       <ListGroup>
         <SwitchRow
           icon="speedometer-outline"

@@ -1,4 +1,14 @@
 import {
+  Barlow_400Regular,
+  Barlow_500Medium,
+  Barlow_600SemiBold,
+  Barlow_700Bold,
+} from "@expo-google-fonts/barlow";
+import {
+  BarlowCondensed_600SemiBold,
+  BarlowCondensed_700Bold,
+} from "@expo-google-fonts/barlow-condensed";
+import {
   IBMPlexSans_400Regular,
   IBMPlexSans_500Medium,
   IBMPlexSans_600SemiBold,
@@ -14,8 +24,17 @@ import {
   IBMPlexMono_700Bold,
 } from "@expo-google-fonts/ibm-plex-mono";
 
-/** IBM Plex: Sans for text, Sans Condensed for capitals headings and buttons, Mono for figures and tags. */
+/**
+ * Every family the user can choose (IBM Plex, Barlow); the system fonts need no loading. The code always names the
+ * IBM Plex family of a role below, and `Text` swaps in the chosen one (see fontChoices.ts).
+ */
 export const fontAssets = {
+  Barlow_400Regular,
+  Barlow_500Medium,
+  Barlow_600SemiBold,
+  Barlow_700Bold,
+  BarlowCondensed_600SemiBold,
+  BarlowCondensed_700Bold,
   IBMPlexSans_400Regular,
   IBMPlexSans_500Medium,
   IBMPlexSans_600SemiBold,
