@@ -44,6 +44,7 @@ import {
   Screen,
   SectionTitle,
   SegmentedControl,
+  MenuGroup,
   Sheet,
   Stepper,
   Text,
@@ -368,6 +369,7 @@ export default function ProgramEditorScreen() {
       >
         {editSession && editPrescription ? (
           <>
+            <MenuGroup title={t('programBuilder.groupWork')}>
             <View style={styles.moveRow}>
               <IconButton icon="arrow-up" label={t('programBuilder.moveExerciseUp')} tone="plain" size={44} disabled={editIndex === 0} onPress={() => updateSession(editSession.id, { exercises: moveItem(editSession.exercises, editIndex, -1) })} />
               <IconButton icon="arrow-down" label={t('programBuilder.moveExerciseDown')} tone="plain" size={44} disabled={editIndex === editSession.exercises.length - 1} onPress={() => updateSession(editSession.id, { exercises: moveItem(editSession.exercises, editIndex, 1) })} />
@@ -394,6 +396,8 @@ export default function ProgramEditorScreen() {
             {editPrescription.totalTarget != null ? null : <Stepper layout="row" label={t('programBuilder.sets')} value={editPrescription.sets} step={1} min={1} max={20} editable onChange={(sets) => updateExercise(editSession.id, editPrescription.id, { sets: Math.max(1, Math.round(sets)), ...(editPrescription.rpePerSet ? { rpePerSet: fitRpePerSet(editPrescription.rpePerSet, Math.max(1, Math.round(sets))) } : {}) })} />}
             {editPrescription.totalTarget != null ? <Label>{t('programBuilder.perSetHint')}</Label> : null}
             <TargetStepper metric={editMetric} value={editPrescription.target} onChange={(target) => updateExercise(editSession.id, editPrescription.id, { target })} />
+            </MenuGroup>
+            <MenuGroup title={t('userProgram.rest')}>
             <DurationField
               label={t('userProgram.rest')}
               // A rest of its own, else the app's default rest, shown as the selected value.
@@ -404,8 +408,8 @@ export default function ProgramEditorScreen() {
               format={(seconds) => t('userProgram.secondsValue', { value: seconds })}
               onChange={(restSeconds) => updateExercise(editSession.id, editPrescription.id, { restSeconds })}
             />
-            <View style={styles.rpeBlock}>
-              <Label>{t('programBuilder.rpeTarget')}</Label>
+            </MenuGroup>
+            <MenuGroup title={t('programBuilder.rpeTarget')}>
               {editPrescription.totalTarget != null ? null : <SegmentedControl<'same' | 'perSet'>
                 value={editPrescription.rpePerSet ? 'perSet' : 'same'}
                 onChange={(mode) => updateExercise(editSession.id, editPrescription.id, mode === 'perSet'
@@ -426,10 +430,11 @@ export default function ProgramEditorScreen() {
                 <RpePicker compact grid value={editPrescription.rpe ?? null} onChange={(rpe) => updateExercise(editSession.id, editPrescription.id, { rpe })} />
               )}
               {!rpeTargetText(editPrescription) ? <Label>{t('programBuilder.rpeNone')}</Label> : null}
-            </View>
+            </MenuGroup>
             {isLoadMetric(editMetric) ? (
+              <MenuGroup title={t('userProgram.load')}>
               <Stepper
-                layout="row"
+                layout="column"
                 label={t('userProgram.load')}
                 value={editPrescription.loadKg ?? LOAD_AUTO}
                 display={editPrescription.loadKg === null || editPrescription.loadKg === undefined ? t('userProgram.loadAuto') : t('userProgram.kgValue', { value: editPrescription.loadKg })}
@@ -439,7 +444,9 @@ export default function ProgramEditorScreen() {
                 editable
                 onChange={(value) => updateExercise(editSession.id, editPrescription.id, { loadKg: value < 0 ? null : value })}
               />
+              </MenuGroup>
             ) : null}
+            <MenuGroup title={t('userProgram.noteLabel')}>
             <TextField
               label={t('userProgram.noteLabel')}
               value={editPrescription.note ?? ''}
@@ -448,6 +455,7 @@ export default function ProgramEditorScreen() {
               multiline
               maxLength={NOTE_MAX}
             />
+            </MenuGroup>
             <View style={styles.sheetButtons}>
               <ActionButton icon="swap-horizontal" label={t('userProgram.replaceExercise', { name: editName })} secondary onPress={() => { setReplacing({ sessionId: editSession.id, exerciseId: editPrescription.id }); setEditing(null); }} />
               <ActionButton icon="trash-outline" label={t('userProgram.removeExercise', { name: editName })} variant="danger" onPress={() => {
@@ -517,7 +525,7 @@ function newSession(name: string): UserProgramSession {
 const baseStyles = StyleSheet.create({
   rpeBlock: { gap: 8 },
   totalHint: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, borderRadius: radii.control, padding: 14 },
-  moveRow: { flexDirection: 'row', justifyContent: 'flex-end', gap: 4, marginTop: -8 },
+  moveRow: { flexDirection: 'row', justifyContent: 'flex-end', gap: 4 },
   sheetButtons: { gap: 8 },
   exerciseRow: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 56 },
   exerciseMain: { flex: 1, gap: 6, minHeight: 48, justifyContent: 'center' },

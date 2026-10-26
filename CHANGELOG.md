@@ -2,6 +2,10 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.57.4 - 2026-10-26
+
+- Program editor, exercise prescription: the sheet is grouped into Work (position, mode, sets, reps), Rest, RPE target, Load and Note, each in its own block with even spacing; rest presets fill their rows evenly; the load stepper no longer squeezes its label.
+
 ## 0.57.3 - 2026-10-26
 
 - Maximum zoom: the open set now shows its Rest chip too, and a set you complete is rebuilt cleanly so it no longer vanishes.

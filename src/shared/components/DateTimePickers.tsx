@@ -160,7 +160,7 @@ const baseStyles = StyleSheet.create({
   wheels: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4 },
   presets: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingBottom: 8 },
   // Quick values in an even grid, four to a row, instead of a ragged line.
-  presetCell: { width: '23%', minWidth: 64 },
+  presetCell: { flexGrow: 1, flexBasis: 56 },
   colon: { fontFamily: fonts.display, fontSize: 26 },
   durationInputs: { flexDirection: 'row', gap: 12 },
   durationInput: { flex: 1 },
