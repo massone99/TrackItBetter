@@ -209,6 +209,15 @@ describe('sessionFromWorkout', () => {
     expect(validateUserProgram({ name: 'P', sessions: [result] })).toEqual([]);
   });
 
+  it('keeps the part of the workout (warm-up, main work, mobility) of each exercise', () => {
+    const result = sessionFromWorkout('A', [
+      { exerciseId: 'band-pull', metric: 'reps', notes: null, block: 'warmup', sets: [set({ reps: 15 })] },
+      { exerciseId: 'dip', metric: 'reps', notes: null, block: 'main', sets: [set({ reps: 6 })] },
+      { exerciseId: 'hip-circles', metric: 'time', notes: null, block: 'mobility', sets: [set({ reps: null, durationSec: 30 })] },
+    ], newId);
+    expect(result.exercises.map((item) => item.block)).toEqual(['warmup', null, 'mobility']);
+  });
+
   it('leaves the target open when the first set has no value, and keeps warm-up-only exercises', () => {
     const result = sessionFromWorkout('A', [
       { exerciseId: 'a', metric: 'reps', notes: null, sets: [set({ reps: 0 })] },

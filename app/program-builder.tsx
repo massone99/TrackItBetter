@@ -27,6 +27,7 @@ import { ExercisePicker } from '../src/features/exercises/ExercisePicker';
 import { openExercisePage } from '../src/features/exercises/openExercise';
 import { readDefaultRest } from '../src/features/session/restDefaults';
 import { RpePicker } from '../src/features/session/RpePicker';
+import { BLOCKS, blockOf, type Block } from '../src/domain/blocks';
 import { rpeTargetText } from '../src/features/programs/describe';
 import { takePendingExercise } from '../src/features/programs/pendingExercise';
 import { listExercises } from '../src/features/exercises/repository';
@@ -370,6 +371,12 @@ export default function ProgramEditorScreen() {
         {editSession && editPrescription ? (
           <>
             <MenuGroup title={t('programBuilder.groupWork')}>
+            <Label>{t('workout.blocks.title')}</Label>
+            <SegmentedControl<Block>
+              value={blockOf(editPrescription.block)}
+              onChange={(block) => updateExercise(editSession.id, editPrescription.id, { block: block === 'main' ? null : block })}
+              options={BLOCKS.map((block) => ({ value: block, label: t(`workout.blocks.${block}`) }))}
+            />
             <View style={styles.moveRow}>
               <IconButton icon="arrow-up" label={t('programBuilder.moveExerciseUp')} tone="plain" size={44} disabled={editIndex === 0} onPress={() => updateSession(editSession.id, { exercises: moveItem(editSession.exercises, editIndex, -1) })} />
               <IconButton icon="arrow-down" label={t('programBuilder.moveExerciseDown')} tone="plain" size={44} disabled={editIndex === editSession.exercises.length - 1} onPress={() => updateSession(editSession.id, { exercises: moveItem(editSession.exercises, editIndex, 1) })} />

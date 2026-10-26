@@ -151,7 +151,7 @@ async function fillWorkout(workoutId: string, known: readonly KnownPrescription[
       return { side, ...values, addedLoadKg: warm && loads.length > 0 ? warm.addedLoadKg : 0, restSec: null, targetRpe: null, kind: 'warmup', bands: warm?.bands, assistKg: warm?.assistKg };
     }));
     sets.unshift(...warmups);
-    return { exerciseId: prescription.exerciseId, notes: prescription.note, totalTarget: prescription.totalTarget ?? null, sets };
+    return { exerciseId: prescription.exerciseId, notes: prescription.note, totalTarget: prescription.totalTarget ?? null, block: prescription.block ?? null, sets };
   });
   await addPlannedEntries(workoutId, planned);
 }

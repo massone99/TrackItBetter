@@ -2,6 +2,10 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.58.0 - 2026-10-26
+
+- Program editor: each prescribed exercise can be set as warm-up, main work or mobility. The choice is kept when the workout starts, and when a workout is saved into a program.
+
 ## 0.57.4 - 2026-10-26
 
 - Program editor, exercise prescription: the sheet is grouped into Work (position, mode, sets, reps), Rest, RPE target, Load and Note, each in its own block with even spacing; rest presets fill their rows evenly; the load stepper no longer squeezes its label.

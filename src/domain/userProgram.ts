@@ -1,3 +1,5 @@
+import type { Block } from './blocks';
+
 import { ESTIMATED_SEC_PER_REP } from './mobilityPlan';
 import { isValidRpe } from './rpe';
 import { groupSets } from './setPairs';
@@ -29,6 +31,8 @@ export interface UserProgramExercise {
    * self-regulated rest. When set, `sets` is ignored and `target`, if any, is where each set starts.
    */
   totalTarget?: number | null;
+  /** Part of the workout this exercise belongs to: warm-up, main work or mobility; null or missing means main work. */
+  block?: Block | null;
 }
 
 /** One workout of a program; programs rotate through them in order, on whatever days suit the user. */
@@ -235,6 +239,8 @@ export interface WorkoutExerciseLike {
   metric: string;
   notes: string | null;
   totalTarget?: number | null;
+  /** The workout's part for this exercise; kept in the program as its block. */
+  block?: string | null;
   sets: readonly WorkoutSetLike[];
 }
 
@@ -264,6 +270,7 @@ export function sessionFromWorkout(name: string, exercises: readonly WorkoutExer
       return {
         id: newId(),
         exerciseId: exercise.exerciseId,
+        block: exercise.block && exercise.block !== 'main' ? (exercise.block as Block) : null,
         sets: Math.max(1, groups.length),
         target: raw && raw > 0 ? raw : null,
         note: exercise.notes?.trim() || null,

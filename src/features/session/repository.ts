@@ -1237,6 +1237,8 @@ export interface PlannedEntry {
   exerciseId: string;
   notes?: string | null;
   totalTarget?: number | null;
+  /** The part of the workout chosen in the program; without it a mobility exercise after other work goes to the mobility block. */
+  block?: Block | null;
   sets: PlannedSet[];
 }
 
@@ -1277,7 +1279,7 @@ export async function addPlannedEntries(workoutId: string, planned: readonly Pla
     const mobility = isMobility(exercise);
     const entryId = id();
     order += 1;
-    newEntries.push({ id: entryId, workoutId, exerciseId: entry.exerciseId, order, block: mobility && anyOther ? 'mobility' : null, notes: entry.notes?.trim().slice(0, 1000) || null, totalTarget: entry.totalTarget != null && entry.totalTarget > 0 ? entry.totalTarget : null });
+    newEntries.push({ id: entryId, workoutId, exerciseId: entry.exerciseId, order, block: entry.block && entry.block !== 'main' ? entry.block : entry.block === undefined && mobility && anyOther ? 'mobility' : null, notes: entry.notes?.trim().slice(0, 1000) || null, totalTarget: entry.totalTarget != null && entry.totalTarget > 0 ? entry.totalTarget : null });
     if (!mobility) anyOther = true;
     for (const [position, set] of entry.sets.entries()) {
       const pairId = set.length === 2 ? id() : null;
