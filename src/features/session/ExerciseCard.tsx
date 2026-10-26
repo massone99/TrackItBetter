@@ -101,7 +101,7 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
   const ink = useInk();
   const { t, i18n } = useTranslation();
   // Very large text: each set stacks its fields (reps, then kg, then done) instead of one tight row.
-  const { palette, largeText: textIsLarge } = useTheme();
+  const { palette, largeText: textIsLarge, setLayout } = useTheme();
   // Focus mode stacks the set in hand like very large text does: big fields, one set at a time.
   const largeText = textIsLarge || focus;
   // The number fields that are open, so − and + step what is typed rather than the saved value.
@@ -187,7 +187,9 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
   // Normal text lists the sets as table rows that open on a tap; very large text, a finished workout and a running
   // EMOM keep their own layouts.
   // A very narrow screen (display zoom) keeps the set blocks too: five columns plus the tail do not fit.
-  const table = !largeText && !editDone && !emomBadgeLabel && windowWidth >= TABLE_MIN_WIDTH;
+  const table = !largeText && !editDone && !emomBadgeLabel && windowWidth >= TABLE_MIN_WIDTH && setLayout.rows === 'table';
+  const bigButtons = setLayout.buttons === 'large';
+  const checkLeft = setLayout.check === 'left';
   const focusedId = hold && exercise.sets.some((set) => set.id === hold.setId) ? hold.setId : pickedSet?.id ?? nextSetId;
   // Last time's value of the same set (same position and kind, same side for L/R pairs): the marker on the set's gauge.
   const ghostFor = (set: SessionSet): number | null => {
@@ -340,8 +342,8 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
         // The chip strip shows on done sets and the next one (every set in a finished workout); other sets show only what they carry.
         const strip = done || editDone || set.id === nextSetId || isOpen;
         const title = `${set.kind === 'warmup' ? t('workout.blocks.warmup') : t('logger.setTitle', { number: workingNumber })}${set.side === 'left' ? ' · L' : set.side === 'right' ? ' · R' : ''}`;
-        const valueDown = showSteps ? <StepButton large={largeText} icon="remove" label={t('logger.stepDown', { field: fieldLabel, number: workingNumber, side: sideLabel }).trim()} onPress={(multiplier) => step(set, field, (distance ? -0.5 : timed ? -5 : -1) * multiplier)} /> : null;
-        const valueUp = showSteps ? <StepButton large={largeText} icon="add" label={t('logger.stepUp', { field: fieldLabel, number: workingNumber, side: sideLabel }).trim()} onPress={(multiplier) => step(set, field, (distance ? 0.5 : timed ? 5 : 1) * multiplier)} /> : null;
+        const valueDown = showSteps ? <StepButton large={largeText || bigButtons} icon="remove" label={t('logger.stepDown', { field: fieldLabel, number: workingNumber, side: sideLabel }).trim()} onPress={(multiplier) => step(set, field, (distance ? -0.5 : timed ? -5 : -1) * multiplier)} /> : null;
+        const valueUp = showSteps ? <StepButton large={largeText || bigButtons} icon="add" label={t('logger.stepUp', { field: fieldLabel, number: workingNumber, side: sideLabel }).trim()} onPress={(multiplier) => step(set, field, (distance ? 0.5 : timed ? 5 : 1) * multiplier)} /> : null;
         const valueField = (done && !editableDone) || holding ? (
           <Text style={[styles.setValue, { color: holding ? palette.accentStrong : palette.text }]}>{value}</Text>
         ) : timed ? (
@@ -358,8 +360,8 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
             style={[styles.setValue, { color: palette.text }]}
           />
         );
-        const loadDown = showSteps ? <StepButton large={largeText} icon="remove" label={t('logger.stepDown', { field: t('history.addedLoad'), number: workingNumber, side: sideLabel }).trim()} onPress={(multiplier) => step(set, 'addedLoadKg', -LOAD_STEP_KG * multiplier)} /> : null;
-        const loadUp = showSteps ? <StepButton large={largeText} icon="add" label={t('logger.stepUp', { field: t('history.addedLoad'), number: workingNumber, side: sideLabel }).trim()} onPress={(multiplier) => step(set, 'addedLoadKg', LOAD_STEP_KG * multiplier)} /> : null;
+        const loadDown = showSteps ? <StepButton large={largeText || bigButtons} icon="remove" label={t('logger.stepDown', { field: t('history.addedLoad'), number: workingNumber, side: sideLabel }).trim()} onPress={(multiplier) => step(set, 'addedLoadKg', -LOAD_STEP_KG * multiplier)} /> : null;
+        const loadUp = showSteps ? <StepButton large={largeText || bigButtons} icon="add" label={t('logger.stepUp', { field: t('history.addedLoad'), number: workingNumber, side: sideLabel }).trim()} onPress={(multiplier) => step(set, 'addedLoadKg', LOAD_STEP_KG * multiplier)} /> : null;
         const loadField = done && !editableDone ? (
           <Text style={[styles.loadValue, { color: set.addedLoadKg === 0 ? palette.textMuted : palette.text }]}>{loadText}</Text>
         ) : (
@@ -404,11 +406,61 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
           </Pressable>
         );
         const summary = [title, timed ? value : distance ? `${value} m` : `${value} ${t('history.units.reps')}`, withLoad ? `${loadText} kg` : null, done && set.rpe !== null ? t('logger.rpeTag', { value: formatRpe(set.rpe) }) : null].filter(Boolean).join(' · ');
+        const actionCol = (
+      <View style={[styles.colAction, bigButtons && styles.colActionBig]}>
+        {done ? (
+          <Animated.View entering={checkEntering}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`${t('workout.setCompleted')} ${sideLabel}`}
+              accessibilityState={{ checked: true, disabled: emomLocked }}
+              accessibilityHint={emomLocked ? t('emom.editHint') : undefined}
+              disabled={emomLocked}
+              hitSlop={{ top: 4, bottom: 4, left: 4, right: 0 }}
+              onPress={() => uncomplete(set)}
+              onLongPress={openMenu}
+              delayLongPress={450}
+              style={({ pressed }) => [styles.checkButton, bigButtons && styles.checkButtonBig, { backgroundColor: palette.success }, pressed && styles.checkPressed]}
+            >
+              <Icon name="checkmark" size={20} color={palette.successText} />
+            </Pressable>
+          </Animated.View>
+        ) : timed && onStartHold ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`${holding ? t('logger.doneHold') : t('logger.startHold')} ${sideLabel}`}
+            accessibilityHint={holding ? undefined : t('logger.holdLongPressHint')}
+            accessibilityActions={holding ? undefined : [{ name: 'longpress', label: t('logger.markDoneNoTimer') }]}
+            onAccessibilityAction={(event) => { if (event.nativeEvent.actionName === 'longpress') complete(set); }}
+            hitSlop={{ top: 4, bottom: 4, left: 4, right: 0 }}
+            onPress={() => holding ? onFinishHold?.() : onStartHold(set)}
+            onLongPress={holding ? undefined : () => { tapFeedback(); complete(set); }}
+            delayLongPress={400}
+            style={({ pressed }) => [styles.checkButton, bigButtons && styles.checkButtonBig, holding || set.id === nextSetId ? { backgroundColor: palette.accent } : { backgroundColor: palette.surfaceMuted }, pressed && styles.checkPressed]}
+          >
+            <Icon name={holding ? 'stop' : 'play'} size={18} color={holding || set.id === nextSetId ? palette.accentText : palette.text} />
+          </Pressable>
+        ) : (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`${t('workout.completeSet')} ${sideLabel}`}
+            hitSlop={{ top: 4, bottom: 4, left: 4, right: 0 }}
+            onPress={() => complete(set)}
+            onLongPress={openMenu}
+            delayLongPress={450}
+            style={({ pressed }) => [styles.checkButton, bigButtons && styles.checkButtonBig, set.id === nextSetId ? { backgroundColor: palette.accent } : { backgroundColor: palette.surfaceMuted, borderColor: palette.border, borderWidth: 1 }, pressed && styles.checkPressed]}
+          >
+            <Icon name="checkmark" size={20} color={set.id === nextSetId ? palette.accentText : palette.textMuted} />
+          </Pressable>
+        )}
+      </View>
+        );
         const rowBody = (
           <>
             {!largeText ? (
             /* Row 1: set, reps (or time, or distance), load, done, menu. */
             <Pressable accessible={false} accessibilityRole="none" onLongPress={openMenu} onPress={table ? () => { tapFeedback(); setExpanded((current) => new Map(current).set(set.id, false)); } : undefined} delayLongPress={450} style={[styles.setRow, table && styles.tableSetRow]}>
+              {checkLeft ? actionCol : null}
               {table && !isOpen ? null : <View style={table ? styles.tableBadgeCol : styles.colSet}>{badge}</View>}
               <View style={[styles.colValue, styles.stepper, table && [styles.tile, { backgroundColor: palette.surface }]]}>
                 {valueDown}
@@ -432,53 +484,7 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
                   </Pressable>
                 </View>
               )}
-              <View style={styles.colAction}>
-                {done ? (
-                  <Animated.View entering={checkEntering}>
-                    <Pressable
-                      accessibilityRole="button"
-                      accessibilityLabel={`${t('workout.setCompleted')} ${sideLabel}`}
-                      accessibilityState={{ checked: true, disabled: emomLocked }}
-                      accessibilityHint={emomLocked ? t('emom.editHint') : undefined}
-                      disabled={emomLocked}
-                      hitSlop={{ top: 4, bottom: 4, left: 4, right: 0 }}
-                      onPress={() => uncomplete(set)}
-                      onLongPress={openMenu}
-                      delayLongPress={450}
-                      style={({ pressed }) => [styles.checkButton, { backgroundColor: palette.success }, pressed && styles.checkPressed]}
-                    >
-                      <Icon name="checkmark" size={20} color={palette.successText} />
-                    </Pressable>
-                  </Animated.View>
-                ) : timed && onStartHold ? (
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel={`${holding ? t('logger.doneHold') : t('logger.startHold')} ${sideLabel}`}
-                    accessibilityHint={holding ? undefined : t('logger.holdLongPressHint')}
-                    accessibilityActions={holding ? undefined : [{ name: 'longpress', label: t('logger.markDoneNoTimer') }]}
-                    onAccessibilityAction={(event) => { if (event.nativeEvent.actionName === 'longpress') complete(set); }}
-                    hitSlop={{ top: 4, bottom: 4, left: 4, right: 0 }}
-                    onPress={() => holding ? onFinishHold?.() : onStartHold(set)}
-                    onLongPress={holding ? undefined : () => { tapFeedback(); complete(set); }}
-                    delayLongPress={400}
-                    style={({ pressed }) => [styles.checkButton, holding || set.id === nextSetId ? { backgroundColor: palette.accent } : { backgroundColor: palette.surfaceMuted }, pressed && styles.checkPressed]}
-                  >
-                    <Icon name={holding ? 'stop' : 'play'} size={18} color={holding || set.id === nextSetId ? palette.accentText : palette.text} />
-                  </Pressable>
-                ) : (
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel={`${t('workout.completeSet')} ${sideLabel}`}
-                    hitSlop={{ top: 4, bottom: 4, left: 4, right: 0 }}
-                    onPress={() => complete(set)}
-                    onLongPress={openMenu}
-                    delayLongPress={450}
-                    style={({ pressed }) => [styles.checkButton, set.id === nextSetId ? { backgroundColor: palette.accent } : { backgroundColor: palette.surfaceMuted, borderColor: palette.border, borderWidth: 1 }, pressed && styles.checkPressed]}
-                  >
-                    <Icon name="checkmark" size={20} color={set.id === nextSetId ? palette.accentText : palette.textMuted} />
-                  </Pressable>
-                )}
-              </View>
+              {checkLeft ? null : actionCol}
               <View style={styles.colMenu}>{menu}</View>
             </Pressable>
             ) : open ? (
@@ -530,8 +536,26 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
           set.romRating !== null ? `ROM ${formatNumber(set.romRating)}` : null,
         ].filter(Boolean).join(' · ') : '';
         const stateColor = done ? palette.success : current ? palette.accentStrong : palette.textMuted;
+        const tableCheck = (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={done ? t('workout.setCompleted') : t('workout.completeSet')}
+            accessibilityState={{ checked: done }}
+            hitSlop={spacing.xs}
+            onPress={() => {
+              tapFeedback();
+              if (done) uncomplete(set);
+              else if (timed && onStartHold) setExpanded((currentOpen) => new Map(currentOpen).set(set.id, true));
+              else complete(set);
+            }}
+            style={[styles.tableCheck, bigButtons && styles.tableCheckBig, { borderColor: done ? palette.success : current ? palette.accentStrong : ink, borderWidth: current && !done ? 3 : 1.5 }, done && { backgroundColor: palette.success }]}
+          >
+            {done ? <Icon name="checkmark" size={22} color={palette.successText} /> : null}
+          </Pressable>
+        );
         const tableRow = (
           <View style={[styles.tableRow, { backgroundColor: current ? palette.accentSoft : palette.surface }]}>
+            {checkLeft ? tableCheck : null}
             {/* The set number switches the set between working and warm-up; the rest of the row opens it. */}
             <Pressable
               accessibilityRole="button"
@@ -571,21 +595,7 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
               </View>
               <Gauge value={stored} ghost={ghostFor(set)} color={stateColor} delay={Math.min(set.index, 6) * 60} />
             </Pressable>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={done ? t('workout.setCompleted') : t('workout.completeSet')}
-              accessibilityState={{ checked: done }}
-              hitSlop={spacing.xs}
-              onPress={() => {
-                tapFeedback();
-                if (done) uncomplete(set);
-                else if (timed && onStartHold) setExpanded((currentOpen) => new Map(currentOpen).set(set.id, true));
-                else complete(set);
-              }}
-              style={[styles.tableCheck, { borderColor: done ? palette.success : current ? palette.accentStrong : ink, borderWidth: current && !done ? 3 : 1.5 }, done && { backgroundColor: palette.success }]}
-            >
-              {done ? <Icon name="checkmark" size={22} color={palette.successText} /> : null}
-            </Pressable>
+            {checkLeft ? null : tableCheck}
           </View>
         );
         return (
@@ -869,6 +879,7 @@ const baseStyles = StyleSheet.create({
   tableUnit: { fontFamily: fonts.mono, fontSize: 12 },
   tableNotes: { flexShrink: 1, flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
   tableSummary: { flexShrink: 1, fontFamily: fonts.mono, fontSize: 12 },
+  tableCheckBig: { width: 56, height: 56 },
   tableCheck: { width: MIN_TOUCH_TARGET - spacing.xs, height: MIN_TOUCH_TARGET - spacing.xs, borderRadius: instrument.radius, alignItems: 'center', justifyContent: 'center' },
   openGauge: { paddingHorizontal: spacing.lg, paddingBottom: spacing.md },
   valueChipMono: { fontFamily: fonts.monoSemibold, fontSize: 12, textTransform: 'uppercase' },
@@ -900,6 +911,8 @@ const baseStyles = StyleSheet.create({
   stepper: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4 },
   setValue: { fontFamily: fonts.display, fontSize: 24, lineHeight: 30, minWidth: 34, textAlign: 'center', fontVariant: ['tabular-nums'] },
   loadValue: { fontFamily: fonts.display, fontSize: 20, lineHeight: 26, minWidth: 34, textAlign: 'center', fontVariant: ['tabular-nums'] },
+  colActionBig: { width: 56 },
+  checkButtonBig: { width: 52, height: 52 },
   checkButton: { width: 44, height: 44, borderRadius: radii.control, alignItems: 'center', justifyContent: 'center' },
   checkPressed: { opacity: 0.7, transform: [{ scale: 0.94 }] },
   addSet: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 48, paddingHorizontal: 4 },

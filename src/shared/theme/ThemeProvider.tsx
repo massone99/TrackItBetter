@@ -3,6 +3,7 @@ import { useColorScheme, useWindowDimensions } from "react-native";
 import { readPreference, writePreference } from "../settings/preferences";
 import { Palette, palettes, ThemeMode } from "./palette";
 import { DEFAULT_FONTS, FONT_PRESETS, FONT_ROLES, isFontFamilyId, type FontFamilyId, type FontPresetId, type FontRole, type FontSelection } from "./fontChoices";
+import { parseSetLayout, setLayoutKey, type SetLayout } from "./setLayout";
 import { effectiveScale, LARGE_TEXT_SCALE, TEXT_SCALE_CAPS, toUiScale, type TextScaleMode, type UiScale } from "./scale";
 
 type ThemePreference = ThemeMode | "system";
@@ -27,6 +28,9 @@ type ThemeContextValue = {
   fontSelection: FontSelection;
   setFontFamily: (role: FontRole, family: FontFamilyId) => void;
   setFontPreset: (preset: FontPresetId) => void;
+  /** How exercise cards list their sets and how big the set buttons are. */
+  setLayout: SetLayout;
+  updateSetLayout: <K extends keyof SetLayout>(key: K, value: SetLayout[K]) => void;
 };
 
 const THEME_KEY = "appearance.theme";
@@ -53,6 +57,11 @@ export function ThemeProvider({ children }: PropsWithChildren) {
     }
     return chosen;
   });
+  const [setLayout, setSetLayout] = useState<SetLayout>(() => parseSetLayout(readPreference));
+  const updateSetLayout = useCallback(<K extends keyof SetLayout>(key: K, next: SetLayout[K]) => {
+    setSetLayout((current) => ({ ...current, [key]: next }));
+    writePreference(setLayoutKey(key), next);
+  }, []);
   const { width, fontScale: systemFontScale } = useWindowDimensions();
   // Development builds on web can simulate a phone font size with globalThis.__fontScale.
   const simulated = (globalThis as { __fontScale?: number }).__fontScale;
@@ -81,8 +90,8 @@ export function ThemeProvider({ children }: PropsWithChildren) {
     for (const role of FONT_ROLES) writePreference(fontKey(role), FONT_PRESETS[preset][role]);
   }, []);
   const value = useMemo(
-    () => ({ mode, preference, palette: palettes[mode], setMode, scale, layoutScale, setScale, fontScale, largeText, textScaleMode, setTextScaleMode, fontSelection, setFontFamily, setFontPreset }),
-    [mode, preference, setMode, scale, layoutScale, setScale, fontScale, largeText, textScaleMode, setTextScaleMode, fontSelection, setFontFamily, setFontPreset],
+    () => ({ mode, preference, palette: palettes[mode], setMode, scale, layoutScale, setScale, fontScale, largeText, textScaleMode, setTextScaleMode, fontSelection, setFontFamily, setFontPreset, setLayout, updateSetLayout }),
+    [mode, preference, setMode, scale, layoutScale, setScale, fontScale, largeText, textScaleMode, setTextScaleMode, fontSelection, setFontFamily, setFontPreset, setLayout, updateSetLayout],
   );
 
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;

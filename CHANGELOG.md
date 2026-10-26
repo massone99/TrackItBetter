@@ -2,6 +2,12 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.56.0 - 2026-10-26
+
+- Technical look across the whole app: IBM Plex, dot-grid ground, registration marks, squared 4 dp corners, ink-lined surfaces, ruled mono tags, graduated bars.
+- Profile, Font: per-role font choice (text, titles and buttons, figures and tags) and presets, with a live preview.
+- Profile, Sets: choose the exercise card layout (table or open rows), standard or large set buttons, and the done button on the right or left, with a live preview.
+
 ## 0.55.3 - 2026-10-26
 
 - Profile, new Font section: choose the app font per role (text, titles and buttons, figures and tags) or a preset (technical, classic, system), with a live preview built from the real components.

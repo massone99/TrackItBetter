@@ -14,6 +14,7 @@ import i18n, { setAppLanguage } from "../../src/shared/i18n";
 import { useTheme } from "../../src/shared/theme/ThemeProvider";
 import { useScaledStyles } from "../../src/shared/theme/useScaledStyles";
 import { useAnimationSettings } from "../../src/shared/settings/AnimationProvider";
+import { SetLayoutSettings } from "../../src/shared/settings/SetLayoutSettings";
 import { FontSettings } from "../../src/shared/settings/FontSettings";
 
 export default function ProfileScreen() {
@@ -81,6 +82,8 @@ export default function ProfileScreen() {
       </Card>
       <SectionTitle title={t("profile.fontTitle")} />
       <FontSettings />
+      <SectionTitle title={t("profile.setsTitle")} />
+      <SetLayoutSettings />
       <ListGroup>
         <SwitchRow
           icon="speedometer-outline"
