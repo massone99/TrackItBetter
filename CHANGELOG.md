@@ -2,6 +2,10 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.59.3 - 2026-10-27
+
+- Workout: more space between the reps and kg row and its fill bar, in the open set and in the compact row.
+
 ## 0.59.2 - 2026-10-27
 
 - Workout: the button that closes a set keeps the 48 dp touch target at small interface sizes (it used to shrink to about 31 dp at 70 %).
