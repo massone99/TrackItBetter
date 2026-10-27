@@ -443,6 +443,18 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
             <Icon name="ellipsis-vertical" size={18} color={palette.textMuted} />
           </Pressable>
         );
+        // Fold control: the chevron always sits at the right edge of the set's row, folded or open.
+        const foldButton = (isUp: boolean, onPress: () => void, color: string = palette.textMuted) => (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`${title}, ${t(isUp ? 'logger.foldSet' : 'logger.unfoldSet')}`}
+            hitSlop={{ top: 0, bottom: 0, left: 6, right: 12 }}
+            onPress={() => { tapFeedback(); onPress(); }}
+            style={({ pressed }) => [styles.menuButton, pressed && { opacity: 0.6 }]}
+          >
+            <Icon name={isUp ? 'chevron-up' : 'chevron-down'} size={22} color={color} />
+          </Pressable>
+        );
         const summary = [title, timed ? value : distance ? `${value} m` : `${value} ${t('history.units.reps')}`, withLoad ? `${loadText} kg` : null, done && set.rpe !== null ? t('logger.rpeTag', { value: formatRpe(set.rpe) }) : null].filter(Boolean).join(' · ');
         const actionCol = (
       <View style={[styles.colAction, { width: checkBtn }]}>
@@ -526,7 +538,7 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
                 </View>
               )}
               {checkLeft ? null : actionCol}
-              <View style={styles.colMenu}>{menu}</View>
+              <View style={styles.colMenu}>{table ? foldButton(true, () => setExpanded((current) => new Map(current).set(set.id, false))) : menu}</View>
             </Pressable>
             ) : open ? (
             /* Large text, the set in hand: title, then each field on its own line with big − and +. */
@@ -553,7 +565,6 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
                   style={styles.largeTitleTap}
                 >
                   <Text style={[styles.largeStripText, { color: done ? palette.successText : palette.surface }]}>{title}</Text>
-                  <Icon name="chevron-up" size={22} color={done ? palette.successText : palette.surface} />
                 </Pressable>
                 <Pressable
                   accessibilityRole="button"
@@ -563,6 +574,7 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
                 >
                   <Icon name="ellipsis-vertical" size={18} color={done ? palette.successText : palette.surface} />
                 </Pressable>
+                {foldButton(true, () => toggleFold(set.id), done ? palette.successText : palette.surface)}
               </View>
               <View style={styles.largeField}>
                 <Label>{fieldLabel}</Label>
@@ -593,7 +605,7 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
                 ? <View style={[styles.summaryBox, { backgroundColor: palette.success }]}><Icon name="checkmark" size={16} color={palette.successText} /></View>
                 : <View style={[styles.summaryBox, { borderColor: palette.textMuted, borderWidth: 1.5 }]} />}
             </Pressable>
-            {menu}
+            {foldButton(false, () => { unfold(set.id); setPicked({ id: set.id, done }); })}
             </View>
             )}
           </>
@@ -666,6 +678,7 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
               <Gauge value={stored} ghost={ghostFor(set)} color={stateColor} delay={Math.min(set.index, 6) * 60} />
             </Pressable>
             {checkLeft ? null : tableCheck}
+            {foldButton(false, () => openOnly(set.id))}
           </View>
         );
         return (
@@ -745,7 +758,7 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
                     <Text style={[styles.clipChipText, { color: palette.accentStrong }]}>{t('logger.clip', { count: set.clipCount })}</Text>
                   </Pressable>
                 ) : null}
-                {table && isOpen ? <IconButton icon="chevron-up" label={t('common.close')} tone="plain" onPress={() => setExpanded((current) => new Map(current).set(set.id, false))} /> : null}
+                {table && isOpen ? menu : null}
                 {(set.poseCount ?? 0) > 0 ? (
                   <Pressable accessibilityRole="button" accessibilityLabel={t('poseLink.setActionCount', { count: set.poseCount })} hitSlop={8} onPress={() => onSetOptions(set)} style={[styles.clipChip, { backgroundColor: palette.surface }]}>
                     <Icon name="scan-outline" size={13} color={palette.accentStrong} />

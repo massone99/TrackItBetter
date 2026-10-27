@@ -95,7 +95,7 @@ describe('ExerciseCard table rows', () => {
     show([set(1, { completedAt: new Date(), rpe: 8, formRating: 4 }), set(2), set(3)]);
     fireEvent.press(screen.getByRole('button', { name: /^Set 3 ·/ }));
     expect(screen.getAllByLabelText('Set 3 options')).toHaveLength(1);
-    fireEvent.press(screen.getAllByRole('button', { name: /^Close$/ }).at(-1)!);
+    fireEvent.press(screen.getAllByRole('button', { name: /Fold or open this set$/ }).at(-1)!);
     expect(screen.queryAllByLabelText('Set 3 options')).toHaveLength(0);
   });
 
