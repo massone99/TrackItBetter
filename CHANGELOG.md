@@ -2,6 +2,10 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.59.4 - 2026-10-27
+
+- Workout: the fold chevron of a set always sits at the right edge of its row, folded or open, at every text size; the set menu moved next to the chips (normal text) or beside the chevron in the strip (large text).
+
 ## 0.59.3 - 2026-10-27
 
 - Workout: more space between the reps and kg row and its fill bar, in the open set and in the compact row.
