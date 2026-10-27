@@ -102,7 +102,7 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
   const ink = useInk();
   const { t, i18n } = useTranslation();
   // Very large text: each set stacks its fields (reps, then kg, then done) instead of one tight row.
-  const { palette, largeText: textIsLarge, setLayout } = useTheme();
+  const { palette, largeText: textIsLarge, setLayout, layoutScale } = useTheme();
   // Focus mode stacks the set in hand like very large text does: big fields, one set at a time.
   const largeText = textIsLarge || focus;
   // The number fields that are open, so − and + step what is typed rather than the saved value.
@@ -204,6 +204,12 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
   // A very narrow screen (display zoom) keeps the set blocks too: five columns plus the tail do not fit.
   const table = !largeText && !editDone && !emomBadgeLabel && windowWidth >= TABLE_MIN_WIDTH && setLayout.rows === 'table';
   const bigButtons = setLayout.buttons === 'large';
+  // The done button never shrinks below the touch target with the interface size, so it stays easy to hit at 70 %.
+  const doneSize = (base: number) => Math.max(MIN_TOUCH_TARGET, Math.round(base * layoutScale));
+  const checkBtn = doneSize(bigButtons ? 52 : 44);
+  const checkBox = { width: checkBtn, height: checkBtn };
+  const tableCheckSize = doneSize(bigButtons ? 56 : MIN_TOUCH_TARGET - spacing.xs);
+  const tableCheckBox = { width: tableCheckSize, height: tableCheckSize };
   const checkLeft = setLayout.check === 'left';
   // A set is open when the user said so, else the one in hand (or just done, still to rate); the others show one line.
   const openOf = (set: SessionSet) => table && (expanded.get(set.id) ?? (hold?.setId === set.id || set.id === nextSetId || (!!set.completedAt && set.id === lastDoneId && set.kind === 'working' && set.formRating === null)));
@@ -439,7 +445,7 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
         );
         const summary = [title, timed ? value : distance ? `${value} m` : `${value} ${t('history.units.reps')}`, withLoad ? `${loadText} kg` : null, done && set.rpe !== null ? t('logger.rpeTag', { value: formatRpe(set.rpe) }) : null].filter(Boolean).join(' · ');
         const actionCol = (
-      <View style={[styles.colAction, bigButtons && styles.colActionBig]}>
+      <View style={[styles.colAction, { width: checkBtn }]}>
         {done ? (
           <Animated.View entering={checkEntering}>
             <Pressable
@@ -452,7 +458,7 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
               onPress={() => uncomplete(set)}
               onLongPress={openMenu}
               delayLongPress={450}
-              style={({ pressed }) => [styles.checkButton, bigButtons && styles.checkButtonBig, { backgroundColor: palette.success }, pressed && styles.checkPressed]}
+              style={({ pressed }) => [styles.checkButton, checkBox, { backgroundColor: palette.success }, pressed && styles.checkPressed]}
             >
               <Icon name="checkmark" size={20} color={palette.successText} />
             </Pressable>
@@ -468,7 +474,7 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
             onPress={() => holding ? onFinishHold?.() : onStartHold(set)}
             onLongPress={holding ? undefined : () => { tapFeedback(); complete(set); }}
             delayLongPress={400}
-            style={({ pressed }) => [styles.checkButton, bigButtons && styles.checkButtonBig, holding || set.id === nextSetId ? { backgroundColor: palette.accent } : { backgroundColor: palette.surfaceMuted }, pressed && styles.checkPressed]}
+            style={({ pressed }) => [styles.checkButton, checkBox, holding || set.id === nextSetId ? { backgroundColor: palette.accent } : { backgroundColor: palette.surfaceMuted }, pressed && styles.checkPressed]}
           >
             <Icon name={holding ? 'stop' : 'play'} size={18} color={holding || set.id === nextSetId ? palette.accentText : palette.text} />
           </Pressable>
@@ -480,7 +486,7 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
             onPress={() => complete(set)}
             onLongPress={openMenu}
             delayLongPress={450}
-            style={({ pressed }) => [styles.checkButton, bigButtons && styles.checkButtonBig, set.id === nextSetId ? { backgroundColor: palette.accent } : { backgroundColor: palette.surfaceMuted, borderColor: palette.border, borderWidth: 1 }, pressed && styles.checkPressed]}
+            style={({ pressed }) => [styles.checkButton, checkBox, set.id === nextSetId ? { backgroundColor: palette.accent } : { backgroundColor: palette.surfaceMuted, borderColor: palette.border, borderWidth: 1 }, pressed && styles.checkPressed]}
           >
             <Icon name="checkmark" size={20} color={set.id === nextSetId ? palette.accentText : palette.textMuted} />
           </Pressable>
@@ -612,7 +618,7 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
               else if (timed && onStartHold) openOnly(set.id);
               else complete(set);
             }}
-            style={[styles.tableCheck, bigButtons && styles.tableCheckBig, { borderColor: done ? palette.success : current ? palette.accentStrong : ink, borderWidth: current && !done ? 3 : 1.5 }, done && { backgroundColor: palette.success }]}
+            style={[styles.tableCheck, tableCheckBox, { borderColor: done ? palette.success : current ? palette.accentStrong : ink, borderWidth: current && !done ? 3 : 1.5 }, done && { backgroundColor: palette.success }]}
           >
             {done ? <Icon name="checkmark" size={22} color={palette.successText} /> : null}
           </Pressable>
@@ -897,7 +903,7 @@ const baseStyles = StyleSheet.create({
   colValue: { flex: 1, textAlign: 'center' },
   colLoad: { flex: 1, textAlign: 'center' },
   colHeader: { textAlign: 'center' },
-  colAction: { width: 44, alignItems: 'center' },
+  colAction: { alignItems: 'center' },
   colMenu: { width: 36, alignItems: 'center' },
   menuButton: { width: 36, minHeight: 48, alignItems: 'center', justifyContent: 'center' },
   goalCard: { borderWidth: 1, borderRadius: radii.control, padding: 12, gap: 8, marginBottom: 8 },
@@ -947,8 +953,7 @@ const baseStyles = StyleSheet.create({
   tableUnit: { fontFamily: fonts.mono, fontSize: 12 },
   tableNotes: { flexShrink: 1, flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
   tableSummary: { flexShrink: 1, fontFamily: fonts.mono, fontSize: 12 },
-  tableCheckBig: { width: 56, height: 56 },
-  tableCheck: { width: MIN_TOUCH_TARGET - spacing.xs, height: MIN_TOUCH_TARGET - spacing.xs, borderRadius: instrument.radius, alignItems: 'center', justifyContent: 'center' },
+  tableCheck: { borderRadius: instrument.radius, alignItems: 'center', justifyContent: 'center' },
   openGauge: { paddingHorizontal: spacing.lg, paddingBottom: spacing.md },
   valueChipMono: { fontFamily: fonts.monoSemibold, fontSize: 12, textTransform: 'uppercase' },
   addSetMono: { fontFamily: fonts.monoSemibold, fontSize: 12, textTransform: 'uppercase' },
@@ -982,9 +987,7 @@ const baseStyles = StyleSheet.create({
   openAll: { alignSelf: 'flex-end', flexDirection: 'row', alignItems: 'center', gap: spacing.xs, minHeight: MIN_TOUCH_TARGET - spacing.sm, paddingHorizontal: spacing.xs },
   openAllText: { fontSize: 13, lineHeight: 18, fontWeight: '600' },
   largeTitleTap: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: MIN_TOUCH_TARGET },
-  colActionBig: { width: 56 },
-  checkButtonBig: { width: 52, height: 52 },
-  checkButton: { width: 44, height: 44, borderRadius: radii.control, alignItems: 'center', justifyContent: 'center' },
+  checkButton: { borderRadius: radii.control, alignItems: 'center', justifyContent: 'center' },
   checkPressed: { opacity: 0.7, transform: [{ scale: 0.94 }] },
   addSet: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 48, paddingHorizontal: 4 },
   addRow: { flexDirection: 'row', flexWrap: 'wrap', columnGap: 20 },

@@ -1,5 +1,5 @@
 import { router } from "expo-router";
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { StyleSheet, View } from "react-native";
 import Constants from "expo-constants";
@@ -20,7 +20,7 @@ import { FontSettings } from "../../src/shared/settings/FontSettings";
 export default function ProfileScreen() {
   const styles = useScaledStyles(baseStyles);
   const { t } = useTranslation();
-  const { preference, setMode, palette, scale, setScale, textScaleMode, setTextScaleMode } = useTheme();
+  const { preference, setMode, palette, scale, setScale, textScaleMode, setTextScaleMode, layoutScale, fontScale } = useTheme();
   const { speed, setSpeed, reducedMotion } = useAnimationSettings();
   const [rpePrompt, setRpePrompt] = useState(() => readBooleanPreference(RPE_PROMPT_KEY, true));
   const [compareMode, setCompareMode] = useState<CompareMode>(readCompareMode);
@@ -30,6 +30,8 @@ export default function ProfileScreen() {
   const language = i18n.language.startsWith("it") ? "it" : "en";
   return (
     <Screen>
+      {/* A new size rebuilds the settings from scratch, so no row keeps the layout measured at the previous size. */}
+      <Fragment key={`${layoutScale}-${fontScale}`}>
       <PageHeading title={t("profile.title")} subtitle={t("profile.subtitle")} />
 
       <SectionTitle title={t("profile.training")} />
@@ -131,6 +133,7 @@ export default function ProfileScreen() {
           {config?.version ? <Text selectable style={[styles.version, { color: palette.textMuted }]}>{config.android?.versionCode ? t("profile.version", { version: config.version, build: config.android.versionCode }) : t("profile.versionShort", { version: config.version })}</Text> : null}
         </View>
       </Card>
+      </Fragment>
     </Screen>
   );
 }

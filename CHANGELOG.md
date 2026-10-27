@@ -2,6 +2,11 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.59.2 - 2026-10-27
+
+- Workout: the button that closes a set keeps the 48 dp touch target at small interface sizes (it used to shrink to about 31 dp at 70 %).
+- Profile: changing the interface or text size rebuilds the settings from scratch, so no row keeps the layout of the previous size.
+
 ## 0.59.1 - 2026-10-26
 
 - Exercise in a finished workout: under each set, the exact bands used (colour, name, tension and kg of help).
