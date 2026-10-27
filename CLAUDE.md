@@ -4,7 +4,10 @@ Expo SDK 57 / React Native, Android-first, offline (SQLite + drizzle). The owner
 wants short answers. Product context: `PRODUCT.md`, `DESIGN.md`. Vocabulary (prescribed workout vs
 workout, versioned): `docs/LANGUAGE.md`; use it in UI strings, code and answers.
 
-## Release flow (always merge to `main` and release)
+## Release flow (release only when the owner says so)
+
+- Never bump the version, push to `main` or release unless the owner asks explicitly, for that change. Work stays on the
+  branch, with the screenshots and checks, until they say "release" (or "porta in main"). One "ok" covers one release.
 
 - `npm run version:bump -- patch|minor` edits app.json, package.json and the lock file.
 - The "Android release" workflow refuses a version without a `CHANGELOG.md` entry (`## x.y.z - date`).
