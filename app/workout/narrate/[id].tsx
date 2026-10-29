@@ -9,7 +9,7 @@ import { getExerciseById } from '../../../src/features/exercises/repository';
 import { NarrationPlayer, type NarrationDrill, type NarrationRecord } from '../../../src/features/narration/NarrationPlayer';
 import { readNarrationPrepSec } from '../../../src/features/narration/settings';
 import { restForSet } from '../../../src/features/session/restDefaults';
-import { completeSet, getActiveWorkout, type ActiveWorkout } from '../../../src/features/session/repository';
+import { completeSet, getActiveWorkout, uncompleteSet, type ActiveWorkout } from '../../../src/features/session/repository';
 import { PageHeading, Screen } from '../../../src/shared/components/ui';
 import { useTheme } from '../../../src/shared/theme/ThemeProvider';
 
@@ -64,7 +64,15 @@ export default function NarratedWorkoutScreen() {
     router.replace({ pathname: '/workout/[id]', params: { id } });
   }, [id]);
 
+  // Sets follow the user's position in the narration: confirmed now, open again when stepping back.
+  const segmentDone = useCallback((record: NarrationRecord) => {
+    for (const setId of record.setIds ?? []) void completeSet(setId, record.completedAt).catch(() => undefined);
+  }, []);
+  const segmentReopened = useCallback((setIds: string[]) => {
+    for (const setId of setIds) void uncompleteSet(setId).catch(() => undefined);
+  }, []);
+
   if (workout === undefined) return <Screen><ActivityIndicator color={palette.accentStrong} /></Screen>;
   if (workout === null) return <Screen><PageHeading title={t('workout.unavailable')} subtitle={t('workout.finished')} /></Screen>;
-  return <NarrationPlayer draftKey={`narration.draft.${id}`} title={workout.name} segments={segments} drills={drills} exitHref={{ pathname: '/workout/[id]', params: { id } }} onSave={save} checkPairs={false} />;
+  return <NarrationPlayer draftKey={`narration.draft.${id}`} title={workout.name} segments={segments} drills={drills} exitHref={{ pathname: '/workout/[id]', params: { id } }} onSave={save} onSegmentDone={segmentDone} onSegmentReopened={segmentReopened} checkPairs={false} />;
 }

@@ -39,6 +39,10 @@ export interface NarrationPlayerProps {
   initialVoice?: boolean;
   /** Saves what was done; rejecting shows the save error and lets the user retry. */
   onSave: (records: NarrationRecord[], startedAt: Date) => Promise<void>;
+  /** Called as soon as a work segment is confirmed (countdown over or "done"), so the sets follow the user's position. */
+  onSegmentDone?: (record: NarrationRecord) => void;
+  /** Called when the user steps back onto a segment already confirmed: its sets are open again. */
+  onSegmentReopened?: (setIds: string[]) => void;
 }
 
 /** Identifies a plan, so a saved position is only resumed on the very plan it was saved for. */
@@ -54,7 +58,7 @@ function readDraft(key: string, signature: string): { records: [number, Performe
   } catch { return null; }
 }
 
-export function NarrationPlayer({ draftKey, title, segments, drills, exitHref, initialVoice, onSave, checkPairs = true }: NarrationPlayerProps & { checkPairs?: boolean }) {
+export function NarrationPlayer({ draftKey, title, segments, drills, exitHref, initialVoice, onSave, onSegmentDone, onSegmentReopened, checkPairs = true }: NarrationPlayerProps & { checkPairs?: boolean }) {
   useKeepAwake();
   const styles = useScaledStyles(baseStyles);
   const { t, i18n } = useTranslation();
@@ -213,8 +217,9 @@ export function NarrationPlayer({ draftKey, title, segments, drills, exitHref, i
     if (!segment || paused || remainingMs === null || remainingMs > 0 || finished.current) return;
     const records = completeCurrent(performed);
     setPerformed(records);
+    if (records !== performed) onSegmentDone?.(records.get(index)!);
     goTo(index + 1, records);
-  }, [segment, paused, remainingMs, completeCurrent, performed, goTo, index]);
+  }, [segment, paused, remainingMs, completeCurrent, performed, goTo, index, onSegmentDone]);
 
   // A light tick for the last three seconds of each countdown, spoken aloud before a drill starts.
   const secondsLeft = remainingMs === null ? null : Math.ceil(remainingMs / 1000);
@@ -249,6 +254,7 @@ export function NarrationPlayer({ draftKey, title, segments, drills, exitHref, i
   const doneReps = () => {
     const records = completeCurrent(performed);
     setPerformed(records);
+    if (records !== performed) onSegmentDone?.(records.get(index)!);
     goTo(index + 1, records);
   };
   const back = () => {
@@ -256,6 +262,8 @@ export function NarrationPlayer({ draftKey, title, segments, drills, exitHref, i
       if (segments[candidate].kind === 'work') {
         const records = new Map(performed);
         records.delete(candidate);
+        const reopened = segments[candidate];
+        if (reopened.kind === 'work' && reopened.setIds?.length && performed.has(candidate)) onSegmentReopened?.(reopened.setIds);
         setPerformed(records);
         goTo(candidate, records);
         return;
