@@ -2,6 +2,10 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.59.5 - 2026-10-29
+
+- Narrated workout: each set is marked done as soon as its timer ends or you confirm the reps, and opens again when you step back onto it.
+
 ## 0.59.4 - 2026-10-27
 
 - Workout: the fold chevron of a set always sits at the right edge of its row, folded or open, at every text size; the set menu moved next to the chips (normal text) or beside the chevron in the strip (large text).
