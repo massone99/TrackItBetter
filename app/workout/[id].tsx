@@ -448,7 +448,7 @@ export default function WorkoutScreen() {
    * Starts the right rest after a set and, in a superset, scrolls to the exercise that comes next:
    * no rest (or the short one) between exercises, the full rest at the end of the round.
    */
-  const afterSetDone = (setId: string) => {
+  const afterSetDone = async (setId: string) => {
     const exercise = workout?.exercises.find((item) => item.sets.some((set) => set.id === setId));
     // While an EMOM runs its clock is the rest: no rest timer on top of it.
     if (emomEntryId) return;
@@ -457,7 +457,7 @@ export default function WorkoutScreen() {
       setRestEndsAt(null);
       void cancelRestFinishedNotification().catch(() => undefined);
       setFreeRest({ since: nowMs(), restSec: restAfter(setId) });
-      void continueTotalGoal(exercise, setId);
+      await continueTotalGoal(exercise, setId);
       return;
     }
     const marked = workout?.exercises.map((item) => ({ ...item, sets: item.sets.map((set) => set.id === setId ? { ...set, completedAt: new Date() } : set) })) ?? [];
@@ -488,7 +488,6 @@ export default function WorkoutScreen() {
     try {
       const newId = await addSet(exercise.entryId);
       if (!exercise.unilateral) await updateSet(newId, field, nextSetValue(last ? last[field] : null, progress.remaining));
-      await refresh(workout.id);
     } catch { /* The set can still be added by hand. */ }
   };
 
@@ -523,7 +522,7 @@ export default function WorkoutScreen() {
     tapFeedback('success');
     patchSet(set.id, { completedAt: new Date() });
     await completeSet(set.id);
-    afterSetDone(set.id);
+    await afterSetDone(set.id);
   });
 
   /** Reopens a set; when it was the last one done, the rest it started stops too. */
@@ -568,7 +567,7 @@ export default function WorkoutScreen() {
     tapFeedback('success');
     await updateSet(setId, 'durationSec', seconds);
     await completeSet(setId);
-    afterSetDone(setId);
+    await afterSetDone(setId);
     if (workout) await refresh(workout.id);
   };
 
