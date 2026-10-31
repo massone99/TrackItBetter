@@ -131,3 +131,21 @@ async function time(fn: () => Promise<unknown>, runs = 5): Promise<number> {
   },
   log: async () => (await import('../features/session/repository')).listRecentWorkouts(),
 };
+
+/**
+ * Development only, after `__seedLoads()`: starts a pull-up workout whose first set carries a blue band
+ * (tension 2), to look at the band strip of the active set.
+ */
+async function startBandedWorkout(): Promise<string> {
+  const { getActiveWorkout, setSetBands } = await import('../features/session/repository');
+  const { getEquipment } = await import('../features/equipment/repository');
+  const { bandsById } = await import('../features/equipment/useEquipment');
+  const workoutId = await startWorkout('Pull day');
+  await addExerciseToWorkout(workoutId, 'pull-up');
+  const catalog = await getEquipment();
+  const blue = catalog.bandSets.flatMap((set) => set.bands).find((band) => band.name === 'Blu');
+  const first = (await getActiveWorkout(workoutId))?.exercises[0]?.sets[0];
+  if (blue && first) await setSetBands(first.id, [{ bandId: blue.id, tension: 2 }], bandsById(catalog));
+  return workoutId;
+}
+(globalThis as { __startBandedWorkout?: typeof startBandedWorkout }).__startBandedWorkout = startBandedWorkout;

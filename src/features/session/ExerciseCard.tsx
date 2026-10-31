@@ -589,7 +589,7 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
               {focus ? (() => {
                 const match = previousMatchFor(set);
                 const state = holding ? t('activeSet.hold') : done ? t('activeSet.logged') : exercise.sets.some((item) => item.completedAt) || set.id !== exercise.sets[0]?.id ? t('activeSet.active') : t('activeSet.ready');
-                return <ActiveSetStatus state={state} reference={match ? t('activeSet.previous', { value: [describePreviousSet(match, exercise.metric), match.rpe !== null ? t('logger.rpeTag', { value: formatRpe(match.rpe) }) : null].filter(Boolean).join(' · ') }) : t('activeSet.firstTime')} />;
+                return <ActiveSetStatus state={state} reference={match ? t('activeSet.previous', { value: describePreviousSet(match, exercise.metric) }) : t('activeSet.firstTime')} />;
               })() : null}
               <View style={styles.largeField}>
                 <Label>{fieldLabel}</Label>
