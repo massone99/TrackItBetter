@@ -1163,12 +1163,12 @@ export interface PreviousPerformance {
 
 export type PreviousSetValues = Pick<SessionSet, 'reps' | 'durationSec' | 'distanceM' | 'addedLoadKg' | 'rpe' | 'note' | 'side' | 'pairId'> & { kind?: SetKind; restSec?: number | null; formRating?: number | null; romRating?: number | null; bands?: SetBand[]; assistKg?: number | null };
 
-/** Fills an open set with the values of a set from last time, note and bands included. */
+/** Fills an open set with the values of a set from last time, note and bands included, but not RPE, form or ROM. */
 export async function copyValuesToSet(setId: string, values: PreviousSetValues): Promise<void> {
   await initializeDatabase();
-  const { reps, durationSec, distanceM, addedLoadKg, rpe, note } = values;
+  const { reps, durationSec, distanceM, addedLoadKg, note } = values;
   const bands = values.bands && values.bands.length > 0 ? { bands: JSON.stringify(values.bands), assistKg: values.assistKg ?? null } : {};
-  await db.update(trainingSets).set({ reps, durationSec, distanceM, addedLoadKg, rpe, note, ...bands }).where(eq(trainingSets.id, setId));
+  await db.update(trainingSets).set({ reps, durationSec, distanceM, addedLoadKg, note, ...bands }).where(eq(trainingSets.id, setId));
   await bumpIfFinished({ setId });
 }
 

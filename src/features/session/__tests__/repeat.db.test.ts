@@ -102,13 +102,13 @@ describe('previous values', () => {
     expect(previous.get('pull-up')?.sets).toEqual([{ pairId: null, side: 'both', reps: 6, durationSec: null, distanceM: null, addedLoadKg: 15, rpe: 8.5, note: 'Presa stretta', restSec: 150, formRating: null, romRating: null, bands: [], assistKg: null }]);
   });
 
-  it('are copied onto a set, note included', async () => {
+  it('are copied onto a set, note included, RPE not', async () => {
     const workoutId = await startWorkout('Copy');
     const entryId = await addExerciseToWorkout(workoutId, 'pull-up');
     const { id } = real.sqlite.prepare('SELECT id FROM training_set WHERE entry_id = ?').get(entryId) as { id: string };
     await copyValuesToSet(id, { reps: 6, durationSec: null, distanceM: null, addedLoadKg: 15, rpe: 8.5, note: 'Presa stretta' });
     const [set] = (await getActiveWorkout(workoutId))!.exercises[0].sets;
-    expect(set).toMatchObject({ reps: 6, addedLoadKg: 15, rpe: 8.5, note: 'Presa stretta', completedAt: null });
+    expect(set).toMatchObject({ reps: 6, addedLoadKg: 15, rpe: null, note: 'Presa stretta', completedAt: null });
     real.sqlite.prepare('DELETE FROM workout WHERE id = ?').run(workoutId);
   });
 });
