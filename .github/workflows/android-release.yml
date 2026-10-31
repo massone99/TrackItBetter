@@ -80,7 +80,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ steps.version.outputs.value }}
         run: |
-          gh release create "v${VERSION}" "build/TrackItBetter-${VERSION}.apk" \
+          git archive --format=zip --prefix="TrackItBetter-${VERSION}/" -o "build/TrackItBetter-${VERSION}-source.zip" "$GITHUB_SHA"
+          gh release create "v${VERSION}" "build/TrackItBetter-${VERSION}.apk" "build/TrackItBetter-${VERSION}-source.zip" \
             --target "$GITHUB_SHA" \
             --title "TrackItBetter ${VERSION}" \
             --notes-file "$RUNNER_TEMP/release-notes.md"

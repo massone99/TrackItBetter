@@ -2,6 +2,13 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.59.6 - 2026-10-31
+
+- Workout: copying last time's values no longer copies the RPE.
+- Workout: the open set stands apart from the folded rows (accent bar and ink lines).
+- Workout: while an EMOM runs, its planned sets are one quiet line.
+- Releases now include a zip of the source code.
+
 ## 0.59.5 - 2026-10-29
 
 - Narrated workout: each set is marked done as soon as its timer ends or you confirm the reps, and opens again when you step back onto it.
