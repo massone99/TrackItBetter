@@ -681,8 +681,16 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
             {foldButton(false, () => openOnly(set.id))}
           </View>
         );
+        // A planned set of a running EMOM is one quiet line: the clock fills it in, so steppers, check and ratings would only crowd the rounds.
+        if (emomBadgeLabel && !done) {
+          return (
+            <Pressable key={`${set.id}-u`} accessibilityRole="button" accessibilityLabel={`${summary}, ${t('logger.setOptions', { number: set.index })}`} onPress={openMenu} style={({ pressed }) => [styles.upcomingRow, pressed && { opacity: 0.6 }]}>
+              <Text style={[styles.upcomingText, { color: palette.textMuted }]}>{summary}</Text>
+            </Pressable>
+          );
+        }
         return (
-          <Animated.View key={`${set.id}${largeText ? (editing ? "-e" : "-f") : ""}`} entering={largeText ? undefined : setEntering} style={[styles.setBlock, largeText && !editing && styles.setBlockLine, editing && [styles.largeBlock, { borderColor: done ? palette.success : palette.border, backgroundColor: done ? palette.successSoft : palette.background }], table && [styles.tableBlock, { borderTopColor: palette.border }, isOpen && { backgroundColor: palette.background }]]}>
+          <Animated.View key={`${set.id}${largeText ? (editing ? "-e" : "-f") : ""}`} entering={largeText ? undefined : setEntering} style={[styles.setBlock, largeText && !editing && styles.setBlockLine, editing && [styles.largeBlock, { borderColor: done ? palette.success : palette.border, backgroundColor: done ? palette.successSoft : palette.background }], table && [styles.tableBlock, { borderTopColor: palette.border }, isOpen && { backgroundColor: palette.background, borderTopColor: ink, borderBottomWidth: 1, borderBottomColor: ink, borderLeftWidth: 4, borderLeftColor: palette.accentStrong }]]}>
             {editing || table || largeText ? null : <DoneTint done={done} color={palette.accentSoft} />}
             {/* The set in hand with very large text is not swiped: its steppers and buttons own the gestures. */}
             {editing ? rowBody : (
@@ -936,6 +944,8 @@ const baseStyles = StyleSheet.create({
   largeStripText: { flex: 1, fontFamily: fonts.monoSemibold, fontSize: 14, lineHeight: 20, textTransform: 'uppercase', letterSpacing: 1 },
   largeFields: { gap: 16 },
   setBlockLine: { marginBottom: 0 },
+  upcomingRow: { minHeight: MIN_TOUCH_TARGET, justifyContent: 'center', paddingHorizontal: spacing.md },
+  upcomingText: { fontSize: 14 },
   largeHeader: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   largeTitle: { flex: 1, fontFamily: fonts.display, fontSize: 22 },
   largeField: { gap: 8 },
