@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Pressable, StyleSheet, View } from 'react-native';
-import { Icon, Tag, Text } from '../../../shared/components/ui';
+import { Tag, Text } from '../../../shared/components/ui';
 import { readBooleanPreference, writePreference } from '../../../shared/settings/preferences';
 import { useInk } from '../../../shared/theme/ink';
 import { useScaledStyles } from '../../../shared/theme/useScaledStyles';
@@ -22,17 +22,21 @@ export interface TelemetryTile {
   reference: string;
   /** Plain-words state for screen readers and the colour-free marker. */
   state: string;
+  /** Colour of the reference line: green better, orange worse; ratings never claim a change they cannot know. */
+  tone: 'good' | 'bad' | 'neutral';
 }
 
 type T = (key: string, options?: Record<string, unknown>) => string;
 const signed = (delta: number) => `${delta > 0 ? '+' : delta < 0 ? '−' : '±'}${formatNumber(Math.abs(delta))}`;
 
 function ratingTile(id: 'rpe' | 'form' | 'rom', label: string, comparison: MeasuredComparison, t: T): TelemetryTile {
+  const tone = id === 'rpe' || comparison.delta === null || comparison.delta === 0 ? 'neutral' : comparison.delta > 0 ? 'good' : 'bad';
   const { live, historical, delta } = comparison;
   return {
     id, label,
     value: live.mean === null ? '—' : formatNumber(live.mean),
-    reference: historical.mean === null ? `${t('telemetry.hist')} —` : `${t('telemetry.hist')} ${formatNumber(historical.mean)}${delta === null ? '' : ` · ${signed(delta)}`}`,
+    reference: historical.mean === null ? `${t('telemetry.hist')} —` : `${t('telemetry.hist')} ${formatNumber(historical.mean)}${delta === null ? '' : ` / ${signed(delta)}`}`,
+    tone,
     state: live.count === 0 ? t('telemetry.notRated') : t('telemetry.ratedSets', { count: live.count }),
   };
 }
@@ -53,8 +57,9 @@ export function telemetryTiles(view: TelemetryView, t: T): TelemetryTile[] {
     tiles.push({
       id: 'assistance', label: t('telemetry.assistance'),
       value: unknown ? '?' : live.mean === null ? '—' : `${formatNumber(live.mean)} kg`,
-      reference: historical.mean === null ? `${t('telemetry.hist')} —` : `${t('telemetry.hist')} ${formatNumber(historical.mean)} kg${delta === null ? '' : ` · ${signed(delta)}`}`,
+      reference: historical.mean === null ? `${t('telemetry.hist')} —` : `${t('telemetry.hist')} ${formatNumber(historical.mean)} kg${delta === null ? '' : ` / ${signed(delta)}`}`,
       state: unknown ? t('telemetry.unknownAssistance') : delta === null ? '' : delta < 0 ? t('telemetry.lessHelp') : delta > 0 ? t('telemetry.moreHelp') : '',
+      tone: unknown || delta === null || delta === 0 ? 'neutral' : delta < 0 ? 'good' : 'bad',
     });
   }
   const { volume, bestComparable } = telemetry;
@@ -63,6 +68,7 @@ export function telemetryTiles(view: TelemetryView, t: T): TelemetryTile[] {
     value: `${formatNumber(volume.liveWork)} ${volume.workUnit}`,
     reference: volume.historicalPreviousWork === null ? t('telemetry.firstSession') : `${t('telemetry.hist')} ${formatNumber(volume.historicalPreviousWork)} ${volume.workUnit}`,
     state: volume.loadedUnit && volume.liveLoaded !== null ? `${formatNumber(volume.liveLoaded)} ${volume.loadedUnit}` : '',
+    tone: 'neutral',
   });
   const timed = volume.workUnit === 's';
   tiles.push({
@@ -70,6 +76,7 @@ export function telemetryTiles(view: TelemetryView, t: T): TelemetryTile[] {
     value: bestComparable.current === null ? '—' : `${formatNumber(bestComparable.current)}${timed ? ' s' : ''}`,
     reference: bestComparable.historical === null ? t('telemetry.noBaseline') : `${t('telemetry.hist')} ${formatNumber(bestComparable.historical)}${timed ? ' s' : ''}`,
     state: prLabel(bestComparable.status, t) ?? '',
+    tone: 'neutral',
   });
   return tiles;
 }
@@ -91,7 +98,7 @@ export function telemetrySummary(view: TelemetryView, t: T, short = false): stri
 export function ExerciseTelemetryDock({ view, compact }: { view: TelemetryView | null; compact: boolean }) {
   const styles = useScaledStyles(baseStyles);
   const { t } = useTranslation();
-  const { palette } = useTheme();
+  const { palette, largeText } = useTheme();
   const ink = useInk();
   const [open, setOpen] = useState(() => readBooleanPreference(OPEN_KEY, false));
   const expanded = open && !compact;
@@ -106,6 +113,9 @@ export function ExerciseTelemetryDock({ view, compact }: { view: TelemetryView |
   const tiles = expanded ? telemetryTiles(view, t) : [];
   const record = view.telemetry.bestComparable.status;
   const summary = telemetrySummary(view, t, compact);
+  const scope = view.sessions === 0 ? t('telemetry.firstSession') : t('telemetry.sessions', { count: view.sessions });
+  const baseline = prLabel(record, t) ?? (view.telemetry.bestComparable.hasPreviousAtLoad ? t('telemetry.baselineOk') : t('telemetry.noBaseline'));
+  const toneColor = (tone: TelemetryTile['tone']) => tone === 'good' ? palette.success : tone === 'bad' ? palette.warning : palette.textMuted;
   return (
     <View style={[styles.dock, { borderColor: ink, backgroundColor: palette.surface }]}>
       <Pressable
@@ -116,29 +126,38 @@ export function ExerciseTelemetryDock({ view, compact }: { view: TelemetryView |
         onPress={toggle}
         style={styles.header}
       >
-        <View style={styles.flex}>
-          <Tag>{t('telemetry.title')}</Tag>
-          <Text style={[styles.summary, { color: record === 'confirmed' || record === 'candidate' ? palette.record : palette.textMuted }]}>{summary}</Text>
-        </View>
-        {compact ? null : <Icon name={expanded ? 'chevron-down' : 'chevron-up'} size={20} color={palette.textMuted} />}
+        <Text style={[styles.headText, styles.flex, { color: palette.text }]}>
+          {`${t('telemetry.title').toUpperCase()} `}
+          <Text style={{ color: palette.success }}>{`● ${t('telemetry.live').toUpperCase()}`}</Text>
+          {` · ${scope.toUpperCase()}`}
+        </Text>
+        {compact ? null : <Text style={[styles.headText, { color: palette.accentStrong }]}>{t(expanded ? 'telemetry.collapseWord' : 'telemetry.expandWord').toUpperCase()}</Text>}
       </Pressable>
       {expanded ? (
-        <View style={styles.grid}>
-          {tiles.map((tile) => (
-            <View
-              key={tile.id}
-              accessible
-              accessibilityLabel={t('telemetry.tile', { label: tile.label, value: tile.value, reference: tile.reference, state: tile.state })}
-              style={[styles.tile, { borderColor: palette.border, backgroundColor: palette.surfaceMuted }]}
-            >
-              <Text style={[styles.tileLabel, { color: palette.textMuted }]}>{tile.label}</Text>
-              <Text style={[styles.tileValue, { color: palette.text }]}>{tile.value}</Text>
-              <Text style={[styles.tileReference, { color: palette.textMuted }]}>{tile.reference}</Text>
-              {tile.state ? <Text style={[styles.tileState, { color: tile.id === 'best' && (record === 'confirmed' || record === 'candidate') ? palette.record : palette.textMuted }]}>{tile.state}</Text> : null}
-            </View>
-          ))}
-        </View>
-      ) : null}
+        <>
+          <View style={[styles.grid, { borderTopColor: palette.border }]}>
+            {tiles.map((tile) => (
+              <View
+                key={tile.id}
+                accessible
+                accessibilityLabel={t('telemetry.tile', { label: tile.label, value: tile.value, reference: tile.reference, state: tile.state })}
+                style={[styles.tile, largeText && styles.tileLarge, { borderColor: palette.border }]}
+              >
+                <Text style={[styles.tileLabel, { color: palette.textMuted }]}>{tile.label.toUpperCase()}</Text>
+                <Text style={[styles.tileValue, { color: palette.text }]}>{tile.value}</Text>
+                <Text style={[styles.tileReference, { color: toneColor(tile.tone) }]}>{tile.reference.toUpperCase()}</Text>
+                {tile.state ? <Text style={[styles.tileState, { color: tile.id === 'best' && (record === 'confirmed' || record === 'candidate') ? palette.record : palette.textMuted }]}>{tile.state.toUpperCase()}</Text> : null}
+              </View>
+            ))}
+          </View>
+          <View style={[styles.status, { backgroundColor: palette.accentSoft, borderTopColor: palette.border }]}>
+            <Text style={[styles.tileLabel, styles.flex, { color: palette.text }]}>{t('telemetry.prCheck').toUpperCase()}</Text>
+            <Text style={[styles.tileLabel, { color: record === 'confirmed' || record === 'candidate' ? palette.record : palette.textMuted }]}>{baseline.toUpperCase()}</Text>
+          </View>
+        </>
+      ) : (
+        <Text style={[styles.summary, { color: record === 'confirmed' || record === 'candidate' ? palette.record : palette.textMuted }]}>{summary}</Text>
+      )}
     </View>
   );
 }
@@ -147,13 +166,16 @@ export type { ExerciseTelemetry };
 
 const baseStyles = StyleSheet.create({
   dock: { borderWidth: 1, borderRadius: radii.surface, overflow: 'hidden' },
-  header: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: MIN_TOUCH_TARGET, paddingHorizontal: spacing.md, paddingVertical: spacing.sm },
+  header: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: spacing.sm, minHeight: MIN_TOUCH_TARGET, paddingHorizontal: spacing.md, paddingVertical: spacing.sm },
+  headText: { fontSize: 12, letterSpacing: 0.5 },
   flex: { flex: 1, minWidth: 0 },
-  summary: { fontSize: 12 },
-  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, paddingHorizontal: spacing.md, paddingBottom: spacing.md },
-  tile: { flexGrow: 1, flexBasis: 96, minWidth: 96, borderWidth: 1, borderRadius: radii.control, padding: spacing.sm, gap: spacing.xs },
-  tileLabel: { fontSize: 12 },
-  tileValue: { fontSize: 20, fontWeight: '700' },
-  tileReference: { fontSize: 12 },
-  tileState: { fontSize: 12 },
+  summary: { fontSize: 12, paddingHorizontal: spacing.md, paddingBottom: spacing.sm },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', borderTopWidth: 1 },
+  tile: { flexGrow: 1, flexBasis: '33%', minWidth: 96, borderRightWidth: StyleSheet.hairlineWidth, borderBottomWidth: StyleSheet.hairlineWidth, padding: spacing.sm, gap: spacing.xs },
+  tileLarge: { flexBasis: '50%' },
+  tileLabel: { fontSize: 12, letterSpacing: 0.5 },
+  tileValue: { fontSize: 24, fontWeight: '700' },
+  tileReference: { fontSize: 12, letterSpacing: 0.5 },
+  tileState: { fontSize: 12, letterSpacing: 0.5 },
+  status: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: spacing.sm, padding: spacing.sm, borderTopWidth: 1 },
 });

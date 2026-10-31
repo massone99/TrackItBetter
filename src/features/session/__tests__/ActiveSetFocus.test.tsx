@@ -64,19 +64,19 @@ describe('active set in focus mode', () => {
 
   it('names the state and shows RPE, form and ROM as a value or a dash', () => {
     show([set(1), set(2)]);
-    expect(screen.getByText('Ready')).toBeTruthy();
+    expect(screen.getByText('● In progress')).toBeTruthy();
     expect(screen.getByLabelText('RPE —')).toBeTruthy();
-    expect(screen.getByLabelText('Form —')).toBeTruthy();
+    expect(screen.getByLabelText('FORM —')).toBeTruthy();
     expect(screen.getByLabelText('ROM —')).toBeTruthy();
-    expect(screen.getByText('Target 8')).toBeTruthy();
+    expect(screen.getByText('TARGET 8')).toBeTruthy();
   });
 
   it('shows a given rating in its cell and opens that picker only', () => {
     show([set(1, { rpe: 8.5, formRating: 4 })]);
     const cell = (label: string) => screen.getAllByLabelText(label).find((node) => node.props.accessibilityState?.expanded !== undefined)!;
-    expect(cell('Form 4')).toBeTruthy();
-    fireEvent.press(cell('Form 4'));
-    expect(cell('Form 4').props.accessibilityState).toMatchObject({ expanded: true });
+    expect(cell('FORM 4')).toBeTruthy();
+    fireEvent.press(cell('FORM 4'));
+    expect(cell('FORM 4').props.accessibilityState).toMatchObject({ expanded: true });
     expect(cell('RPE 8.5').props.accessibilityState).toMatchObject({ expanded: false });
   });
 
@@ -84,16 +84,16 @@ describe('active set in focus mode', () => {
     const banded = set(1, { bands: [{ bandId: 'blue', tension: 2 }], assistKg: null });
     show([banded, set(2)], { describeBands: () => ({ colors: ['#2F80ED'], text: 'Blue · 2' }), renderBandsEditor: () => <Text>band editor</Text> });
     expect(screen.getAllByText('Blue · 2').length).toBeGreaterThan(0);
-    expect(screen.getByText('Help in kg unknown')).toBeTruthy();
+    expect(screen.getByText('KG NOT AVAILABLE')).toBeTruthy();
     expect(screen.queryByText('band editor')).toBeNull();
-    fireEvent.press(screen.getByLabelText('Edit bands'));
+    fireEvent.press(screen.getByLabelText('EDIT BANDS'));
     expect(screen.getByText('band editor')).toBeTruthy();
   });
 
   it('has no band strip for an exercise without bands, and More details opens the set menu', () => {
     const { onSetOptions } = show([set(1)]);
-    expect(screen.queryByText('Resistance bands')).toBeNull();
-    fireEvent.press(screen.getByLabelText('More details'));
+    expect(screen.queryByText('↳ RESISTANCE BANDS / SET ASSISTANCE')).toBeNull();
+    fireEvent.press(screen.getByLabelText('More set details'));
     expect(onSetOptions).toHaveBeenCalled();
   });
 });

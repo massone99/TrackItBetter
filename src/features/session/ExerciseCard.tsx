@@ -19,7 +19,7 @@ import { fonts } from '../../shared/theme/typography';
 import { useScaledStyles } from '../../shared/theme/useScaledStyles';
 import { formatClock, formatNumber } from '../../shared/utils/format';
 import { Gauge, RegistrationMarks, Tag, useInk } from './instrument';
-import { ActiveSetStatus, BandsStrip, RatingCells, type RatingCell } from './ActiveSetParts';
+import { BandsStrip, DetailsToggle, MeasureBox, PreviousSetBox, RatingCells, SetSegments, WorkOutput, gaugeMax, type RatingCell } from './ActiveSetParts';
 import { FormRating, LastTimeStrip } from './LastTime';
 import type { PreviousPerformance, SessionExercise, SessionSet } from './repository';
 import type { SetBand } from '../../domain/equipment';
@@ -203,6 +203,7 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
   const toggleOpen = (setId: string, kind: 'rpe' | 'form' | 'rom' | 'note', isOpen: boolean) => { tapFeedback(); setChosen((current) => new Map(current).set(setId, isOpen ? null : kind)); };
   // Focus mode: the set whose band editor is open below its band strip.
   const [bandsEditing, setBandsEditing] = useState<string | null>(null);
+  const [detailsOpen, setDetailsOpen] = useState<ReadonlySet<string>>(() => new Set());
   // Bands belong in the set in hand when the exercise already uses them, now or last time.
   const bandsInUse = exercise.sets.some((item) => item.bands.length > 0) || Boolean(previous?.sets.some((item) => (item.bands?.length ?? 0) > 0));
   const lastDoneId = [...exercise.sets].reverse().find((set) => set.completedAt)?.id ?? null;
@@ -245,7 +246,7 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
     >
       <RegistrationMarks />
       {nowLabel ? <View pointerEvents="none" style={[styles.halo, { borderColor: palette.accentSoft }]} /> : null}
-      {table && (figure !== null || nowLabel) ? (
+      {(table || focus) && (figure !== null || nowLabel) ? (
         <Tag color={nowLabel ? palette.accentStrong : undefined} style={styles.nowRow}>{[figure !== null ? `Fig. ${String(figure).padStart(2, '0')}` : null, nowLabel].filter(Boolean).join(' · ')}</Tag>
       ) : nowLabel ? <Label style={[styles.nowRow, { color: palette.accentStrong }]}>{nowLabel}</Label> : null}
       <View style={styles.exerciseHeader}>
@@ -304,6 +305,17 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
         ) : null}
         <IconButton icon="ellipsis-vertical" label={t('logger.options')} tone="plain" onPress={onOptions} />
       </View>
+      {focus && !collapsed && exercise.sets.length > 0 ? (() => {
+        const groups = groupSets(exercise.sets);
+        const states = groups.map((group) => group.every((item) => item.completedAt) ? 'done' as const : group.some((item) => item.id === focusedId) ? 'current' as const : 'todo' as const);
+        const position = Math.max(1, states.findIndex((state) => state === 'current') + 1 || groups.length);
+        return (
+          <>
+            <Label>{t('activeSet.setOf', { number: position, total: groups.length })}</Label>
+            <SetSegments states={states} />
+          </>
+        );
+      })() : null}
       {goal ? (
         <View style={[styles.goalCard, { backgroundColor: goal.reached ? palette.successSoft : palette.surface, borderColor: goal.reached ? palette.success : palette.border }]}>
           <View style={styles.goalRow}>
@@ -390,8 +402,8 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
         // The chip strip shows on done sets and the next one (every set in a finished workout); other sets show only what they carry.
         const strip = done || editDone || set.id === nextSetId || isOpen || editing;
         const title = `${set.kind === 'warmup' ? t('workout.blocks.warmup') : t('logger.setTitle', { number: workingNumber })}${set.side === 'left' ? ' · L' : set.side === 'right' ? ' · R' : ''}`;
-        const valueDown = showSteps ? <StepButton large={largeText || bigButtons} icon="remove" label={t('logger.stepDown', { field: fieldLabel, number: workingNumber, side: sideLabel }).trim()} onPress={(multiplier) => step(set, field, (distance ? -0.5 : timed ? -5 : -1) * multiplier)} /> : null;
-        const valueUp = showSteps ? <StepButton large={largeText || bigButtons} icon="add" label={t('logger.stepUp', { field: fieldLabel, number: workingNumber, side: sideLabel }).trim()} onPress={(multiplier) => step(set, field, (distance ? 0.5 : timed ? 5 : 1) * multiplier)} /> : null;
+        const valueDown = showSteps ? <StepButton large={textIsLarge || bigButtons} icon="remove" label={t('logger.stepDown', { field: fieldLabel, number: workingNumber, side: sideLabel }).trim()} onPress={(multiplier) => step(set, field, (distance ? -0.5 : timed ? -5 : -1) * multiplier)} /> : null;
+        const valueUp = showSteps ? <StepButton large={textIsLarge || bigButtons} icon="add" label={t('logger.stepUp', { field: fieldLabel, number: workingNumber, side: sideLabel }).trim()} onPress={(multiplier) => step(set, field, (distance ? 0.5 : timed ? 5 : 1) * multiplier)} /> : null;
         const valueField = (done && !editableDone) || holding ? (
           <Text style={[styles.setValue, { color: holding ? palette.accentStrong : palette.text }]}>{value}</Text>
         ) : timed ? (
@@ -408,8 +420,8 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
             style={[styles.setValue, { color: palette.text }]}
           />
         );
-        const loadDown = showSteps ? <StepButton large={largeText || bigButtons} icon="remove" label={t('logger.stepDown', { field: t('history.addedLoad'), number: workingNumber, side: sideLabel }).trim()} onPress={(multiplier) => step(set, 'addedLoadKg', -LOAD_STEP_KG * multiplier)} /> : null;
-        const loadUp = showSteps ? <StepButton large={largeText || bigButtons} icon="add" label={t('logger.stepUp', { field: t('history.addedLoad'), number: workingNumber, side: sideLabel }).trim()} onPress={(multiplier) => step(set, 'addedLoadKg', LOAD_STEP_KG * multiplier)} /> : null;
+        const loadDown = showSteps ? <StepButton large={textIsLarge || bigButtons} icon="remove" label={t('logger.stepDown', { field: t('history.addedLoad'), number: workingNumber, side: sideLabel }).trim()} onPress={(multiplier) => step(set, 'addedLoadKg', -LOAD_STEP_KG * multiplier)} /> : null;
+        const loadUp = showSteps ? <StepButton large={textIsLarge || bigButtons} icon="add" label={t('logger.stepUp', { field: t('history.addedLoad'), number: workingNumber, side: sideLabel }).trim()} onPress={(multiplier) => step(set, 'addedLoadKg', LOAD_STEP_KG * multiplier)} /> : null;
         const loadField = done && !editableDone ? (
           <Text style={[styles.loadValue, { color: set.addedLoadKg === 0 ? palette.textMuted : palette.text }]}>{loadText}</Text>
         ) : (
@@ -574,8 +586,9 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
                   hitSlop={spacing.sm}
                   style={styles.largeTitleTap}
                 >
-                  <Text style={[styles.largeStripText, { color: done ? palette.successText : palette.surface }]}>{title}</Text>
+                  <Text style={[styles.largeStripText, { color: done ? palette.successText : palette.surface }]}>{focus ? `${title} / ${t(set.kind === 'warmup' ? 'activeSet.warmup' : 'activeSet.working')}` : title}</Text>
                 </Pressable>
+                {focus ? <Text style={[styles.stripState, { color: done ? palette.successText : palette.surface }]}>{`● ${holding ? t('activeSet.hold') : done ? t('activeSet.logged') : t('activeSet.inProgress')}`.toUpperCase()}</Text> : null}
                 <Pressable
                   accessibilityRole="button"
                   accessibilityLabel={t('logger.setOptions', { number: set.index })}
@@ -588,19 +601,50 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
               </View>
               {focus ? (() => {
                 const match = previousMatchFor(set);
-                const state = holding ? t('activeSet.hold') : done ? t('activeSet.logged') : exercise.sets.some((item) => item.completedAt) || set.id !== exercise.sets[0]?.id ? t('activeSet.active') : t('activeSet.ready');
-                return <ActiveSetStatus state={state} reference={match ? t('activeSet.previous', { value: describePreviousSet(match, exercise.metric) }) : t('activeSet.firstTime')} />;
-              })() : null}
-              <View style={styles.largeField}>
-                <Label>{fieldLabel}</Label>
-                <View style={styles.largeStepper}>{valueDown}<View style={styles.largeValue}>{valueField}</View>{valueUp}</View>
-              </View>
-              {withLoad ? (
-                <View style={styles.largeField}>
-                  <Label>{t('logger.loadCol')}</Label>
-                  <View style={styles.largeStepper}>{loadDown}<View style={styles.largeValue}>{loadField}</View>{loadUp}</View>
-                </View>
-              ) : null}
+                const previousValue = match ? describePreviousSet(match, exercise.metric) : t('activeSet.firstTime');
+                const unit = timed ? t('activeSet.secondsCaption') : distance ? t('activeSet.metersCaption') : t('activeSet.repsCaption');
+                const reference = ghostFor(set);
+                const unitWord = timed ? 's' : distance ? 'm' : t('history.units.reps');
+                const max = gaugeMax(stored, reference);
+                return (
+                  <>
+                    <PreviousSetBox label={t('activeSet.previousLabel')} value={previousValue} rpeLabel={t('lastTime.rpeChip')} rpeValue={match && match.rpe !== null ? formatRpe(match.rpe) : null} sideLabel={t('activeSet.lastSession')} />
+                    <View style={styles.measureRow}>
+                      <MeasureBox stack={textIsLarge} label={fieldLabel.toUpperCase()} caption={unit}>
+                        <View style={styles.largeStepper}>{valueDown}<View style={styles.largeValue}>{valueField}</View>{valueUp}</View>
+                      </MeasureBox>
+                      {withLoad ? (
+                        <MeasureBox stack={textIsLarge} label={t('logger.loadCol').toUpperCase()} caption={t('activeSet.loadCaption')}>
+                          <View style={styles.largeStepper}>{loadDown}<View style={styles.largeValue}>{loadField}</View>{loadUp}</View>
+                        </MeasureBox>
+                      ) : null}
+                    </View>
+                    <WorkOutput
+                      title={t('activeSet.workOutput').toUpperCase()}
+                      current={`${formatNumber(stored)} ${unitWord}`}
+                      reference={reference === null ? null : `${formatNumber(reference)} ${unitWord}`}
+                      referenceLabel={t('activeSet.ref').toUpperCase()}
+                      value={stored}
+                      ghost={reference}
+                      scale={t('activeSet.scaleOf', { value: `${formatNumber(max)} ${unitWord}` }).toUpperCase()}
+                      color={done ? palette.success : palette.accentStrong}
+                    />
+                  </>
+                );
+              })() : (
+                <>
+                  <View style={styles.largeField}>
+                    <Label>{fieldLabel}</Label>
+                    <View style={styles.largeStepper}>{valueDown}<View style={styles.largeValue}>{valueField}</View>{valueUp}</View>
+                  </View>
+                  {withLoad ? (
+                    <View style={styles.largeField}>
+                      <Label>{t('logger.loadCol')}</Label>
+                      <View style={styles.largeStepper}>{loadDown}<View style={styles.largeValue}>{loadField}</View>{loadUp}</View>
+                    </View>
+                  ) : null}
+                </>
+              )}
             </Pressable>
             ) : (
             /* Large text, any other set: one line; a tap opens it. */
@@ -739,33 +783,48 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
             {/* Only when there is something to show: PR, clips, note (and RPE when its row is hidden). */}
             {focus && editing ? (() => {
               const cells: RatingCell[] = [];
-              if (canRpe) cells.push({ id: 'rpe', label: t('lastTime.rpeChip'), value: set.rpe !== null ? formatRpe(set.rpe) : null, hint: set.targetRpe !== null ? t('activeSet.target', { value: formatRpe(set.targetRpe) }) : undefined, open: rpeRow, onPress: () => toggleOpen(set.id, 'rpe', rpeRow) });
-              if (canForm) cells.push({ id: 'form', label: t('lastTime.form'), value: set.formRating !== null ? formatNumber(set.formRating) : null, open: formRow, onPress: () => toggleOpen(set.id, 'form', formRow) });
-              if (canRom) cells.push({ id: 'rom', label: t('lastTime.rom'), value: set.romRating !== null ? formatNumber(set.romRating) : null, open: romRow, onPress: () => toggleOpen(set.id, 'rom', romRow) });
+              if (canRpe) cells.push({ id: 'rpe', label: t('lastTime.rpeChip').toUpperCase(), value: set.rpe !== null ? formatRpe(set.rpe) : null, hint: set.targetRpe !== null ? t('activeSet.target', { value: formatRpe(set.targetRpe) }).toUpperCase() : undefined, open: rpeRow, onPress: () => toggleOpen(set.id, 'rpe', rpeRow) });
+              if (canForm) cells.push({ id: 'form', label: t('lastTime.form').toUpperCase(), value: set.formRating !== null ? formatNumber(set.formRating) : null, hint: t('activeSet.scale', { range: '1–5' }).toUpperCase(), open: formRow, onPress: () => toggleOpen(set.id, 'form', formRow) });
+              if (canRom) cells.push({ id: 'rom', label: t('lastTime.rom').toUpperCase(), value: set.romRating !== null ? formatNumber(set.romRating) : null, hint: t('activeSet.scale', { range: '1–5' }).toUpperCase(), open: romRow, onPress: () => toggleOpen(set.id, 'rom', romRow) });
               const described = set.bands.length > 0 ? describeBands?.(set) : null;
               const bandsOpen = bandsEditing === set.id;
+              const recorded = [set.rpe, set.formRating, set.romRating].filter((value) => value !== null).length;
+              const detailsShown = detailsOpen.has(set.id);
+              const detailCount = [set.restSec !== null, set.side === 'left' || set.side === 'right', Boolean(set.note), set.clipCount > 0].filter(Boolean).length;
+              const unknownKg = set.bands.length > 0 && set.assistKg === null;
               return (
                 <>
-                  {cells.length > 0 ? <RatingCells cells={cells} /> : null}
-                  {valuePanelNode}
                   {bandsInUse ? (
                     <>
                       <BandsStrip
-                        title={t('activeSet.bandsTitle')}
+                        title={t('activeSet.bandsTitle').toUpperCase()}
+                        tag={t('activeSet.activeInput').toUpperCase()}
+                        assistLabel={t('activeSet.estimatedAssist').toUpperCase()}
+                        assistValue={set.bands.length === 0 ? '—' : unknownKg ? '?' : `−${formatNumber(set.assistKg ?? 0)}`}
+                        assistUnit={set.bands.length === 0 || unknownKg ? null : 'KG'}
+                        assistFoot={(unknownKg ? t('activeSet.assistFootUnknown') : t('activeSet.assistFoot')).toUpperCase()}
                         text={described?.text ?? t('bands.chipEmpty')}
                         colors={described?.colors ?? []}
-                        assist={set.bands.length === 0 ? null : set.assistKg !== null ? t('activeSet.assist', { kg: formatNumber(set.assistKg) }) : t('activeSet.assistUnknown')}
                         open={bandsOpen}
-                        actionLabel={t(bandsOpen ? 'activeSet.bandsClose' : 'activeSet.bandsEdit')}
+                        actionLabel={t(bandsOpen ? 'activeSet.bandsClose' : 'activeSet.bandsEdit').toUpperCase()}
                         onPress={() => { tapFeedback(); setBandsEditing(bandsOpen ? null : set.id); }}
                       />
                       {bandsOpen ? renderBandsEditor?.(set) ?? null : null}
                     </>
                   ) : null}
+                  {cells.length > 0 ? <RatingCells title={t('activeSet.setTelemetry').toUpperCase()} counter={t('activeSet.recorded', { done: recorded, total: cells.length }).toUpperCase()} cells={cells} /> : null}
+                  {valuePanelNode}
+                  <DetailsToggle
+                    label={t('activeSet.additional').toUpperCase()}
+                    count={`${detailCount}/4`}
+                    open={detailsShown}
+                    actionLabel={t(detailsShown ? 'activeSet.closeWord' : 'activeSet.openWord').toUpperCase()}
+                    onPress={() => { tapFeedback(); setDetailsOpen((current) => { const next = new Set(current); if (next.has(set.id)) next.delete(set.id); else next.add(set.id); return next; }); }}
+                  />
                 </>
               );
             })() : null}
-            {!quiet && (!table || isOpen) && (strip || set.note || set.clipCount > 0 || (set.poseCount ?? 0) > 0 || set.rpe !== null || setRecords.has(set.id) || set.bands.length > 0) ? (
+            {!quiet && (!table || isOpen) && !(focus && editing && !detailsOpen.has(set.id)) && (strip || set.note || set.clipCount > 0 || (set.poseCount ?? 0) > 0 || set.rpe !== null || setRecords.has(set.id) || set.bands.length > 0) ? (
               <View style={[styles.setMeta, editing && styles.setMetaLarge, table && styles.tableChips]}>
                 {canRpe && !(focus && editing) && (strip || set.rpe !== null) ? (
                   <ValueChip flat={table} label={set.rpe !== null ? t('logger.rpeTag', { value: formatRpe(set.rpe) }) : t('lastTime.rpeChip')} icon="speedometer-outline" filled={set.rpe !== null} open={rpeRow} onPress={() => toggleOpen(set.id, 'rpe', rpeRow)} />
@@ -796,7 +855,6 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
                     {set.clipCount === 0 ? <ValueChip flat label={t('logger.videoChip')} icon="videocam" filled={false} onPress={() => { tapFeedback(); router.push({ pathname: '/form-check/[setId]', params: { setId: set.id } }); }} /> : null}
                   </>
                 ) : null}
-                {focus && editing ? <ValueChip flat label={t('activeSet.moreDetails')} icon="options-outline" filled={false} onPress={() => { tapFeedback(); onSetOptions(set); }} /> : null}
                 {strip || set.note ? (
                   <ValueChip flat={table} label={set.note ? set.note : t('logger.noteChip')} icon="chatbubble-ellipses-outline" filled={Boolean(set.note)} grow lines={3} onPress={() => { if (onNote) toggleOpen(set.id, 'note', noteRow); else { tapFeedback(); onSetOptions(set, 'note'); } }} open={noteRow} />
                 ) : null}
@@ -828,6 +886,19 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
               </View>
             ) : null}
             {focus && editing ? null : valuePanelNode}
+            {focus && editing && !done ? (() => {
+              const following = exercise.sets.find((item) => !item.completedAt && item.id !== set.id && item.index > set.index);
+              if (!following) return null;
+              const number = groupSets(exercise.sets.filter((item) => item.kind === 'working' && item.index <= following.index)).length;
+              const value = timed ? formatClock(following.durationSec ?? 0) : distance ? `${formatNumber(following.distanceM ?? 0)} m` : `${following.reps ?? 0} ${t('history.units.reps')}`;
+              const restSec = set.restSec ?? defaultRest;
+              return (
+                <View style={styles.queue}>
+                  <Text style={[styles.queueText, { color: palette.textMuted }]}>{t('activeSet.next', { number, value }).toUpperCase()}</Text>
+                  {restSec > 0 ? <Text style={[styles.queueText, { color: palette.textMuted }]}>{t('activeSet.rest', { value: formatClock(restSec) }).toUpperCase()}</Text> : null}
+                </View>
+              );
+            })() : null}
             {/* Large text: one wide button finishes the set (or runs its hold). */}
             {editing ? (
               done ? (
@@ -867,9 +938,17 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
                   style={({ pressed }) => [styles.largeAction, { backgroundColor: palette.accent }, pressed && styles.checkPressed]}
                 >
                   <Icon name="checkmark" size={22} color={palette.accentText} />
-                  <Text style={[styles.largeActionText, { color: palette.accentText }]}>{t('workout.completeSet')}</Text>
+                  <Text style={[styles.largeActionText, { color: palette.accentText }]}>{focus ? t('activeSet.completeSet', { number: workingNumber }).toUpperCase() : t('workout.completeSet')}</Text>
                 </Pressable>
               )
+            ) : null}
+            {focus && editing && !done ? (
+              <View style={styles.actionCaption}>
+                <Text style={[styles.queueText, styles.actionCaptionText, { color: palette.textMuted }]}>{t('activeSet.optional')}</Text>
+                <Pressable accessibilityRole="button" accessibilityLabel={t('activeSet.moreDetails')} hitSlop={spacing.sm} onPress={() => { tapFeedback(); onSetOptions(set); }} style={styles.actionLink}>
+                  <Text style={[styles.queueText, { color: palette.accentStrong }]}>{`${t('activeSet.moreDetails').toUpperCase()} ↑`}</Text>
+                </Pressable>
+              </View>
             ) : null}
           </Animated.View>
         );
@@ -996,6 +1075,13 @@ const baseStyles = StyleSheet.create({
   largeField: { gap: 8 },
   largeStepper: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   largeValue: { flex: 1, alignItems: 'center' },
+  measureRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, paddingVertical: spacing.sm },
+  stripState: { fontSize: 12, letterSpacing: 0.5 },
+  queue: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', gap: spacing.xs, paddingVertical: spacing.sm },
+  queueText: { fontSize: 12, letterSpacing: 0.5 },
+  actionCaption: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: spacing.sm, paddingTop: spacing.sm },
+  actionCaptionText: { flexShrink: 1 },
+  actionLink: { minHeight: MIN_TOUCH_TARGET, justifyContent: 'center' },
   largeAction: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, minHeight: 56, paddingHorizontal: 16, paddingVertical: 8, borderRadius: radii.control },
   largeActionText: { flexShrink: 1, fontFamily: fonts.semibold, fontSize: 17, textAlign: 'center' },
   summaryLine: { flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1, borderStyle: 'dashed' },
