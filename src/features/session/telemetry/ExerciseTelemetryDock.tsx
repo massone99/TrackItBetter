@@ -147,11 +147,11 @@ export type { ExerciseTelemetry };
 
 const baseStyles = StyleSheet.create({
   dock: { borderWidth: 1, borderRadius: radii.surface, overflow: 'hidden' },
-  header: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: MIN_TOUCH_TARGET, paddingHorizontal: spacing.md, paddingVertical: spacing.xs },
+  header: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: MIN_TOUCH_TARGET, paddingHorizontal: spacing.md, paddingVertical: spacing.sm },
   flex: { flex: 1, minWidth: 0 },
   summary: { fontSize: 12 },
-  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs, padding: spacing.xs },
-  tile: { flexGrow: 1, flexBasis: 96, minWidth: 96, borderWidth: 1, borderRadius: radii.control, padding: spacing.sm, gap: 2 },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, paddingHorizontal: spacing.md, paddingBottom: spacing.md },
+  tile: { flexGrow: 1, flexBasis: 96, minWidth: 96, borderWidth: 1, borderRadius: radii.control, padding: spacing.sm, gap: spacing.xs },
   tileLabel: { fontSize: 12 },
   tileValue: { fontSize: 20, fontWeight: '700' },
   tileReference: { fontSize: 12 },
