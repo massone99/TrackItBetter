@@ -60,7 +60,8 @@ import { ExerciseBlockField } from '../../src/features/session/ExerciseBlockFiel
 import { blockOf, usesBlocks, type Block } from '../../src/domain/blocks';
 import { SetBandsField } from '../../src/features/equipment/SetBandsField';
 import { PrimaryActionBar } from '../../src/features/session/PrimaryActionBar';
-import { ExerciseTelemetryDock } from '../../src/features/session/telemetry/ExerciseTelemetryDock';
+import { ExerciseTelemetryDock, TelemetryPanel } from '../../src/features/session/telemetry/ExerciseTelemetryDock';
+import { DockRails, WorkoutDockPanel } from '../../src/features/session/DockRails';
 import { useExerciseTelemetry } from '../../src/features/session/telemetry/useExerciseTelemetry';
 import { clearEmomPlan, useEmom, type EmomAlertText } from '../../src/features/session/useEmom';
 import { EmomSetupSheet, emomFieldFor } from '../../src/features/session/EmomSetupSheet';
@@ -169,6 +170,8 @@ export default function WorkoutScreen() {
     return null;
   }), []);
   const [clockNow, setClockNow] = useState<number | null>(null);
+  const [dockPanel, setDockPanel] = useState<'telemetry' | 'workout' | null>(null);
+  const [telemetrySheet, setTelemetrySheet] = useState(false);
   const [telemetryOn, setTelemetryOn] = useState(() => readBooleanPreference(TELEMETRY_ENABLED_KEY, true));
   const [focusMode, setFocusMode] = useState(() => readBooleanPreference(FOCUS_MODE_KEY, false));
   const [voiceCues, setVoiceCues] = useState(() => readBooleanPreference(VOICE_CUES_KEY, false));
@@ -753,7 +756,42 @@ export default function WorkoutScreen() {
       onLink={() => setSetSheet({ exercise: telemetryExercise, setId: fixedSet.id })}
     />
   ) : null;
-  const telemetryDock = telemetryOn && telemetryExercise ? <ExerciseTelemetryDock view={telemetry} compact={telemetryCompact} /> : null;
+  // Focus mode: Add and Finish live in a Workout rail next to a Telemetry rail, under the fixed main action; one panel open at a time.
+  const railsMode = focusMode && telemetryExercise !== null;
+  const telemetryInline = windowHeight >= 880 && !largeText;
+  const exercisePosition = telemetryExercise ? workout.exercises.findIndex((exercise) => exercise.entryId === telemetryExercise.entryId) + 1 : 0;
+  const railsTop = railsMode ? (
+    <>
+      {dockPanel === 'telemetry' && telemetryInline && telemetry ? <TelemetryPanel view={telemetry} /> : null}
+      {dockPanel === 'workout' ? (
+        <WorkoutDockPanel
+          title={t('dock.workoutPanel', { current: exercisePosition, total: workout.exercises.length })}
+          addLabel={t('workout.addExercise')}
+          finishLabel={t('workout.finish')}
+          onAdd={() => { setDockPanel(null); setPickerOpen(true); }}
+          onFinish={() => { setDockPanel(null); setFinishOpen(true); }}
+        />
+      ) : null}
+      {primaryBar}
+      <DockRails rails={[
+        ...(telemetryOn ? [{
+          id: 'telemetry' as const,
+          label: t('dock.telemetry'),
+          summary: telemetry ? `● ${t('telemetry.live')}` : t('telemetry.loading'),
+          open: dockPanel === 'telemetry' && telemetryInline,
+          onPress: () => { if (telemetryInline) setDockPanel(dockPanel === 'telemetry' ? null : 'telemetry'); else { setDockPanel(null); setTelemetrySheet(true); } },
+        }] : []),
+        {
+          id: 'workout' as const,
+          label: t('dock.workout'),
+          summary: t('dock.position', { current: exercisePosition, total: workout.exercises.length }),
+          open: dockPanel === 'workout',
+          onPress: () => setDockPanel(dockPanel === 'workout' ? null : 'workout'),
+        },
+      ]} />
+    </>
+  ) : null;
+  const telemetryDock = !railsMode && telemetryOn && telemetryExercise ? <ExerciseTelemetryDock view={telemetry} compact={telemetryCompact} /> : null;
   const timerRunning = hold.active !== null || restEndsAt !== null || Boolean(emom.plan && emom.phase);
   const lowReadiness = (workout.sleep !== null && workout.sleep <= 2) || (workout.energy !== null && workout.energy <= 2) || (workout.soreness !== null && workout.soreness >= 4);
 
@@ -762,7 +800,7 @@ export default function WorkoutScreen() {
       <Screen
         scrollRef={scrollRef}
         // The running clock sits right above Add and Finish, so both stay in reach during rest.
-        footerAccessory={<>{telemetryDock}{primaryBar}{!dockOpen ? (
+        footerAccessory={<>{railsMode ? railsTop : <>{telemetryDock}{primaryBar}</>}{!railsMode && !dockOpen ? (
           <CollapsedDock restEndsAt={timerRunning ? restEndsAt : null} voiceCues={voiceCues} onRestEnd={endRest} onOpen={() => setDockOpen(true)} />
         ) : !timerRunning && freeRest ? (
           <FreeRestBar since={freeRest.since} restSec={freeRest.restSec} onStartRest={() => startRestTimer(freeRest.restSec)} onClose={() => setFreeRest(null)} />
@@ -791,7 +829,7 @@ export default function WorkoutScreen() {
           />
         ) : undefined}</>}
         // Add and Finish stay in reach however long the workout gets.
-        footer={workout.exercises.length > 0 && dockOpen ? (
+        footer={workout.exercises.length > 0 && dockOpen && !railsMode ? (
           <>
             <IconButton icon="add" label={t('workout.addExercise')} size={56} onPress={() => setPickerOpen(true)} />
             <FooterAction icon="flag-outline" label={t('workout.finish')} onPress={() => setFinishOpen(true)} />
@@ -949,6 +987,9 @@ export default function WorkoutScreen() {
         onClear={() => setClearAllOpen(true)}
         onDiscard={() => setDiscardOpen(true)}
       />
+      <Sheet visible={telemetrySheet && telemetry !== null} onClose={() => setTelemetrySheet(false)} title={t('telemetry.title')}>
+        {telemetry ? <TelemetryPanel view={telemetry} bordered={false} /> : null}
+      </Sheet>
       <Toast
         message={undo?.message ?? null}
         actionLabel={t('logger.restore')}

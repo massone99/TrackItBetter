@@ -175,12 +175,57 @@ export function ExerciseTelemetryDock({ view, compact }: { view: TelemetryView |
   );
 }
 
+/**
+ * The six figures with their header and the record status bar: what the Telemetry rail opens (in place on tall
+ * screens, in a sheet on the others).
+ */
+export function TelemetryPanel({ view, bordered = true }: { view: TelemetryView; bordered?: boolean }) {
+  const styles = useScaledStyles(baseStyles);
+  const { t } = useTranslation();
+  const { palette, largeText } = useTheme();
+  const ink = useInk();
+  const tiles = telemetryTiles(view, t);
+  const record = view.telemetry.bestComparable.status;
+  const scope = view.sessions === 0 ? t('telemetry.firstSession') : t('telemetry.sessions', { count: view.sessions });
+  const baseline = prLabel(record, t) ?? (view.telemetry.bestComparable.hasPreviousAtLoad ? t('telemetry.baselineOk') : t('telemetry.noBaseline'));
+  const toneColor = (tone: TelemetryTile['tone']) => tone === 'good' ? palette.success : tone === 'bad' ? palette.warning : palette.textMuted;
+  return (
+    <View style={[styles.dock, bordered ? { borderColor: ink, backgroundColor: palette.surface } : { borderWidth: 0 }]}>
+      <Text style={[styles.headText, styles.panelHead, { color: palette.text }]}>
+        {`${t('telemetry.title').toUpperCase()} `}
+        <Text style={{ color: palette.success }}>{`● ${t('telemetry.live').toUpperCase()}`}</Text>
+        {` · ${scope.toUpperCase()}`}
+      </Text>
+      <View style={[styles.grid, { borderTopColor: palette.border }]}>
+        {tiles.map((tile) => (
+          <View
+            key={tile.id}
+            accessible
+            accessibilityLabel={t('telemetry.tile', { label: tile.label, value: tile.value, reference: tile.reference, state: tile.state })}
+            style={[styles.tile, largeText && styles.tileLarge, { borderColor: palette.border }]}
+          >
+            <Text style={[styles.tileLabel, { color: palette.textMuted }]}>{tile.label.toUpperCase()}</Text>
+            <Text style={[styles.tileValue, { color: palette.text }]}>{tile.value}</Text>
+            <Text style={[styles.tileReference, { color: toneColor(tile.tone) }]}>{tile.reference.toUpperCase()}</Text>
+            {tile.state ? <Text style={[styles.tileState, { color: tile.id === 'best' && (record === 'confirmed' || record === 'candidate') ? palette.record : palette.textMuted }]}>{tile.state.toUpperCase()}</Text> : null}
+          </View>
+        ))}
+      </View>
+      <View style={[styles.status, { backgroundColor: palette.accentSoft, borderTopColor: palette.border }]}>
+        <Text style={[styles.tileLabel, styles.flex, { color: palette.text }]}>{t('telemetry.prCheck').toUpperCase()}</Text>
+        <Text style={[styles.tileLabel, { color: record === 'confirmed' || record === 'candidate' ? palette.record : palette.textMuted }]}>{baseline.toUpperCase()}</Text>
+      </View>
+    </View>
+  );
+}
+
 export type { ExerciseTelemetry };
 
 const baseStyles = StyleSheet.create({
   dock: { borderWidth: 1, borderRadius: radii.surface, overflow: 'hidden' },
   header: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: spacing.sm, minHeight: MIN_TOUCH_TARGET, paddingHorizontal: spacing.md, paddingVertical: spacing.sm },
   headText: { fontSize: 12, letterSpacing: 0.5 },
+  panelHead: { paddingHorizontal: spacing.md, paddingVertical: spacing.md },
   flex: { flex: 1, minWidth: 0 },
   summary: { fontSize: 12, paddingHorizontal: spacing.md, paddingBottom: spacing.sm },
   grid: { flexDirection: 'row', flexWrap: 'wrap', borderTopWidth: 1 },
