@@ -64,7 +64,7 @@ describe('active set in focus mode', () => {
 
   it('names the state and shows RPE, form and ROM as a value or a dash', () => {
     show([set(1), set(2)]);
-    expect(screen.getByText('● In progress')).toBeTruthy();
+    expect(screen.getByText('● IN PROGRESS')).toBeTruthy();
     expect(screen.getByLabelText('RPE —')).toBeTruthy();
     expect(screen.getByLabelText('FORM —')).toBeTruthy();
     expect(screen.getByLabelText('ROM —')).toBeTruthy();
