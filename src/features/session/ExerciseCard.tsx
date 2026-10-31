@@ -588,7 +588,7 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
                 >
                   <Text style={[styles.largeStripText, { color: done ? palette.successText : palette.surface }]}>{focus ? `${title} / ${t(set.kind === 'warmup' ? 'activeSet.warmup' : 'activeSet.working')}` : title}</Text>
                 </Pressable>
-                {focus ? <Text style={[styles.stripState, { color: done ? palette.successText : palette.surface }]}>{`● ${holding ? t('activeSet.hold') : done ? t('activeSet.logged') : t('activeSet.inProgress')}`.toUpperCase()}</Text> : null}
+                {focus && !textIsLarge ? <Text style={[styles.stripState, { color: done ? palette.successText : palette.surface }]}>{`● ${holding ? t('activeSet.hold') : done ? t('activeSet.logged') : t('activeSet.inProgress')}`.toUpperCase()}</Text> : null}
                 <Pressable
                   accessibilityRole="button"
                   accessibilityLabel={t('logger.setOptions', { number: set.index })}
@@ -608,6 +608,7 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
                 const max = gaugeMax(stored, reference);
                 return (
                   <>
+                    {textIsLarge ? <Tag color={palette.accentStrong}>{`● ${holding ? t('activeSet.hold') : done ? t('activeSet.logged') : t('activeSet.inProgress')}`.toUpperCase()}</Tag> : null}
                     <PreviousSetBox label={t('activeSet.previousLabel')} value={previousValue} rpeLabel={t('lastTime.rpeChip')} rpeValue={match && match.rpe !== null ? formatRpe(match.rpe) : null} sideLabel={t('activeSet.lastSession')} />
                     <View style={styles.measureRow}>
                       <MeasureBox stack={textIsLarge} label={fieldLabel.toUpperCase()} caption={unit}>
