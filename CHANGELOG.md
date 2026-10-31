@@ -2,6 +2,11 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.59.7 - 2026-10-31
+
+- Workout: with a total goal, completing a set adds the next one before the list redraws, so it changes once.
+- Workout: folded set rows no longer render blank after a set is completed.
+
 ## 0.59.6 - 2026-10-31
 
 - Workout: copying last time's values no longer copies the RPE.
