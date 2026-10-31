@@ -39,7 +39,7 @@ const NO_RECORDS: ReadonlyMap<string, RecordKind[]> = new Map();
  * and the add-set row. Shared by the workout in progress and a finished workout's page; the live-only
  * parts (hold timer, EMOM, comparison with last time, records) are optional.
  */
-export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, previous, hold = null, onChange, onSetValue, onComplete, onStartHold, onFinishHold, onAddSet, onAddWarmup, onCopyAllLast, onSetOptions, onUncomplete, onRemoveSet, onSwiped, showRpe, onRpe, onOptions, onToggleWarmup, setRecords = NO_RECORDS, volumeRecord = false, supersetLabel = null, emomLabel: emomBadgeLabel, defaultRest = 0, onFormRating, onRomRating, onNote, focus = false, nowLabel = null, figure = null, editDone = false, typeDone = false, compare = true, apparatusLabel = null, firstTimeLabel, describeBands, compareBands, renderBandsEditor }: {
+export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, previous, hold = null, onChange, onSetValue, onComplete, onStartHold, onFinishHold, onAddSet, onAddWarmup, onCopyAllLast, onSetOptions, onUncomplete, onRemoveSet, onSwiped, showRpe, onRpe, onOptions, onToggleWarmup, setRecords = NO_RECORDS, volumeRecord = false, supersetLabel = null, emomLabel: emomBadgeLabel, defaultRest = 0, onFormRating, onRomRating, onNote, focus = false, nowLabel = null, figure = null, editDone = false, typeDone = false, compare = true, apparatusLabel = null, firstTimeLabel, describeBands, compareBands, renderBandsEditor, fixedAction = false }: {
   handle?: ReactNode;
   exercise: SessionExercise;
   collapsed: boolean;
@@ -95,6 +95,8 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
   firstTimeLabel?: string;
   /** Swatches and text for a set's bands ("Blue · 2"), shown under the set. */
   describeBands?: (set: SessionSet) => { colors: string[]; text: string } | null;
+  /** Focus mode: the action of the next set is fixed above the screen footer, so the card leaves its own button out. */
+  fixedAction?: boolean;
   /** The band editor shown under the set in hand in focus mode (saves through the equipment repository). */
   renderBandsEditor?: (set: SessionSet) => ReactNode;
   /** Compares two sets' bands by the strength order, for the assistance comparison without kg. */
@@ -901,7 +903,7 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
               );
             })() : null}
             {/* Large text: one wide button finishes the set (or runs its hold). */}
-            {editing ? (
+            {editing && !(fixedAction && !done && set.id === nextSetId) ? (
               done ? (
                 <Pressable
                   accessibilityRole="button"
@@ -943,7 +945,7 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
                 </Pressable>
               )
             ) : null}
-            {focus && editing && !done ? (
+            {focus && editing && !done && !(fixedAction && set.id === nextSetId) ? (
               <View style={styles.actionCaption}>
                 <Text style={[styles.queueText, styles.actionCaptionText, { color: palette.textMuted }]}>{t('activeSet.optional')}</Text>
                 <Pressable accessibilityRole="button" accessibilityLabel={t('activeSet.moreDetails')} hitSlop={spacing.sm} onPress={() => { tapFeedback(); onSetOptions(set); }} style={styles.actionLink}>

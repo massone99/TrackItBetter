@@ -59,6 +59,7 @@ import { adjustedRest, REST_STEP_SEC } from '../../src/domain/restTimer';
 import { ExerciseBlockField } from '../../src/features/session/ExerciseBlockField';
 import { blockOf, usesBlocks, type Block } from '../../src/domain/blocks';
 import { SetBandsField } from '../../src/features/equipment/SetBandsField';
+import { PrimaryActionBar } from '../../src/features/session/PrimaryActionBar';
 import { ExerciseTelemetryDock } from '../../src/features/session/telemetry/ExerciseTelemetryDock';
 import { useExerciseTelemetry } from '../../src/features/session/telemetry/useExerciseTelemetry';
 import { clearEmomPlan, useEmom, type EmomAlertText } from '../../src/features/session/useEmom';
@@ -736,6 +737,22 @@ export default function WorkoutScreen() {
   const currentIndex = workout.exercises.findIndex((exercise) => exercise.entryId === currentEntryId);
   // Live feedback of the exercise in hand; one line while a timer runs, at large text and on short screens, so it never crowds the footer.
   const telemetryCompact = largeText || windowHeight < 700 || hold.active !== null || restEndsAt !== null || Boolean(emom.plan);
+  // Focus mode: the action of the set in hand is fixed above the footer (the exercise card leaves its own button out for that set).
+  const fixedSet = focusMode && telemetryExercise ? telemetryExercise.sets.find((set) => !set.completedAt) ?? null : null;
+  const fixedTimed = telemetryExercise?.metric === 'time' || telemetryExercise?.metric === 'time_load';
+  const fixedHolding = fixedSet !== null && hold.active?.setId === fixedSet.id;
+  const fixedNumber = fixedSet && telemetryExercise ? groupSets(telemetryExercise.sets.filter((set) => set.kind === 'working' && set.index <= fixedSet.index)).length : 0;
+  const primaryBar = fixedSet && telemetryExercise ? (
+    <PrimaryActionBar
+      label={(fixedTimed ? (fixedHolding ? t('logger.doneHold') : `${t('logger.startHold')} ${formatClock(fixedSet.durationSec ?? 0)}`) : t('activeSet.completeSet', { number: fixedNumber })).toUpperCase()}
+      icon={fixedTimed ? (fixedHolding ? 'stop' : 'play') : 'checkmark'}
+      caption={largeText ? null : t('activeSet.optional')}
+      linkLabel={t('activeSet.moreDetails')}
+      onPress={() => { if (!fixedTimed) void completeHoldManually(fixedSet); else if (fixedHolding) void finishCurrentHold(); else startHoldFor(fixedSet); }}
+      onLongPress={fixedTimed && !fixedHolding ? () => void completeHoldManually(fixedSet) : undefined}
+      onLink={() => setSetSheet({ exercise: telemetryExercise, setId: fixedSet.id })}
+    />
+  ) : null;
   const telemetryDock = telemetryOn && telemetryExercise ? <ExerciseTelemetryDock view={telemetry} compact={telemetryCompact} /> : null;
   const timerRunning = hold.active !== null || restEndsAt !== null || Boolean(emom.plan && emom.phase);
   const lowReadiness = (workout.sleep !== null && workout.sleep <= 2) || (workout.energy !== null && workout.energy <= 2) || (workout.soreness !== null && workout.soreness >= 4);
@@ -745,7 +762,7 @@ export default function WorkoutScreen() {
       <Screen
         scrollRef={scrollRef}
         // The running clock sits right above Add and Finish, so both stay in reach during rest.
-        footerAccessory={<>{telemetryDock}{!dockOpen ? (
+        footerAccessory={<>{telemetryDock}{primaryBar}{!dockOpen ? (
           <CollapsedDock restEndsAt={timerRunning ? restEndsAt : null} voiceCues={voiceCues} onRestEnd={endRest} onOpen={() => setDockOpen(true)} />
         ) : !timerRunning && freeRest ? (
           <FreeRestBar since={freeRest.since} restSec={freeRest.restSec} onStartRest={() => startRestTimer(freeRest.restSec)} onClose={() => setFreeRest(null)} />
@@ -862,6 +879,7 @@ export default function WorkoutScreen() {
           ) : null}
           <ExerciseCard
             focus={focusMode}
+            fixedAction={primaryBar !== null && exercise.entryId === telemetryExercise?.entryId}
             figure={index + 1}
             nowLabel={exercise.entryId === currentEntryId ? t('workout.now', { position: currentIndex + 1, total: workout.exercises.length }) : null}
             exercise={exercise}

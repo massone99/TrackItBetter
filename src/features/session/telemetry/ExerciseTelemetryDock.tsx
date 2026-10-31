@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Pressable, StyleSheet, View } from 'react-native';
-import { Tag, Text } from '../../../shared/components/ui';
+import { Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { Sheet, Tag, Text } from '../../../shared/components/ui';
 import { readBooleanPreference, writePreference } from '../../../shared/settings/preferences';
 import { useInk } from '../../../shared/theme/ink';
 import { useScaledStyles } from '../../../shared/theme/useScaledStyles';
@@ -12,6 +12,8 @@ import type { ExerciseTelemetry, MeasuredComparison, PrStatus } from './derive';
 import type { TelemetryView } from './useExerciseTelemetry';
 
 const OPEN_KEY = 'workout.telemetry.open';
+/** Screens at least this tall (dp) can show the six figures in place above Add and Finish. */
+const INLINE_MIN_HEIGHT = 1000;
 
 export interface TelemetryTile {
   id: 'rpe' | 'form' | 'rom' | 'assistance' | 'work' | 'best';
@@ -100,9 +102,17 @@ export function ExerciseTelemetryDock({ view, compact }: { view: TelemetryView |
   const { t } = useTranslation();
   const { palette, largeText } = useTheme();
   const ink = useInk();
+  const { height: windowHeight } = useWindowDimensions();
   const [open, setOpen] = useState(() => readBooleanPreference(OPEN_KEY, false));
-  const expanded = open && !compact;
-  const toggle = () => { setOpen(!open); writePreference(OPEN_KEY, String(!open)); };
+  const [sheetOpen, setSheetOpen] = useState(false);
+  // The figures open in place only where the footer keeps room for Add and Finish; elsewhere they open in a sheet.
+  const inline = !compact && windowHeight >= INLINE_MIN_HEIGHT;
+  const expanded = open && inline;
+  const toggle = () => {
+    if (!inline) { setSheetOpen(true); return; }
+    setOpen(!open);
+    writePreference(OPEN_KEY, String(!open));
+  };
   if (!view) {
     return (
       <View style={[styles.dock, { borderColor: ink, backgroundColor: palette.surface }]}>
@@ -110,30 +120,13 @@ export function ExerciseTelemetryDock({ view, compact }: { view: TelemetryView |
       </View>
     );
   }
-  const tiles = expanded ? telemetryTiles(view, t) : [];
+  const tiles = expanded || sheetOpen ? telemetryTiles(view, t) : [];
   const record = view.telemetry.bestComparable.status;
   const summary = telemetrySummary(view, t, compact);
   const scope = view.sessions === 0 ? t('telemetry.firstSession') : t('telemetry.sessions', { count: view.sessions });
   const baseline = prLabel(record, t) ?? (view.telemetry.bestComparable.hasPreviousAtLoad ? t('telemetry.baselineOk') : t('telemetry.noBaseline'));
   const toneColor = (tone: TelemetryTile['tone']) => tone === 'good' ? palette.success : tone === 'bad' ? palette.warning : palette.textMuted;
-  return (
-    <View style={[styles.dock, { borderColor: ink, backgroundColor: palette.surface }]}>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={`${t('telemetry.title')}. ${summary}. ${t(expanded ? 'telemetry.collapse' : 'telemetry.expand')}`}
-        accessibilityState={{ expanded }}
-        disabled={compact}
-        onPress={toggle}
-        style={styles.header}
-      >
-        <Text style={[styles.headText, styles.flex, { color: palette.text }]}>
-          {`${t('telemetry.title').toUpperCase()} `}
-          <Text style={{ color: palette.success }}>{`● ${t('telemetry.live').toUpperCase()}`}</Text>
-          {` · ${scope.toUpperCase()}`}
-        </Text>
-        {compact ? null : <Text style={[styles.headText, { color: palette.accentStrong }]}>{t(expanded ? 'telemetry.collapseWord' : 'telemetry.expandWord').toUpperCase()}</Text>}
-      </Pressable>
-      {expanded ? (
+  const detail = (
         <>
           <View style={[styles.grid, { borderTopColor: palette.border }]}>
             {tiles.map((tile) => (
@@ -155,9 +148,29 @@ export function ExerciseTelemetryDock({ view, compact }: { view: TelemetryView |
             <Text style={[styles.tileLabel, { color: record === 'confirmed' || record === 'candidate' ? palette.record : palette.textMuted }]}>{baseline.toUpperCase()}</Text>
           </View>
         </>
-      ) : (
+  );
+  return (
+    <View style={[styles.dock, { borderColor: ink, backgroundColor: palette.surface }]}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`${t('telemetry.title')}. ${summary}. ${t(expanded ? 'telemetry.collapse' : 'telemetry.expand')}`}
+        accessibilityState={{ expanded }}
+        onPress={toggle}
+        style={styles.header}
+      >
+        <Text style={[styles.headText, styles.flex, { color: palette.text }]}>
+          {`${t('telemetry.title').toUpperCase()} `}
+          <Text style={{ color: palette.success }}>{`● ${t('telemetry.live').toUpperCase()}`}</Text>
+          {` · ${scope.toUpperCase()}`}
+        </Text>
+        <Text style={[styles.headText, { color: palette.accentStrong }]}>{t(expanded ? 'telemetry.collapseWord' : 'telemetry.expandWord').toUpperCase()}</Text>
+      </Pressable>
+      {expanded ? detail : (
         <Text style={[styles.summary, { color: record === 'confirmed' || record === 'candidate' ? palette.record : palette.textMuted }]}>{summary}</Text>
       )}
+      <Sheet visible={sheetOpen} onClose={() => setSheetOpen(false)} title={t('telemetry.title')}>
+        {detail}
+      </Sheet>
     </View>
   );
 }
