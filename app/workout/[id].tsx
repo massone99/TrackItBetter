@@ -58,6 +58,7 @@ import { exerciseFinished, nextFolded } from '../../src/domain/folding';
 import { adjustedRest, REST_STEP_SEC } from '../../src/domain/restTimer';
 import { ExerciseBlockField } from '../../src/features/session/ExerciseBlockField';
 import { blockOf, usesBlocks, type Block } from '../../src/domain/blocks';
+import { SetBandsField } from '../../src/features/equipment/SetBandsField';
 import { ExerciseTelemetryDock } from '../../src/features/session/telemetry/ExerciseTelemetryDock';
 import { useExerciseTelemetry } from '../../src/features/session/telemetry/useExerciseTelemetry';
 import { clearEmomPlan, useEmom, type EmomAlertText } from '../../src/features/session/useEmom';
@@ -117,6 +118,7 @@ import { useAnimationSettings } from '../../src/shared/settings/AnimationProvide
 
 const VOICE_CUES_KEY = 'workout.voice_cues.enabled';
 const FOCUS_MODE_KEY = 'workout.focus_mode.enabled';
+const TELEMETRY_ENABLED_KEY = 'workout.telemetry.enabled';
 /** Pause between finishing an exercise and folding it. */
 const FOLD_DELAY_MS = 650;
 
@@ -166,6 +168,7 @@ export default function WorkoutScreen() {
     return null;
   }), []);
   const [clockNow, setClockNow] = useState<number | null>(null);
+  const [telemetryOn, setTelemetryOn] = useState(() => readBooleanPreference(TELEMETRY_ENABLED_KEY, true));
   const [focusMode, setFocusMode] = useState(() => readBooleanPreference(FOCUS_MODE_KEY, false));
   const [voiceCues, setVoiceCues] = useState(() => readBooleanPreference(VOICE_CUES_KEY, false));
   const [readinessOpen, setReadinessOpen] = useState(false);
@@ -733,7 +736,7 @@ export default function WorkoutScreen() {
   const currentIndex = workout.exercises.findIndex((exercise) => exercise.entryId === currentEntryId);
   // Live feedback of the exercise in hand; one line while a timer runs, at large text and on short screens, so it never crowds the footer.
   const telemetryCompact = largeText || windowHeight < 700 || hold.active !== null || restEndsAt !== null || Boolean(emom.plan);
-  const telemetryDock = telemetryExercise ? <ExerciseTelemetryDock view={telemetry} compact={telemetryCompact} /> : null;
+  const telemetryDock = telemetryOn && telemetryExercise ? <ExerciseTelemetryDock view={telemetry} compact={telemetryCompact} /> : null;
   const timerRunning = hold.active !== null || restEndsAt !== null || Boolean(emom.plan && emom.phase);
   const lowReadiness = (workout.sleep !== null && workout.sleep <= 2) || (workout.energy !== null && workout.energy <= 2) || (workout.soreness !== null && workout.soreness >= 4);
 
@@ -894,6 +897,7 @@ export default function WorkoutScreen() {
             firstTimeLabel={exercise.apparatusAffectsDifficulty && exercise.apparatusId && catalog ? t('equipment.firstTimeOn', { name: apparatusName(catalog.apparatus.find((item) => item.id === exercise.apparatusId), t) }) : undefined}
             describeBands={(set) => (bandIndex ? describeSetBands(set, bandIndex, t) : null)}
             compareBands={compareBands}
+            renderBandsEditor={(set) => <SetBandsField key={set.id} exercise={exercise} set={set} onChanged={() => refresh(workout.id)} />}
             onRpe={(set, rpe) => void rateSet(set, rpe)}
             onOptions={() => setOptionsFor(exercise)}
           />
@@ -911,6 +915,7 @@ export default function WorkoutScreen() {
         visible={menuOpen}
         onClose={() => setMenuOpen(false)}
         focusMode={focusMode}
+        telemetryOn={telemetryOn}
         voiceCues={voiceCues}
         canFold={workout.exercises.length > 1}
         allCollapsed={allCollapsed}
@@ -918,6 +923,7 @@ export default function WorkoutScreen() {
         canClear={workout.exercises.some((exercise) => exercise.sets.length > 0)}
         onCheckIn={() => setReadinessOpen(true)}
         onFocus={() => { tapFeedback(); setFocusMode(!focusMode); writePreference(FOCUS_MODE_KEY, String(!focusMode)); }}
+        onTelemetry={() => { tapFeedback(); setTelemetryOn(!telemetryOn); writePreference(TELEMETRY_ENABLED_KEY, String(!telemetryOn)); }}
         onVoice={toggleVoiceCues}
         onNarrate={() => router.push({ pathname: '/workout/narrate/[id]', params: { id: workout.id } })}
         onFoldAll={() => { tapFeedback(); setCollapsedEntries(new Map(workout.exercises.map((exercise) => [exercise.entryId, !allCollapsed]))); }}

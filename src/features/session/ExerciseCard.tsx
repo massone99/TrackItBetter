@@ -19,6 +19,7 @@ import { fonts } from '../../shared/theme/typography';
 import { useScaledStyles } from '../../shared/theme/useScaledStyles';
 import { formatClock, formatNumber } from '../../shared/utils/format';
 import { Gauge, RegistrationMarks, Tag, useInk } from './instrument';
+import { ActiveSetStatus, BandsStrip, RatingCells, type RatingCell } from './ActiveSetParts';
 import { FormRating, LastTimeStrip } from './LastTime';
 import type { PreviousPerformance, SessionExercise, SessionSet } from './repository';
 import type { SetBand } from '../../domain/equipment';
@@ -38,7 +39,7 @@ const NO_RECORDS: ReadonlyMap<string, RecordKind[]> = new Map();
  * and the add-set row. Shared by the workout in progress and a finished workout's page; the live-only
  * parts (hold timer, EMOM, comparison with last time, records) are optional.
  */
-export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, previous, hold = null, onChange, onSetValue, onComplete, onStartHold, onFinishHold, onAddSet, onAddWarmup, onCopyAllLast, onSetOptions, onUncomplete, onRemoveSet, onSwiped, showRpe, onRpe, onOptions, onToggleWarmup, setRecords = NO_RECORDS, volumeRecord = false, supersetLabel = null, emomLabel: emomBadgeLabel, defaultRest = 0, onFormRating, onRomRating, onNote, focus = false, nowLabel = null, figure = null, editDone = false, typeDone = false, compare = true, apparatusLabel = null, firstTimeLabel, describeBands, compareBands }: {
+export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, previous, hold = null, onChange, onSetValue, onComplete, onStartHold, onFinishHold, onAddSet, onAddWarmup, onCopyAllLast, onSetOptions, onUncomplete, onRemoveSet, onSwiped, showRpe, onRpe, onOptions, onToggleWarmup, setRecords = NO_RECORDS, volumeRecord = false, supersetLabel = null, emomLabel: emomBadgeLabel, defaultRest = 0, onFormRating, onRomRating, onNote, focus = false, nowLabel = null, figure = null, editDone = false, typeDone = false, compare = true, apparatusLabel = null, firstTimeLabel, describeBands, compareBands, renderBandsEditor }: {
   handle?: ReactNode;
   exercise: SessionExercise;
   collapsed: boolean;
@@ -94,6 +95,8 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
   firstTimeLabel?: string;
   /** Swatches and text for a set's bands ("Blue · 2"), shown under the set. */
   describeBands?: (set: SessionSet) => { colors: string[]; text: string } | null;
+  /** The band editor shown under the set in hand in focus mode (saves through the equipment repository). */
+  renderBandsEditor?: (set: SessionSet) => ReactNode;
   /** Compares two sets' bands by the strength order, for the assistance comparison without kg. */
   compareBands?: (a: readonly SetBand[], b: readonly SetBand[]) => -1 | 0 | 1 | null;
 }) {
@@ -198,6 +201,10 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
   // Which value of a set is being edited (its chip is selected and its scale shows below); chosen by hand, else the default below.
   const [chosen, setChosen] = useState<ReadonlyMap<string, 'rpe' | 'form' | 'rom' | 'note' | null>>(() => new Map());
   const toggleOpen = (setId: string, kind: 'rpe' | 'form' | 'rom' | 'note', isOpen: boolean) => { tapFeedback(); setChosen((current) => new Map(current).set(setId, isOpen ? null : kind)); };
+  // Focus mode: the set whose band editor is open below its band strip.
+  const [bandsEditing, setBandsEditing] = useState<string | null>(null);
+  // Bands belong in the set in hand when the exercise already uses them, now or last time.
+  const bandsInUse = exercise.sets.some((item) => item.bands.length > 0) || Boolean(previous?.sets.some((item) => (item.bands?.length ?? 0) > 0));
   const lastDoneId = [...exercise.sets].reverse().find((set) => set.completedAt)?.id ?? null;
   // Normal text lists the sets as table rows that open on a tap; very large text, a finished workout and a running
   // EMOM keep their own layouts.
@@ -219,11 +226,14 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
   const allOpen = table && exercise.sets.length > 1 && exercise.sets.every(openOf);
   const focusedId = hold && exercise.sets.some((set) => set.id === hold.setId) ? hold.setId : pickedSet?.id ?? nextSetId;
   // Last time's value of the same set (same position and kind, same side for L/R pairs): the marker on the set's gauge.
-  const ghostFor = (set: SessionSet): number | null => {
+  const previousMatchFor = (set: SessionSet) => {
     if (!previous) return null;
     const number = groupSets(exercise.sets.filter((item) => item.kind === set.kind && item.index <= set.index)).length;
     const group = groupSets(set.kind === 'warmup' ? previous.warmups : previous.sets)[number - 1];
-    const match = group?.find((item) => !set.pairId || item.side === set.side || !item.side || item.side === 'both') ?? null;
+    return group?.find((item) => !set.pairId || item.side === set.side || !item.side || item.side === 'both') ?? null;
+  };
+  const ghostFor = (set: SessionSet): number | null => {
+    const match = previousMatchFor(set);
     if (!match) return null;
     return (timed ? match.durationSec : distance ? match.distanceM : match.reps) ?? null;
   };
@@ -576,6 +586,11 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
                 </Pressable>
                 {foldButton(true, () => toggleFold(set.id), done ? palette.successText : palette.surface)}
               </View>
+              {focus ? (() => {
+                const match = previousMatchFor(set);
+                const state = holding ? t('activeSet.hold') : done ? t('activeSet.logged') : exercise.sets.some((item) => item.completedAt) || set.id !== exercise.sets[0]?.id ? t('activeSet.active') : t('activeSet.ready');
+                return <ActiveSetStatus state={state} reference={match ? t('activeSet.previous', { value: [describePreviousSet(match, exercise.metric), match.rpe !== null ? t('logger.rpeTag', { value: formatRpe(match.rpe) }) : null].filter(Boolean).join(' · ') }) : t('activeSet.firstTime')} />;
+              })() : null}
               <View style={styles.largeField}>
                 <Label>{fieldLabel}</Label>
                 <View style={styles.largeStepper}>{valueDown}<View style={styles.largeValue}>{valueField}</View>{valueUp}</View>
@@ -689,6 +704,14 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
             </Pressable>
           );
         }
+        const valuePanelNode = !quiet && (!table || isOpen) && (rpeRow || formRow || romRow || noteRow) ? (
+              <View style={[styles.valuePanel, editing && styles.valuePanelLarge, table && styles.tablePanel, { backgroundColor: editing ? undefined : done ? palette.background : palette.surface }]}>
+                {rpeRow ? <RpePicker compact grid={largeText} wrap sideLabel={sideLabel} value={set.rpe} target={set.targetRpe} onChange={(rpe) => onRpe(set, rpe)} /> : null}
+                {formRow ? <FormRating value={set.formRating} sideLabel={sideLabel} onChange={(rating) => onFormRating(set, rating)} /> : null}
+                {noteRow ? <NoteInput value={set.note ?? ''} label={t('logger.noteLabel')} placeholder={t('logger.notePlaceholder')} onSave={(note) => onNote!(set, note)} /> : null}
+                {romRow ? <FormRating rom value={set.romRating} sideLabel={sideLabel} onChange={(rating) => onRomRating!(set, rating)} /> : null}
+              </View>
+            ) : null;
         return (
           <Animated.View key={`${set.id}${largeText ? (editing ? "-e" : "-f") : table ? (isOpen ? "-o" : "-r") : ""}`} entering={largeText || table ? undefined : setEntering} style={[styles.setBlock, largeText && !editing && styles.setBlockLine, editing && [styles.largeBlock, { borderColor: done ? palette.success : palette.border, backgroundColor: done ? palette.successSoft : palette.background }], table && [styles.tableBlock, { borderTopColor: palette.border }, isOpen && { backgroundColor: palette.background, borderTopColor: ink, borderBottomWidth: 1, borderBottomColor: ink, borderLeftWidth: 4, borderLeftColor: palette.accentStrong }]]}>
             {editing || table || largeText ? null : <DoneTint done={done} color={palette.accentSoft} />}
@@ -714,15 +737,43 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
             {/* Row 2: how hard it was. */}
             {/* Row 3, once the set is done: how clean the form was. The exercise folds only after the last rating. */}
             {/* Only when there is something to show: PR, clips, note (and RPE when its row is hidden). */}
+            {focus && editing ? (() => {
+              const cells: RatingCell[] = [];
+              if (canRpe) cells.push({ id: 'rpe', label: t('lastTime.rpeChip'), value: set.rpe !== null ? formatRpe(set.rpe) : null, hint: set.targetRpe !== null ? t('activeSet.target', { value: formatRpe(set.targetRpe) }) : undefined, open: rpeRow, onPress: () => toggleOpen(set.id, 'rpe', rpeRow) });
+              if (canForm) cells.push({ id: 'form', label: t('lastTime.form'), value: set.formRating !== null ? formatNumber(set.formRating) : null, open: formRow, onPress: () => toggleOpen(set.id, 'form', formRow) });
+              if (canRom) cells.push({ id: 'rom', label: t('lastTime.rom'), value: set.romRating !== null ? formatNumber(set.romRating) : null, open: romRow, onPress: () => toggleOpen(set.id, 'rom', romRow) });
+              const described = set.bands.length > 0 ? describeBands?.(set) : null;
+              const bandsOpen = bandsEditing === set.id;
+              return (
+                <>
+                  {cells.length > 0 ? <RatingCells cells={cells} /> : null}
+                  {valuePanelNode}
+                  {bandsInUse ? (
+                    <>
+                      <BandsStrip
+                        title={t('activeSet.bandsTitle')}
+                        text={described?.text ?? t('bands.chipEmpty')}
+                        colors={described?.colors ?? []}
+                        assist={set.bands.length === 0 ? null : set.assistKg !== null ? t('activeSet.assist', { kg: formatNumber(set.assistKg) }) : t('activeSet.assistUnknown')}
+                        open={bandsOpen}
+                        actionLabel={t(bandsOpen ? 'activeSet.bandsClose' : 'activeSet.bandsEdit')}
+                        onPress={() => { tapFeedback(); setBandsEditing(bandsOpen ? null : set.id); }}
+                      />
+                      {bandsOpen ? renderBandsEditor?.(set) ?? null : null}
+                    </>
+                  ) : null}
+                </>
+              );
+            })() : null}
             {!quiet && (!table || isOpen) && (strip || set.note || set.clipCount > 0 || (set.poseCount ?? 0) > 0 || set.rpe !== null || setRecords.has(set.id) || set.bands.length > 0) ? (
               <View style={[styles.setMeta, editing && styles.setMetaLarge, table && styles.tableChips]}>
-                {canRpe && (strip || set.rpe !== null) ? (
+                {canRpe && !(focus && editing) && (strip || set.rpe !== null) ? (
                   <ValueChip flat={table} label={set.rpe !== null ? t('logger.rpeTag', { value: formatRpe(set.rpe) }) : t('lastTime.rpeChip')} icon="speedometer-outline" filled={set.rpe !== null} open={rpeRow} onPress={() => toggleOpen(set.id, 'rpe', rpeRow)} />
                 ) : null}
-                {canForm && (strip || set.formRating !== null) ? (
+                {canForm && !(focus && editing) && (strip || set.formRating !== null) ? (
                   <ValueChip flat={table} label={set.formRating !== null ? `${t('lastTime.form')} ${formatNumber(set.formRating)}` : t('lastTime.form')} filled={set.formRating !== null} open={formRow} onPress={() => toggleOpen(set.id, 'form', formRow)} />
                 ) : null}
-                {canRom && (strip || set.romRating !== null) ? (
+                {canRom && !(focus && editing) && (strip || set.romRating !== null) ? (
                   <ValueChip flat={table} label={set.romRating !== null ? `${t('lastTime.rom')} ${formatNumber(set.romRating)}` : t('lastTime.rom')} filled={set.romRating !== null} open={romRow} onPress={() => toggleOpen(set.id, 'rom', romRow)} />
                 ) : null}
                 {(() => {
@@ -745,6 +796,7 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
                     {set.clipCount === 0 ? <ValueChip flat label={t('logger.videoChip')} icon="videocam" filled={false} onPress={() => { tapFeedback(); router.push({ pathname: '/form-check/[setId]', params: { setId: set.id } }); }} /> : null}
                   </>
                 ) : null}
+                {focus && editing ? <ValueChip flat label={t('activeSet.moreDetails')} icon="options-outline" filled={false} onPress={() => { tapFeedback(); onSetOptions(set); }} /> : null}
                 {strip || set.note ? (
                   <ValueChip flat={table} label={set.note ? set.note : t('logger.noteChip')} icon="chatbubble-ellipses-outline" filled={Boolean(set.note)} grow lines={3} onPress={() => { if (onNote) toggleOpen(set.id, 'note', noteRow); else { tapFeedback(); onSetOptions(set, 'note'); } }} open={noteRow} />
                 ) : null}
@@ -775,14 +827,7 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
                 ) : null}
               </View>
             ) : null}
-            {!quiet && (!table || isOpen) && (rpeRow || formRow || romRow || noteRow) ? (
-              <View style={[styles.valuePanel, editing && styles.valuePanelLarge, table && styles.tablePanel, { backgroundColor: editing ? undefined : done ? palette.background : palette.surface }]}>
-                {rpeRow ? <RpePicker compact grid={largeText} wrap sideLabel={sideLabel} value={set.rpe} target={set.targetRpe} onChange={(rpe) => onRpe(set, rpe)} /> : null}
-                {formRow ? <FormRating value={set.formRating} sideLabel={sideLabel} onChange={(rating) => onFormRating(set, rating)} /> : null}
-                {noteRow ? <NoteInput value={set.note ?? ''} label={t('logger.noteLabel')} placeholder={t('logger.notePlaceholder')} onSave={(note) => onNote!(set, note)} /> : null}
-                {romRow ? <FormRating rom value={set.romRating} sideLabel={sideLabel} onChange={(rating) => onRomRating!(set, rating)} /> : null}
-              </View>
-            ) : null}
+            {focus && editing ? null : valuePanelNode}
             {/* Large text: one wide button finishes the set (or runs its hold). */}
             {editing ? (
               done ? (

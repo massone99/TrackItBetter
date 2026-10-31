@@ -2,10 +2,11 @@ import { useTranslation } from 'react-i18next';
 import { MenuList, MenuRow, Sheet } from '../../shared/components/ui';
 
 /** What the workout screen used to scatter around its top and bottom: settings, bulk actions and the destructive ones. */
-export function WorkoutMenuSheet({ visible, onClose, focusMode, voiceCues, canFold, allCollapsed, canNarrate, canClear, onCheckIn, onFocus, onVoice, onNarrate, onFoldAll, onSave, onClear, onDiscard }: {
+export function WorkoutMenuSheet({ visible, onClose, focusMode, telemetryOn, voiceCues, canFold, allCollapsed, canNarrate, canClear, onCheckIn, onFocus, onTelemetry, onVoice, onNarrate, onFoldAll, onSave, onClear, onDiscard }: {
   visible: boolean;
   onClose: () => void;
   focusMode: boolean;
+  telemetryOn: boolean;
   voiceCues: boolean;
   canFold: boolean;
   allCollapsed: boolean;
@@ -13,6 +14,7 @@ export function WorkoutMenuSheet({ visible, onClose, focusMode, voiceCues, canFo
   canClear: boolean;
   onCheckIn: () => void;
   onFocus: () => void;
+  onTelemetry: () => void;
   onVoice: () => void;
   onNarrate: () => void;
   onFoldAll: () => void;
@@ -29,6 +31,7 @@ export function WorkoutMenuSheet({ visible, onClose, focusMode, voiceCues, canFo
       <MenuList>
         <MenuRow icon="pulse-outline" label={t('workout.readinessTitle')} onPress={row(onCheckIn)} />
         <MenuRow icon="scan-outline" label={`${t('logger.focusChip')} · ${state(focusMode)}`} onPress={row(onFocus)} />
+        <MenuRow icon="speedometer-outline" label={`${t('telemetry.title')} · ${state(telemetryOn)}`} onPress={row(onTelemetry)} />
         <MenuRow icon={voiceCues ? 'volume-high' : 'volume-mute-outline'} label={`${t('logger.voiceChip')} · ${state(voiceCues)}`} onPress={row(onVoice)} />
         {canNarrate ? <MenuRow icon="mic-outline" label={t('narration.start')} onPress={row(onNarrate)} /> : null}
         {canFold ? <MenuRow icon={allCollapsed ? 'chevron-down' : 'chevron-up'} label={t(allCollapsed ? 'common.expandAll' : 'common.collapseAll')} onPress={row(onFoldAll)} /> : null}
