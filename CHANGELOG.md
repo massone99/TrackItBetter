@@ -2,6 +2,13 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.60.0 - 2026-10-31
+
+- Workout (focus mode): the active set follows the new design: previous matching set, reps and load side by side, work output bar, band assistance, RPE / form / ROM cells, additional metadata, next set and rest.
+- Workout (focus mode): "Complete set" is fixed above the footer; Add exercise and Finish workout moved into a Workout rail, next to a Telemetry rail.
+- Workout: exercise telemetry compares the exercise in hand with its last five comparable sessions (RPE, form, ROM, band help, total work, best reps at this load) and can be turned off from the workout menu.
+- History now keeps which apparatus each session used, so baselines never mix apparatus.
+
 ## 0.59.7 - 2026-10-31
 
 - Workout: with a total goal, completing a set adds the next one before the list redraws, so it changes once.
