@@ -3,7 +3,7 @@ import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import * as Speech from 'expo-speech';
 import { useTranslation } from 'react-i18next';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AccessibilityInfo, ActivityIndicator, Alert, Pressable, StyleSheet, View } from 'react-native';
+import { AccessibilityInfo, ActivityIndicator, Alert, Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { groupSets, completedSetCount } from '../../src/domain/setPairs';
 import { ExercisePicker, type ExerciseChoice } from '../../src/features/exercises/ExercisePicker';
 import { ReferenceLinkSheet } from '../../src/features/exercises/ReferenceLinkSheet';
@@ -58,6 +58,8 @@ import { exerciseFinished, nextFolded } from '../../src/domain/folding';
 import { adjustedRest, REST_STEP_SEC } from '../../src/domain/restTimer';
 import { ExerciseBlockField } from '../../src/features/session/ExerciseBlockField';
 import { blockOf, usesBlocks, type Block } from '../../src/domain/blocks';
+import { ExerciseTelemetryDock } from '../../src/features/session/telemetry/ExerciseTelemetryDock';
+import { useExerciseTelemetry } from '../../src/features/session/telemetry/useExerciseTelemetry';
 import { clearEmomPlan, useEmom, type EmomAlertText } from '../../src/features/session/useEmom';
 import { EmomSetupSheet, emomFieldFor } from '../../src/features/session/EmomSetupSheet';
 import { emomLabel, type EmomPhase, type EmomPlan } from '../../src/domain/emom';
@@ -128,7 +130,8 @@ export default function WorkoutScreen() {
   const styles = useScaledStyles(baseStyles);
   const { id } = useLocalSearchParams<{ id: string }>();
   const { t } = useTranslation();
-  const { palette } = useTheme();
+  const { palette, largeText } = useTheme();
+  const { height: windowHeight } = useWindowDimensions();
   const { duration } = useAnimationSettings();
   const exerciseEntering = duration(260) ? FadeInDown.duration(duration(260)) : undefined;
   const itemExiting = duration(200) ? FadeOutLeft.duration(duration(200)) : undefined;
@@ -185,6 +188,9 @@ export default function WorkoutScreen() {
   // PRs set so far in this workout: record kinds per set, and exercises with a volume mini PR.
   const recordCount = useRef<number | null>(null);
   const [records, setRecords] = useState<{ sets: Map<string, RecordKind[]>; volume: Set<string> }>(() => ({ sets: new Map(), volume: new Set() }));
+  // The exercise in hand and its live telemetry against comparable history.
+  const telemetryExercise = useMemo(() => workout?.exercises.find((exercise) => exercise.sets.length > 0 && !exerciseFinished(exercise.sets)) ?? null, [workout]);
+  const telemetry = useExerciseTelemetry(telemetryExercise, records.sets);
   const [referenceFor, setReferenceFor] = useState<SessionExercise | null>(null);
   const [removeExerciseFor, setRemoveExerciseFor] = useState<SessionExercise | null>(null);
   const [setSheet, setSetSheet] = useState<{ exercise: SessionExercise; setId: string; view?: 'bands' | 'note' | 'rest' } | null>(null);
@@ -725,6 +731,9 @@ export default function WorkoutScreen() {
   // The exercise in hand: the first one with sets still to do.
   const currentEntryId = workout.exercises.find((exercise) => exercise.sets.length > 0 && !exerciseFinished(exercise.sets))?.entryId ?? null;
   const currentIndex = workout.exercises.findIndex((exercise) => exercise.entryId === currentEntryId);
+  // Live feedback of the exercise in hand; one line while a timer runs, at large text and on short screens, so it never crowds the footer.
+  const telemetryCompact = largeText || windowHeight < 700 || hold.active !== null || restEndsAt !== null || Boolean(emom.plan);
+  const telemetryDock = telemetryExercise ? <ExerciseTelemetryDock view={telemetry} compact={telemetryCompact} /> : null;
   const timerRunning = hold.active !== null || restEndsAt !== null || Boolean(emom.plan && emom.phase);
   const lowReadiness = (workout.sleep !== null && workout.sleep <= 2) || (workout.energy !== null && workout.energy <= 2) || (workout.soreness !== null && workout.soreness >= 4);
 
@@ -733,7 +742,7 @@ export default function WorkoutScreen() {
       <Screen
         scrollRef={scrollRef}
         // The running clock sits right above Add and Finish, so both stay in reach during rest.
-        footerAccessory={!dockOpen ? (
+        footerAccessory={<>{telemetryDock}{!dockOpen ? (
           <CollapsedDock restEndsAt={timerRunning ? restEndsAt : null} voiceCues={voiceCues} onRestEnd={endRest} onOpen={() => setDockOpen(true)} />
         ) : !timerRunning && freeRest ? (
           <FreeRestBar since={freeRest.since} restSec={freeRest.restSec} onStartRest={() => startRestTimer(freeRest.restSec)} onClose={() => setFreeRest(null)} />
@@ -760,7 +769,7 @@ export default function WorkoutScreen() {
             onSkip={skipRest}
             onCollapse={() => setDockOpen(false)}
           />
-        ) : undefined}
+        ) : undefined}</>}
         // Add and Finish stay in reach however long the workout gets.
         footer={workout.exercises.length > 0 && dockOpen ? (
           <>

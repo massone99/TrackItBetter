@@ -289,6 +289,8 @@ export interface ExerciseHistorySession {
   workoutName: string;
   startedAt: Date;
   notes: string | null;
+  /** Apparatus used in that session: the entry's own, else the exercise default (null for none). */
+  apparatusId: string | null;
   sets: ExerciseHistorySet[];
 }
 
@@ -328,6 +330,7 @@ export async function getExerciseHistory(exerciseId: string, limit?: number): Pr
   const rows = await db.select({
     entryId: exerciseEntries.id,
     notes: exerciseEntries.notes,
+    apparatusId: sql<string | null>`coalesce(${exerciseEntries.apparatusId}, ${exercises.defaultApparatusId})`,
     workoutId: workouts.id,
     workoutName: workouts.name,
     startedAt: workouts.startedAt,
@@ -347,6 +350,7 @@ export async function getExerciseHistory(exerciseId: string, limit?: number): Pr
     romRating: trainingSets.romRating,
   }).from(exerciseEntries)
     .innerJoin(workouts, eq(workouts.id, exerciseEntries.workoutId))
+    .innerJoin(exercises, eq(exercises.id, exerciseEntries.exerciseId))
     .innerJoin(trainingSets, eq(trainingSets.entryId, exerciseEntries.id))
     .where(latest ? and(done, inArray(workouts.id, latest)) : done)
     .orderBy(desc(workouts.startedAt), asc(exerciseEntries.order), asc(trainingSets.index));
@@ -355,7 +359,7 @@ export async function getExerciseHistory(exerciseId: string, limit?: number): Pr
     let session = sessions.get(row.workoutId);
     if (!session) {
       if (limit !== undefined && sessions.size >= limit) break;
-      session = { entryId: row.entryId, workoutId: row.workoutId, workoutName: row.workoutName, startedAt: row.startedAt, notes: row.notes, sets: [] };
+      session = { entryId: row.entryId, workoutId: row.workoutId, workoutName: row.workoutName, startedAt: row.startedAt, notes: row.notes, apparatusId: row.apparatusId ?? null, sets: [] };
       sessions.set(row.workoutId, session);
     }
     session.sets.push({ id: row.setId, pairId: row.pairId, side: row.side, kind: row.kind, reps: row.reps, durationSec: row.durationSec, distanceM: row.distanceM, addedLoadKg: row.addedLoadKg, assistKg: row.assistKg, bandCount: parseSetBands(row.bands).length, bands: parseSetBands(row.bands), rpe: row.rpe, formRating: row.formRating, romRating: row.romRating });
