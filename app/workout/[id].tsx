@@ -339,6 +339,8 @@ export default function WorkoutScreen() {
   // The set whose rest is running and its total so far: the +/- steps are saved on that set as its rest.
   const restOf = useRef<{ setId: string; total: number } | null>(null);
   const startRestTimer = (seconds: number, setId?: string) => {
+    // A new rest shows its full timer again, even if the last one was minimised.
+    setDockOpen(true);
     if (setId) restOf.current = { setId, total: Math.floor(seconds) };
     setFreeRest(null);
     const duration = Math.max(1, Math.floor(seconds));
@@ -801,7 +803,7 @@ export default function WorkoutScreen() {
       <Screen
         scrollRef={scrollRef}
         // The running clock sits right above Add and Finish, so both stay in reach during rest.
-        footerAccessory={<>{railsMode ? railsTop : <>{telemetryDock}{primaryBar}</>}{!railsMode && !dockOpen ? (
+        footerAccessory={<>{railsMode ? railsTop : <>{telemetryDock}{primaryBar}</>}{!dockOpen && (!railsMode || timerRunning) ? (
           <CollapsedDock restEndsAt={timerRunning ? restEndsAt : null} voiceCues={voiceCues} onRestEnd={endRest} onOpen={() => setDockOpen(true)} />
         ) : !timerRunning && freeRest ? (
           <FreeRestBar since={freeRest.since} restSec={freeRest.restSec} onStartRest={() => startRestTimer(freeRest.restSec)} onClose={() => setFreeRest(null)} />
