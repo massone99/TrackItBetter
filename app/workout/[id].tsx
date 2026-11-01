@@ -111,7 +111,7 @@ import { ExerciseCard, holdDisplay } from '../../src/features/session/ExerciseCa
 import Animated, { FadeInDown, FadeOutLeft, LayoutAnimationConfig } from 'react-native-reanimated';
 import { readBooleanPreference, RPE_PROMPT_KEY, writePreference } from '../../src/shared/settings/preferences';
 
-import { instrument, MIN_TOUCH_TARGET, radii } from '../../src/shared/theme/tokens';
+import { instrument, MIN_TOUCH_TARGET, radii, spacing } from '../../src/shared/theme/tokens';
 import { useTheme } from '../../src/shared/theme/ThemeProvider';
 import { fonts } from '../../src/shared/theme/typography';
 import { formatClock } from '../../src/shared/utils/format';
@@ -803,7 +803,7 @@ export default function WorkoutScreen() {
       <Screen
         scrollRef={scrollRef}
         // The running clock sits right above Add and Finish, so both stay in reach during rest.
-        footerAccessory={<>{railsMode ? railsTop : <>{telemetryDock}{primaryBar}</>}{!dockOpen && (!railsMode || timerRunning) ? (
+        footerAccessory={<View style={styles.dockStack}>{railsMode ? railsTop : <>{telemetryDock}{primaryBar}</>}{!dockOpen && (!railsMode || timerRunning) ? (
           <CollapsedDock restEndsAt={timerRunning ? restEndsAt : null} voiceCues={voiceCues} onRestEnd={endRest} onOpen={() => setDockOpen(true)} />
         ) : !timerRunning && freeRest ? (
           <FreeRestBar since={freeRest.since} restSec={freeRest.restSec} onStartRest={() => startRestTimer(freeRest.restSec)} onClose={() => setFreeRest(null)} />
@@ -830,7 +830,7 @@ export default function WorkoutScreen() {
             onSkip={skipRest}
             onCollapse={() => setDockOpen(false)}
           />
-        ) : undefined}</>}
+        ) : undefined}</View>}
         // Add and Finish stay in reach however long the workout gets.
         footer={workout.exercises.length > 0 && dockOpen && !railsMode ? (
           <>
@@ -1441,6 +1441,8 @@ function ReadinessRow({ label, value, onChange }: { label: string; value: number
 
 
 const baseStyles = StyleSheet.create({
+  // The blocks of the lower dock (panel, main action, rails, timer) never touch: one step of the spacing scale between them.
+  dockStack: { gap: spacing.md },
   // Its own row under check-in and fold all: the chips sit side by side, left-aligned.
   headingActions: { width: '100%', flexDirection: 'row', flexWrap: 'wrap', gap: 8, justifyContent: 'flex-start' },
   choiceRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },

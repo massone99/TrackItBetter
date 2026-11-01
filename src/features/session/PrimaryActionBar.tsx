@@ -48,7 +48,7 @@ export function PrimaryActionBar({ label, icon, caption, linkLabel, onPress, onL
 }
 
 const baseStyles = StyleSheet.create({
-  bar: { gap: spacing.xs },
+  bar: { gap: spacing.sm },
   button: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.sm, minHeight: 56, paddingHorizontal: spacing.lg, paddingVertical: spacing.sm, borderRadius: radii.control },
   label: { flexShrink: 1, fontSize: 17, fontWeight: '700', textAlign: 'center', letterSpacing: 0.5 },
   caption: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: spacing.sm },
