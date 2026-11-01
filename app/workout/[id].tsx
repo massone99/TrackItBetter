@@ -119,7 +119,8 @@ import { useScaledStyles } from '../../src/shared/theme/useScaledStyles';
 import { useAnimationSettings } from '../../src/shared/settings/AnimationProvider';
 
 const VOICE_CUES_KEY = 'workout.voice_cues.enabled';
-const FOCUS_MODE_KEY = 'workout.focus_mode.enabled';
+// The active-set design and the dock rails live in focus mode, so it is on by default (a new key: earlier "off" choices do not hide the new design).
+const FOCUS_MODE_KEY = 'workout.focus_mode.v2';
 const TELEMETRY_ENABLED_KEY = 'workout.telemetry.enabled';
 /** Pause between finishing an exercise and folding it. */
 const FOLD_DELAY_MS = 650;
@@ -173,7 +174,7 @@ export default function WorkoutScreen() {
   const [dockPanel, setDockPanel] = useState<'telemetry' | 'workout' | null>(null);
   const [telemetrySheet, setTelemetrySheet] = useState(false);
   const [telemetryOn, setTelemetryOn] = useState(() => readBooleanPreference(TELEMETRY_ENABLED_KEY, true));
-  const [focusMode, setFocusMode] = useState(() => readBooleanPreference(FOCUS_MODE_KEY, false));
+  const [focusMode, setFocusMode] = useState(() => readBooleanPreference(FOCUS_MODE_KEY, true));
   const [voiceCues, setVoiceCues] = useState(() => readBooleanPreference(VOICE_CUES_KEY, false));
   const [readinessOpen, setReadinessOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
