@@ -2,6 +2,11 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.60.2 - 2026-11-01
+
+- Workout: the timer can be minimised again with the dock rails; a new rest shows its full timer.
+- Workout: the blocks of the lower dock (panel, Complete set, rails, timer) have one step of spacing between them.
+
 ## 0.60.1 - 2026-11-01
 
 - Workout: focus mode, which carries the new active set (RPE / form / ROM cells, bands, work output) and the Telemetry and Workout rails, is now on by default. It can still be turned off from the workout menu.
