@@ -197,7 +197,17 @@ export default function WorkoutScreen() {
   const recordCount = useRef<number | null>(null);
   const [records, setRecords] = useState<{ sets: Map<string, RecordKind[]>; volume: Set<string>; sameLoad: Map<string, { loadKg: number; sets: number; gain: number }> }>(() => ({ sets: new Map(), volume: new Set(), sameLoad: new Map() }));
   // The exercise in hand and its live telemetry against comparable history.
-  const telemetryExercise = useMemo(() => workout?.exercises.find((exercise) => exercise.sets.length > 0 && !exerciseFinished(exercise.sets)) ?? null, [workout]);
+  const handExercise = useMemo(() => workout?.exercises.find((exercise) => exercise.sets.length > 0 && !exerciseFinished(exercise.sets)) ?? null, [workout]);
+  // Telemetry follows the last set completed (its exercise stays analysed while the next one is started); before any set, the exercise in hand.
+  const telemetryExercise = useMemo(() => {
+    let latest: { exercise: SessionExercise; at: number } | null = null;
+    for (const exercise of workout?.exercises ?? []) {
+      for (const set of exercise.sets) {
+        if (set.kind === 'working' && set.completedAt && (latest === null || set.completedAt.getTime() >= latest.at)) latest = { exercise, at: set.completedAt.getTime() };
+      }
+    }
+    return latest?.exercise ?? handExercise;
+  }, [workout, handExercise]);
   const telemetry = useExerciseTelemetry(telemetryExercise, records.sets);
   const [referenceFor, setReferenceFor] = useState<SessionExercise | null>(null);
   const [removeExerciseFor, setRemoveExerciseFor] = useState<SessionExercise | null>(null);
@@ -741,11 +751,11 @@ export default function WorkoutScreen() {
   // Live feedback of the exercise in hand; one line while a timer runs, at large text and on short screens, so it never crowds the footer.
   const telemetryCompact = largeText || windowHeight < 700 || hold.active !== null || restEndsAt !== null || Boolean(emom.plan);
   // Focus mode: the action of the set in hand is fixed above the footer (the exercise card leaves its own button out for that set).
-  const fixedSet = focusMode && telemetryExercise ? telemetryExercise.sets.find((set) => !set.completedAt) ?? null : null;
-  const fixedTimed = telemetryExercise?.metric === 'time' || telemetryExercise?.metric === 'time_load';
+  const fixedSet = focusMode && handExercise ? handExercise.sets.find((set) => !set.completedAt) ?? null : null;
+  const fixedTimed = handExercise?.metric === 'time' || handExercise?.metric === 'time_load';
   const fixedHolding = fixedSet !== null && hold.active?.setId === fixedSet.id;
-  const fixedNumber = fixedSet && telemetryExercise ? groupSets(telemetryExercise.sets.filter((set) => set.kind === 'working' && set.index <= fixedSet.index)).length : 0;
-  const primaryBar = fixedSet && telemetryExercise ? (
+  const fixedNumber = fixedSet && handExercise ? groupSets(handExercise.sets.filter((set) => set.kind === 'working' && set.index <= fixedSet.index)).length : 0;
+  const primaryBar = fixedSet && handExercise ? (
     <PrimaryActionBar
       label={(fixedTimed ? (fixedHolding ? t('logger.doneHold') : `${t('logger.startHold')} ${formatClock(fixedSet.durationSec ?? 0)}`) : t('activeSet.completeSet', { number: fixedNumber })).toUpperCase()}
       icon={fixedTimed ? (fixedHolding ? 'stop' : 'play') : 'checkmark'}
@@ -753,13 +763,13 @@ export default function WorkoutScreen() {
       linkLabel={t('activeSet.moreDetails')}
       onPress={() => { if (!fixedTimed) void completeHoldManually(fixedSet); else if (fixedHolding) void finishCurrentHold(); else startHoldFor(fixedSet); }}
       onLongPress={fixedTimed && !fixedHolding ? () => void completeHoldManually(fixedSet) : undefined}
-      onLink={() => setSetSheet({ exercise: telemetryExercise, setId: fixedSet.id })}
+      onLink={() => setSetSheet({ exercise: handExercise, setId: fixedSet.id })}
     />
   ) : null;
   // Focus mode: Add and Finish live in a Workout rail next to a Telemetry rail, under the fixed main action; one panel open at a time.
-  const railsMode = focusMode && telemetryExercise !== null;
+  const railsMode = focusMode && handExercise !== null;
   const telemetryInline = windowHeight >= 880 && !largeText;
-  const exercisePosition = telemetryExercise ? workout.exercises.findIndex((exercise) => exercise.entryId === telemetryExercise.entryId) + 1 : 0;
+  const exercisePosition = handExercise ? workout.exercises.findIndex((exercise) => exercise.entryId === handExercise.entryId) + 1 : 0;
   const railsTop = railsMode ? (
     <>
       {dockPanel === 'telemetry' && telemetryInline && telemetry ? <TelemetryPanel view={telemetry} /> : null}
@@ -917,7 +927,7 @@ export default function WorkoutScreen() {
           ) : null}
           <ExerciseCard
             focus={focusMode}
-            fixedAction={primaryBar !== null && exercise.entryId === telemetryExercise?.entryId}
+            fixedAction={primaryBar !== null && exercise.entryId === handExercise?.entryId}
             figure={index + 1}
             nowLabel={exercise.entryId === currentEntryId ? t('workout.now', { position: currentIndex + 1, total: workout.exercises.length }) : null}
             exercise={exercise}
