@@ -2,6 +2,11 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.61.1 - 2026-11-02
+
+- Workout: choosing the RPE no longer completes the set; the set is completed by Complete set, its check or a swipe.
+- Workout: after the first set, the telemetry analyses the exercise of the last completed set.
+
 ## 0.61.0 - 2026-11-02
 
 - Workout: new Mini PR when the total reps (or seconds) at the same load beat every earlier session with the same number of sets, e.g. 3 sets at 20 kg adding up to 16 reps where the best 3 sets at 20 kg added up to 15.
