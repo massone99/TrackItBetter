@@ -1,6 +1,6 @@
 import { migrateDatabase } from '../../../db/migrations';
 import { seedCatalogIfEmpty } from '../../../db/seed/import';
-import { addExerciseToWorkout, addSet, copyValuesToSet, getActiveWorkout, getPreviousPerformance, repeatWorkout, repeatWorkoutIfIdle, setEntryAverages, setEntryCompareWorkout, listComparableWorkouts, setSetKind, setSetRomRating, startWorkout, updateEntryNote, updateSet, updateSetNote, updateSetRpe } from '../repository';
+import { addExerciseToWorkout, addSet, addWarmupsFromLastTime, copyValuesToSet, getActiveWorkout, getPreviousPerformance, repeatWorkout, repeatWorkoutIfIdle, setEntryAverages, setEntryCompareWorkout, listComparableWorkouts, setSetKind, setSetRomRating, startWorkout, updateEntryNote, updateSet, updateSetNote, updateSetRpe } from '../repository';
 
 jest.mock('../../../db/client', () => {
   const { createRealDatabase } = jest.requireActual('../../../test/realDatabase');
@@ -109,6 +109,21 @@ describe('previous values', () => {
     await copyValuesToSet(id, { reps: 6, durationSec: null, distanceM: null, addedLoadKg: 15, rpe: 8.5, note: 'Presa stretta' });
     const [set] = (await getActiveWorkout(workoutId))!.exercises[0].sets;
     expect(set).toMatchObject({ reps: 6, addedLoadKg: 15, rpe: null, note: 'Presa stretta', completedAt: null });
+    real.sqlite.prepare('DELETE FROM workout WHERE id = ?').run(workoutId);
+  });
+});
+
+describe('warm-ups from last time', () => {
+  it('adds the warm-ups the exercise lacks, in front, with last time values, and no duplicate on a second call', async () => {
+    const workoutId = await startWorkout('Warm');
+    const entryId = await addExerciseToWorkout(workoutId, 'pull-up', false); // no prefill: the exercise starts without last time's warm-ups
+    const previous = (await getPreviousPerformance(['pull-up'], 'none')).get('pull-up')!;
+    expect(previous.warmups).toHaveLength(1);
+    expect(await addWarmupsFromLastTime(entryId, previous.warmups)).toBe(1);
+    const sets = (await getActiveWorkout(workoutId))!.exercises[0].sets;
+    expect(sets.map((set) => set.kind)).toEqual(['warmup', 'working']);
+    expect(sets[0].reps).toBe(3);
+    expect(await addWarmupsFromLastTime(entryId, previous.warmups)).toBe(0);
     real.sqlite.prepare('DELETE FROM workout WHERE id = ?').run(workoutId);
   });
 });

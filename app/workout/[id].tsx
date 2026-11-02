@@ -27,6 +27,7 @@ import {
   updateSetNote,
   addSet,
   completeSet,
+  addWarmupsFromLastTime,
   copyValuesToSet,
   switchEntryExercise,
   undoSwitch,
@@ -943,7 +944,9 @@ export default function WorkoutScreen() {
             onFinishHold={() => void finishCurrentHold()}
             onAddSet={() => void addSet(exercise.entryId).then(() => refresh(workout.id))}
             onAddWarmup={() => void addWarmupSet(exercise.entryId).then(() => refresh(workout.id))}
-            onCopyAllLast={copyable.length > 0 ? () => void Promise.all(copyable.map(({ set, values }) => copyValuesToSet(set.id, values))).then(() => refresh(workout.id)) : undefined}
+            onCopyAllLast={copyable.length > 0 || missingWarmups(exercise, previous.get(exercise.exerciseId)) > 0 ? () => void Promise.all(copyable.map(({ set, values }) => copyValuesToSet(set.id, values)))
+              .then(() => addWarmupsFromLastTime(exercise.entryId, previous.get(exercise.exerciseId)?.warmups ?? []))
+              .then(() => refresh(workout.id)) : undefined}
             onSetOptions={(set, view) => setSetSheet({ exercise, setId: set.id, view })}
             onToggleWarmup={(set) => void toggleWarmup(set)}
             setRecords={records.sets}
@@ -1249,6 +1252,12 @@ function lastTimeFor(exercise: SessionExercise, set: SessionSet, previous: Previ
   const number = groupSets(exercise.sets.filter((item) => item.kind === set.kind && item.index <= set.index)).length;
   const group = groupSets(set.kind === 'warmup' ? previous.warmups : previous.sets)[number - 1];
   return group?.find((s) => !set.pairId || s.side === set.side || !s.side || s.side === 'both') ?? null;
+}
+
+/** How many warm-ups of last time this exercise does not have yet (they come with "copy last time"). */
+function missingWarmups(exercise: SessionExercise, previous: PreviousPerformance | undefined): number {
+  if (!previous) return 0;
+  return Math.max(0, groupSets(previous.warmups).length - groupSets(exercise.sets.filter((set) => set.kind === 'warmup')).length);
 }
 
 /** The open sets of an exercise that have a matching set last time, with its values. */

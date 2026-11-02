@@ -995,6 +995,23 @@ export async function addWarmupSet(entryId: string): Promise<string> {
   return created;
 }
 
+/**
+ * "Copy last time to all sets" also brings the warm-ups: those of last time that this exercise does not have yet
+ * (by position) are added in front of the working sets, with last time's values.
+ */
+export async function addWarmupsFromLastTime(entryId: string, warmups: readonly PreviousSetValues[]): Promise<number> {
+  await initializeDatabase();
+  const rows = await db.select().from(trainingSets).where(eq(trainingSets.entryId, entryId)).orderBy(asc(trainingSets.index));
+  const missing = groupSets(warmups).slice(groupSets(rows.filter((row) => row.kind === 'warmup')).length);
+  for (const group of missing) {
+    const created = await addWarmupSet(entryId);
+    const [first] = await db.select().from(trainingSets).where(eq(trainingSets.id, created));
+    const added = first?.pairId ? await db.select().from(trainingSets).where(eq(trainingSets.pairId, first.pairId)) : first ? [first] : [];
+    for (const row of added) await copyValuesToSet(row.id, group.find((item) => item.side === row.side) ?? group[0]);
+  }
+  return missing.length;
+}
+
 /** Sets the rest after every not-yet-completed set of one kind in an exercise. */
 export async function setEntryRest(entryId: string, kind: SetKind, seconds: number): Promise<void> {
   await initializeDatabase();
