@@ -49,6 +49,11 @@ export interface SetRecord {
 }
 
 /** Mini PR: an exercise's volume in one session above every earlier session. */
+/**
+ * A mini-PR: more total reps (or seconds) than ever before at the same load with the same number of sets,
+ * e.g. 3 sets of 20 kg that add up to 18 reps where the best 3 sets at 20 kg added up to 16.
+ */
+export interface SameLoadRecord { exerciseId: string; loadKg: number; sets: number; value: number; previous: number; scope?: RecordScope }
 export interface VolumeRecord { exerciseId: string; value: number; previous: number; scope?: RecordScope }
 
 const EPSILON = 1e-6;
@@ -195,6 +200,46 @@ export function detectVolumeRecords(rows: readonly RecordRow[], workoutId: strin
       const record: VolumeRecord = { exerciseId, value, previous };
       if (rowScope !== 'legacy') record.scope = rowScope;
       records.push(record);
+    }
+  }
+  return records;
+}
+
+/** Mini-PRs of a workout: same load (and band help) and same number of sets as an earlier workout, with more reps or seconds in total. */
+export function detectSameLoadRecords(rows: readonly RecordRow[], workoutId: string, scope: RecordScope = 'average'): SameLoadRecord[] {
+  type Group = { loadKg: number; sets: number; total: number };
+  const groups = new Map<string, Map<string, Map<string, Group>>>();
+  const exerciseOf = new Map<string, string>();
+  for (const row of scopedRows(rows, scope)) {
+    if (row.metric === 'distance') continue;
+    // Help from bands of unknown kg has no comparable load.
+    const help = (row.bands?.length ?? 0) === 0 ? 0 : row.assistKg ?? null;
+    if (help === null) continue;
+    const key = `${row.compareKey ?? row.exerciseId}\u0000${recordScope(row)}`;
+    exerciseOf.set(key, row.exerciseId);
+    const byWorkout = groups.get(key) ?? new Map<string, Map<string, Group>>();
+    const byLoad = byWorkout.get(row.workoutId) ?? new Map<string, Group>();
+    const loadKey = `${Math.round(loadOf(row) * 100)}|${Math.round(help * 100)}`;
+    const group = byLoad.get(loadKey) ?? { loadKg: loadOf(row), sets: 0, total: 0 };
+    group.sets += 1;
+    group.total += Math.max(0, amountOf(row));
+    byLoad.set(loadKey, group);
+    byWorkout.set(row.workoutId, byLoad);
+    groups.set(key, byWorkout);
+  }
+  const records: SameLoadRecord[] = [];
+  for (const [key, byWorkout] of groups) {
+    const separator = key.indexOf('\u0000');
+    const rowScope = key.slice(separator + 1) as RecordScope;
+    for (const [loadKey, group] of byWorkout.get(workoutId) ?? []) {
+      const earlier = [...byWorkout].filter(([id]) => id !== workoutId)
+        .map(([, byLoad]) => byLoad.get(loadKey)).filter((item): item is Group => item !== undefined && item.sets === group.sets);
+      const previous = maxOf(earlier.map((item) => item.total));
+      if (previous !== null && group.total > previous + EPSILON) {
+        const record: SameLoadRecord = { exerciseId: exerciseOf.get(key) ?? key.slice(0, separator), loadKg: group.loadKg, sets: group.sets, value: group.total, previous };
+        if (rowScope !== 'legacy') record.scope = rowScope;
+        records.push(record);
+      }
     }
   }
   return records;

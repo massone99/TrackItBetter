@@ -195,7 +195,7 @@ export default function WorkoutScreen() {
   const [emomNotice, setEmomNotice] = useState<string | null>(null);
   // PRs set so far in this workout: record kinds per set, and exercises with a volume mini PR.
   const recordCount = useRef<number | null>(null);
-  const [records, setRecords] = useState<{ sets: Map<string, RecordKind[]>; volume: Set<string> }>(() => ({ sets: new Map(), volume: new Set() }));
+  const [records, setRecords] = useState<{ sets: Map<string, RecordKind[]>; volume: Set<string>; sameLoad: Map<string, { loadKg: number; sets: number; gain: number }> }>(() => ({ sets: new Map(), volume: new Set(), sameLoad: new Map() }));
   // The exercise in hand and its live telemetry against comparable history.
   const telemetryExercise = useMemo(() => workout?.exercises.find((exercise) => exercise.sets.length > 0 && !exerciseFinished(exercise.sets)) ?? null, [workout]);
   const telemetry = useExerciseTelemetry(telemetryExercise, records.sets);
@@ -243,11 +243,12 @@ export default function WorkoutScreen() {
     if (!found) return;
     const bySet = new Map<string, RecordKind[]>();
     for (const record of found.sets) bySet.set(record.setId, [...(bySet.get(record.setId) ?? []), record.kind]);
-    const count = bySet.size + found.volume.length;
+    const count = bySet.size + found.volume.length + found.sameLoad.length;
     // Celebrate a new record, but not the ones already there when the workout is reopened.
     if (recordCount.current !== null && count > recordCount.current) tapFeedback('success');
     recordCount.current = count;
-    setRecords({ sets: bySet, volume: new Set(found.volume.map((record) => record.exerciseId)) });
+    const sameLoad = new Map(found.sameLoad.map((record) => [record.exerciseId, { loadKg: record.loadKg, sets: record.sets, gain: record.value - record.previous }] as const));
+    setRecords({ sets: bySet, volume: new Set(found.volume.map((record) => record.exerciseId)), sameLoad });
   }, []);
 
   useEffect(() => {
@@ -941,6 +942,7 @@ export default function WorkoutScreen() {
             onToggleWarmup={(set) => void toggleWarmup(set)}
             setRecords={records.sets}
             volumeRecord={records.volume.has(exercise.exerciseId)}
+            sameLoadRecord={records.sameLoad.get(exercise.exerciseId) ?? null}
             emomLabel={exercise.entryId === emomEntryId && emom.phase ? emomBadge(emom.phase, emom.plan!, t) : null}
             supersetLabel={exercise.groupId ? t('superset.label', { letter: supersetLetters.get(exercise.groupId) ?? 'A' }) : null}
             onUncomplete={(set) => void reopenSet(set)}

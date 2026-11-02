@@ -1,4 +1,4 @@
-import { detectSetRecords, detectVolumeRecords, exerciseRecordSummary, type RecordRow } from '../records';
+import { detectSameLoadRecords, detectSetRecords, detectVolumeRecords, exerciseRecordSummary, type RecordRow } from '../records';
 
 let n = 0;
 function row(overrides: Partial<RecordRow>): RecordRow {
@@ -85,6 +85,33 @@ describe('detectVolumeRecords', () => {
       row({ exerciseId: 'new-move', workoutId: 'new' }),
     ];
     expect(detectVolumeRecords(rows, 'new')).toEqual([{ exerciseId: 'dip', value: 220, previous: 200 }]);
+  });
+});
+
+describe('detectSameLoadRecords', () => {
+  const sets = (workoutId: string, reps: number[], extra: Partial<RecordRow> = {}) => reps.map((value) => row({ workoutId, reps: value, addedLoadKg: 20, ...extra }));
+
+  it('reports more total reps at the same load with the same number of sets', () => {
+    const rows = [...sets('a', [5, 5, 5]), ...sets('new', [6, 5, 5])];
+    expect(detectSameLoadRecords(rows, 'new')).toEqual([{ exerciseId: 'dip', loadKg: 20, sets: 3, value: 16, previous: 15 }]);
+  });
+
+  it('does not compare different set counts, loads or a first time', () => {
+    expect(detectSameLoadRecords([...sets('a', [5, 5, 5]), ...sets('new', [9, 9])], 'new')).toEqual([]);
+    expect(detectSameLoadRecords([...sets('a', [5, 5, 5]), ...sets('new', [9, 9, 9], { addedLoadKg: 22.5 })], 'new')).toEqual([]);
+    expect(detectSameLoadRecords(sets('new', [9, 9, 9]), 'new')).toEqual([]);
+  });
+
+  it('needs more than every earlier session with that load and set count', () => {
+    const rows = [...sets('a', [8, 8, 8]), ...sets('b', [5, 5, 5]), ...sets('new', [7, 7, 7])];
+    expect(detectSameLoadRecords(rows, 'new')).toEqual([]);
+  });
+
+  it('never compares band help of unknown kg, and counts bodyweight reps as a load of zero', () => {
+    const unknown = { bands: [{ bandId: 'blue', tension: 2 as const }], assistKg: null };
+    expect(detectSameLoadRecords([...sets('a', [5, 5], unknown), ...sets('new', [9, 9], unknown)], 'new')).toEqual([]);
+    const bodyweight = (workoutId: string, reps: number[]) => reps.map((value) => row({ workoutId, metric: 'reps', reps: value, addedLoadKg: 0, effectiveLoadKg: null }));
+    expect(detectSameLoadRecords([...bodyweight('a', [10, 10]), ...bodyweight('new', [11, 10])], 'new')).toEqual([{ exerciseId: 'dip', loadKg: 0, sets: 2, value: 21, previous: 20 }]);
   });
 });
 

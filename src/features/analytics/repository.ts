@@ -7,7 +7,7 @@ import { buildExerciseEstimate, buildOneRepMaxEstimate, type ExerciseEstimate, t
 import type { ExploreData } from './explore';
 import { buildProgressSnapshot, detectWorkoutRecords, type CompletedSetRow, type CompletedWorkoutRow, type ProgressSnapshot, type WorkoutRecord } from './summary';
 import type { StatsSetRow } from './trainingStats';
-import { detectSetRecords, detectVolumeRecords, exerciseRecordSummary, type BandHelpComparer, type ExerciseRecordSummary, type RecordRow, type SetRecord, type VolumeRecord } from './records';
+import { detectSameLoadRecords, detectSetRecords, detectVolumeRecords, exerciseRecordSummary, type BandHelpComparer, type ExerciseRecordSummary, type RecordRow, type SameLoadRecord, type SetRecord, type VolumeRecord } from './records';
 import { getEffectiveLoad } from './summary';
 import { aggregatePairs, groupSets, type PairScope } from '../../domain/setPairs';
 import { bandRanks, compareBandHelp, parseSetBands, type SetBand } from '../../domain/equipment';
@@ -239,12 +239,12 @@ async function readRecordRows(onlyWorkoutId?: string): Promise<RecordRow[]> {
 }
 
 /** PRs and volume mini PRs of a workout, in progress or finished. */
-export async function getSessionRecords(workoutId: string): Promise<{ sets: SetRecord[]; volume: VolumeRecord[] }> {
+export async function getSessionRecords(workoutId: string): Promise<{ sets: SetRecord[]; volume: VolumeRecord[]; sameLoad: SameLoadRecord[] }> {
   const rows = await loadRecordRows(workoutId);
   const catalog = await getEquipment();
   const ranks = bandRanks(catalog.bandSets, catalog.bandOrder);
   const compareBands: BandHelpComparer = (a, b) => compareBandHelp(a, b, ranks);
-  return { sets: detectSetRecords(rows, workoutId, 'average', compareBands), volume: detectVolumeRecords(rows, workoutId) };
+  return { sets: detectSetRecords(rows, workoutId, 'average', compareBands), volume: detectVolumeRecords(rows, workoutId), sameLoad: detectSameLoadRecords(rows, workoutId) };
 }
 
 /** Reps at each logged load across finished sessions of one exercise, in a side view. */

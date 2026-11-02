@@ -39,7 +39,7 @@ const NO_RECORDS: ReadonlyMap<string, RecordKind[]> = new Map();
  * and the add-set row. Shared by the workout in progress and a finished workout's page; the live-only
  * parts (hold timer, EMOM, comparison with last time, records) are optional.
  */
-export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, previous, hold = null, onChange, onSetValue, onComplete, onStartHold, onFinishHold, onAddSet, onAddWarmup, onCopyAllLast, onSetOptions, onUncomplete, onRemoveSet, onSwiped, showRpe, onRpe, onOptions, onToggleWarmup, setRecords = NO_RECORDS, volumeRecord = false, supersetLabel = null, emomLabel: emomBadgeLabel, defaultRest = 0, onFormRating, onRomRating, onNote, focus = false, nowLabel = null, figure = null, editDone = false, typeDone = false, compare = true, apparatusLabel = null, firstTimeLabel, describeBands, compareBands, renderBandsEditor, fixedAction = false }: {
+export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, previous, hold = null, onChange, onSetValue, onComplete, onStartHold, onFinishHold, onAddSet, onAddWarmup, onCopyAllLast, onSetOptions, onUncomplete, onRemoveSet, onSwiped, showRpe, onRpe, onOptions, onToggleWarmup, setRecords = NO_RECORDS, volumeRecord = false, sameLoadRecord = null, supersetLabel = null, emomLabel: emomBadgeLabel, defaultRest = 0, onFormRating, onRomRating, onNote, focus = false, nowLabel = null, figure = null, editDone = false, typeDone = false, compare = true, apparatusLabel = null, firstTimeLabel, describeBands, compareBands, renderBandsEditor, fixedAction = false }: {
   handle?: ReactNode;
   exercise: SessionExercise;
   collapsed: boolean;
@@ -68,6 +68,8 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
   onToggleWarmup: (set: SessionSet) => void;
   setRecords?: ReadonlyMap<string, RecordKind[]>;
   volumeRecord?: boolean;
+  /** Mini-PR: more total reps (or seconds) than ever at this load with the same number of sets. */
+  sameLoadRecord?: { loadKg: number; sets: number; gain: number } | null;
   supersetLabel?: string | null;
   emomLabel?: string | null;
   /** Rest the app applies to a working set without its own, for the rest comparison. */
@@ -277,6 +279,14 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
             {apparatusLabel ? <Label>{`· ${apparatusLabel}`}</Label> : null}
             {supersetLabel ? <Label style={{ color: palette.accentStrong }}>{`· ${supersetLabel}`}</Label> : null}
             {emomBadgeLabel ? <Label accessibilityLiveRegion="polite" style={{ color: palette.accentStrong }}>{`· ${emomBadgeLabel}`}</Label> : null}
+            {sameLoadRecord ? (
+              <View style={[styles.recordChip, { backgroundColor: palette.recordSoft }]}>
+                <Icon name="trophy-outline" size={13} color={palette.record} />
+                <Text style={[styles.clipChipText, { color: palette.record }]}>
+                  {t(sameLoadRecord.loadKg === 0 ? 'records.sameLoadBody' : 'records.sameLoad', { sets: sameLoadRecord.sets, load: formatNumber(sameLoadRecord.loadKg), gain: formatNumber(sameLoadRecord.gain) })}
+                </Text>
+              </View>
+            ) : null}
             {volumeRecord ? (
               <View style={[styles.recordChip, { backgroundColor: palette.recordSoft }]}>
                 <Icon name="trophy-outline" size={13} color={palette.record} />
