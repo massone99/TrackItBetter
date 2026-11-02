@@ -605,13 +605,9 @@ export default function WorkoutScreen() {
     await completeRegularSet(set);
   };
 
-  /** Rating the set in hand completes it: one tap instead of two. Timed sets and EMOM rounds keep their own flow. */
+  /** Rating a set only saves the RPE: the set is completed by its own button, never by the rating. */
   const rateSet = async (set: SessionSet, rpe: number | null) => {
-    const exercise = workout?.exercises.find((item) => item.sets.some((candidate) => candidate.id === set.id));
     await saveRpe(set, rpe);
-    if (!exercise) return;
-    const next = exercise.sets.find((item) => !item.completedAt);
-    if (rpe !== null && next?.id === set.id && exercise.metric !== 'time' && exercise.metric !== 'time_load' && exercise.entryId !== emomEntryId) await completeHoldManually(set);
   };
 
   const startHoldFor = (set: SessionSet) => {
