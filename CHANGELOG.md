@@ -2,6 +2,10 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.61.2 - 2026-11-02
+
+- Workout: "Copy last time to all sets" also brings the warm-ups of last time that the exercise does not have yet, in front of the working sets.
+
 ## 0.61.1 - 2026-11-02
 
 - Workout: choosing the RPE no longer completes the set; the set is completed by Complete set, its check or a swipe.
