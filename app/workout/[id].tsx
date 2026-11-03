@@ -199,13 +199,22 @@ export default function WorkoutScreen() {
   const [records, setRecords] = useState<{ sets: Map<string, RecordKind[]>; volume: Set<string>; sameLoad: Map<string, { loadKg: number; sets: number; gain: number }> }>(() => ({ sets: new Map(), volume: new Set(), sameLoad: new Map() }));
   // The exercise in hand and its live telemetry against comparable history.
   const handExercise = useMemo(() => workout?.exercises.find((exercise) => exercise.sets.length > 0 && !exerciseFinished(exercise.sets)) ?? null, [workout]);
-  // Telemetry follows the last set completed (its exercise stays analysed while the next one is started); before any set, the exercise in hand.
+  // Telemetry follows the last set completed (its exercise stays analysed until its last set is done, then the next exercise with sets to do); before any set, the exercise in hand.
   const telemetryExercise = useMemo(() => {
     let latest: { exercise: SessionExercise; at: number } | null = null;
     for (const exercise of workout?.exercises ?? []) {
       for (const set of exercise.sets) {
         if (set.kind === 'working' && set.completedAt && (latest === null || set.completedAt.getTime() >= latest.at)) latest = { exercise, at: set.completedAt.getTime() };
       }
+    }
+    // Once the last set of that exercise is done, the analysis moves on to the next exercise with sets still to do.
+    if (latest && latest.exercise.sets.every((set) => set.completedAt)) {
+      const entryId = latest.exercise.entryId;
+      const exercises = workout?.exercises ?? [];
+      const position = exercises.findIndex((exercise) => exercise.entryId === entryId);
+      const hasOpen = (exercise: SessionExercise) => exercise.entryId !== entryId && exercise.sets.some((set) => set.kind === 'working' && !set.completedAt);
+      const later = exercises.slice(position + 1).find(hasOpen) ?? exercises.find(hasOpen);
+      return later ?? latest.exercise;
     }
     return latest?.exercise ?? handExercise;
   }, [workout, handExercise]);
