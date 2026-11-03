@@ -2,6 +2,10 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.61.3 - 2026-11-03
+
+- Workout: the blue "Now" card is the exercise the telemetry analyses (the one of the last completed set).
+
 ## 0.61.2 - 2026-11-02
 
 - Workout: "Copy last time to all sets" also brings the warm-ups of last time that the exercise does not have yet, in front of the working sets.
