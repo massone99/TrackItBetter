@@ -748,7 +748,6 @@ export default function WorkoutScreen() {
   const readinessCount = [workout.sleep, workout.energy, workout.soreness].filter((value) => value !== null).length;
   // The exercise in hand: the first one with sets still to do.
   const currentEntryId = workout.exercises.find((exercise) => exercise.sets.length > 0 && !exerciseFinished(exercise.sets))?.entryId ?? null;
-  const currentIndex = workout.exercises.findIndex((exercise) => exercise.entryId === currentEntryId);
   // Live feedback of the exercise in hand; one line while a timer runs, at large text and on short screens, so it never crowds the footer.
   const telemetryCompact = largeText || windowHeight < 700 || hold.active !== null || restEndsAt !== null || Boolean(emom.plan);
   // Focus mode: the action of the set in hand is fixed above the footer (the exercise card leaves its own button out for that set).
@@ -803,6 +802,9 @@ export default function WorkoutScreen() {
     </>
   ) : null;
   const telemetryDock = !railsMode && telemetryOn && telemetryExercise ? <ExerciseTelemetryDock view={telemetry} compact={telemetryCompact} /> : null;
+  // The blue "Now" card is the exercise the telemetry analyses (the exercise in hand when the telemetry is off or has nothing yet).
+  const nowEntryId = (telemetryOn ? telemetryExercise?.entryId : null) ?? currentEntryId;
+  const nowIndex = workout.exercises.findIndex((exercise) => exercise.entryId === nowEntryId);
   const timerRunning = hold.active !== null || restEndsAt !== null || Boolean(emom.plan && emom.phase);
   const lowReadiness = (workout.sleep !== null && workout.sleep <= 2) || (workout.energy !== null && workout.energy <= 2) || (workout.soreness !== null && workout.soreness >= 4);
 
@@ -930,7 +932,7 @@ export default function WorkoutScreen() {
             focus={focusMode}
             fixedAction={primaryBar !== null && exercise.entryId === handExercise?.entryId}
             figure={index + 1}
-            nowLabel={exercise.entryId === currentEntryId ? t('workout.now', { position: currentIndex + 1, total: workout.exercises.length }) : null}
+            nowLabel={exercise.entryId === nowEntryId ? t('workout.now', { position: nowIndex + 1, total: workout.exercises.length }) : null}
             exercise={exercise}
             collapsed={collapsedEntries.get(exercise.entryId) ?? false}
             onToggleCollapsed={() => setCollapsedEntries((current) => new Map(current).set(exercise.entryId, !(current.get(exercise.entryId) ?? false)))}
