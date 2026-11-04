@@ -2,6 +2,11 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.62.1 - 2026-11-05
+
+- Workout: selecting an exercise by touch no longer moves anything: every card leaves its own Complete button out while the fixed one exists, the telemetry tiles keep their height and the Telemetry rail always reads "Live".
+- Workout: an exercise with only warm-ups left can be selected too.
+
 ## 0.62.0 - 2026-11-04
 
 - Workout: the exercise you touch last is the selected one: blue "Now" card, telemetry, Complete set and rails follow it until it has no working set left to do.
