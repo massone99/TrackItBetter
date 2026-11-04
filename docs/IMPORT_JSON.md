@@ -56,3 +56,5 @@ lacks (at the end), a relation already there is skipped, and the preview lists w
 that would make a loop (A → B → A) is refused, naming the exercises. In the app, Progressions → Export
 writes the same format (with each exercise's `id`, so it is matched exactly when imported on the same
 device); examples: `docs/import-examples/example-chains.json`, and `program-with-chains.json` (a program with the chains and relations of its exercises in one file).
+
+A formal JSON Schema (draft 2020-12) of the whole file is in `docs/trackitbetter-import.schema.json`; the app's checks are in `src/features/data/importJson.ts`. Not importable from a program: a movement's `block`.

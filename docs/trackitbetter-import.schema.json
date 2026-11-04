@@ -1,0 +1,162 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "TrackItBetter import file (programs, movements, routines, chains)",
+  "description": "Format read by src/features/data/importJson.ts. A program lists prescriptions that point at movements by `key` (defined in `exercises` of the same file), by the id, or by the exact name (case-insensitive) of a movement already in the app.",
+  "type": "object",
+  "required": ["format", "version"],
+  "additionalProperties": true,
+  "properties": {
+    "format": { "const": "trackitbetter-import" },
+    "version": { "const": 1 },
+    "exercises": { "type": "array", "default": [], "items": { "$ref": "#/$defs/exercise" } },
+    "programs": { "type": "array", "default": [], "items": { "$ref": "#/$defs/program" } },
+    "mobilityRoutines": { "type": "array", "default": [], "items": { "$ref": "#/$defs/routine" } },
+    "chains": { "type": "array", "maxItems": 200, "default": [], "items": { "$ref": "#/$defs/chain" } },
+    "links": { "type": "array", "maxItems": 2000, "default": [], "items": { "$ref": "#/$defs/link" } }
+  },
+  "$comment": "At least one of exercises, programs, mobilityRoutines, chains or links must be non-empty.",
+  "$defs": {
+    "exercise": {
+      "type": "object",
+      "required": ["key", "name", "metric", "category"],
+      "properties": {
+        "key": { "type": "string", "minLength": 1, "description": "Unique inside the file; how programs refer to this movement." },
+        "id": { "type": "string", "minLength": 1, "description": "Id in the exporting app; reused when this app has it, else the name decides." },
+        "name": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "metric": { "enum": ["reps", "time", "reps_load", "time_load", "distance"] },
+        "category": { "$ref": "#/$defs/category" },
+        "extraCategories": { "type": "array", "items": { "$ref": "#/$defs/category" }, "default": [] },
+        "unilateral": { "type": "boolean", "default": false },
+        "mobilityMode": { "enum": ["active", "passive", null], "default": null },
+        "equipment": { "type": "array", "items": { "type": "string" }, "default": [] },
+        "cues": { "type": "array", "items": { "type": "string" }, "default": [] },
+        "demoUrl": { "type": ["string", "null"], "default": null },
+        "images": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "type": "object",
+            "required": ["data", "width", "height"],
+            "properties": {
+              "data": { "type": "string", "minLength": 8, "maxLength": 20000000, "description": "Base64, with or without the data:image/...;base64, prefix." },
+              "mimeType": { "enum": ["image/jpeg", "image/png", "image/webp"], "default": "image/jpeg" },
+              "width": { "type": "integer", "minimum": 1 },
+              "height": { "type": "integer", "minimum": 1 }
+            }
+          }
+        }
+      }
+    },
+    "category": { "enum": ["push", "pull", "biceps", "triceps", "legs", "core", "skill", "mobility", "cardio"] },
+    "rpe": { "enum": [6, 6.5, 7, 7.5, 8, 8.5, 9, 9.5, 10], "description": "6 to 10 in half steps." },
+    "program": {
+      "type": "object",
+      "required": ["name", "sessions"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "sessions": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 30,
+          "description": "The workouts of the program, in rotation order.",
+          "items": {
+            "type": "object",
+            "required": ["name", "exercises"],
+            "properties": {
+              "name": { "type": "string", "minLength": 1, "maxLength": 80 },
+              "notes": { "type": ["string", "null"], "maxLength": 1000, "default": null },
+              "exercises": { "type": "array", "minItems": 1, "maxItems": 40, "items": { "$ref": "#/$defs/prescription" } }
+            }
+          }
+        }
+      }
+    },
+    "prescription": {
+      "type": "object",
+      "required": ["exercise"],
+      "properties": {
+        "exercise": { "type": "string", "minLength": 1, "description": "A `key` of this file, or the id or the name of a movement already in the app." },
+        "sets": { "type": "integer", "minimum": 1, "maximum": 30, "default": 1 },
+        "target": { "type": ["number", "null"], "exclusiveMinimum": 0, "default": null, "description": "Reps, seconds or meters, by the movement's metric; null leaves it open." },
+        "note": { "type": ["string", "null"], "maxLength": 1000, "default": null },
+        "restSeconds": { "type": ["integer", "null"], "minimum": 0, "maximum": 3600, "default": null },
+        "loadKg": { "type": ["number", "null"], "minimum": 0, "default": null, "description": "Planned added load, for weighted movements; null reuses last time's load." },
+        "rpe": { "oneOf": [{ "$ref": "#/$defs/rpe" }, { "type": "null" }], "default": null, "description": "Target RPE for every set." },
+        "rpePerSet": { "type": ["array", "null"], "items": { "oneOf": [{ "$ref": "#/$defs/rpe" }, { "type": "null" }] }, "default": null, "description": "Target RPE set by set (index 0 is set 1); wins over `rpe`." },
+        "totalTarget": { "type": ["number", "null"], "exclusiveMinimum": 0, "default": null, "description": "A total to reach in as many sets as it takes; `sets` is then ignored." }
+      }
+    },
+    "routine": {
+      "type": "object",
+      "required": ["name", "steps"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1, "maxLength": 60 },
+        "transitionSec": { "type": "integer", "minimum": 0, "maximum": 60, "default": 5 },
+        "prepSec": { "type": "integer", "minimum": 0, "maximum": 30, "default": 5 },
+        "steps": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 40,
+          "items": {
+            "type": "object",
+            "required": ["exercise", "mode"],
+            "properties": {
+              "exercise": { "type": "string", "minLength": 1 },
+              "mode": { "enum": ["hold", "reps"] },
+              "seconds": { "type": "integer", "minimum": 5, "maximum": 600, "default": 30 },
+              "reps": { "type": "integer", "minimum": 1, "maximum": 100, "default": 10 },
+              "perSide": { "type": "boolean", "default": false },
+              "rounds": { "type": "integer", "minimum": 1, "maximum": 10, "default": 1 },
+              "restSec": { "type": "integer", "minimum": 0, "maximum": 300, "default": 0 }
+            }
+          }
+        }
+      }
+    },
+    "criteria": {
+      "type": "object",
+      "required": ["sets"],
+      "oneOf": [{ "required": ["reps"] }, { "required": ["seconds"] }],
+      "properties": {
+        "sets": { "type": "integer", "minimum": 1, "maximum": 20 },
+        "reps": { "type": "integer", "minimum": 1, "maximum": 1000 },
+        "seconds": { "type": "integer", "minimum": 1, "maximum": 3600 },
+        "requiredSessions": { "type": "integer", "minimum": 1, "maximum": 20, "default": 1 }
+      }
+    },
+    "chain": {
+      "type": "object",
+      "required": ["name", "steps"],
+      "properties": {
+        "key": { "type": "string", "minLength": 1 },
+        "name": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "description": { "type": "string", "maxLength": 500, "default": "" },
+        "skill": { "type": "string", "maxLength": 60, "default": "" },
+        "steps": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 60,
+          "items": {
+            "type": "object",
+            "required": ["exercise"],
+            "properties": {
+              "exercise": { "type": "string", "minLength": 1 },
+              "criteria": { "oneOf": [{ "$ref": "#/$defs/criteria" }, { "type": "null" }], "default": null }
+            }
+          }
+        }
+      }
+    },
+    "link": {
+      "type": "object",
+      "required": ["from", "to", "kind"],
+      "properties": {
+        "from": { "type": "string", "minLength": 1 },
+        "to": { "type": "string", "minLength": 1 },
+        "kind": { "enum": ["progression", "prerequisite", "variation"] },
+        "criteria": { "oneOf": [{ "$ref": "#/$defs/criteria" }, { "type": "null" }], "default": null },
+        "note": { "type": "string", "maxLength": 500, "default": "" }
+      }
+    }
+  }
+}
