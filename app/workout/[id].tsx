@@ -199,7 +199,8 @@ export default function WorkoutScreen() {
   const [records, setRecords] = useState<{ sets: Map<string, RecordKind[]>; volume: Set<string>; sameLoad: Map<string, { loadKg: number; sets: number; gain: number }> }>(() => ({ sets: new Map(), volume: new Set(), sameLoad: new Map() }));
   // The exercise in hand and its live telemetry against comparable history.
   // The exercise the user touched last is the selected one: blue "Now" card, telemetry, main action and rails all follow it,
-  // until it has no working set left to do (then the automatic choice below takes over again).
+  // until it has no set left to do (then the automatic choice below takes over again). Selecting never moves anything: every card
+  // leaves its own Complete button out while the fixed one exists, whichever exercise is selected.
   const [selectedEntryId, setSelectedEntryId] = useState<string | null>(null);
   // A touch on a card only updates state when the exercise changes: the ref answers "same one again" without a render.
   const selectedRef = useRef<string | null>(null);
@@ -209,7 +210,7 @@ export default function WorkoutScreen() {
     setSelectedEntryId(entryId);
   }, []);
   const selectedExercise = useMemo(
-    () => workout?.exercises.find((exercise) => exercise.entryId === selectedEntryId && exercise.sets.some((set) => set.kind === 'working' && !set.completedAt)) ?? null,
+    () => workout?.exercises.find((exercise) => exercise.entryId === selectedEntryId && exercise.sets.some((set) => !set.completedAt)) ?? null,
     [workout, selectedEntryId],
   );
   const autoHandExercise = useMemo(() => workout?.exercises.find((exercise) => exercise.sets.length > 0 && !exerciseFinished(exercise.sets)) ?? null, [workout]);
@@ -812,7 +813,7 @@ export default function WorkoutScreen() {
         ...(telemetryOn ? [{
           id: 'telemetry' as const,
           label: t('dock.telemetry'),
-          summary: telemetry ? `● ${t('telemetry.live')}` : t('telemetry.loading'),
+          summary: `● ${t('telemetry.live')}`, // the same short text while the reference loads: the rail never changes height
           open: dockPanel === 'telemetry' && telemetryInline,
           onPress: () => { if (telemetryInline) setDockPanel(dockPanel === 'telemetry' ? null : 'telemetry'); else { setDockPanel(null); setTelemetrySheet(true); } },
         }] : []),
@@ -955,7 +956,7 @@ export default function WorkoutScreen() {
           ) : null}
           <ExerciseCard
             focus={focusMode}
-            fixedAction={primaryBar !== null && exercise.entryId === handExercise?.entryId}
+            fixedAction={primaryBar !== null}
             figure={index + 1}
             nowLabel={exercise.entryId === nowEntryId ? t('workout.now', { position: nowIndex + 1, total: workout.exercises.length }) : null}
             exercise={exercise}

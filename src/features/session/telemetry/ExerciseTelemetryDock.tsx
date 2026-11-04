@@ -139,7 +139,8 @@ export function ExerciseTelemetryDock({ view, compact }: { view: TelemetryView |
                 <Text style={[styles.tileLabel, { color: palette.textMuted }]}>{tile.label.toUpperCase()}</Text>
                 <Text style={[styles.tileValue, { color: palette.text }]}>{tile.value}</Text>
                 <Text style={[styles.tileReference, { color: toneColor(tile.tone) }]}>{tile.reference.toUpperCase()}</Text>
-                {tile.state ? <Text style={[styles.tileState, { color: tile.id === 'best' && (record === 'confirmed' || record === 'candidate') ? palette.record : palette.textMuted }]}>{tile.state.toUpperCase()}</Text> : null}
+                {/* Always present, so a tile keeps its height when the state line comes and goes between exercises. */}
+            <Text style={[styles.tileState, { color: tile.id === 'best' && (record === 'confirmed' || record === 'candidate') ? palette.record : palette.textMuted }]}>{tile.state ? tile.state.toUpperCase() : ' '}</Text>
               </View>
             ))}
           </View>
