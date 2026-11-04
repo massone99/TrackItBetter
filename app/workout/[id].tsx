@@ -201,6 +201,13 @@ export default function WorkoutScreen() {
   // The exercise the user touched last is the selected one: blue "Now" card, telemetry, main action and rails all follow it,
   // until it has no working set left to do (then the automatic choice below takes over again).
   const [selectedEntryId, setSelectedEntryId] = useState<string | null>(null);
+  // A touch on a card only updates state when the exercise changes: the ref answers "same one again" without a render.
+  const selectedRef = useRef<string | null>(null);
+  const selectEntry = useCallback((entryId: string) => {
+    if (selectedRef.current === entryId) return;
+    selectedRef.current = entryId;
+    setSelectedEntryId(entryId);
+  }, []);
   const selectedExercise = useMemo(
     () => workout?.exercises.find((exercise) => exercise.entryId === selectedEntryId && exercise.sets.some((set) => set.kind === 'working' && !set.completedAt)) ?? null,
     [workout, selectedEntryId],
@@ -942,7 +949,7 @@ export default function WorkoutScreen() {
           renderRow={(exercise, index, row) => {
             const copyable = copyableSets(exercise, previous.get(exercise.exerciseId));
             return (
-            <Animated.View entering={exerciseEntering} exiting={itemExiting} onStartShouldSetResponderCapture={() => { setSelectedEntryId(exercise.entryId); return false; }}>
+            <Animated.View entering={exerciseEntering} exiting={itemExiting} onTouchStart={() => selectEntry(exercise.entryId)}>
           {showBlocks && (index === 0 || blockOf(workout.exercises[index - 1].block) !== exercise.block) ? (
             <BlockHeader block={exercise.block} exercises={workout.exercises.filter((item) => item.block === exercise.block)} />
           ) : null}
