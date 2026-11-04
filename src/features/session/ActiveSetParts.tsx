@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { Gauge, gaugeMax } from './instrument';
-import { Icon, Tag, Text } from '../../shared/components/ui';
+import { Icon, Tag, Text, tapFeedback } from '../../shared/components/ui';
 import { useInk } from '../../shared/theme/ink';
 import { useScaledStyles } from '../../shared/theme/useScaledStyles';
 import { useTheme } from '../../shared/theme/ThemeProvider';
@@ -134,34 +134,54 @@ export function RatingCells({ title, counter, cells }: { title: string; counter:
   );
 }
 
-/** Band section of the set in hand: the estimated assistance as a big figure, and the chosen bands with their editor button. */
-export function BandsStrip({ title, tag, assistLabel, assistValue, assistUnit, assistFoot, text, colors, open, actionLabel, onPress }: { title: string; tag: string; assistLabel: string; assistValue: string; assistUnit: string | null; assistFoot: string; text: string; colors: string[]; open: boolean; actionLabel: string; onPress: () => void }) {
+/**
+ * Band section of the set in hand: the estimated assistance as a big figure, and the chosen bands with their editor
+ * button. Its header folds it to one line (bands and assistance) that keeps the edit button within reach.
+ */
+export function BandsStrip({ title, tag, assistLabel, assistValue, assistUnit, assistFoot, text, colors, open, actionLabel, folded, foldLabel, onToggleFolded, onPress }: { title: string; tag: string; assistLabel: string; assistValue: string; assistUnit: string | null; assistFoot: string; text: string; colors: string[]; open: boolean; actionLabel: string; folded: boolean; foldLabel: string; onToggleFolded: () => void; onPress: () => void }) {
   const styles = useScaledStyles(baseStyles);
   const { palette } = useTheme();
   const ink = useInk();
+  const summary = `${assistValue}${assistUnit ? ` ${assistUnit}` : ''}`;
   return (
     <View style={[styles.bands, { borderColor: ink, backgroundColor: palette.surface }]}>
-      <View style={styles.bandsTop}>
+      <Pressable accessibilityRole="button" accessibilityLabel={foldLabel} accessibilityState={{ expanded: !folded }} onPress={() => { tapFeedback(); onToggleFolded(); }} style={({ pressed }) => [styles.bandsTop, pressed && { opacity: 0.7 }]}>
         <Text style={[styles.workText, styles.detailsText, { color: palette.textMuted }]}>{title}</Text>
-        <View style={[styles.bandsTag, { borderColor: palette.accentStrong }]}><Text style={[styles.workText, { color: palette.accentStrong }]}>{tag}</Text></View>
-      </View>
-      <View style={styles.bandsBody}>
-        <View style={styles.assist} accessible accessibilityLabel={`${assistLabel} ${assistValue} ${assistUnit ?? ''}. ${assistFoot}`}>
-          <Text style={[styles.workText, { color: palette.textMuted }]}>{assistLabel}</Text>
-          <View style={styles.assistFigure}>
-            <Text style={[styles.assistValue, { color: palette.text }]}>{assistValue}</Text>
-            {assistUnit ? <Text style={[styles.assistUnit, { color: palette.textMuted }]}>{assistUnit}</Text> : null}
+        {folded ? null : <View style={[styles.bandsTag, { borderColor: palette.accentStrong }]}><Text style={[styles.workText, { color: palette.accentStrong }]}>{tag}</Text></View>}
+        <Icon name={folded ? 'chevron-down' : 'chevron-up'} size={20} color={palette.textMuted} />
+      </Pressable>
+      {folded ? (
+        <View style={styles.bandsFolded}>
+          <View style={styles.bandsFoldedText}>
+            <View style={styles.swatchRow}>
+              {colors.map((color, index) => <View key={`${color}-${index}`} style={[styles.swatch, { backgroundColor: color, borderColor: palette.border }]} />)}
+              <Text style={[styles.bandName, { color: palette.text }]}>{text}</Text>
+            </View>
+            <Text style={[styles.workText, { color: palette.textMuted }]}>{`${assistLabel}: ${summary}`}</Text>
           </View>
-          <Text style={[styles.workText, { color: palette.textMuted }]}>{assistFoot}</Text>
+          <Pressable accessibilityRole="button" accessibilityLabel={actionLabel} accessibilityState={{ expanded: open }} onPress={onPress} style={({ pressed }) => [styles.bandsAction, { borderColor: ink }, pressed && { opacity: 0.6 }]}>
+            <Icon name="create-outline" size={18} color={palette.accentStrong} />
+          </Pressable>
         </View>
-        <Pressable accessibilityRole="button" accessibilityLabel={actionLabel} accessibilityState={{ expanded: open }} onPress={onPress} style={({ pressed }) => [styles.bandCard, { borderColor: ink, backgroundColor: palette.surfaceMuted }, pressed && { opacity: 0.6 }]}>
-          <View style={styles.swatchRow}>
-            {colors.map((color, index) => <View key={`${color}-${index}`} style={[styles.swatch, { backgroundColor: color, borderColor: palette.border }]} />)}
-            <Text style={[styles.bandName, { color: palette.text }]}>{text}</Text>
+      ) : (
+        <View style={styles.bandsBody}>
+          <View style={styles.assist} accessible accessibilityLabel={`${assistLabel} ${assistValue} ${assistUnit ?? ''}. ${assistFoot}`}>
+            <Text style={[styles.workText, { color: palette.textMuted }]}>{assistLabel}</Text>
+            <View style={styles.assistFigure}>
+              <Text style={[styles.assistValue, { color: palette.text }]}>{assistValue}</Text>
+              {assistUnit ? <Text style={[styles.assistUnit, { color: palette.textMuted }]}>{assistUnit}</Text> : null}
+            </View>
+            <Text style={[styles.workText, { color: palette.textMuted }]}>{assistFoot}</Text>
           </View>
-          <Text style={[styles.workText, { color: palette.accentStrong }]}>{`${actionLabel} ${open ? '↑' : '↓'}`}</Text>
-        </Pressable>
-      </View>
+          <Pressable accessibilityRole="button" accessibilityLabel={actionLabel} accessibilityState={{ expanded: open }} onPress={onPress} style={({ pressed }) => [styles.bandCard, { borderColor: ink, backgroundColor: palette.surfaceMuted }, pressed && { opacity: 0.6 }]}>
+            <View style={styles.swatchRow}>
+              {colors.map((color, index) => <View key={`${color}-${index}`} style={[styles.swatch, { backgroundColor: color, borderColor: palette.border }]} />)}
+              <Text style={[styles.bandName, { color: palette.text }]}>{text}</Text>
+            </View>
+            <Text style={[styles.workText, { color: palette.accentStrong }]}>{`${actionLabel} ${open ? '↑' : '↓'}`}</Text>
+          </Pressable>
+        </View>
+      )}
     </View>
   );
 }
@@ -197,6 +217,8 @@ const baseStyles = StyleSheet.create({
   bands: { borderWidth: 1, borderRadius: instrument.radius, marginVertical: spacing.sm },
   bandsTop: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: spacing.sm, padding: spacing.sm },
   bandsTag: { borderWidth: 1, borderRadius: instrument.radius, paddingHorizontal: spacing.sm, paddingVertical: spacing.xs },
+  bandsFolded: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: spacing.sm, paddingHorizontal: spacing.sm, paddingBottom: spacing.sm },
+  bandsFoldedText: { flexGrow: 1, flexShrink: 1, flexBasis: 160, minWidth: 0, gap: spacing.xs },
   bandsBody: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, padding: spacing.sm },
   assist: { flexGrow: 1, flexBasis: 120, minWidth: 0, gap: spacing.xs },
   assistFigure: { flexDirection: 'row', alignItems: 'baseline', gap: spacing.xs },
@@ -205,5 +227,6 @@ const baseStyles = StyleSheet.create({
   bandCard: { flexGrow: 1, flexBasis: 150, minWidth: 0, minHeight: MIN_TOUCH_TARGET, justifyContent: 'space-between', gap: spacing.sm, borderWidth: 1, borderRadius: instrument.radius, padding: spacing.sm },
   swatchRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: spacing.xs },
   swatch: { width: 14, height: 14, borderWidth: 1, borderRadius: instrument.radius },
+  bandsAction: { minWidth: MIN_TOUCH_TARGET, minHeight: MIN_TOUCH_TARGET, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderRadius: instrument.radius },
   bandName: { fontSize: 15, fontWeight: '700' },
 });

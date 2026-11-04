@@ -198,9 +198,18 @@ export default function WorkoutScreen() {
   const recordCount = useRef<number | null>(null);
   const [records, setRecords] = useState<{ sets: Map<string, RecordKind[]>; volume: Set<string>; sameLoad: Map<string, { loadKg: number; sets: number; gain: number }> }>(() => ({ sets: new Map(), volume: new Set(), sameLoad: new Map() }));
   // The exercise in hand and its live telemetry against comparable history.
-  const handExercise = useMemo(() => workout?.exercises.find((exercise) => exercise.sets.length > 0 && !exerciseFinished(exercise.sets)) ?? null, [workout]);
+  // The exercise the user touched last is the selected one: blue "Now" card, telemetry, main action and rails all follow it,
+  // until it has no working set left to do (then the automatic choice below takes over again).
+  const [selectedEntryId, setSelectedEntryId] = useState<string | null>(null);
+  const selectedExercise = useMemo(
+    () => workout?.exercises.find((exercise) => exercise.entryId === selectedEntryId && exercise.sets.some((set) => set.kind === 'working' && !set.completedAt)) ?? null,
+    [workout, selectedEntryId],
+  );
+  const autoHandExercise = useMemo(() => workout?.exercises.find((exercise) => exercise.sets.length > 0 && !exerciseFinished(exercise.sets)) ?? null, [workout]);
+  const handExercise = selectedExercise ?? autoHandExercise;
   // Telemetry follows the last set completed (its exercise stays analysed until its last set is done, then the next exercise with sets to do); before any set, the exercise in hand.
   const telemetryExercise = useMemo(() => {
+    if (selectedExercise) return selectedExercise;
     let latest: { exercise: SessionExercise; at: number } | null = null;
     for (const exercise of workout?.exercises ?? []) {
       for (const set of exercise.sets) {
@@ -217,7 +226,7 @@ export default function WorkoutScreen() {
       return later ?? latest.exercise;
     }
     return latest?.exercise ?? handExercise;
-  }, [workout, handExercise]);
+  }, [workout, handExercise, selectedExercise]);
   const telemetry = useExerciseTelemetry(telemetryExercise, records.sets);
   const [referenceFor, setReferenceFor] = useState<SessionExercise | null>(null);
   const [removeExerciseFor, setRemoveExerciseFor] = useState<SessionExercise | null>(null);
@@ -812,7 +821,7 @@ export default function WorkoutScreen() {
   ) : null;
   const telemetryDock = !railsMode && telemetryOn && telemetryExercise ? <ExerciseTelemetryDock view={telemetry} compact={telemetryCompact} /> : null;
   // The blue "Now" card is the exercise the telemetry analyses (the exercise in hand when the telemetry is off or has nothing yet).
-  const nowEntryId = (telemetryOn ? telemetryExercise?.entryId : null) ?? currentEntryId;
+  const nowEntryId = selectedExercise?.entryId ?? (telemetryOn ? telemetryExercise?.entryId : null) ?? currentEntryId;
   const nowIndex = workout.exercises.findIndex((exercise) => exercise.entryId === nowEntryId);
   const timerRunning = hold.active !== null || restEndsAt !== null || Boolean(emom.plan && emom.phase);
   const lowReadiness = (workout.sleep !== null && workout.sleep <= 2) || (workout.energy !== null && workout.energy <= 2) || (workout.soreness !== null && workout.soreness >= 4);
@@ -933,7 +942,7 @@ export default function WorkoutScreen() {
           renderRow={(exercise, index, row) => {
             const copyable = copyableSets(exercise, previous.get(exercise.exerciseId));
             return (
-            <Animated.View entering={exerciseEntering} exiting={itemExiting}>
+            <Animated.View entering={exerciseEntering} exiting={itemExiting} onStartShouldSetResponderCapture={() => { setSelectedEntryId(exercise.entryId); return false; }}>
           {showBlocks && (index === 0 || blockOf(workout.exercises[index - 1].block) !== exercise.block) ? (
             <BlockHeader block={exercise.block} exercises={workout.exercises.filter((item) => item.block === exercise.block)} />
           ) : null}

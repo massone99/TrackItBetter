@@ -19,6 +19,7 @@ import { fonts } from '../../shared/theme/typography';
 import { useScaledStyles } from '../../shared/theme/useScaledStyles';
 import { formatClock, formatNumber } from '../../shared/utils/format';
 import { Gauge, RegistrationMarks, Tag, useInk } from './instrument';
+import { readBooleanPreference, writePreference } from '../../shared/settings/preferences';
 import { BandsStrip, DetailsToggle, MeasureBox, PreviousSetBox, RatingCells, SetSegments, WorkOutput, gaugeMax, type RatingCell } from './ActiveSetParts';
 import { FormRating, LastTimeStrip } from './LastTime';
 import type { PreviousPerformance, SessionExercise, SessionSet } from './repository';
@@ -39,6 +40,8 @@ const NO_RECORDS: ReadonlyMap<string, RecordKind[]> = new Map();
  * and the add-set row. Shared by the workout in progress and a finished workout's page; the live-only
  * parts (hold timer, EMOM, comparison with last time, records) are optional.
  */
+const BANDS_FOLDED_KEY = 'workout.bandsFolded';
+
 export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, previous, hold = null, onChange, onSetValue, onComplete, onStartHold, onFinishHold, onAddSet, onAddWarmup, onCopyAllLast, onSetOptions, onUncomplete, onRemoveSet, onSwiped, showRpe, onRpe, onOptions, onToggleWarmup, setRecords = NO_RECORDS, volumeRecord = false, sameLoadRecord = null, supersetLabel = null, emomLabel: emomBadgeLabel, defaultRest = 0, onFormRating, onRomRating, onNote, focus = false, nowLabel = null, figure = null, editDone = false, typeDone = false, compare = true, apparatusLabel = null, firstTimeLabel, describeBands, compareBands, renderBandsEditor, fixedAction = false }: {
   handle?: ReactNode;
   exercise: SessionExercise;
@@ -207,6 +210,9 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
   const toggleOpen = (setId: string, kind: 'rpe' | 'form' | 'rom' | 'note', isOpen: boolean) => { tapFeedback(); setChosen((current) => new Map(current).set(setId, isOpen ? null : kind)); };
   // Focus mode: the set whose band editor is open below its band strip.
   const [bandsEditing, setBandsEditing] = useState<string | null>(null);
+  // The band section folds to one line; the choice is kept between sets and workouts.
+  const [bandsFolded, setBandsFolded] = useState(() => readBooleanPreference(BANDS_FOLDED_KEY, false));
+  const toggleBandsFolded = () => { setBandsFolded(!bandsFolded); writePreference(BANDS_FOLDED_KEY, String(!bandsFolded)); };
   const [detailsOpen, setDetailsOpen] = useState<ReadonlySet<string>>(() => new Set());
   // Bands belong in the set in hand when the exercise already uses them, now or last time.
   const bandsInUse = exercise.sets.some((item) => item.bands.length > 0) || Boolean(previous?.sets.some((item) => (item.bands?.length ?? 0) > 0));
@@ -819,6 +825,9 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
                         text={described?.text ?? t('bands.chipEmpty')}
                         colors={described?.colors ?? []}
                         open={bandsOpen}
+                        folded={bandsFolded}
+                        foldLabel={t(bandsFolded ? 'activeSet.bandsUnfold' : 'activeSet.bandsFold')}
+                        onToggleFolded={toggleBandsFolded}
                         actionLabel={t(bandsOpen ? 'activeSet.bandsClose' : 'activeSet.bandsEdit').toUpperCase()}
                         onPress={() => { tapFeedback(); setBandsEditing(bandsOpen ? null : set.id); }}
                       />

@@ -90,6 +90,18 @@ describe('active set in focus mode', () => {
     expect(screen.getByText('band editor')).toBeTruthy();
   });
 
+  it('folds the band section to one line that keeps the edit button, and unfolds it again', () => {
+    const banded = set(1, { bands: [{ bandId: 'blue', tension: 2 }], assistKg: null });
+    show([banded, set(2)], { describeBands: () => ({ colors: ['#2F80ED'], text: 'Blue · 2' }), renderBandsEditor: () => <Text>band editor</Text> });
+    expect(screen.getByText('KG NOT AVAILABLE')).toBeTruthy();
+    fireEvent.press(screen.getByLabelText('Fold the bands section'));
+    expect(screen.queryByText('KG NOT AVAILABLE')).toBeNull();
+    fireEvent.press(screen.getByLabelText('EDIT BANDS'));
+    expect(screen.getByText('band editor')).toBeTruthy();
+    fireEvent.press(screen.getByLabelText('Show the bands section'));
+    expect(screen.getByText('KG NOT AVAILABLE')).toBeTruthy();
+  });
+
   it('has no band strip for an exercise without bands, and More details opens the set menu', () => {
     const { onSetOptions } = show([set(1)]);
     expect(screen.queryByText('↳ RESISTANCE BANDS / SET ASSISTANCE')).toBeNull();
