@@ -2,6 +2,13 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.62.0 - 2026-11-04
+
+- Workout: the exercise you touch last is the selected one: blue "Now" card, telemetry, Complete set and rails follow it until it has no working set left to do.
+- Workout: once the last set of the analysed exercise is done, the "Now" card and the telemetry move to the next exercise with sets to do.
+- Workout: the bands section of the active set folds to one line (bands and assistance) and keeps its edit button; the choice is remembered.
+- Docs: JSON Schema of the import file (`docs/trackitbetter-import.schema.json`).
+
 ## 0.61.3 - 2026-11-03
 
 - Workout: the blue "Now" card is the exercise the telemetry analyses (the one of the last completed set).
