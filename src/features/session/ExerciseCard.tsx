@@ -42,7 +42,7 @@ const NO_RECORDS: ReadonlyMap<string, RecordKind[]> = new Map();
  */
 const BANDS_FOLDED_KEY = 'workout.bandsFolded';
 
-export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, previous, hold = null, onChange, onSetValue, onComplete, onStartHold, onFinishHold, onAddSet, onAddWarmup, onCopyAllLast, onSetOptions, onUncomplete, onRemoveSet, onSwiped, showRpe, onRpe, onOptions, onToggleWarmup, setRecords = NO_RECORDS, volumeRecord = false, sameLoadRecord = null, supersetLabel = null, emomLabel: emomBadgeLabel, defaultRest = 0, onFormRating, onRomRating, onNote, focus = false, nowLabel = null, figure = null, editDone = false, typeDone = false, compare = true, apparatusLabel = null, firstTimeLabel, describeBands, compareBands, renderBandsEditor, fixedAction = false }: {
+export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, previous, hold = null, onChange, onSetValue, onComplete, onStartHold, onFinishHold, onAddSet, onAddWarmup, onCopyAllLast, onSetOptions, onUncomplete, onRemoveSet, onSwiped, showRpe, onRpe, onOptions, onToggleWarmup, setRecords = NO_RECORDS, volumeRecord = false, sameLoadRecord = null, supersetLabel = null, emomLabel: emomBadgeLabel, defaultRest = 0, onFormRating, onRomRating, onNote, focus = false, nowLabel = null, figure = null, editDone = false, typeDone = false, compare = true, apparatusLabel = null, firstTimeLabel, describeBands, compareBands, renderBandsEditor, fixedAction = false, onSetExpanded }: {
   handle?: ReactNode;
   exercise: SessionExercise;
   collapsed: boolean;
@@ -100,6 +100,8 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
   firstTimeLabel?: string;
   /** Swatches and text for a set's bands ("Blue · 2"), shown under the set. */
   describeBands?: (set: SessionSet) => { colors: string[]; text: string } | null;
+  /** Called when the user expands a set of this exercise (a row, "open all", or a folded set in focus mode). */
+  onSetExpanded?: () => void;
   /** Focus mode: the action of the next set is fixed above the screen footer, so the card leaves its own button out. */
   fixedAction?: boolean;
   /** The band editor shown under the set in hand in focus mode (saves through the equipment repository). */
@@ -184,12 +186,12 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
     if (next.has(setId)) next.delete(setId); else next.add(setId);
     return next;
   });
-  const unfold = (setId: string) => setFolded((current) => {
+  const unfold = (setId: string) => { onSetExpanded?.(); setFolded((current) => {
     if (!current.has(setId)) return current;
     const next = new Set(current);
     next.delete(setId);
     return next;
-  });
+  }); };
   const forget = (setId: string) => setExpanded((current) => {
     if (!current.has(setId)) return current;
     const next = new Map(current);
@@ -232,8 +234,8 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
   // A set is open when the user said so, else the one in hand (or just done, still to rate); the others show one line.
   const openOf = (set: SessionSet) => table && (expanded.get(set.id) ?? (hold?.setId === set.id || set.id === nextSetId || (!!set.completedAt && set.id === lastDoneId && set.kind === 'working' && set.formRating === null)));
   // One set open at a time: opening one folds the rest. "Open all" is the explicit way to see every set.
-  const openOnly = (setId: string) => setExpanded(new Map(exercise.sets.map((item) => [item.id, item.id === setId] as const)));
-  const setAllOpen = (value: boolean) => setExpanded(new Map(exercise.sets.map((item) => [item.id, value] as const)));
+  const openOnly = (setId: string) => { onSetExpanded?.(); setExpanded(new Map(exercise.sets.map((item) => [item.id, item.id === setId] as const))); };
+  const setAllOpen = (value: boolean) => { if (value) onSetExpanded?.(); setExpanded(new Map(exercise.sets.map((item) => [item.id, value] as const))); };
   const allOpen = table && exercise.sets.length > 1 && exercise.sets.every(openOf);
   const focusedId = hold && exercise.sets.some((set) => set.id === hold.setId) ? hold.setId : pickedSet?.id ?? nextSetId;
   // Last time's value of the same set (same position and kind, same side for L/R pairs): the marker on the set's gauge.
@@ -964,6 +966,8 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
                 </Pressable>
               )
             ) : null}
+            {/* The fixed Complete button stands in for this one: its room stays, so selecting an exercise moves nothing. */}
+            {editing && fixedAction && !done && set.id === nextSetId ? <View pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={styles.fixedActionRoom} /> : null}
             {focus && editing && !done && !(fixedAction && set.id === nextSetId) ? (
               <View style={styles.actionCaption}>
                 <Text style={[styles.queueText, styles.actionCaptionText, { color: palette.textMuted }]}>{t('activeSet.optional')}</Text>
@@ -972,6 +976,7 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
                 </Pressable>
               </View>
             ) : null}
+            {focus && editing && !done && fixedAction && set.id === nextSetId ? <View pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={styles.fixedCaptionRoom} /> : null}
           </Animated.View>
         );
       })}
@@ -1101,6 +1106,8 @@ const baseStyles = StyleSheet.create({
   stripState: { fontSize: 12, letterSpacing: 0.5 },
   queue: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', gap: spacing.xs, paddingVertical: spacing.sm },
   queueText: { fontSize: 12, letterSpacing: 0.5 },
+  fixedActionRoom: { minHeight: 56 },
+  fixedCaptionRoom: { minHeight: MIN_TOUCH_TARGET + spacing.sm },
   actionCaption: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: spacing.sm, paddingTop: spacing.sm },
   actionCaptionText: { flexShrink: 1 },
   actionLink: { minHeight: MIN_TOUCH_TARGET, justifyContent: 'center' },

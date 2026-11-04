@@ -198,11 +198,11 @@ export default function WorkoutScreen() {
   const recordCount = useRef<number | null>(null);
   const [records, setRecords] = useState<{ sets: Map<string, RecordKind[]>; volume: Set<string>; sameLoad: Map<string, { loadKg: number; sets: number; gain: number }> }>(() => ({ sets: new Map(), volume: new Set(), sameLoad: new Map() }));
   // The exercise in hand and its live telemetry against comparable history.
-  // The exercise the user touched last is the selected one: blue "Now" card, telemetry, main action and rails all follow it,
-  // until it has no set left to do (then the automatic choice below takes over again). Selecting never moves anything: every card
-  // leaves its own Complete button out while the fixed one exists, whichever exercise is selected.
+  // The exercise whose set the user expanded last is the selected one: blue "Now" card, telemetry, main action and rails all follow it,
+  // until it has no set left to do (then the automatic choice below takes over again). Selecting never moves anything: the card of
+  // the selected exercise keeps the room of its own Complete button (empty) while the fixed one exists.
   const [selectedEntryId, setSelectedEntryId] = useState<string | null>(null);
-  // A touch on a card only updates state when the exercise changes: the ref answers "same one again" without a render.
+  // Expanding a set only updates state when the exercise changes: the ref answers "same one again" without a render.
   const selectedRef = useRef<string | null>(null);
   const selectEntry = useCallback((entryId: string) => {
     if (selectedRef.current === entryId) return;
@@ -950,13 +950,14 @@ export default function WorkoutScreen() {
           renderRow={(exercise, index, row) => {
             const copyable = copyableSets(exercise, previous.get(exercise.exerciseId));
             return (
-            <Animated.View entering={exerciseEntering} exiting={itemExiting} onTouchStart={() => selectEntry(exercise.entryId)}>
+            <Animated.View entering={exerciseEntering} exiting={itemExiting}>
           {showBlocks && (index === 0 || blockOf(workout.exercises[index - 1].block) !== exercise.block) ? (
             <BlockHeader block={exercise.block} exercises={workout.exercises.filter((item) => item.block === exercise.block)} />
           ) : null}
           <ExerciseCard
             focus={focusMode}
-            fixedAction={primaryBar !== null}
+            fixedAction={primaryBar !== null && exercise.entryId === handExercise?.entryId}
+            onSetExpanded={() => selectEntry(exercise.entryId)}
             figure={index + 1}
             nowLabel={exercise.entryId === nowEntryId ? t('workout.now', { position: nowIndex + 1, total: workout.exercises.length }) : null}
             exercise={exercise}
