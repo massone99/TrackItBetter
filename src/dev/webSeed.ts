@@ -149,3 +149,16 @@ async function startBandedWorkout(): Promise<string> {
   return workoutId;
 }
 (globalThis as { __startBandedWorkout?: typeof startBandedWorkout }).__startBandedWorkout = startBandedWorkout;
+
+/** Development only: a workout with a unilateral movement whose first pair has only its left side done, to look at the finish check. */
+async function startOneSidedWorkout(): Promise<string> {
+  const { getActiveWorkout, completeSet } = await import('../features/session/repository');
+  const workoutId = await startWorkout('One side');
+  const unilateral = (await listExercises()).find((exercise) => exercise.unilateral);
+  if (!unilateral) throw new Error('No unilateral exercise in the catalogue');
+  await addExerciseToWorkout(workoutId, unilateral.id, false);
+  const first = (await getActiveWorkout(workoutId))?.exercises[0]?.sets.find((set) => set.side === 'left');
+  if (first) await completeSet(first.id);
+  return workoutId;
+}
+(globalThis as { __startOneSidedWorkout?: typeof startOneSidedWorkout }).__startOneSidedWorkout = startOneSidedWorkout;

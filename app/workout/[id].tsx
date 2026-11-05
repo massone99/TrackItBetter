@@ -60,6 +60,8 @@ import { adjustedRest, REST_STEP_SEC } from '../../src/domain/restTimer';
 import { ExerciseBlockField } from '../../src/features/session/ExerciseBlockField';
 import { blockOf, usesBlocks, type Block } from '../../src/domain/blocks';
 import { SetBandsField } from '../../src/features/equipment/SetBandsField';
+import { IncompletePairsSheet } from '../../src/features/session/IncompletePairsSheet';
+import { incompletePairs, type IncompletePair } from '../../src/features/session/incompletePairs';
 import { PrimaryActionBar } from '../../src/features/session/PrimaryActionBar';
 import { ExerciseTelemetryDock, TelemetryPanel } from '../../src/features/session/telemetry/ExerciseTelemetryDock';
 import { DockRails, WorkoutDockPanel } from '../../src/features/session/DockRails';
@@ -187,6 +189,7 @@ export default function WorkoutScreen() {
   const [saveOpen, setSaveOpen] = useState(false);
   const [savedTo, setSavedTo] = useState<{ id: string; name: string } | null>(null);
   const [discardOpen, setDiscardOpen] = useState(false);
+  const [pairsOpen, setPairsOpen] = useState(false);
   // Self-regulated rest under a total goal: when the clock started, and the rest offered on demand.
   const [freeRest, setFreeRest] = useState<{ since: number; restSec: number } | null>(null);
   const [totalFor, setTotalFor] = useState<SessionExercise | null>(null);
@@ -679,14 +682,15 @@ export default function WorkoutScreen() {
   const confirmFinish = async () => {
     if (!workout) return;
     setFinishOpen(false);
+    // One-sided sets with a single side done block the end: say which, and take the user to them.
+    if (incompletePairs(workout.exercises).length > 0) { setPairsOpen(true); return; }
     void Speech.stop();
     void cancelRestFinishedNotification().catch(() => undefined);
     if (emom.plan) await emom.stop();
     try { await finishWorkout(workout.id); }
     catch (error) {
-      if (error instanceof IncompletePairError) {
-        Alert.alert(t('logger.pairIncompleteTitle'), t('logger.pairIncompleteBody', { name: error.exerciseName, number: error.setIndex, side: t(error.side === 'left' ? 'logger.sideLeft' : 'logger.sideRight') }));
-      } else Alert.alert(t('history.saveError'), error instanceof Error ? error.message : String(error));
+      if (error instanceof IncompletePairError) setPairsOpen(true);
+      else Alert.alert(t('history.saveError'), error instanceof Error ? error.message : String(error));
       return;
     }
     // A workout from a program whose structure changed offers to update the prescribed workout; then the summary.
@@ -1029,6 +1033,18 @@ export default function WorkoutScreen() {
         onFoldAll={() => { tapFeedback(); setCollapsedEntries(new Map(workout.exercises.map((exercise) => [exercise.entryId, !allCollapsed]))); }}
         onSave={() => setSaveOpen(true)}
         onClear={() => setClearAllOpen(true)}
+      />
+      <IncompletePairsSheet
+        visible={pairsOpen}
+        pairs={incompletePairs(workout.exercises)}
+        onClose={() => setPairsOpen(false)}
+        onGo={(pair: IncompletePair) => {
+          setPairsOpen(false);
+          setCollapsedEntries((current) => new Map(current).set(pair.entryId, false));
+          selectEntry(pair.entryId);
+          const top = cardTops.current.get(pair.entryId);
+          if (top !== undefined) scrollRef.current?.scrollTo({ y: Math.max(0, top - 16), animated: true });
+        }}
       />
       <Sheet visible={telemetrySheet && telemetry !== null} onClose={() => setTelemetrySheet(false)} title={t('telemetry.title')}>
         {telemetry ? <TelemetryPanel view={telemetry} bordered={false} /> : null}
