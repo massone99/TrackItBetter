@@ -357,7 +357,6 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
           metric={exercise.metric}
           date={previous.workoutStartedAt.toLocaleDateString(i18n.language, { weekday: 'short', day: 'numeric', month: 'short' })}
           detail={previousText ?? ''}
-          compact={exercise.sets.some((set) => set.completedAt)}
         />
       ) : null}
 

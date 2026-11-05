@@ -26,13 +26,13 @@ describe('dock rails', () => {
     expect(onWorkout).not.toHaveBeenCalled();
   });
 
-  it('gives Add exercise and Finish workout their own buttons', () => {
-    const onAdd = jest.fn();
-    const onFinish = jest.fn();
-    wrap(<WorkoutDockPanel title="Workout" addLabel="Add exercise" finishLabel="Finish workout" onAdd={onAdd} onFinish={onFinish} />);
-    fireEvent.press(screen.getByLabelText('Add exercise'));
-    fireEvent.press(screen.getByLabelText('Finish workout'));
-    expect(onAdd).toHaveBeenCalledTimes(1);
-    expect(onFinish).toHaveBeenCalledTimes(1);
+  it('lists Add exercise, Finish workout and Cancel workout as separate options', () => {
+    const calls: string[] = [];
+    const option = (id: string, label: string, tone: 'normal' | 'primary' | 'danger') => ({ id, icon: 'add' as const, label, hint: `${label} hint`, tone, onPress: () => calls.push(id) });
+    wrap(<WorkoutDockPanel title="Workout" options={[option('add', 'Add exercise', 'normal'), option('finish', 'Finish workout', 'primary'), option('discard', 'Cancel workout', 'danger')]} />);
+    fireEvent.press(screen.getByLabelText('Add exercise. Add exercise hint'));
+    fireEvent.press(screen.getByLabelText('Finish workout. Finish workout hint'));
+    fireEvent.press(screen.getByLabelText('Cancel workout. Cancel workout hint'));
+    expect(calls).toEqual(['add', 'finish', 'discard']);
   });
 });

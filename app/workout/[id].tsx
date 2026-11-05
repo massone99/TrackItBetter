@@ -802,10 +802,11 @@ export default function WorkoutScreen() {
       {dockPanel === 'workout' ? (
         <WorkoutDockPanel
           title={t('dock.workoutPanel', { current: exercisePosition, total: workout.exercises.length })}
-          addLabel={t('workout.addExercise')}
-          finishLabel={t('workout.finish')}
-          onAdd={() => { setDockPanel(null); setPickerOpen(true); }}
-          onFinish={() => { setDockPanel(null); setFinishOpen(true); }}
+          options={[
+            { id: 'add', icon: 'add', label: t('workout.addExercise'), hint: t('dock.addHint'), tone: 'normal', onPress: () => { setDockPanel(null); setPickerOpen(true); } },
+            { id: 'finish', icon: 'flag-outline', label: t('workout.finish'), hint: t('dock.finishHint'), tone: 'primary', onPress: () => { setDockPanel(null); setFinishOpen(true); } },
+            { id: 'discard', icon: 'close-circle-outline', label: t('workout.discard'), hint: t('dock.discardHint'), tone: 'danger', onPress: () => { setDockPanel(null); setDiscardOpen(true); } },
+          ]}
         />
       ) : null}
       {primaryBar}
@@ -1028,7 +1029,6 @@ export default function WorkoutScreen() {
         onFoldAll={() => { tapFeedback(); setCollapsedEntries(new Map(workout.exercises.map((exercise) => [exercise.entryId, !allCollapsed]))); }}
         onSave={() => setSaveOpen(true)}
         onClear={() => setClearAllOpen(true)}
-        onDiscard={() => setDiscardOpen(true)}
       />
       <Sheet visible={telemetrySheet && telemetry !== null} onClose={() => setTelemetrySheet(false)} title={t('telemetry.title')}>
         {telemetry ? <TelemetryPanel view={telemetry} bordered={false} /> : null}
