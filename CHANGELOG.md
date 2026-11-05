@@ -2,6 +2,12 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.63.0 - 2026-11-05
+
+- Workout: an exercise is selected (blue "Now" card, telemetry, Complete set, rails) when you expand one of its sets, not on every touch; the selected card keeps the room of its own Complete button, so nothing moves.
+- Workout: the "Vs last time" metrics fold away and are closed by default; "Show sets" is always there and opens the sets inside the folding part.
+- Workout: the Workout rail opens a vertical list of options (Add exercise, Finish workout, and Cancel workout set apart); Cancel workout moved out of the top menu.
+
 ## 0.62.1 - 2026-11-05
 
 - Workout: selecting an exercise by touch no longer moves anything: every card leaves its own Complete button out while the fixed one exists, the telemetry tiles keep their height and the Telemetry rail always reads "Live".
