@@ -6,9 +6,10 @@ import { createCustomExercise } from '../exercises/customRepository';
 import { addImportedExerciseImages } from '../exercises/images';
 import { addLink, addStep, createChain, loadGraph } from '../progressions/chains';
 import { chainEdges, findCycle, linkProblem, type GraphEdge } from '../../domain/progressionGraph';
-import { listExercises } from '../exercises/repository';
+import { listExercises, setExerciseDemoUrl } from '../exercises/repository';
 import { saveMobilityRoutine } from '../mobility/routines';
 import { saveUserProgram } from '../programs/userPrograms';
+import { stretchStrongLinkFor } from '../../shared/utils/url';
 
 /** A file with this format brings movements, mobility routines and programs into the app. */
 export const IMPORT_FORMAT = 'trackitbetter-import';
@@ -262,7 +263,9 @@ export async function applyImport(plan: ImportPlan): Promise<ImportResult> {
   for (const exercise of plan.create) {
     ids.set(exercise.key, await createCustomExercise({
       name: exercise.name, metric: exercise.metric, category: exercise.category, extraCategories: exercise.extraCategories,
-      unilateral: exercise.unilateral, mobilityMode: exercise.mobilityMode, equipment: exercise.equipment, cues: exercise.cues, demoUrl: exercise.demoUrl,
+      unilateral: exercise.unilateral, mobilityMode: exercise.mobilityMode, equipment: exercise.equipment, cues: exercise.cues,
+      // A movement exported from StretchStrong (its id is a StretchStrong id) opens in that app when it has no link of its own.
+      demoUrl: exercise.demoUrl ?? stretchStrongLinkFor(exercise.id),
     }));
   }
   let imagesAdded = 0;
@@ -271,6 +274,13 @@ export async function applyImport(plan: ImportPlan): Promise<ImportResult> {
     if (exerciseId) imagesAdded += await addImportedExerciseImages(exerciseId, exercise.images);
   }
   const known = await listExercises();
+  // Movements already in the app keep their link; one without a link gets the StretchStrong one of the file.
+  for (const exercise of plan.file.exercises) {
+    const existingId = plan.existing.get(exercise.key);
+    const link = exercise.demoUrl ?? stretchStrongLinkFor(exercise.id);
+    const current = known.find((item) => item.id === existingId);
+    if (existingId && link && current && !current.demoUrl) await setExerciseDemoUrl(existingId, link);
+  }
   const byId = new Set(known.map((item) => item.id));
   const byName = new Map(known.map((item) => [norm(item.name), item.id]));
   const idOf = (reference: string) => ids.get(reference) ?? (byId.has(reference) ? reference : byName.get(norm(reference)) ?? reference);

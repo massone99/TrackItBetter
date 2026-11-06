@@ -1,4 +1,4 @@
-import { linkHost, normalizeVideoUrl, stretchStrongId } from '../url';
+import { linkHost, normalizeVideoUrl, stretchStrongId, stretchStrongLinkFor } from '../url';
 
 describe('normalizeVideoUrl', () => {
   it('keeps valid links and adds a missing scheme', () => {
@@ -24,6 +24,12 @@ describe('StretchStrong links', () => {
     expect(normalizeVideoUrl(' recPWK5BgJUjfrsNO ')).toBe('stretchstrong://exercise/recPWK5BgJUjfrsNO');
     expect(normalizeVideoUrl('stretchstrong://exercise/')).toBeUndefined();
     expect(normalizeVideoUrl('stretchstrong://other/recPWK5BgJUjfrsNO')).toBeUndefined();
+  });
+
+  it('builds the link only for a StretchStrong id', () => {
+    expect(stretchStrongLinkFor('recPWK5BgJUjfrsNO')).toBe('stretchstrong://exercise/recPWK5BgJUjfrsNO');
+    expect(stretchStrongLinkFor('pull-up')).toBeNull();
+    expect(stretchStrongLinkFor(undefined)).toBeNull();
   });
 
   it('reads the id out of a link', () => {

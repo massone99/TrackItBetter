@@ -2,6 +2,11 @@
 const STRETCHSTRONG_PREFIX = 'stretchstrong://exercise/';
 const STRETCHSTRONG_ID = /^[A-Za-z0-9]{6,40}$/;
 
+/** The StretchStrong link of an exercise whose id is a StretchStrong id (`rec` plus 14 letters and digits), else null. */
+export function stretchStrongLinkFor(exerciseId: string | null | undefined): string | null {
+  return exerciseId && /^rec[A-Za-z0-9]{14}$/.test(exerciseId) ? `${STRETCHSTRONG_PREFIX}${exerciseId}` : null;
+}
+
 /** The exercise id inside a StretchStrong link, else null. */
 export function stretchStrongId(url: string): string | null {
   if (!url.startsWith(STRETCHSTRONG_PREFIX)) return null;
