@@ -2,10 +2,14 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Linking } from 'react-native';
 import { ActionButton, Sheet, TextField } from '../../shared/components/ui';
-import { normalizeVideoUrl } from '../../shared/utils/url';
+import { normalizeVideoUrl, stretchStrongId } from '../../shared/utils/url';
+import { openStretchStrong } from './openStretchStrong';
 import { setExerciseDemoUrl } from './repository';
 
+/** Opens an exercise's reference: a StretchStrong exercise in that app, any other link in the browser. */
 export function openReferenceVideo(url: string) {
+  const stretchStrong = stretchStrongId(url);
+  if (stretchStrong) { void openStretchStrong(stretchStrong); return; }
   void Linking.openURL(url).catch(() => undefined);
 }
 
