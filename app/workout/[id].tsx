@@ -216,17 +216,32 @@ export default function WorkoutScreen() {
     () => workout?.exercises.find((exercise) => exercise.entryId === selectedEntryId && exercise.sets.some((set) => !set.completedAt)) ?? null,
     [workout, selectedEntryId],
   );
-  const autoHandExercise = useMemo(() => workout?.exercises.find((exercise) => exercise.sets.length > 0 && !exerciseFinished(exercise.sets)) ?? null, [workout]);
-  const handExercise = selectedExercise ?? autoHandExercise;
-  // Telemetry follows the last set completed (its exercise stays analysed until its last set is done, then the next exercise with sets to do); before any set, the exercise in hand.
-  const telemetryExercise = useMemo(() => {
-    if (selectedExercise) return selectedExercise;
+  // The exercise of the last working set completed, and in a superset the exercise to do next (the next of the round, else the
+  // first of the superset with sets left): after a set, the next one to do is shown, not the exercise that was just done.
+  const lastDoneExercise = useMemo(() => {
     let latest: { exercise: SessionExercise; at: number } | null = null;
     for (const exercise of workout?.exercises ?? []) {
       for (const set of exercise.sets) {
         if (set.kind === 'working' && set.completedAt && (latest === null || set.completedAt.getTime() >= latest.at)) latest = { exercise, at: set.completedAt.getTime() };
       }
     }
+    return latest?.exercise ?? null;
+  }, [workout]);
+  const supersetNextExercise = useMemo(() => {
+    if (!workout || !lastDoneExercise?.groupId) return null;
+    const next = supersetStep(workout.exercises, lastDoneExercise.entryId)?.nextEntryId;
+    return workout.exercises.find((exercise) => exercise.entryId === next) ?? null;
+  }, [workout, lastDoneExercise]);
+  const autoHandExercise = useMemo(
+    () => supersetNextExercise ?? workout?.exercises.find((exercise) => exercise.sets.length > 0 && !exerciseFinished(exercise.sets)) ?? null,
+    [workout, supersetNextExercise],
+  );
+  const handExercise = selectedExercise ?? autoHandExercise;
+  // Telemetry follows the last set completed (its exercise stays analysed until its last set is done, then the next exercise with sets to do); before any set, the exercise in hand.
+  const telemetryExercise = useMemo(() => {
+    if (selectedExercise) return selectedExercise;
+    if (supersetNextExercise) return supersetNextExercise;
+    const latest = lastDoneExercise ? { exercise: lastDoneExercise } : null;
     // Once the last set of that exercise is done, the analysis moves on to the next exercise with sets still to do.
     if (latest && latest.exercise.sets.every((set) => set.completedAt)) {
       const entryId = latest.exercise.entryId;
@@ -237,7 +252,7 @@ export default function WorkoutScreen() {
       return later ?? latest.exercise;
     }
     return latest?.exercise ?? handExercise;
-  }, [workout, handExercise, selectedExercise]);
+  }, [workout, handExercise, selectedExercise, supersetNextExercise, lastDoneExercise]);
   const telemetry = useExerciseTelemetry(telemetryExercise, records.sets);
   const [referenceFor, setReferenceFor] = useState<SessionExercise | null>(null);
   const [removeExerciseFor, setRemoveExerciseFor] = useState<SessionExercise | null>(null);
@@ -577,6 +592,11 @@ export default function WorkoutScreen() {
 
   const completeRegularSet = (set: SessionSet) => settle(set.id, async () => {
     tapFeedback('success');
+    // In a superset the next set to do is the one the round says, not the exercise that was expanded: the choice is released.
+    if (workout?.exercises.some((exercise) => exercise.groupId && exercise.sets.some((item) => item.id === set.id))) {
+      selectedRef.current = null;
+      setSelectedEntryId(null);
+    }
     patchSet(set.id, { completedAt: new Date() });
     await completeSet(set.id);
     await afterSetDone(set.id);
