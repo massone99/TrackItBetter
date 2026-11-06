@@ -2,6 +2,10 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.63.1 - 2026-11-06
+
+- Workout: trying to finish with a left / right set that has only one side done now opens a sheet listing every such set (exercise, set, missing side, L / R badges) with a button that takes you to it, instead of a system alert about the first one.
+
 ## 0.63.0 - 2026-11-05
 
 - Workout: an exercise is selected (blue "Now" card, telemetry, Complete set, rails) when you expand one of its sets, not on every touch; the selected card keeps the room of its own Complete button, so nothing moves.
