@@ -2,6 +2,11 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.64.0 - 2026-11-06
+
+- Exercises: an exercise's link can be a StretchStrong exercise (`stretchstrong://exercise/<id>`, or just its id). Tapping the reference opens it in the StretchStrong app: first the link, then, on Android, the OPEN_EXERCISE action with the id.
+- Import: a movement whose id is a StretchStrong id opens in StretchStrong when it has no link of its own (new movements, and existing ones without a link).
+
 ## 0.63.1 - 2026-11-06
 
 - Workout: trying to finish with a left / right set that has only one side done now opens a sheet listing every such set (exercise, set, missing side, L / R badges) with a button that takes you to it, instead of a system alert about the first one.
