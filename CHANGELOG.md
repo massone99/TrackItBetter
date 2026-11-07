@@ -2,6 +2,13 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.65.0 - 2026-11-07
+
+- EMOM: a running EMOM takes the whole screen, readable from the floor: huge round and clock, one cell per round with the reps it saved, this round's reps, +1 round and hold to stop. Workout (or back) returns to the workout and the EMOM keeps running in a one-line mini dock at the bottom; tap it to open the full screen again. Complete set is hidden for the EMOM's exercise.
+- EMOM: +1 round (or Add round on the card) adds a round at the end with the same reps, with Undo while that round has not started.
+- Workout: a more compact logger: the workout name shares the top row, Complete set has a details button beside it, the set in hand is slimmer; the set title no longer overlaps its state and no word breaks in the middle at large text.
+- Toasts can always be swiped away sideways, also on screens with a running clock, and hide on time there.
+
 ## 0.64.0 - 2026-11-06
 
 - Exercises: an exercise's link can be a StretchStrong exercise (`stretchstrong://exercise/<id>`, or just its id). Tapping the reference opens it in the StretchStrong app: first the link, then, on Android, the OPEN_EXERCISE action with the id.
