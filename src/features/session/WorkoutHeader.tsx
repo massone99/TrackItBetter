@@ -7,12 +7,13 @@ import { instrument, spacing } from '../../shared/theme/tokens';
 import { fonts } from '../../shared/theme/typography';
 import { useScaledStyles } from '../../shared/theme/useScaledStyles';
 import { formatNumber } from '../../shared/utils/format';
-import { Tag, useInk } from './instrument';
+import { useInk } from '../../shared/theme/ink';
 import { WorkoutStopwatch } from './WorkoutStopwatch';
 
 /**
- * Top of the workout page: back, the session's name and the menu in one row, and a strip of three readings (time, sets,
- * volume) drawn like an instrument panel.
+ * Top of the workout page, one compact line ("Ledger"): back, the session's name with a mono summary on its baseline
+ * (live time · sets done/total · volume kg), and the menu. Name and summary wrap onto two lines when narrow; at large
+ * text the name gets its own line and the summary goes under it.
  */
 export function WorkoutHeader({ title, startedAt, done, total, volumeKg, onTitleLongPress, titleLongPressLabel, onMenu }: {
   title: string;
@@ -29,57 +30,52 @@ export function WorkoutHeader({ title, startedAt, done, total, volumeKg, onTitle
   const { palette, largeText } = useTheme();
   const ink = useInk();
   const goBack = () => (router.canGoBack() ? router.back() : router.replace('/(tabs)/today'));
-  const titleNode = (
-    <Pressable
-      accessibilityRole="header"
-      accessibilityLabel={title}
-      accessibilityHint={titleLongPressLabel}
-      onLongPress={onTitleLongPress}
-      delayLongPress={500}
-      style={styles.titleTap}
-    >
-      <Text style={[styles.title, { color: palette.text }]}>{title}</Text>
-    </Pressable>
+  const volume = formatNumber(Math.round(volumeKg));
+  const summary = (
+    <View style={styles.summary}>
+      <WorkoutStopwatch startedAt={startedAt} size={13} color={palette.textMuted} bare />
+      <Text
+        accessible
+        accessibilityLabel={t('workout.headerProgress', { done, total, volume })}
+        style={[styles.summaryText, { color: palette.textMuted }]}
+      >
+        {`· ${done}/${total} ${t('workout.statSets').toLowerCase()} · ${volume} kg`}
+      </Text>
+    </View>
   );
   return (
-    <View style={styles.header}>
-      {/* Back, the session's name and the menu share one row; at large text the name gets its own line, so it never breaks inside a word. */}
+    <View>
       <View style={styles.topRow}>
         <IconButton icon="arrow-back" tone="plain" label={t('common.back')} onPress={goBack} />
-        {largeText ? <View style={styles.titleTap} /> : titleNode}
+        <View style={styles.middle}>
+          <Pressable
+            accessibilityRole="header"
+            accessibilityLabel={title}
+            accessibilityHint={titleLongPressLabel}
+            onLongPress={onTitleLongPress}
+            delayLongPress={500}
+            style={styles.titleTap}
+          >
+            <Text style={[styles.title, { color: palette.text }]}>{title}</Text>
+          </Pressable>
+          {largeText ? null : summary}
+        </View>
         <View style={[styles.menuFrame, { borderColor: ink, backgroundColor: palette.surface }]}>
           <IconButton icon="ellipsis-horizontal" tone="plain" label={t('workout.menu')} onPress={onMenu} />
         </View>
       </View>
-      {largeText ? titleNode : null}
-      <View style={[styles.readings, { borderColor: ink, backgroundColor: palette.surface }]}>
-        <View style={[styles.reading, largeText && styles.readingLarge]}>
-          <Tag>{t('workout.statTime')}</Tag>
-          <WorkoutStopwatch startedAt={startedAt} size={20} bare />
-        </View>
-        <View style={[styles.reading, largeText && styles.readingLarge, styles.readingDivided, { borderLeftColor: palette.border }]}>
-          <Tag>{t('workout.statSets')}</Tag>
-          <Text style={[styles.figure, { color: palette.text }]}>{`${done}/${total}`}</Text>
-        </View>
-        <View style={[styles.reading, largeText && styles.readingLarge, styles.readingDivided, { borderLeftColor: palette.border }]}>
-          <Tag>{t('workout.statVolume')}</Tag>
-          <Text style={[styles.figure, { color: palette.text }]}>{formatNumber(Math.round(volumeKg))}</Text>
-        </View>
-      </View>
+      {/* Large text: the summary takes the full width under the row, so it never wraps word by word. */}
+      {largeText ? summary : null}
     </View>
   );
 }
 
 const baseStyles = StyleSheet.create({
-  header: { gap: spacing.sm },
   topRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  titleTap: { flex: 1, minWidth: 0 },
+  middle: { flex: 1, minWidth: 0, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'baseline', columnGap: spacing.sm },
+  titleTap: { flexShrink: 1, minWidth: 0, minHeight: 48, justifyContent: 'center' },
   menuFrame: { borderWidth: instrument.line, borderRadius: instrument.radius },
-  title: { fontFamily: fonts.display, fontSize: 28, lineHeight: 32, textTransform: 'uppercase' },
-  readings: { flexDirection: 'row', flexWrap: 'wrap', borderWidth: instrument.line, borderRadius: instrument.radius },
-  reading: { flexGrow: 1, flexBasis: 96, paddingHorizontal: spacing.md, paddingVertical: spacing.xs, justifyContent: 'center' },
-  // Large text: two readings per row, so no label breaks inside a word.
-  readingLarge: { flexBasis: 140 },
-  readingDivided: { borderLeftWidth: StyleSheet.hairlineWidth },
-  figure: { fontFamily: fonts.monoBold, fontSize: 20, lineHeight: 26, fontVariant: ['tabular-nums'] },
+  title: { fontFamily: fonts.display, fontSize: 22, lineHeight: 26, textTransform: 'uppercase' },
+  summary: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'baseline', columnGap: spacing.xs },
+  summaryText: { fontFamily: fonts.mono, fontSize: 13, lineHeight: 18, fontVariant: ['tabular-nums'] },
 });

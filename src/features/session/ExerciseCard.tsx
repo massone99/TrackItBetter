@@ -20,7 +20,8 @@ import { useScaledStyles } from '../../shared/theme/useScaledStyles';
 import { formatClock, formatNumber } from '../../shared/utils/format';
 import { Gauge, RegistrationMarks, Tag, useInk } from './instrument';
 import { readBooleanPreference, writePreference } from '../../shared/settings/preferences';
-import { BandsStrip, DetailsToggle, MeasureBox, PreviousSetBox, RatingCells, SetSegments, WorkOutput, gaugeMax, type RatingCell } from './ActiveSetParts';
+import { LedgerActiveRow, LedgerDoneRow, LedgerHeader, LedgerUpcomingRow } from './LedgerSet';
+import { BandsStrip, DetailsToggle, MeasureBox, PreviousSetBox, RatingCells, WorkOutput, gaugeMax, type RatingCell } from './ActiveSetParts';
 import { FormRating, LastTimeStrip } from './LastTime';
 import type { PreviousPerformance, SessionExercise, SessionSet } from './repository';
 import type { SetBand } from '../../domain/equipment';
@@ -327,17 +328,6 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
         ) : null}
         <IconButton icon="ellipsis-vertical" label={t('logger.options')} tone="plain" onPress={onOptions} />
       </View>
-      {focus && !collapsed && exercise.sets.length > 0 ? (() => {
-        const groups = groupSets(exercise.sets);
-        const states = groups.map((group) => group.every((item) => item.completedAt) ? 'done' as const : group.some((item) => item.id === focusedId) ? 'current' as const : 'todo' as const);
-        const position = Math.max(1, states.findIndex((state) => state === 'current') + 1 || groups.length);
-        return (
-          <View style={styles.setOfRow}>
-            <Label>{t('activeSet.setOf', { number: position, total: groups.length })}</Label>
-            <View style={styles.setOfBar}><SetSegments states={states} /></View>
-          </View>
-        );
-      })() : null}
       {goal ? (
         <View style={[styles.goalCard, { backgroundColor: goal.reached ? palette.successSoft : palette.surface, borderColor: goal.reached ? palette.success : palette.border }]}>
           <View style={styles.goalRow}>
@@ -380,6 +370,7 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
         </Pressable>
       ) : null}
       <View style={table ? styles.tableBleed : undefined}>
+      {focus && !textIsLarge && !collapsed && exercise.sets.length > 0 ? <LedgerHeader valueLabel={(timed ? t('ledger.secCol') : distance ? t('ledger.metresCol') : t('ledger.repsCol'))} withLoad={withLoad} /> : null}
       {(collapsed ? [] : exercise.sets).map((set) => {
         const done = Boolean(set.completedAt);
         // In a running EMOM a recorded round stays editable in place and keeps its check, so the round count holds.
@@ -411,7 +402,8 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
         // One value at a time: by default the first one still to fill (RPE, then form once done, then ROM) on the set in hand or just done.
         const live = done || editing || set.id === nextSetId;
         // With large text RPE is asked before completing; a done set opens form next, so the set in hand does not slide away.
-        const fallback = canRpe && live && !isFolded(set.rpe) && (set.rpe === null || !done) && !(largeText && done) ? 'rpe'
+        // Ledger (focus): pickers open only from their chips, never by themselves.
+        const fallback = focus ? null : canRpe && live && !isFolded(set.rpe) && (set.rpe === null || !done) && !(largeText && done) ? 'rpe'
           : canForm && done && !isFolded(set.formRating) && set.formRating === null ? 'form'
             : canRom && live && !isFolded(set.romRating) && set.romRating === null ? 'rom'
               : null;
@@ -786,6 +778,57 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
                 {romRow ? <FormRating rom value={set.romRating} sideLabel={sideLabel} onChange={(rating) => onRomRating!(set, rating)} /> : null}
               </View>
             ) : null;
+        // Ongoing workout (focus): every set is one ledger row; the set in hand edits in place with its chips.
+        if (focus) {
+          const side = set.side === 'left' ? 'L' as const : set.side === 'right' ? 'R' as const : null;
+          const label = set.kind === 'warmup' ? 'W' : String(workingNumber);
+          const described = set.bands.length > 0 ? describeBands?.(set) ?? null : null;
+          const assist = set.bands.length === 0 ? null : set.assistKg === null ? null : formatNumber(set.assistKg);
+          const bands = described ? { colors: described.colors, assist } : null;
+          const openSet = () => { tapFeedback(); unfold(set.id); setPicked({ id: set.id, done }); };
+          const inHand = set.id === focusedId && (!done || picked?.id === set.id);
+          if (!inHand) {
+            const row = { label, side, warmup: set.kind === 'warmup', value: timed ? value : distance ? `${value} m` : value, load: withLoad ? loadText : null, bands, withLoad, onOpen: openSet, onMenu: openMenu };
+            return done
+              ? <LedgerDoneRow key={`${set.id}-ld`} {...row} rpe={set.rpe !== null ? formatRpe(set.rpe) : null} />
+              : <LedgerUpcomingRow key={`${set.id}-lu`} {...row} />;
+          }
+          const restSec = set.restSec ?? defaultRest;
+          const completeSlot = done ? (
+            <Pressable accessibilityRole="button" accessibilityState={{ checked: true }} accessibilityLabel={t('workout.setCompleted')} accessibilityHint={t('logger.swipeReopen')} onPress={() => uncomplete(set)} onLongPress={openMenu} delayLongPress={450} style={({ pressed }) => [styles.ledgerCheck, { backgroundColor: palette.success }, pressed && styles.checkPressed]}>
+              <Icon name="checkmark" size={22} color={palette.successText} />
+            </Pressable>
+          ) : timed && onStartHold ? (
+            <Pressable accessibilityRole="button" accessibilityLabel={holding ? t('logger.doneHold') : t('logger.startHold')} accessibilityHint={holding ? undefined : t('logger.holdLongPressHint')} onPress={() => (holding ? onFinishHold?.() : onStartHold(set))} onLongPress={holding ? undefined : () => { tapFeedback(); complete(set); }} delayLongPress={400} style={({ pressed }) => [styles.ledgerCheck, { backgroundColor: palette.accent }, pressed && styles.checkPressed]}>
+              <Icon name={holding ? 'stop' : 'play'} size={22} color={palette.accentText} />
+            </Pressable>
+          ) : undefined;
+          return (
+            <LedgerActiveRow
+              key={`${set.id}-la`}
+              label={label}
+              side={side}
+              warmup={set.kind === 'warmup'}
+              withLoad={withLoad}
+              valueField={valueField}
+              valueDown={valueDown}
+              valueUp={valueUp}
+              loadField={loadField}
+              loadDown={loadDown}
+              loadUp={loadUp}
+              onComplete={() => complete(set)}
+              completeSlot={completeSlot}
+              rpe={canRpe ? { value: set.rpe !== null ? formatRpe(set.rpe) : null, target: set.targetRpe !== null ? formatRpe(set.targetRpe) : null, open: rpeRow, onPress: () => toggleOpen(set.id, 'rpe', rpeRow) } : null}
+              form={canForm ? { value: set.formRating !== null ? formatNumber(set.formRating) : null, open: formRow, onPress: () => toggleOpen(set.id, 'form', formRow) } : null}
+              rom={canRom ? { value: set.romRating !== null ? formatNumber(set.romRating) : null, open: romRow, onPress: () => toggleOpen(set.id, 'rom', romRow) } : null}
+              bands={{ colors: described?.colors ?? [], assist, onPress: () => { tapFeedback(); onSetOptions(set, 'bands'); } }}
+              rest={restSec > 0 ? { value: formatClock(restSec), filled: set.restSec !== null, onPress: () => { tapFeedback(); onSetOptions(set, 'rest'); } } : null}
+              note={{ text: set.note || null, open: noteRow, onPress: () => { if (onNote) toggleOpen(set.id, 'note', noteRow); else { tapFeedback(); onSetOptions(set, 'note'); } } }}
+              video={{ clips: set.clipCount, onPress: () => { tapFeedback(); if (set.clipCount > 0) onSetOptions(set); else router.push({ pathname: '/form-check/[setId]', params: { setId: set.id } }); } }}
+              panel={valuePanelNode}
+            />
+          );
+        }
         return (
           <Animated.View key={`${set.id}${largeText ? (editing ? "-e" : "-f") : table ? (isOpen ? "-o" : "-r") : ""}`} entering={largeText || table ? undefined : setEntering} style={[styles.setBlock, largeText && !editing && styles.setBlockLine, editing && [styles.largeBlock, { borderColor: done ? palette.success : palette.border, backgroundColor: done ? palette.successSoft : palette.background }], table && [styles.tableBlock, { borderTopColor: palette.border }, isOpen && { backgroundColor: palette.background, borderTopColor: ink, borderBottomWidth: 1, borderBottomColor: ink, borderLeftWidth: 4, borderLeftColor: palette.accentStrong }]]}>
             {editing || table || largeText ? null : <DoneTint done={done} color={palette.accentSoft} />}
@@ -1128,6 +1171,7 @@ const baseStyles = StyleSheet.create({
   queue: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', gap: spacing.xs, paddingVertical: spacing.sm },
   queueText: { fontSize: 12, letterSpacing: 0.5 },
   fixedActionRoom: { minHeight: 56 },
+  ledgerCheck: { minWidth: 48, minHeight: 44, borderRadius: radii.control, alignItems: 'center', justifyContent: 'center' },
   actionRow: { flexDirection: 'row', alignItems: 'stretch', gap: spacing.sm },
   actionRowWrap: { flexWrap: 'wrap' },
   detailsButtonWide: { flexBasis: '100%', flexDirection: 'row', gap: spacing.sm, paddingHorizontal: spacing.lg },

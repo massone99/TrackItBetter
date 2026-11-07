@@ -63,7 +63,6 @@ import { blockOf, usesBlocks, type Block } from '../../src/domain/blocks';
 import { SetBandsField } from '../../src/features/equipment/SetBandsField';
 import { IncompletePairsSheet } from '../../src/features/session/IncompletePairsSheet';
 import { incompletePairs, type IncompletePair } from '../../src/features/session/incompletePairs';
-import { PrimaryActionBar } from '../../src/features/session/PrimaryActionBar';
 import { ExerciseTelemetryDock, TelemetryPanel } from '../../src/features/session/telemetry/ExerciseTelemetryDock';
 import { DockRails, WorkoutDockPanel } from '../../src/features/session/DockRails';
 import { useExerciseTelemetry } from '../../src/features/session/telemetry/useExerciseTelemetry';
@@ -833,22 +832,7 @@ export default function WorkoutScreen() {
   const currentEntryId = workout.exercises.find((exercise) => exercise.sets.length > 0 && !exerciseFinished(exercise.sets))?.entryId ?? null;
   // Live feedback of the exercise in hand; one line while a timer runs, at large text and on short screens, so it never crowds the footer.
   const telemetryCompact = largeText || windowHeight < 700 || hold.active !== null || restEndsAt !== null || Boolean(emom.plan);
-  // Focus mode: the action of the set in hand is fixed above the footer (the exercise card leaves its own button out for that set).
-  // Not for the exercise of a running EMOM: its clock saves the rounds.
-  const fixedSet = focusMode && handExercise && handExercise.entryId !== emomEntryId ? handExercise.sets.find((set) => !set.completedAt) ?? null : null;
-  const fixedTimed = handExercise?.metric === 'time' || handExercise?.metric === 'time_load';
-  const fixedHolding = fixedSet !== null && hold.active?.setId === fixedSet.id;
-  const fixedNumber = fixedSet && handExercise ? groupSets(handExercise.sets.filter((set) => set.kind === 'working' && set.index <= fixedSet.index)).length : 0;
-  const primaryBar = fixedSet && handExercise ? (
-    <PrimaryActionBar
-      label={(fixedTimed ? (fixedHolding ? t('logger.doneHold') : `${t('logger.startHold')} ${formatClock(fixedSet.durationSec ?? 0)}`) : t('activeSet.completeSet', { number: fixedNumber })).toUpperCase()}
-      icon={fixedTimed ? (fixedHolding ? 'stop' : 'play') : 'checkmark'}
-      detailsLabel={t('activeSet.moreDetails')}
-      onPress={() => { if (!fixedTimed) void completeHoldManually(fixedSet); else if (fixedHolding) void finishCurrentHold(); else startHoldFor(fixedSet); }}
-      onLongPress={fixedTimed && !fixedHolding ? () => void completeHoldManually(fixedSet) : undefined}
-      onDetails={() => setSetSheet({ exercise: handExercise, setId: fixedSet.id })}
-    />
-  ) : null;
+  // Ledger: each set completes from its own row, so the footer carries no Complete button.
   // Focus mode: Add and Finish live in a Workout rail next to a Telemetry rail, under the fixed main action; one panel open at a time.
   const railsMode = focusMode && handExercise !== null;
   const telemetryInline = windowHeight >= 880 && !largeText;
@@ -866,7 +850,6 @@ export default function WorkoutScreen() {
           ]}
         />
       ) : null}
-      {primaryBar}
       <DockRails rails={[
         ...(telemetryOn ? [{
           id: 'telemetry' as const,
@@ -908,7 +891,7 @@ export default function WorkoutScreen() {
       <Screen
         scrollRef={scrollRef}
         // The running clock sits right above Add and Finish, so both stay in reach during rest.
-        footerAccessory={<View style={styles.dockStack}>{railsMode ? railsTop : <>{telemetryDock}{primaryBar}</>}{emomView ? (
+        footerAccessory={<View style={styles.dockStack}>{railsMode ? railsTop : telemetryDock}{emomView ? (
           <EmomMiniDock view={emomView} label={emomBadge(emomView.phase, emom.plan!, t)} onOpen={() => setEmomStage(true)} />
         ) : !dockOpen && (!railsMode || timerRunning) ? (
           <CollapsedDock restEndsAt={timerRunning ? restEndsAt : null} voiceCues={voiceCues} onRestEnd={endRest} onOpen={() => setDockOpen(true)} />
@@ -1016,7 +999,6 @@ export default function WorkoutScreen() {
           ) : null}
           <ExerciseCard
             focus={focusMode}
-            fixedAction={primaryBar !== null && exercise.entryId === handExercise?.entryId}
             onSetExpanded={() => selectEntry(exercise.entryId)}
             figure={index + 1}
             nowLabel={exercise.entryId === nowEntryId ? t('workout.now', { position: nowIndex + 1, total: workout.exercises.length }) : null}

@@ -1,5 +1,4 @@
 import { fireEvent, render, screen } from '@testing-library/react-native';
-import { Text } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import i18n from '../../../shared/i18n';
 import { ThemeProvider } from '../../../shared/theme/ThemeProvider';
@@ -62,54 +61,39 @@ function show(sets: SessionSet[], props: Partial<Parameters<typeof ExerciseCard>
 describe('active set in focus mode', () => {
   beforeAll(async () => { await i18n.changeLanguage('en'); });
 
-  it('names the state and shows RPE, form and ROM as a value or a dash', () => {
+  it('draws the set in hand with its optional chips, pickers closed', () => {
     show([set(1), set(2)]);
-    expect(screen.getByText('● IN PROGRESS')).toBeTruthy();
-    // The set telemetry starts folded; its header opens it.
-    expect(screen.queryByLabelText('RPE —')).toBeNull();
-    fireEvent.press(screen.getByLabelText(/^SET TELEMETRY/));
-    expect(screen.getByLabelText('RPE —')).toBeTruthy();
-    expect(screen.getByLabelText('FORM —')).toBeTruthy();
-    expect(screen.getByLabelText('ROM —')).toBeTruthy();
-    expect(screen.getByText('TARGET 8')).toBeTruthy();
+    // Jest runs at large text, where the column header is hidden; no picker opens by itself.
+    expect(screen.queryByText('Effort (RPE)')).toBeNull();
+    expect(screen.getAllByLabelText(/^RPE/).length).toBeGreaterThan(0);
+    expect(screen.getByLabelText(/^FORM/)).toBeTruthy();
+    expect(screen.getByLabelText(/^ROM/)).toBeTruthy();
+    expect(screen.getByLabelText('+ BANDS')).toBeTruthy();
   });
 
-  it('shows a given rating in its cell and opens that picker only', () => {
+  it('a rating chip opens only its own picker', () => {
     show([set(1, { rpe: 8.5, formRating: 4 })]);
-    fireEvent.press(screen.getByLabelText(/^SET TELEMETRY/));
-    const cell = (label: string) => screen.getAllByLabelText(label).find((node) => node.props.accessibilityState?.expanded !== undefined)!;
-    expect(cell('FORM 4')).toBeTruthy();
-    fireEvent.press(cell('FORM 4'));
-    expect(cell('FORM 4').props.accessibilityState).toMatchObject({ expanded: true });
-    expect(cell('RPE 8.5').props.accessibilityState).toMatchObject({ expanded: false });
+    const chip = (pattern: RegExp) => screen.getAllByLabelText(pattern).find((node) => node.props.accessibilityState?.expanded !== undefined)!;
+    fireEvent.press(chip(/^FORM/));
+    expect(chip(/^FORM/).props.accessibilityState).toMatchObject({ expanded: true });
+    expect(chip(/RPE/).props.accessibilityState).toMatchObject({ expanded: false });
   });
 
-  it('keeps the band strip for an exercise that uses bands and opens its editor in place', () => {
-    const banded = set(1, { bands: [{ bandId: 'blue', tension: 2 }], assistKg: null });
-    show([banded, set(2)], { describeBands: () => ({ colors: ['#2F80ED'], text: 'Blue · 2' }), renderBandsEditor: () => <Text>band editor</Text> });
-    expect(screen.getAllByText('Blue · 2').length).toBeGreaterThan(0);
-    expect(screen.getByText('KG NOT AVAILABLE')).toBeTruthy();
-    expect(screen.queryByText('band editor')).toBeNull();
-    fireEvent.press(screen.getByLabelText('EDIT BANDS'));
-    expect(screen.getByText('band editor')).toBeTruthy();
+  it('the bands and rest chips open their own settings, not the generic set menu', () => {
+    const { onSetOptions } = show([set(1)], { defaultRest: 90 });
+    fireEvent.press(screen.getByLabelText('+ BANDS'));
+    expect(onSetOptions).toHaveBeenLastCalledWith(expect.objectContaining({ id: 's1' }), 'bands');
+    fireEvent.press(screen.getByLabelText(/^REST/));
+    expect(onSetOptions).toHaveBeenLastCalledWith(expect.objectContaining({ id: 's1' }), 'rest');
   });
 
-  it('folds the band section to one line that keeps the edit button, and unfolds it again', () => {
-    const banded = set(1, { bands: [{ bandId: 'blue', tension: 2 }], assistKg: null });
-    show([banded, set(2)], { describeBands: () => ({ colors: ['#2F80ED'], text: 'Blue · 2' }), renderBandsEditor: () => <Text>band editor</Text> });
-    expect(screen.getByText('KG NOT AVAILABLE')).toBeTruthy();
-    fireEvent.press(screen.getByLabelText('Fold the bands section'));
-    expect(screen.queryByText('KG NOT AVAILABLE')).toBeNull();
-    fireEvent.press(screen.getByLabelText('EDIT BANDS'));
-    expect(screen.getByText('band editor')).toBeTruthy();
-    fireEvent.press(screen.getByLabelText('Show the bands section'));
-    expect(screen.getByText('KG NOT AVAILABLE')).toBeTruthy();
-  });
-
-  it('has no band strip for an exercise without bands, and More details opens the set menu', () => {
-    const { onSetOptions } = show([set(1)]);
-    expect(screen.queryByText('↳ RESISTANCE BANDS / SET ASSISTANCE')).toBeNull();
-    fireEvent.press(screen.getByLabelText('More set details'));
-    expect(onSetOptions).toHaveBeenCalled();
+  it('done and upcoming sets are single rows; a tap opens the one tapped', () => {
+    show([set(1, { completedAt: new Date() as unknown as SessionSet['completedAt'] }), set(2), set(3)]);
+    // Set 2 is in hand: one complete button.
+    expect(screen.getAllByLabelText(/^Complete/i)).toHaveLength(1);
+    const rows = screen.getAllByRole('button').filter((node) => /set 3/i.test(String(node.props.accessibilityLabel ?? '')));
+    expect(rows.length).toBeGreaterThan(0);
+    fireEvent.press(rows[0]);
+    expect(screen.getAllByLabelText(/^Complete/i)).toHaveLength(1);
   });
 });
