@@ -65,6 +65,9 @@ describe('active set in focus mode', () => {
   it('names the state and shows RPE, form and ROM as a value or a dash', () => {
     show([set(1), set(2)]);
     expect(screen.getByText('● IN PROGRESS')).toBeTruthy();
+    // The set telemetry starts folded; its header opens it.
+    expect(screen.queryByLabelText('RPE —')).toBeNull();
+    fireEvent.press(screen.getByLabelText(/^SET TELEMETRY/));
     expect(screen.getByLabelText('RPE —')).toBeTruthy();
     expect(screen.getByLabelText('FORM —')).toBeTruthy();
     expect(screen.getByLabelText('ROM —')).toBeTruthy();
@@ -73,6 +76,7 @@ describe('active set in focus mode', () => {
 
   it('shows a given rating in its cell and opens that picker only', () => {
     show([set(1, { rpe: 8.5, formRating: 4 })]);
+    fireEvent.press(screen.getByLabelText(/^SET TELEMETRY/));
     const cell = (label: string) => screen.getAllByLabelText(label).find((node) => node.props.accessibilityState?.expanded !== undefined)!;
     expect(cell('FORM 4')).toBeTruthy();
     fireEvent.press(cell('FORM 4'));

@@ -95,18 +95,24 @@ export interface RatingCell {
   onPress: () => void;
 }
 
-/** RPE, form and ROM side by side; a tap opens that picker below, one at a time. Always shows a value or a dash. */
-export function RatingCells({ title, counter, cells }: { title: string; counter: string; cells: RatingCell[] }) {
+/**
+ * RPE, form and ROM side by side; a tap opens that picker below, one at a time. Always shows a value or a dash.
+ * The header folds the whole block to one line (title, how many are recorded and a chevron).
+ */
+export function RatingCells({ title, counter, cells, open, onToggle }: { title: string; counter: string; cells: RatingCell[]; open: boolean; onToggle: () => void }) {
   const styles = useScaledStyles(baseStyles);
   const { palette, largeText } = useTheme();
   const ink = useInk();
   return (
     <View style={styles.ratings}>
-    <View style={styles.ratingsHead}>
+    <Pressable accessibilityRole="button" accessibilityLabel={`${title}, ${counter}`} accessibilityState={{ expanded: open }} onPress={onToggle} style={({ pressed }) => [styles.ratingsHead, pressed && { opacity: 0.6 }]}>
       <Tag>{title}</Tag>
-      <Text style={[styles.workText, { color: palette.textMuted }]}>{counter}</Text>
-    </View>
-    <View style={[styles.cells, !largeText && styles.cellsRow]}>
+      <View style={styles.ratingsCount}>
+        <Text style={[styles.workText, { color: palette.textMuted }]}>{counter}</Text>
+        <Icon name={open ? 'chevron-up' : 'chevron-down'} size={18} color={palette.textMuted} />
+      </View>
+    </Pressable>
+    {open ? <View style={[styles.cells, !largeText && styles.cellsRow]}>
       {cells.map((cell) => (
         <Pressable
           key={cell.id}
@@ -124,7 +130,7 @@ export function RatingCells({ title, counter, cells }: { title: string; counter:
           {cell.hint ? <Text style={[styles.cellHint, { color: palette.textMuted }]}>{cell.hint}</Text> : null}
         </Pressable>
       ))}
-    </View>
+    </View> : null}
     </View>
   );
 }
@@ -198,7 +204,8 @@ const baseStyles = StyleSheet.create({
   details: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: spacing.sm, minHeight: MIN_TOUCH_TARGET, paddingVertical: spacing.sm, borderTopWidth: 1 },
   detailsText: { flexShrink: 1 },
   ratings: { gap: spacing.xs, paddingTop: spacing.xs },
-  ratingsHead: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: spacing.xs },
+  ratingsHead: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: spacing.xs, minHeight: MIN_TOUCH_TARGET },
+  ratingsCount: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
   cells: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, paddingVertical: spacing.xs },
   cellsRow: { flexWrap: 'nowrap' },
   cell: { flexGrow: 1, flexBasis: 0, minWidth: 0, minHeight: MIN_TOUCH_TARGET, borderWidth: 1, borderRadius: instrument.radius, paddingHorizontal: spacing.sm, paddingVertical: spacing.xs, gap: 2 },

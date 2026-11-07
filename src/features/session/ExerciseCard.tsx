@@ -216,6 +216,8 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
   const [bandsFolded, setBandsFolded] = useState(() => readBooleanPreference(BANDS_FOLDED_KEY, false));
   const toggleBandsFolded = () => { setBandsFolded(!bandsFolded); writePreference(BANDS_FOLDED_KEY, String(!bandsFolded)); };
   const [detailsOpen, setDetailsOpen] = useState<ReadonlySet<string>>(() => new Set());
+  // Sets whose telemetry (RPE, form, ROM and their pickers) is unfolded; folded by default.
+  const [telemetryOpen, setTelemetryOpen] = useState<ReadonlySet<string>>(() => new Set());
   // Bands belong in the set in hand when the exercise already uses them, now or last time.
   const bandsInUse = exercise.sets.some((item) => item.bands.length > 0) || Boolean(previous?.sets.some((item) => (item.bands?.length ?? 0) > 0));
   const lastDoneId = [...exercise.sets].reverse().find((set) => set.completedAt)?.id ?? null;
@@ -843,8 +845,16 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
                       {bandsOpen ? renderBandsEditor?.(set) ?? null : null}
                     </>
                   ) : null}
-                  {cells.length > 0 ? <RatingCells title={t('activeSet.setTelemetry').toUpperCase()} counter={t('activeSet.recorded', { done: recorded, total: cells.length }).toUpperCase()} cells={cells} /> : null}
-                  {valuePanelNode}
+                  {cells.length > 0 ? (
+                    <RatingCells
+                      title={t('activeSet.setTelemetry').toUpperCase()}
+                      counter={t('activeSet.recorded', { done: recorded, total: cells.length }).toUpperCase()}
+                      cells={cells}
+                      open={telemetryOpen.has(set.id)}
+                      onToggle={() => { tapFeedback(); setTelemetryOpen((current) => { const next = new Set(current); if (!next.delete(set.id)) next.add(set.id); return next; }); }}
+                    />
+                  ) : null}
+                  {cells.length === 0 || telemetryOpen.has(set.id) ? valuePanelNode : null}
                   <DetailsToggle
                     label={t('activeSet.additional').toUpperCase()}
                     count={`${detailCount}/4`}
