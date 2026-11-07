@@ -24,11 +24,11 @@ import { formatMinutes } from '../../../src/shared/utils/format';
 
 type ExerciseInfo = { name: string; metric: string };
 
-/** Workouts the person collapsed in a program, remembered per program. */
-const collapsedKey = (programId: string) => `program.${programId}.collapsed`;
-function readCollapsed(programId: string): Set<string> {
+/** Workouts the person opened in a program, remembered per program; the others start folded. */
+const openKey = (programId: string) => `program.${programId}.open`;
+function readOpen(programId: string): Set<string> {
   try {
-    const stored: unknown = JSON.parse(readPreference(collapsedKey(programId)) ?? '[]');
+    const stored: unknown = JSON.parse(readPreference(openKey(programId)) ?? '[]');
     return new Set(Array.isArray(stored) ? stored.filter((item): item is string => typeof item === 'string') : []);
   } catch {
     return new Set();
@@ -50,7 +50,8 @@ export default function UserProgramScreen() {
   const [blockedBy, setBlockedBy] = useState<{ id: string; name: string } | null>(null);
   const [recentNames, setRecentNames] = useState<string[]>([]);
   const [editing, setEditing] = useState<UserProgramSession | null>(null);
-  const [collapsed, setCollapsed] = useState<Set<string>>(() => readCollapsed(id));
+  const [opened, setOpened] = useState<Set<string>>(() => readOpen(id));
+  const collapsed = { has: (sessionId: string) => !opened.has(sessionId) };
 
   useFocusEffect(useCallback(() => {
     let mounted = true;
@@ -108,15 +109,15 @@ export default function UserProgramScreen() {
     }
   };
 
-  const saveCollapsed = (next: Set<string>) => {
+  const saveOpened = (next: Set<string>) => {
     tapFeedback();
-    setCollapsed(next);
-    writePreference(collapsedKey(program.id), JSON.stringify([...next]));
+    setOpened(next);
+    writePreference(openKey(program.id), JSON.stringify([...next]));
   };
   const toggle = (sessionId: string) => {
-    const next = new Set(collapsed);
+    const next = new Set(opened);
     if (!next.delete(sessionId)) next.add(sessionId);
-    saveCollapsed(next);
+    saveOpened(next);
   };
   const allCollapsed = program.sessions.length > 0 && program.sessions.every((session) => collapsed.has(session.id));
 
@@ -169,7 +170,7 @@ export default function UserProgramScreen() {
       <SectionTitle
         title={t('userProgram.daysTitle')}
         action={program.sessions.length > 1 ? (
-          <Pressable accessibilityRole="button" hitSlop={8} onPress={() => saveCollapsed(allCollapsed ? new Set() : new Set(program.sessions.map((session) => session.id)))}>
+          <Pressable accessibilityRole="button" hitSlop={8} onPress={() => saveOpened(allCollapsed ? new Set(program.sessions.map((session) => session.id)) : new Set())}>
             <Text style={[styles.toggleAll, { color: palette.accentStrong }]}>{allCollapsed ? t('userProgram.expandAll') : t('userProgram.collapseAll')}</Text>
           </Pressable>
         ) : undefined}

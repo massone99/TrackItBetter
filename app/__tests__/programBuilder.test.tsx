@@ -93,6 +93,8 @@ describe('program builder', () => {
   it('offers creating a movement while replacing one', async () => {
     getUserProgram.mockResolvedValue({ id: 'program-1', name: 'Plan', updatedAt: '', sessions: [{ id: 'session-1', name: 'A', exercises: [{ id: 'old', exerciseId: 'push-up', sets: 3, target: 8, restSeconds: null }] }] });
     renderScreen();
+    // Workouts with exercises start folded.
+    fireEvent.press(await screen.findByRole('button', { name: t('logger.expand').replace('{{name}}', 'A') }));
     fireEvent.press(await screen.findByRole('button', { name: /Push-up/ }));
     fireEvent.press(await screen.findByRole('button', { name: /^Replace Push-up/ }));
     fireEvent.press(await screen.findByText(t('logger.createExercise')));

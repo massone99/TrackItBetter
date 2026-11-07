@@ -824,7 +824,7 @@ export default function WorkoutScreen() {
   // Narration needs open sets, and only fits a workout of mobility exercises.
   const openExercises = workout.exercises.filter((exercise) => exercise.sets.some((set) => !set.completedAt));
   const narratable = openExercises.length > 0 && openExercises.every((exercise) => exercise.mobility);
-  const allCollapsed = workout.exercises.every((exercise) => collapsedEntries.get(exercise.entryId) ?? exerciseFinished(exercise.sets));
+  const allCollapsed = workout.exercises.every((exercise) => collapsedEntries.get(exercise.entryId) ?? exercise.entryId !== currentEntryId);
   const totalSets = groupSets(allSets).length;
   const showBlocks = usesBlocks(workout.exercises);
   const volumeKg = allSets.reduce((sum, set) => (set.completedAt && set.kind === 'working' && set.reps && set.addedLoadKg > 0 ? sum + set.reps * set.addedLoadKg : sum), 0);
@@ -1021,7 +1021,7 @@ export default function WorkoutScreen() {
             figure={index + 1}
             nowLabel={exercise.entryId === nowEntryId ? t('workout.now', { position: nowIndex + 1, total: workout.exercises.length }) : null}
             exercise={exercise}
-            collapsed={collapsedEntries.get(exercise.entryId) ?? false}
+            collapsed={collapsedEntries.get(exercise.entryId) ?? exercise.entryId !== currentEntryId}
             onToggleCollapsed={() => setCollapsedEntries((current) => new Map(current).set(exercise.entryId, !(current.get(exercise.entryId) ?? false)))}
             handle={workout.exercises.length > 1 ? row.handle : undefined}
             previous={previous.get(exercise.exerciseId)}

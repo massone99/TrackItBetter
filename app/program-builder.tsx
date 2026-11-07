@@ -86,7 +86,8 @@ export default function ProgramEditorScreen() {
   // Resumes a navigation held back because the edits could not be saved.
   const [leaveAction, setLeaveAction] = useState<{ resume: () => void } | null>(null);
   // Days folded to their summary; every exercise is one row, edited in a sheet.
-  const [closedDays, setClosedDays] = useState<Set<string>>(new Set());
+  // Days with exercises start folded; an empty day, one just added or one with an error is open.
+  const [openDays, setOpenDays] = useState<Set<string>>(new Set());
   const [editing, setEditing] = useState<{ sessionId: string; exerciseId: string } | null>(null);
   const flip = (set: Set<string>, key: string) => { const next = new Set(set); if (!next.delete(key)) next.add(key); return next; };
 
@@ -135,6 +136,8 @@ export default function ProgramEditorScreen() {
       const created = takePendingExercise();
       if (created?.replaceId) replaceExerciseIn(created.sessionId, created.replaceId, created.exerciseId, created.metric);
       else if (created) addExercise(created.sessionId, created.exerciseId, created.metric);
+      // Back from creating it: its workout opens, so the new exercise is in sight.
+      if (created) setOpenDays((current) => new Set(current).add(created.sessionId));
     })();
     return () => { mounted = false; };
     // Runs on focus and once the program is loaded; the helpers it calls only use state setters.
@@ -229,7 +232,7 @@ export default function ProgramEditorScreen() {
       {sessions.length === 0 ? <EmptyState icon="calendar-outline" title={t('userProgram.noWorkoutsYet')} body={t('userProgram.noWorkoutsBody')} /> : null}
       {sessions.map((session, index) => {
         const sessionErrors = errors.filter((error) => error.sessionId === session.id && !error.exerciseId);
-        const dayClosed = closedDays.has(session.id) && sessionErrors.length === 0 && !errors.some((error) => error.sessionId === session.id);
+        const dayClosed = !openDays.has(session.id) && session.exercises.length > 0 && sessionErrors.length === 0 && !errors.some((error) => error.sessionId === session.id);
         const minutes = session.exercises.length > 0 ? formatMinutes(estimateSessionSeconds(session, metricById, readDefaultRest('working'))) : null;
         return (
           <Card key={session.id} style={styles.dayCard}>
@@ -237,7 +240,7 @@ export default function ProgramEditorScreen() {
               accessibilityRole="button"
               accessibilityLabel={t(dayClosed ? 'logger.expand' : 'logger.collapse', { name: session.name || t('userProgram.dayNumber', { number: index + 1 }) })}
               accessibilityState={{ expanded: !dayClosed }}
-              onPress={() => setClosedDays((current) => flip(current, session.id))}
+              onPress={() => setOpenDays((current) => flip(current, session.id))}
               style={styles.header}
             >
               <View style={[styles.number, { backgroundColor: palette.accentSoft }]}>
@@ -337,7 +340,9 @@ export default function ProgramEditorScreen() {
         );
       })}
       <ActionButton icon="add" label={t('programBuilder.addDay')} variant="ghost" onPress={() => {
-        setSessions((current) => [...current, newSession(t('programBuilder.sessionDefault'))]);
+        const added = newSession(t('programBuilder.sessionDefault'));
+        setSessions((current) => [...current, added]);
+        setOpenDays((current) => new Set(current).add(added.id));
       }} />
 
       {errors.length > 0 ? <Text style={[styles.error, { color: palette.warning }]}>{t('userProgram.errors.fix')}</Text> : null}
