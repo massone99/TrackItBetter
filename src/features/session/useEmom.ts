@@ -68,7 +68,9 @@ export function useEmom(workoutId: string | undefined, { onRecorded, onFinished,
         changed = true;
       }
       if (changed) callbacks.current.onRecorded();
-      if (due >= current.rounds && planRef.current?.startedAt === current.startedAt) {
+      // Compared with the live plan: a round added while this run was in flight keeps the EMOM going.
+      const latest = planRef.current;
+      if (latest && latest.startedAt === current.startedAt && due >= latest.rounds) {
         save(null);
         void cancelEmomNotifications().catch(() => undefined);
         callbacks.current.onFinished(current);
@@ -107,18 +109,44 @@ export function useEmom(workoutId: string | undefined, { onRecorded, onFinished,
     };
   }, [active, sync]);
 
+  /** One alert per round change and one at the end; rounds already over are skipped by the scheduler. */
+  const scheduleAlerts = useCallback((target: EmomPlan) => {
+    const rounds = Array.from({ length: target.rounds }, (_, index) => index + 1);
+    void scheduleEmomNotifications([
+      ...rounds.slice(0, -1).map((round) => ({ at: roundEndsAt(target, round), ...alerts.round(round + 1, target.rounds) })),
+      { at: roundEndsAt(target, target.rounds), ...alerts.done },
+    ]).catch(() => undefined);
+  }, [alerts]);
+
   const start = useCallback((config: EmomStart) => {
     if (!workoutId) return;
     const next: EmomPlan = { ...config, workoutId, startedAt: Date.now(), countdownSec: EMOM_COUNTDOWN_SEC, value: config.target };
     previous.current = null;
     setPhase(null);
     save(next);
-    const rounds = Array.from({ length: next.rounds }, (_, index) => index + 1);
-    void scheduleEmomNotifications([
-      ...rounds.slice(0, -1).map((round) => ({ at: roundEndsAt(next, round), ...alerts.round(round + 1, next.rounds) })),
-      { at: roundEndsAt(next, next.rounds), ...alerts.done },
-    ]).catch(() => undefined);
-  }, [workoutId, save, alerts]);
+    scheduleAlerts(next);
+  }, [workoutId, save, scheduleAlerts]);
+
+  /** Adds one round to the running EMOM (a set added by hand to its exercise); false once its last round is over. */
+  const addRound = useCallback((): boolean => {
+    const current = planRef.current;
+    if (!current || roundsDue(current, Date.now()) >= current.rounds) return false;
+    const next = { ...current, rounds: current.rounds + 1 };
+    save(next);
+    scheduleAlerts(next);
+    return true;
+  }, [save, scheduleAlerts]);
+
+  /** Undoes `addRound`: takes the last round off while it has not started yet; false otherwise. */
+  const removeRound = useCallback((): boolean => {
+    const current = planRef.current;
+    // The round running is roundsDue + 1: the last one can go only while a later round than that exists.
+    if (!current || current.rounds <= 1 || roundsDue(current, Date.now()) + 1 >= current.rounds) return false;
+    const next = { ...current, rounds: current.rounds - 1 };
+    save(next);
+    scheduleAlerts(next);
+    return true;
+  }, [save, scheduleAlerts]);
 
   /** Ends the EMOM: rounds already over are kept, the one in progress is dropped. */
   const stop = useCallback(async () => {
@@ -134,5 +162,5 @@ export function useEmom(workoutId: string | undefined, { onRecorded, onFinished,
     if (current) save({ ...current, value: Math.max(0, Math.round(value)) });
   }, [save]);
 
-  return { plan, phase: plan ? phase : null, start, stop, setValue, sync };
+  return { plan, phase: plan ? phase : null, start, addRound, removeRound, stop, setValue, sync };
 }

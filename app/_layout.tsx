@@ -16,11 +16,16 @@ import { ThemeProvider, useTheme } from "../src/shared/theme/ThemeProvider";
 import { fontAssets } from "../src/shared/theme/typography";
 import { useTranslation } from "react-i18next";
 import { AnimationProvider, useAnimationSettings } from "../src/shared/settings/AnimationProvider";
+import { PhoneFrame, shouldHostPhoneFrame } from "../src/shared/web/PhoneFrame";
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 if (__DEV__ && process.env.EXPO_OS === "web") require("../src/dev/webSeed");
 
 void SplashScreen.preventAutoHideAsync().catch(() => undefined);
+
+/** Desktop browser: this page only shows the app inside a phone-sized frame (see PhoneFrame). */
+const hostPhoneFrame = shouldHostPhoneFrame();
+if (hostPhoneFrame) void SplashScreen.hideAsync().catch(() => undefined);
 
 let clipSweepScheduled = false;
 
@@ -135,6 +140,7 @@ function AppNavigator() {
 }
 
 export default function RootLayout() {
+  if (hostPhoneFrame) return <PhoneFrame />;
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <KeyboardRoot>

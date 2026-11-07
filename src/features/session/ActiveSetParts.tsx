@@ -7,29 +7,26 @@ import { useScaledStyles } from '../../shared/theme/useScaledStyles';
 import { useTheme } from '../../shared/theme/ThemeProvider';
 import { instrument, MIN_TOUCH_TARGET, spacing } from '../../shared/theme/tokens';
 
-/** "Previous matching set": what the same set was last time, with its RPE on the right. */
+/** "Previous matching set": what the same set was last time, with its RPE on the right; one line that wraps when narrow. */
 export function PreviousSetBox({ label, value, rpeLabel, rpeValue, sideLabel }: { label: string; value: string; rpeLabel: string | null; rpeValue: string | null; sideLabel: string }) {
   const styles = useScaledStyles(baseStyles);
   const { palette } = useTheme();
   const ink = useInk();
   return (
-    <View style={[styles.prev, { borderColor: ink, backgroundColor: palette.surface }]} accessible accessibilityLabel={`${label}. ${value}${rpeValue ? `. ${rpeLabel} ${rpeValue}` : ''}`}>
+    <View style={[styles.prev, { borderBottomColor: ink }]} accessible accessibilityLabel={`${label}. ${value}${rpeValue ? `. ${rpeLabel} ${rpeValue}` : ''}`}>
       <View style={styles.prevMain}>
         <Tag>{label}</Tag>
         <Text style={[styles.prevValue, { color: palette.text }]}>{value}</Text>
       </View>
       {rpeValue ? (
-        <View style={styles.prevSide}>
-          <Text style={[styles.reference, { color: palette.textMuted }]}>{`${rpeLabel} `}<Text style={[styles.prevRpe, { color: palette.accentStrong }]}>{rpeValue}</Text></Text>
-          <Text style={[styles.reference, { color: palette.textMuted }]}>{sideLabel}</Text>
-        </View>
+        <Text style={[styles.reference, { color: palette.textMuted }]}>{`${rpeLabel} `}<Text style={[styles.prevRpe, { color: palette.accentStrong }]}>{rpeValue}</Text>{` · ${sideLabel}`}</Text>
       ) : null}
     </View>
   );
 }
 
-/** One measured quantity in its own box: a centred title, the stepper, and what the figure is. */
-export function MeasureBox({ label, caption, stack, children }: { label: string; caption: string; stack: boolean; children: ReactNode }) {
+/** One measured quantity in its own box: a centred title over the stepper. */
+export function MeasureBox({ label, stack, children }: { label: string; stack: boolean; children: ReactNode }) {
   const styles = useScaledStyles(baseStyles);
   const { palette } = useTheme();
   const ink = useInk();
@@ -37,12 +34,11 @@ export function MeasureBox({ label, caption, stack, children }: { label: string;
     <View style={[styles.measure, stack && styles.measureStack, { borderColor: ink, backgroundColor: palette.surface }]}>
       <Text style={[styles.measureLabel, { color: palette.textMuted }]}>{label}</Text>
       {children}
-      <Text style={[styles.measureCaption, { color: palette.textMuted }]}>{caption}</Text>
     </View>
   );
 }
 
-/** "Work output": the figure against last time's on a graduated scale, with its maximum below. */
+/** "Work output": the figure against last time's on a graduated scale; last time and the scale's maximum share the header line. */
 export function WorkOutput({ title, current, reference, referenceLabel, value, ghost, scale, color }: { title: string; current: string; reference: string | null; referenceLabel: string; value: number; ghost: number | null; scale: string; color: string }) {
   const styles = useScaledStyles(baseStyles);
   const { palette } = useTheme();
@@ -50,13 +46,12 @@ export function WorkOutput({ title, current, reference, referenceLabel, value, g
     <View style={styles.work} accessible accessibilityLabel={`${title} ${current}${reference ? `. ${referenceLabel} ${reference}` : ''}`}>
       <View style={styles.workRow}>
         <Text style={[styles.workText, { color: palette.textMuted }]}>{`${title} / ${current}`}</Text>
-        {reference ? <Text style={[styles.workText, { color: palette.textMuted }]}>{`${referenceLabel} `}<Text style={{ color: palette.record }}>{reference}</Text></Text> : null}
+        <Text style={[styles.workText, { color: palette.textMuted }]}>
+          {reference ? <>{`${referenceLabel} `}<Text style={{ color: palette.record }}>{reference}</Text>{' · '}</> : null}
+          {scale}
+        </Text>
       </View>
       <Gauge value={value} ghost={ghost} color={color} />
-      <View style={styles.workRow}>
-        <Text style={[styles.workText, { color: palette.textMuted }]}>0</Text>
-        <Text style={[styles.workText, { color: palette.textMuted }]}>{scale}</Text>
-      </View>
     </View>
   );
 }
@@ -188,31 +183,29 @@ export function BandsStrip({ title, tag, assistLabel, assistValue, assistUnit, a
 
 const baseStyles = StyleSheet.create({
   reference: { fontSize: 13 },
-  prev: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: spacing.sm, borderWidth: 1, borderRadius: instrument.radius, padding: spacing.md, marginVertical: spacing.sm },
-  prevMain: { flexGrow: 1, flexShrink: 1, flexBasis: 160, minWidth: 0, gap: spacing.xs },
-  prevValue: { fontSize: 16, fontWeight: '700' },
-  prevSide: { alignItems: 'flex-end', gap: spacing.xs },
+  prev: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', columnGap: spacing.sm, rowGap: spacing.xs, paddingVertical: spacing.sm, borderBottomWidth: StyleSheet.hairlineWidth },
+  prevMain: { flexGrow: 1, flexShrink: 1, flexBasis: 160, minWidth: 0, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', columnGap: spacing.sm },
+  prevValue: { fontSize: 15, fontWeight: '700' },
   prevRpe: { fontWeight: '700' },
-  measure: { flexGrow: 1, flexBasis: 0, minWidth: 128, borderWidth: 1, borderRadius: instrument.radius, padding: spacing.sm, gap: spacing.sm, alignItems: 'stretch' },
+  measure: { flexGrow: 1, flexBasis: 0, minWidth: 128, borderWidth: 1, borderRadius: instrument.radius, padding: spacing.sm, gap: spacing.xs, alignItems: 'stretch' },
   measureStack: { flexBasis: '100%', minWidth: '100%' },
   measureLabel: { fontSize: 12, textAlign: 'center', letterSpacing: 1 },
-  measureCaption: { fontSize: 12, textAlign: 'center' },
-  work: { gap: spacing.xs, paddingVertical: spacing.sm },
+  work: { gap: spacing.xs, paddingVertical: spacing.xs },
   workRow: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', gap: spacing.xs },
   workText: { fontSize: 12, letterSpacing: 0.5 },
   segments: { flexDirection: 'row', gap: spacing.xs, paddingVertical: spacing.sm },
   segment: { flex: 1, height: 4 },
   details: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: spacing.sm, minHeight: MIN_TOUCH_TARGET, paddingVertical: spacing.sm, borderTopWidth: 1 },
   detailsText: { flexShrink: 1 },
-  ratings: { gap: spacing.xs, paddingTop: spacing.sm },
+  ratings: { gap: spacing.xs, paddingTop: spacing.xs },
   ratingsHead: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: spacing.xs },
-  cells: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, paddingVertical: spacing.sm },
+  cells: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, paddingVertical: spacing.xs },
   cellsRow: { flexWrap: 'nowrap' },
-  cell: { flexGrow: 1, flexBasis: 0, minWidth: 0, minHeight: MIN_TOUCH_TARGET, borderWidth: 1, borderRadius: instrument.radius, padding: spacing.sm, gap: spacing.xs },
+  cell: { flexGrow: 1, flexBasis: 0, minWidth: 0, minHeight: MIN_TOUCH_TARGET, borderWidth: 1, borderRadius: instrument.radius, paddingHorizontal: spacing.sm, paddingVertical: spacing.xs, gap: 2 },
   cellLarge: { flexBasis: 120, minWidth: 120 },
   cellHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.xs },
   cellLabel: { fontSize: 12, letterSpacing: 0.5 },
-  cellValue: { fontSize: 24, fontWeight: '700' },
+  cellValue: { fontSize: 20, fontWeight: '700' },
   cellHint: { fontSize: 12 },
   bands: { borderWidth: 1, borderRadius: instrument.radius, marginVertical: spacing.sm },
   bandsTop: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: spacing.sm, padding: spacing.sm },

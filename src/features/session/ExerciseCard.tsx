@@ -330,10 +330,10 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
         const states = groups.map((group) => group.every((item) => item.completedAt) ? 'done' as const : group.some((item) => item.id === focusedId) ? 'current' as const : 'todo' as const);
         const position = Math.max(1, states.findIndex((state) => state === 'current') + 1 || groups.length);
         return (
-          <>
+          <View style={styles.setOfRow}>
             <Label>{t('activeSet.setOf', { number: position, total: groups.length })}</Label>
-            <SetSegments states={states} />
-          </>
+            <View style={styles.setOfBar}><SetSegments states={states} /></View>
+          </View>
         );
       })() : null}
       {goal ? (
@@ -496,6 +496,22 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
             <Icon name={isUp ? 'chevron-up' : 'chevron-down'} size={22} color={color} />
           </Pressable>
         );
+        // Title of the open set's strip, with its state under it; a tap folds the set.
+        const titleTap = (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`${title}, ${t('logger.foldSet')}`}
+            onPress={() => { tapFeedback(); toggleFold(set.id); }}
+            hitSlop={spacing.sm}
+            style={[styles.largeTitleTap, textIsLarge && styles.largeTitleFull]}
+          >
+            {/* Title and state stacked: side by side they overlapped on a phone-width card. */}
+            <View style={styles.stripTitles}>
+              <Text style={[styles.largeStripText, { color: done ? palette.successText : palette.surface }]}>{focus ? `${title} / ${t(set.kind === 'warmup' ? 'activeSet.warmup' : 'activeSet.working')}` : title}</Text>
+              {focus && !textIsLarge ? <Text style={[styles.stripState, { color: done ? palette.successText : palette.surface }]}>{`● ${holding ? t('activeSet.hold') : done ? t('activeSet.logged') : t('activeSet.inProgress')}`.toUpperCase()}</Text> : null}
+            </View>
+          </Pressable>
+        );
         const summary = [title, timed ? value : distance ? `${value} m` : `${value} ${t('history.units.reps')}`, withLoad ? `${loadText} kg` : null, done && set.rpe !== null ? t('logger.rpeTag', { value: formatRpe(set.rpe) }) : null].filter(Boolean).join(' · ');
         const actionCol = (
       <View style={[styles.colAction, { width: checkBtn }]}>
@@ -585,7 +601,7 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
             /* Large text, the set in hand: title, then each field on its own line with big − and +. */
             <Pressable accessible={false} accessibilityRole="none" onLongPress={openMenu} delayLongPress={450} style={styles.largeFields}>
               {/* The open set reads as a sheet: an ink strip names it and folds it, the fields below. */}
-              <View style={[styles.largeStrip, { backgroundColor: done ? palette.success : ink }]}>
+              <View style={[styles.largeStrip, textIsLarge && styles.largeStripWrap, { backgroundColor: done ? palette.success : ink }]}>
                 <Pressable
                   accessibilityRole="button"
                   accessibilityLabel={set.kind === 'warmup' ? t('logger.warmupOn') : t('logger.warmupOff', { number: workingNumber })}
@@ -598,16 +614,7 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
                 >
                   <Text style={[styles.setBadgeText, { color: set.kind === 'warmup' ? palette.textMuted : palette.text }]}>{set.kind === 'warmup' ? 'W' : workingNumber}</Text>
                 </Pressable>
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel={`${title}, ${t('logger.foldSet')}`}
-                  onPress={() => { tapFeedback(); toggleFold(set.id); }}
-                  hitSlop={spacing.sm}
-                  style={styles.largeTitleTap}
-                >
-                  <Text style={[styles.largeStripText, { color: done ? palette.successText : palette.surface }]}>{focus ? `${title} / ${t(set.kind === 'warmup' ? 'activeSet.warmup' : 'activeSet.working')}` : title}</Text>
-                </Pressable>
-                {focus && !textIsLarge ? <Text style={[styles.stripState, { color: done ? palette.successText : palette.surface }]}>{`● ${holding ? t('activeSet.hold') : done ? t('activeSet.logged') : t('activeSet.inProgress')}`.toUpperCase()}</Text> : null}
+                {textIsLarge ? <View style={styles.flex} /> : titleTap}
                 <Pressable
                   accessibilityRole="button"
                   accessibilityLabel={t('logger.setOptions', { number: set.index })}
@@ -617,11 +624,12 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
                   <Icon name="ellipsis-vertical" size={18} color={done ? palette.successText : palette.surface} />
                 </Pressable>
                 {foldButton(true, () => toggleFold(set.id), done ? palette.successText : palette.surface)}
+                {/* Large text: the title takes a line of its own under the badge and buttons, so no word breaks. */}
+                {textIsLarge ? titleTap : null}
               </View>
               {focus ? (() => {
                 const match = previousMatchFor(set);
                 const previousValue = match ? describePreviousSet(match, exercise.metric) : t('activeSet.firstTime');
-                const unit = timed ? t('activeSet.secondsCaption') : distance ? t('activeSet.metersCaption') : t('activeSet.repsCaption');
                 const reference = ghostFor(set);
                 const unitWord = timed ? 's' : distance ? 'm' : t('history.units.reps');
                 const max = gaugeMax(stored, reference);
@@ -630,11 +638,11 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
                     {textIsLarge ? <Tag color={palette.accentStrong}>{`● ${holding ? t('activeSet.hold') : done ? t('activeSet.logged') : t('activeSet.inProgress')}`.toUpperCase()}</Tag> : null}
                     <PreviousSetBox label={t('activeSet.previousLabel')} value={previousValue} rpeLabel={t('lastTime.rpeChip')} rpeValue={match && match.rpe !== null ? formatRpe(match.rpe) : null} sideLabel={t('activeSet.lastSession')} />
                     <View style={styles.measureRow}>
-                      <MeasureBox stack={textIsLarge} label={fieldLabel.toUpperCase()} caption={unit}>
+                      <MeasureBox stack={textIsLarge} label={fieldLabel.toUpperCase()}>
                         <View style={styles.largeStepper}>{valueDown}<View style={styles.largeValue}>{valueField}</View>{valueUp}</View>
                       </MeasureBox>
                       {withLoad ? (
-                        <MeasureBox stack={textIsLarge} label={t('logger.loadCol').toUpperCase()} caption={t('activeSet.loadCaption')}>
+                        <MeasureBox stack={textIsLarge} label={t('logger.loadCol').toUpperCase()}>
                           <View style={styles.largeStepper}>{loadDown}<View style={styles.largeValue}>{loadField}</View>{loadUp}</View>
                         </MeasureBox>
                       ) : null}
@@ -924,7 +932,8 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
             })() : null}
             {/* Large text: one wide button finishes the set (or runs its hold). */}
             {editing && !(fixedAction && !done && set.id === nextSetId) ? (
-              done ? (
+              <View style={[styles.actionRow, textIsLarge && styles.actionRowWrap]}>
+              {done ? (
                 <Pressable
                   accessibilityRole="button"
                   accessibilityState={{ checked: true, disabled: emomLocked }}
@@ -963,19 +972,18 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
                   <Icon name="checkmark" size={22} color={palette.accentText} />
                   <Text style={[styles.largeActionText, { color: palette.accentText }]}>{focus ? t('activeSet.completeSet', { number: workingNumber }).toUpperCase() : t('workout.completeSet')}</Text>
                 </Pressable>
-              )
+              )}
+              {focus && !done ? (
+                // Beside Complete; at large text a full-width row under it, with its label.
+                <Pressable accessibilityRole="button" accessibilityLabel={t('activeSet.moreDetails')} onPress={() => { tapFeedback(); onSetOptions(set); }} style={({ pressed }) => [styles.detailsButton, textIsLarge && styles.detailsButtonWide, { borderColor: ink, backgroundColor: palette.surface }, pressed && { opacity: 0.6 }]}>
+                  <Icon name="options-outline" size={22} color={palette.accentStrong} />
+                  {textIsLarge ? <Text style={[styles.largeActionText, { color: palette.accentStrong }]}>{t('activeSet.moreDetails')}</Text> : null}
+                </Pressable>
+              ) : null}
+              </View>
             ) : null}
             {/* The fixed Complete button stands in for this one: its room stays, so selecting an exercise moves nothing. */}
             {editing && fixedAction && !done && set.id === nextSetId ? <View pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={styles.fixedActionRoom} /> : null}
-            {focus && editing && !done && !(fixedAction && set.id === nextSetId) ? (
-              <View style={styles.actionCaption}>
-                <Text style={[styles.queueText, styles.actionCaptionText, { color: palette.textMuted }]}>{t('activeSet.optional')}</Text>
-                <Pressable accessibilityRole="button" accessibilityLabel={t('activeSet.moreDetails')} hitSlop={spacing.sm} onPress={() => { tapFeedback(); onSetOptions(set); }} style={styles.actionLink}>
-                  <Text style={[styles.queueText, { color: palette.accentStrong }]}>{`${t('activeSet.moreDetails').toUpperCase()} ↑`}</Text>
-                </Pressable>
-              </View>
-            ) : null}
-            {focus && editing && !done && fixedAction && set.id === nextSetId ? <View pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={styles.fixedCaptionRoom} /> : null}
           </Animated.View>
         );
       })}
@@ -984,7 +992,7 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
       {collapsed ? null : <View style={[styles.addRow, largeText && styles.addRowLarge, table && [styles.addRowTable, { borderTopColor: palette.border }]]}>
         <Pressable accessibilityRole="button" onPress={() => { tapFeedback(); onAddSet(); }} style={({ pressed }) => [styles.addSet, largeText && [styles.addSetLarge, { borderColor: palette.border }], { opacity: pressed ? 0.6 : 1 }]}>
           <Icon name="add" size={18} color={palette.accentStrong} />
-          <Text style={[styles.addSetText, table && styles.addSetMono, { color: palette.accentStrong }]}>{t('logger.addSet')}</Text>
+          <Text style={[styles.addSetText, table && styles.addSetMono, { color: palette.accentStrong }]}>{emomBadgeLabel ? t('emom.addRound') : t('logger.addSet')}</Text>
         </Pressable>
         {onAddWarmup ? (
           <Pressable accessibilityRole="button" accessibilityHint={t('logger.warmupHint')} onPress={() => { tapFeedback(); onAddWarmup(); }} style={({ pressed }) => [styles.addSet, largeText && [styles.addSetLarge, { borderColor: palette.border }], { opacity: pressed ? 0.6 : 1 }]}>
@@ -1090,9 +1098,11 @@ const baseStyles = StyleSheet.create({
   // Large text: the open set is a card of one-column fields; the other sets are one line each.
   // Focus card: one 16 rhythm between header, fields, chips, scale and button.
   largeBlock: { borderRadius: radii.control, borderWidth: 2, padding: 16, gap: 16, marginVertical: 8, marginHorizontal: -spacing.sm },
+  largeStripWrap: { flexWrap: 'wrap', paddingBottom: spacing.sm },
   largeStrip: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: 56, marginHorizontal: -16, marginTop: -16, paddingHorizontal: spacing.md },
-  largeStripText: { flex: 1, fontFamily: fonts.monoSemibold, fontSize: 14, lineHeight: 20, textTransform: 'uppercase', letterSpacing: 1 },
-  largeFields: { gap: 16 },
+  stripTitles: { flex: 1, minWidth: 0 },
+  largeStripText: { fontFamily: fonts.monoSemibold, fontSize: 13, lineHeight: 18, textTransform: 'uppercase', letterSpacing: 0.5 },
+  largeFields: { gap: spacing.md },
   setBlockLine: { marginBottom: 0 },
   upcomingRow: { minHeight: MIN_TOUCH_TARGET, justifyContent: 'center', paddingHorizontal: spacing.md },
   upcomingText: { fontSize: 14 },
@@ -1101,16 +1111,18 @@ const baseStyles = StyleSheet.create({
   largeField: { gap: 8 },
   largeStepper: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   largeValue: { flex: 1, alignItems: 'center' },
+  setOfRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', columnGap: spacing.md },
+  setOfBar: { flexGrow: 1, flexBasis: 120 },
   measureRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, paddingVertical: spacing.sm },
   stripState: { fontSize: 12, letterSpacing: 0.5 },
   queue: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', gap: spacing.xs, paddingVertical: spacing.sm },
   queueText: { fontSize: 12, letterSpacing: 0.5 },
   fixedActionRoom: { minHeight: 56 },
-  fixedCaptionRoom: { minHeight: MIN_TOUCH_TARGET + spacing.sm },
-  actionCaption: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: spacing.sm, paddingTop: spacing.sm },
-  actionCaptionText: { flexShrink: 1 },
-  actionLink: { minHeight: MIN_TOUCH_TARGET, justifyContent: 'center' },
-  largeAction: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, minHeight: 56, paddingHorizontal: 16, paddingVertical: 8, borderRadius: radii.control },
+  actionRow: { flexDirection: 'row', alignItems: 'stretch', gap: spacing.sm },
+  actionRowWrap: { flexWrap: 'wrap' },
+  detailsButtonWide: { flexBasis: '100%', flexDirection: 'row', gap: spacing.sm, paddingHorizontal: spacing.lg },
+  detailsButton: { minWidth: 56, minHeight: 56, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderRadius: radii.control },
+  largeAction: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, minHeight: 56, paddingHorizontal: 16, paddingVertical: 8, borderRadius: radii.control },
   largeActionText: { flexShrink: 1, fontFamily: fonts.semibold, fontSize: 17, textAlign: 'center' },
   summaryLine: { flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1, borderStyle: 'dashed' },
   summaryRow: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 56, paddingVertical: 4, paddingLeft: 4 },
@@ -1168,6 +1180,7 @@ const baseStyles = StyleSheet.create({
   loadValue: { fontFamily: fonts.display, fontSize: 20, lineHeight: 26, minWidth: 34, textAlign: 'center', fontVariant: ['tabular-nums'] },
   openAll: { alignSelf: 'flex-end', flexDirection: 'row', alignItems: 'center', gap: spacing.xs, minHeight: MIN_TOUCH_TARGET - spacing.sm, paddingHorizontal: spacing.xs },
   openAllText: { fontSize: 13, lineHeight: 18, fontWeight: '600' },
+  largeTitleFull: { flexBasis: '100%' },
   largeTitleTap: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: MIN_TOUCH_TARGET },
   checkButton: { borderRadius: radii.control, alignItems: 'center', justifyContent: 'center' },
   checkPressed: { opacity: 0.7, transform: [{ scale: 0.94 }] },

@@ -838,8 +838,8 @@ export function NumberEdit({ value, display, label, onCommit, onLongPress, initi
 
 /**
  * Short message at the bottom of the screen with an optional action (e.g. "Restore"). It stays clear
- * of the navigation bar and of any bar the screen shows above it (`bottomOffset`), and hides itself
- * after a few seconds.
+ * of the navigation bar and of any bar the screen shows above it (`bottomOffset`), hides itself
+ * after a few seconds, and can always be swiped away sideways.
  */
 export function Toast({ message, actionLabel, onAction, onHide, bottomOffset = 0 }: {
   message: string | null;
@@ -851,33 +851,55 @@ export function Toast({ message, actionLabel, onAction, onHide, bottomOffset = 0
   const styles = useScaledStyles(baseStyles);
   const { palette } = useTheme();
   const insets = useAppInsets();
+  const { reducedMotion, speed } = useAnimationSettings();
+  const calm = reducedMotion || speed === "off";
+  // Dismissed (swiped, timed out or escaped) for the message on screen; a new message starts fresh. This is state,
+  // not a call to onHide: screens pass a new onHide on every render (a running clock renders four times a second),
+  // and depending on it would restart the timer and rebuild the swipe mid-drag.
+  const [shown, setShown] = useState(message);
+  const [gone, setGone] = useState(false);
+  if (message !== shown) { setShown(message); setGone(false); }
+  useEffect(() => { if (gone && message !== null) onHide(); }, [gone, message, onHide]);
   useEffect(() => {
     if (message === null) return;
-    const timer = setTimeout(onHide, 8000);
+    const timer = setTimeout(() => setGone(true), 8000);
     return () => clearTimeout(timer);
-  }, [message, onHide]);
-  // A sideways swipe (or a quick flick) sends the toast away; a short drag springs back.
+  }, [message]);
+  // Every toast can be swiped away sideways (or flicked); a short drag springs back. It takes a sideways move
+  // before the action button or a scrolling parent does, and keeps it until the finger lifts.
   const [drag] = useState(() => new Animated.Value(0));
   useEffect(() => { drag.setValue(0); }, [message, drag]);
-  const swipe = useMemo(() => PanResponder.create({
-    onMoveShouldSetPanResponder: (_, g) => Math.abs(g.dx) > 8 && Math.abs(g.dx) > Math.abs(g.dy),
-    onPanResponderMove: (_, g) => drag.setValue(g.dx),
-    onPanResponderRelease: (_, g) => {
-      if (Math.abs(g.dx) > 80 || Math.abs(g.vx) > 0.6) {
-        Animated.timing(drag, { toValue: Math.sign(g.dx || g.vx) * 500, duration: 150, useNativeDriver: Platform.OS !== "web" }).start(() => onHide());
-      } else {
-        Animated.spring(drag, { toValue: 0, useNativeDriver: Platform.OS !== "web" }).start();
-      }
-    },
-    onPanResponderTerminate: () => Animated.spring(drag, { toValue: 0, useNativeDriver: Platform.OS !== "web" }).start(),
-  }), [drag, onHide]);
+  const swipe = useMemo(() => {
+    const sideways = (g: { dx: number; dy: number }) => Math.abs(g.dx) > 8 && Math.abs(g.dx) > Math.abs(g.dy);
+    const native = Platform.OS !== "web";
+    return PanResponder.create({
+      // Claimed at the touch start too (the action button, deeper, still gets its own taps first): on web a drag
+      // that nobody claims at once becomes a text selection and never reaches the move handlers.
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: (_, g) => sideways(g),
+      onMoveShouldSetPanResponderCapture: (_, g) => sideways(g),
+      onPanResponderTerminationRequest: () => false,
+      onPanResponderMove: (_, g) => drag.setValue(g.dx),
+      onPanResponderRelease: (_, g) => {
+        if (Math.abs(g.dx) > 80 || Math.abs(g.vx) > 0.6) {
+          if (calm) { setGone(true); return; }
+          Animated.timing(drag, { toValue: Math.sign(g.dx || g.vx) * 500, duration: 150, useNativeDriver: native }).start(() => setGone(true));
+        } else if (calm) {
+          drag.setValue(0);
+        } else {
+          Animated.spring(drag, { toValue: 0, useNativeDriver: native }).start();
+        }
+      },
+      onPanResponderTerminate: () => (calm ? drag.setValue(0) : Animated.spring(drag, { toValue: 0, useNativeDriver: native }).start()),
+    });
+  }, [drag, calm]);
   if (message === null) return null;
   return (
     <Animated.View
       {...swipe.panHandlers}
       accessibilityLiveRegion="polite"
       accessibilityActions={[{ name: "escape", label: "dismiss" }]}
-      onAccessibilityEscape={onHide}
+      onAccessibilityEscape={() => setGone(true)}
       style={[styles.toast, { bottom: insets.bottom + 16 + bottomOffset, backgroundColor: palette.text, borderColor: palette.surface, transform: [{ translateX: drag }], opacity: drag.interpolate({ inputRange: [-300, 0, 300], outputRange: [0.2, 1, 0.2] }) }]}
     >
       <Text style={[styles.toastText, { color: palette.background }]}>{message}</Text>
@@ -921,7 +943,7 @@ export function TextField({ label, hint, error, style, multiline, onFocus, onBlu
 
 const baseStyles = StyleSheet.create({
   flexFill: { flex: 1 },
-  toast: { position: "absolute", left: 16, right: 16, minHeight: 52, borderRadius: radii.control, paddingHorizontal: 16, paddingVertical: 10, flexDirection: "row", alignItems: "center", gap: 12, borderWidth: 1 },
+  toast: { userSelect: "none", position: "absolute", left: 16, right: 16, minHeight: 52, borderRadius: radii.control, paddingHorizontal: 16, paddingVertical: 10, flexDirection: "row", alignItems: "center", gap: 12, borderWidth: 1 },
   toastText: { flex: 1, fontFamily: fonts.medium, fontSize: 15 },
   toastAction: { paddingHorizontal: 6, paddingVertical: 6 },
   toastActionText: { fontFamily: fonts.semibold, fontSize: 15 },

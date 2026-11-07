@@ -52,6 +52,7 @@ import {
   updateWorkoutReadiness,
   updateSet,
   setEntryTotalTarget,
+  removeSet,
 } from '../../src/features/session/repository';
 import type { ActiveWorkout, PreviousPerformance, PreviousSetValues, RemovedRows, SessionExercise, SessionSet, SwitchSnapshot } from '../../src/features/session/repository';
 import { defaultHoldMode, rememberHoldMode, useHoldTimer, type ActiveHold } from '../../src/features/session/useHoldTimer';
@@ -68,7 +69,8 @@ import { DockRails, WorkoutDockPanel } from '../../src/features/session/DockRail
 import { useExerciseTelemetry } from '../../src/features/session/telemetry/useExerciseTelemetry';
 import { clearEmomPlan, useEmom, type EmomAlertText } from '../../src/features/session/useEmom';
 import { EmomSetupSheet, emomFieldFor } from '../../src/features/session/EmomSetupSheet';
-import { emomLabel, type EmomPhase, type EmomPlan } from '../../src/domain/emom';
+import { emomLabel, firstRoundStart, type EmomPhase, type EmomPlan } from '../../src/domain/emom';
+import { EmomMiniDock, EmomStage, type EmomView } from '../../src/features/session/EmomStage';
 import type { HoldMode } from '../../src/domain/holdTimer';
 import { playBeep } from '../../src/shared/audio/beeps';
 import {
@@ -197,6 +199,10 @@ export default function WorkoutScreen() {
   const [clearAllOpen, setClearAllOpen] = useState(false);
   const [emomSetupFor, setEmomSetupFor] = useState<SessionExercise | null>(null);
   const [emomNotice, setEmomNotice] = useState<string | null>(null);
+  // The running EMOM shows full screen; "Workout" closes it to a mini dock at the bottom and the EMOM keeps running.
+  const [emomStage, setEmomStage] = useState(true);
+  // The round just added, offered for undo: the set added with it and the toast's text.
+  const [emomAdded, setEmomAdded] = useState<{ setId: string; message: string } | null>(null);
   // PRs set so far in this workout: record kinds per set, and exercises with a volume mini PR.
   const recordCount = useRef<number | null>(null);
   const [records, setRecords] = useState<{ sets: Map<string, RecordKind[]>; volume: Set<string>; sameLoad: Map<string, { loadKg: number; sets: number; gain: number }> }>(() => ({ sets: new Map(), volume: new Set(), sameLoad: new Map() }));
@@ -345,6 +351,33 @@ export default function WorkoutScreen() {
     },
   });
   const emomEntryId = emom.plan?.entryId ?? null;
+  const closeEmomStage = useCallback(() => setEmomStage(false), []);
+  // Stable: the toast restarts its timer when onHide changes, and the EMOM clock re-renders the screen four times a second.
+  const hideEmomAdded = useCallback(() => setEmomAdded(null), []);
+  /** One more round at the end of the running EMOM, with the set that will hold it; offered for undo. */
+  const addEmomRound = async () => {
+    const plan = emom.plan;
+    if (!plan || !id) return;
+    const setId = await addSet(plan.entryId);
+    if (emom.addRound()) {
+      const value = plan.field === 'durationSec' ? formatClock(plan.value) : t('emom.reps', { count: plan.value });
+      setEmomAdded({ setId, message: t('emom.roundAdded', { round: plan.rounds + 1, value }) });
+    } else {
+      // The last round is over: the set stays as an ordinary one.
+      setEmomAdded(null);
+    }
+    await refresh(id);
+  };
+  const undoEmomRound = async () => {
+    const added = emomAdded;
+    setEmomAdded(null);
+    if (!added || !id) return;
+    emom.removeRound();
+    // A round may already have saved into the new set (fewer planned sets than rounds): then the set stays.
+    const set = workoutRef.current?.exercises.flatMap((exercise) => exercise.sets).find((item) => item.id === added.setId);
+    if (set && !set.completedAt) await removeSet(added.setId);
+    await refresh(id);
+  };
 
   // Returning from the form-check or new-exercise screens brings back clips and exercises added there.
   // The first focus is the mount, which the effect above already loads.
@@ -801,7 +834,8 @@ export default function WorkoutScreen() {
   // Live feedback of the exercise in hand; one line while a timer runs, at large text and on short screens, so it never crowds the footer.
   const telemetryCompact = largeText || windowHeight < 700 || hold.active !== null || restEndsAt !== null || Boolean(emom.plan);
   // Focus mode: the action of the set in hand is fixed above the footer (the exercise card leaves its own button out for that set).
-  const fixedSet = focusMode && handExercise ? handExercise.sets.find((set) => !set.completedAt) ?? null : null;
+  // Not for the exercise of a running EMOM: its clock saves the rounds.
+  const fixedSet = focusMode && handExercise && handExercise.entryId !== emomEntryId ? handExercise.sets.find((set) => !set.completedAt) ?? null : null;
   const fixedTimed = handExercise?.metric === 'time' || handExercise?.metric === 'time_load';
   const fixedHolding = fixedSet !== null && hold.active?.setId === fixedSet.id;
   const fixedNumber = fixedSet && handExercise ? groupSets(handExercise.sets.filter((set) => set.kind === 'working' && set.index <= fixedSet.index)).length : 0;
@@ -809,11 +843,10 @@ export default function WorkoutScreen() {
     <PrimaryActionBar
       label={(fixedTimed ? (fixedHolding ? t('logger.doneHold') : `${t('logger.startHold')} ${formatClock(fixedSet.durationSec ?? 0)}`) : t('activeSet.completeSet', { number: fixedNumber })).toUpperCase()}
       icon={fixedTimed ? (fixedHolding ? 'stop' : 'play') : 'checkmark'}
-      caption={largeText ? null : t('activeSet.optional')}
-      linkLabel={t('activeSet.moreDetails')}
+      detailsLabel={t('activeSet.moreDetails')}
       onPress={() => { if (!fixedTimed) void completeHoldManually(fixedSet); else if (fixedHolding) void finishCurrentHold(); else startHoldFor(fixedSet); }}
       onLongPress={fixedTimed && !fixedHolding ? () => void completeHoldManually(fixedSet) : undefined}
-      onLink={() => setSetSheet({ exercise: handExercise, setId: fixedSet.id })}
+      onDetails={() => setSetSheet({ exercise: handExercise, setId: fixedSet.id })}
     />
   ) : null;
   // Focus mode: Add and Finish live in a Workout rail next to a Telemetry rail, under the fixed main action; one panel open at a time.
@@ -857,6 +890,17 @@ export default function WorkoutScreen() {
   const nowEntryId = selectedExercise?.entryId ?? (telemetryOn ? telemetryExercise?.entryId : null) ?? currentEntryId;
   const nowIndex = workout.exercises.findIndex((exercise) => exercise.entryId === nowEntryId);
   const timerRunning = hold.active !== null || restEndsAt !== null || Boolean(emom.plan && emom.phase);
+  const emomExercise = emom.plan ? workout.exercises.find((item) => item.entryId === emom.plan?.entryId) ?? null : null;
+  const emomView: EmomView | null = emom.plan && emom.phase ? {
+    exercise: emomExercise?.name ?? '',
+    intervalSec: emom.plan.intervalSec,
+    rounds: emom.plan.rounds,
+    phase: emom.phase,
+    done: emomDoneValues(emomExercise, emom.plan),
+    value: emom.plan.value,
+    field: emom.plan.field,
+    canAddRound: emom.phase.phase !== 'done' && !(emom.phase.phase === 'running' && emom.phase.round >= emom.plan.rounds),
+  } : null;
   const lowReadiness = (workout.sleep !== null && workout.sleep <= 2) || (workout.energy !== null && workout.energy <= 2) || (workout.soreness !== null && workout.soreness >= 4);
 
   return (
@@ -864,23 +908,14 @@ export default function WorkoutScreen() {
       <Screen
         scrollRef={scrollRef}
         // The running clock sits right above Add and Finish, so both stay in reach during rest.
-        footerAccessory={<View style={styles.dockStack}>{railsMode ? railsTop : <>{telemetryDock}{primaryBar}</>}{!dockOpen && (!railsMode || timerRunning) ? (
+        footerAccessory={<View style={styles.dockStack}>{railsMode ? railsTop : <>{telemetryDock}{primaryBar}</>}{emomView ? (
+          <EmomMiniDock view={emomView} label={emomBadge(emomView.phase, emom.plan!, t)} onOpen={() => setEmomStage(true)} />
+        ) : !dockOpen && (!railsMode || timerRunning) ? (
           <CollapsedDock restEndsAt={timerRunning ? restEndsAt : null} voiceCues={voiceCues} onRestEnd={endRest} onOpen={() => setDockOpen(true)} />
         ) : !timerRunning && freeRest ? (
           <FreeRestBar since={freeRest.since} restSec={freeRest.restSec} onStartRest={() => startRestTimer(freeRest.restSec)} onClose={() => setFreeRest(null)} />
         ) : timerRunning ? (
           <TimerBar
-            emom={emom.plan && emom.phase ? {
-              label: emomBarLabel(emom.phase, emom.plan, t),
-              exercise: workout.exercises.find((item) => item.entryId === emom.plan?.entryId)?.name ?? '',
-              progress: emom.phase.phase === 'running' ? (emom.phase.round - 1) / emom.plan.rounds : emom.phase.phase === 'done' ? 1 : 0,
-              timeLabel: emom.phase.phase === 'countdown' ? t('emom.startsIn') : t('emom.timeLeft'),
-              display: emom.phase.phase === 'done' ? '0:00' : emom.phase.phase === 'countdown' ? String(emom.phase.secondsLeft) : formatClock(emom.phase.secondsLeft),
-              value: emom.plan.field === 'durationSec' ? formatClock(emom.plan.value) : t('emom.reps', { count: emom.plan.value }),
-              valueLabel: t('emom.thisRound'),
-              onChange: (delta: number) => emom.setValue((emom.plan?.value ?? 0) + delta * (emom.plan?.field === 'durationSec' ? 5 : 1)),
-              onStop: () => void emom.stop(),
-            } : null}
             hold={hold.active}
             restEndsAt={restEndsAt}
             voiceCues={voiceCues}
@@ -996,7 +1031,7 @@ export default function WorkoutScreen() {
             onComplete={(set) => void completeHoldManually(set)}
             onStartHold={startHoldFor}
             onFinishHold={() => void finishCurrentHold()}
-            onAddSet={() => void addSet(exercise.entryId).then(() => refresh(workout.id))}
+            onAddSet={() => void (exercise.entryId === emomEntryId ? addEmomRound() : addSet(exercise.entryId).then(() => refresh(workout.id)))}
             onAddWarmup={() => void addWarmupSet(exercise.entryId).then(() => refresh(workout.id))}
             onCopyAllLast={copyable.length > 0 || missingWarmups(exercise, previous.get(exercise.exerciseId)) > 0 ? () => void Promise.all(copyable.map(({ set, values }) => copyValuesToSet(set.id, values)))
               .then(() => addWarmupsFromLastTime(exercise.entryId, previous.get(exercise.exerciseId)?.warmups ?? []))
@@ -1080,6 +1115,25 @@ export default function WorkoutScreen() {
         onHide={hideUndo}
         bottomOffset={emom.plan ? 180 : hold.active || restEndsAt !== null ? 110 : 0}
       />
+      {emomView && emomStage ? (
+        <EmomStage
+          view={emomView}
+          onChange={(delta) => emom.setValue((emom.plan?.value ?? 0) + delta * (emom.plan?.field === 'durationSec' ? 5 : 1))}
+          onAddRound={() => void addEmomRound()}
+          onStop={() => void emom.stop()}
+          onClose={closeEmomStage}
+        />
+      ) : null}
+      {/* Above the EMOM screen (which sits on its own layer), touches pass through around the toast. */}
+      <View pointerEvents="box-none" style={[StyleSheet.absoluteFill, styles.overStage]}>
+        <Toast
+          message={emomAdded?.message ?? null}
+          actionLabel={t('emom.undo')}
+          onAction={() => void undoEmomRound()}
+          onHide={hideEmomAdded}
+          bottomOffset={emomView && emomStage ? 160 : 72}
+        />
+      </View>
       <Toast message={emomNotice} onHide={() => setEmomNotice(null)} />
       <Toast message={loadNotice} onHide={() => setLoadNotice(null)} />
 
@@ -1092,6 +1146,7 @@ export default function WorkoutScreen() {
           setCollapsedEntries((current) => new Map(current).set(config.entryId, false));
           hold.stop();
           skipRest();
+          setEmomStage(true);
           if (emom.plan) void emom.stop().then(() => emom.start(config));
           else emom.start(config);
         }}
@@ -1333,20 +1388,14 @@ function copyableSets(exercise: SessionExercise, previous: PreviousPerformance |
   });
 }
 
-interface EmomBar {
-  /** "Round 3 / 10", "Get ready" or "Done". */
-  label: string;
-  /** Exercise the EMOM runs on. */
-  exercise: string;
-  /** Rounds already behind, 0–1. */
-  progress: number;
-  /** What the clock counts: the countdown before round 1, or what is left of this round. */
-  timeLabel: string;
-  display: string;
-  value: string;
-  valueLabel: string;
-  onChange: (delta: number) => void;
-  onStop: () => void;
+/** What each round of the running EMOM saved, in order: its exercise's working sets completed since round 1 began. */
+function emomDoneValues(exercise: SessionExercise | null, plan: EmomPlan): number[] {
+  if (!exercise) return [];
+  const since = firstRoundStart(plan);
+  return groupSets(exercise.sets)
+    .filter((group) => group[0].kind === 'working' && group[0].completedAt && new Date(group[0].completedAt).getTime() >= since)
+    .sort((a, b) => new Date(a[0].completedAt!).getTime() - new Date(b[0].completedAt!).getTime())
+    .map((group) => (plan.field === 'durationSec' ? group[0].durationSec : group[0].reps) ?? 0);
 }
 
 /** "Round 3 / 10" on the card while an EMOM runs. */
@@ -1355,14 +1404,7 @@ function emomBadge(phase: EmomPhase, plan: EmomPlan, t: (key: string, options?: 
   return t('emom.badgeReady', { rounds: plan.rounds });
 }
 
-function emomBarLabel(phase: EmomPhase, plan: EmomPlan, t: (key: string, options?: Record<string, unknown>) => string): string {
-  if (phase.phase === 'countdown') return t('emom.getReady');
-  if (phase.phase === 'running') return t('emom.round', { round: phase.round, rounds: plan.rounds });
-  return t('emom.notifyDone');
-}
-
-function TimerBar({ emom, hold, restEndsAt, voiceCues, onRestEnd, onFinishHold, onExtend, onReduce, onSkip, onCollapse }: {
-  emom: EmomBar | null;
+function TimerBar({ hold, restEndsAt, voiceCues, onRestEnd, onFinishHold, onExtend, onReduce, onSkip, onCollapse }: {
   hold: ActiveHold | null;
   /** When the running rest ends; the bar counts it down and calls onRestEnd at zero. */
   restEndsAt: number | null;
@@ -1377,33 +1419,7 @@ function TimerBar({ emom, hold, restEndsAt, voiceCues, onRestEnd, onFinishHold, 
   const styles = useScaledStyles(baseStyles);
   const { t } = useTranslation();
   const { palette } = useTheme();
-  if (hold === null && restEndsAt === null && emom === null) return null;
-  if (emom) {
-    return (
-      <View style={[styles.timerBar, { backgroundColor: palette.hero }]}>
-        <View style={[styles.timerInner, styles.emomInner]}>
-          {/* Round and exercise on top, the clock large beside Stop: the clock never shares a flexible box that could squeeze it. */}
-          <View style={styles.emomRow}>
-            <View style={styles.emomHead}>
-              <Text style={[styles.emomRound, { color: palette.heroText }]}>{emom.label}</Text>
-              {emom.exercise ? <Text numberOfLines={1} style={[styles.timerLabel, { color: palette.heroText }]}>{emom.exercise}</Text> : null}
-            </View>
-            <Text accessibilityRole="timer" accessibilityLabel={`${emom.timeLabel} ${emom.display}`} style={[styles.emomClock, { color: palette.heroText }]}>{emom.display}</Text>
-            <TimerAction label={t('emom.stopShort')} filled onPress={emom.onStop} />
-          </View>
-          <View accessible={false} style={[styles.emomTrack, { backgroundColor: palette.heroOverlay }]}>
-            <View style={[styles.emomFill, { backgroundColor: palette.heroText, width: `${Math.round(Math.min(1, Math.max(0, emom.progress)) * 100)}%` }]} />
-          </View>
-          <View style={styles.emomRow}>
-            <Text numberOfLines={1} style={[styles.timerLabel, styles.emomValueLabel, { color: palette.heroText }]}>{emom.valueLabel}</Text>
-            <TimerAction label="−" accessibilityLabel={`${emom.valueLabel} −`} onPress={() => emom.onChange(-1)} />
-            <Text accessibilityLiveRegion="polite" style={[styles.emomValueText, { color: palette.heroText }]}>{emom.value}</Text>
-            <TimerAction label="+" accessibilityLabel={`${emom.valueLabel} +`} onPress={() => emom.onChange(1)} />
-          </View>
-        </View>
-      </View>
-    );
-  }
+  if (hold === null && restEndsAt === null) return null;
   const holding = hold !== null;
   const countingDown = hold?.phase.phase === 'countdown';
   const label = !hold
@@ -1524,6 +1540,7 @@ function ReadinessRow({ label, value, onChange }: { label: string; value: number
 
 const baseStyles = StyleSheet.create({
   // The blocks of the lower dock (panel, main action, rails, timer) never touch: one step of the spacing scale between them.
+  overStage: { zIndex: 30, elevation: 30 },
   dockStack: { gap: spacing.md },
   // Its own row under check-in and fold all: the chips sit side by side, left-aligned.
   headingActions: { width: '100%', flexDirection: 'row', flexWrap: 'wrap', gap: 8, justifyContent: 'flex-start' },
@@ -1561,15 +1578,6 @@ const baseStyles = StyleSheet.create({
   timerReadout: { flexGrow: 1, minWidth: 110 },
   timerActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   // No wrapping here: a wrapping column lays the two rows side by side and squeezes the labels to nothing.
-  emomInner: { flexDirection: 'column', flexWrap: 'nowrap', alignItems: 'stretch', justifyContent: 'flex-start', gap: 8 },
-  emomRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  emomHead: { flexGrow: 1, flexShrink: 1, minWidth: 120, gap: 2 },
-  emomRound: { fontFamily: fonts.semibold, fontSize: 17, lineHeight: 22 },
-  emomClock: { fontFamily: fonts.display, fontSize: 40, lineHeight: 44, minWidth: 84, textAlign: 'right', fontVariant: ['tabular-nums'] },
-  emomTrack: { height: 6, borderRadius: 3, overflow: 'hidden' },
-  emomFill: { height: 6, borderRadius: 3 },
-  emomValueLabel: { flexGrow: 1, flexShrink: 1, minWidth: 80 },
-  emomValueText: { fontFamily: fonts.display, fontSize: 26, lineHeight: 30, minWidth: 72, textAlign: 'center', fontVariant: ['tabular-nums'] },
   timerAction: { minWidth: 56, minHeight: 48, borderRadius: instrument.radius, paddingHorizontal: 14, paddingVertical: 10, alignItems: 'center', justifyContent: 'center' },
   timerActionText: { fontFamily: fonts.semibold, fontSize: 15 },
   timerActionSymbol: { fontSize: 26, lineHeight: 30 },

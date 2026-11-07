@@ -35,10 +35,15 @@ workout, versioned): `docs/LANGUAGE.md`; use it in UI strings, code and answers.
 
 - No emulator here. Use Expo web: `CI=1 npx expo start --web --port 8081 --clear` (restart with
   `--clear` after adding files) and Playwright driven with Chromium `--no-sandbox`. Each run has an
-  empty database, so create the data in the same script. The dev server may not send the
-  cross-origin isolation headers on the HTML page (SQLite then fails with "SharedArrayBuffer is not
-  defined"); add them in Playwright with `page.route` (`cross-origin-embedder-policy: credentialless`,
-  `cross-origin-opener-policy: same-origin`). In dev builds on web, `globalThis.__seed(count, active)`
+  empty database, so create the data in the same script. `metro.config.js` adds the cross-origin
+  isolation headers (COEP `credentialless`, COOP `same-origin`) to every dev server response, HTML page
+  included, so SQLite works in any browser; without them it fails with "SharedArrayBuffer is not defined".
+  `patches/expo-sqlite+57.0.3.patch` gives web sync queries a 30 s time limit (upstream counted 1e6
+  `Atomics.pause()` spins, under a second, so first-start seeding or a new workout failed at random with
+  "Sync operation timeout"); regenerate it when expo-sqlite changes version. The shell's Node is 20: run
+  jest and eslint with `npx -y node@22 node_modules/.bin/...` (CI uses 22; `node:sqlite` needs it). In a window wider than 576 px the page only hosts the app in a
+  Galaxy S26-sized iframe (360 x 780, `src/shared/web/PhoneFrame.tsx`); Playwright scripts that drive the app
+  directly use a phone viewport or `?frame=0`. In dev builds on web, `globalThis.__seed(count, active)`
   (`src/dev/webSeed.ts`) creates two programs and `count` finished workouts; call it in chunks of
   about 8 (big batches hit "Sync operation timeout"). `__time(__loads.today)` times a data load.
 - Pose analysis (`app/pose/new.tsx`) does not run on web (`poseDetectionAvailable` is false), so it
@@ -66,6 +71,11 @@ workout, versioned): `docs/LANGUAGE.md`; use it in UI strings, code and answers.
   `getPreviousPerformance(..., apparatusOf)` and the records' `compareKey`.
 - Main actions of long screens go in `Screen`'s `footer` (`FooterAction`, at most two, never a
   destructive one), so they are reachable without scrolling to the end.
+- Toasts are always swipeable: a sideways swipe or a flick dismisses every toast, everywhere. Use only the shared
+  `Toast` (`src/shared/components/ui.tsx`), never a custom one. It must keep working on screens that re-render all the
+  time (EMOM clock, rest and hold timers): the Toast never depends on `onHide`'s identity (it keeps "dismissed" in
+  state and calls `onHide` from one effect), and its swipe claims sideways moves before buttons and scrolling parents.
+  A toast shown over a raised layer (the EMOM screen) needs a wrapper with a higher `zIndex`/`elevation`.
 - Editing screens save on the way out with `useSaveOnLeave` (`src/shared/forms`); invalid edits ask
   or are dropped. `NumberEdit` saves after a short pause in typing, and at once on blur or unmount.
 - Sets carry `target_rpe` (from programs: `rpe` or `rpePerSet`, see `targetRpeFor`) and a
