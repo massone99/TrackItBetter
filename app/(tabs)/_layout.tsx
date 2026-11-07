@@ -27,7 +27,7 @@ export default function TabLayout() {
   const expanded = useWindowDimensions().width >= 768;
   // Labels follow the system font size (up to the app-wide cap), so the bar grows with them.
   const labelScale = Math.min(fontScale, LABEL_MAX_SCALE);
-  const barHeight = Math.max(76, Math.round(84 * scale)) + Math.round(16 * scale * (labelScale - 1) * 2.5);
+  const barHeight = Math.max(76, Math.round(76 * scale)) + Math.round(16 * scale * (labelScale - 1) * 2.5);
   return (
     <Tabs
       screenOptions={({ route }) => ({
@@ -51,8 +51,8 @@ export default function TabLayout() {
           borderTopColor: ink,
           borderTopWidth: 1,
           height: barHeight + insets.bottom,
-          paddingTop: 8,
-          paddingBottom: insets.bottom + 8,
+          paddingTop: 6,
+          paddingBottom: insets.bottom + 6,
         },
         tabBarLabel: ({ color, children }) => (
           <Text numberOfLines={1} maxFontSizeMultiplier={LABEL_MAX_SCALE} style={{ color: String(color), fontFamily: fonts.monoSemibold, fontSize: 12, lineHeight: 16, textAlign: "center", marginTop: 3, textTransform: "uppercase" }}>{children}</Text>

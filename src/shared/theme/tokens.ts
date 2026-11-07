@@ -13,7 +13,7 @@ export const elevation = {
 export const radii = { small: 2, control: 4, surface: 4, sheet: 4, pill: 4 } as const;
 
 export const typeScale = {
-  title: { fontSize: 36, lineHeight: 40, letterSpacing: -0.4 },
+  title: { fontSize: 32, lineHeight: 36, letterSpacing: -0.4 },
   section: { fontSize: 23, lineHeight: 28 },
   heading: { fontSize: 18, lineHeight: 25 },
   body: { fontSize: 15, lineHeight: 22 },

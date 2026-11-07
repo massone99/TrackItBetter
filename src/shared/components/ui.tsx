@@ -374,7 +374,7 @@ export function ListRow({ icon, title, subtitle, onPress, onLongPress, longPress
           onLongPress={onLongPress}
           accessibilityActions={onLongPress ? [{ name: "longpress", label: longPressLabel }] : undefined}
           onAccessibilityAction={onLongPress ? (event) => { if (event.nativeEvent.actionName === "longpress") onLongPress(); } : undefined}
-          style={({ pressed }) => [styles.listRow, { backgroundColor: pressed ? palette.surfaceMuted : "transparent" }]}
+          style={({ pressed }) => [styles.listRow, { minHeight: Math.max(MIN_TOUCH_TARGET, styles.listRow.minHeight), backgroundColor: pressed ? palette.surfaceMuted : "transparent" }]}
         >
           {content}
         </Pressable>
@@ -517,7 +517,7 @@ export function CheckRow({ icon, title, subtitle, checked, onChange, tint }: {
       accessibilityState={{ checked }}
       accessibilityLabel={subtitle ? `${title}, ${subtitle}` : title}
       onPress={() => { tapFeedback(); onChange(!checked); }}
-      style={({ pressed }) => [styles.listRow, { backgroundColor: pressed ? palette.surfaceMuted : "transparent" }]}
+      style={({ pressed }) => [styles.listRow, { minHeight: Math.max(MIN_TOUCH_TARGET, styles.listRow.minHeight), backgroundColor: pressed ? palette.surfaceMuted : "transparent" }]}
     >
       {icon ? (
         <View style={[styles.listIcon, { backgroundColor: tint ? `${tint}22` : palette.accentSoft }]}>
@@ -644,7 +644,7 @@ export function MenuRow({ icon, label, onPress, tone = "default" }: { icon: Icon
       accessibilityRole="button"
       accessibilityLabel={label}
       onPress={() => { tapFeedback(); onPress(); }}
-      style={({ pressed }) => [styles.menuRow, { backgroundColor: pressed ? palette.surfaceMuted : palette.surface }]}
+      style={({ pressed }) => [styles.menuRow, { minHeight: Math.max(MIN_TOUCH_TARGET, styles.menuRow.minHeight), backgroundColor: pressed ? palette.surfaceMuted : palette.surface }]}
     >
       <Icon name={icon} size={20} color={tone === "danger" ? palette.warning : palette.accentStrong} />
       <Text style={[styles.menuRowLabel, { color }]}>{label}</Text>
@@ -943,7 +943,7 @@ export function TextField({ label, hint, error, style, multiline, onFocus, onBlu
 
 const baseStyles = StyleSheet.create({
   flexFill: { flex: 1 },
-  toast: { userSelect: "none", position: "absolute", left: 16, right: 16, minHeight: 52, borderRadius: radii.control, paddingHorizontal: 16, paddingVertical: 10, flexDirection: "row", alignItems: "center", gap: 12, borderWidth: 1 },
+  toast: { userSelect: "none", position: "absolute", left: 16, right: 16, minHeight: 48, borderRadius: radii.control, paddingHorizontal: 16, paddingVertical: 8, flexDirection: "row", alignItems: "center", gap: 12, borderWidth: 1 },
   toastText: { flex: 1, fontFamily: fonts.medium, fontSize: 15 },
   toastAction: { paddingHorizontal: 6, paddingVertical: 6 },
   toastActionText: { fontFamily: fonts.semibold, fontSize: 15 },
@@ -968,27 +968,27 @@ const baseStyles = StyleSheet.create({
   presetRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, paddingTop: 6, paddingBottom: 4 },
   stepperValue: { fontFamily: fonts.display, fontSize: 24, lineHeight: 30, minWidth: 52, textAlign: "center", fontVariant: ["tabular-nums"] },
   field: { gap: 6 },
-  input: { minHeight: 52, borderRadius: radii.control, borderWidth: 1.5, paddingHorizontal: 16, paddingVertical: 12, fontFamily: fonts.body, fontSize: 16, outlineWidth: 0 },
-  inputMultiline: { minHeight: 84, paddingTop: 12, paddingBottom: 12 },
+  input: { minHeight: 48, borderRadius: radii.control, borderWidth: 1.5, paddingHorizontal: 14, paddingVertical: 10, fontFamily: fonts.body, fontSize: 16, outlineWidth: 0 },
+  inputMultiline: { minHeight: 72, paddingTop: 10, paddingBottom: 10 },
   fieldNote: { fontFamily: fonts.body, fontSize: 13, lineHeight: 18 },
   sheetBackdrop: { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(10, 18, 26, 0.6)" },
   sheet: { borderTopLeftRadius: radii.sheet, borderTopRightRadius: radii.sheet, borderTopWidth: 1, paddingHorizontal: spacing.page, paddingTop: 12, gap: 10, width: "100%", maxWidth: 640, alignSelf: "center" },
   sheetHandle: { width: 40, height: 4, borderRadius: 2, alignSelf: "center", marginBottom: 8 },
   sheetHeading: { flexDirection: "row", alignItems: "center", gap: spacing.md },
-  sheetTitle: { flex: 1, fontFamily: fonts.display, fontSize: 28, lineHeight: 32 },
+  sheetTitle: { flex: 1, fontFamily: fonts.display, fontSize: 24, lineHeight: 28 },
   menuGroup: { borderRadius: radii.surface, borderWidth: StyleSheet.hairlineWidth, padding: spacing.md, gap: spacing.md },
   menuGroupTitle: { fontFamily: fonts.semibold, fontSize: 16, lineHeight: 22 },
   menuList: { borderRadius: radii.surface, borderWidth: StyleSheet.hairlineWidth, overflow: "hidden", gap: StyleSheet.hairlineWidth },
-  menuRow: { minHeight: MIN_TOUCH_TARGET + 4, flexDirection: "row", alignItems: "center", gap: spacing.md, paddingHorizontal: spacing.lg, paddingVertical: spacing.sm },
+  menuRow: { minHeight: MIN_TOUCH_TARGET, flexDirection: "row", alignItems: "center", gap: spacing.md, paddingHorizontal: spacing.lg, paddingVertical: spacing.sm },
   menuRowLabel: { flex: 1, fontFamily: fonts.medium, fontSize: 16, lineHeight: 22 },
   menuGrid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
-  menuTile: { flexGrow: 0, flexBasis: "31.5%", minHeight: 76, borderRadius: radii.surface, paddingHorizontal: spacing.sm, paddingVertical: spacing.md, alignItems: "center", justifyContent: "center", gap: spacing.xs },
+  menuTile: { flexGrow: 0, flexBasis: "31.5%", minHeight: 64, borderRadius: radii.surface, paddingHorizontal: spacing.sm, paddingVertical: spacing.sm, alignItems: "center", justifyContent: "center", gap: spacing.xs },
   menuTileLarge: { flexBasis: "48%" },
   menuTileLabel: { fontFamily: fonts.medium, fontSize: 13, lineHeight: 17, textAlign: "center" },
   sheetContent: { gap: 10 },
   sheetActions: { gap: 10, marginTop: 8 },
   screen: { paddingHorizontal: spacing.page, alignItems: "center" },
-  column: { width: "100%", maxWidth: 640, gap: spacing.xl },
+  column: { width: "100%", maxWidth: 640, gap: spacing.lg },
   pageHeading: { gap: spacing.sm },
   pageTopBar: { flexDirection: "row", alignItems: "center", marginLeft: -12, marginTop: -8 },
   pageTitleRow: { flexDirection: "row", alignItems: "center", gap: spacing.md },
@@ -1007,18 +1007,18 @@ const baseStyles = StyleSheet.create({
   progressTrack: { height: 12, borderRadius: radii.pill, borderWidth: 1, overflow: "hidden" },
   progressTick: { position: "absolute", top: 0, bottom: 0, width: StyleSheet.hairlineWidth },
   progressFill: { height: "100%", borderRadius: radii.pill },
-  card: { borderWidth: 1, borderRadius: radii.surface, padding: spacing.lg, gap: spacing.md },
+  card: { borderWidth: 1, borderRadius: radii.surface, paddingHorizontal: spacing.lg, paddingVertical: spacing.md, gap: spacing.md },
   sectionTitle: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: spacing.md, marginTop: spacing.sm, paddingBottom: spacing.xs, borderBottomWidth: 1 },
   sectionHeading: { flex: 1, fontFamily: fonts.monoSemibold, fontSize: 13, lineHeight: 20, letterSpacing: 1.4, textTransform: "uppercase" },
-  button: { minHeight: 54, borderRadius: radii.control, paddingHorizontal: 18, paddingVertical: 13, flexDirection: "row", justifyContent: "center", alignItems: "center", gap: 9 },
-  buttonText: { flexShrink: 1, textAlign: "center", fontFamily: fonts.display, fontSize: 18, lineHeight: 22, letterSpacing: 1.2, textTransform: "uppercase" },
+  button: { minHeight: 48, borderRadius: radii.control, paddingHorizontal: spacing.lg, paddingVertical: spacing.sm, flexDirection: "row", justifyContent: "center", alignItems: "center", gap: 9 },
+  buttonText: { flexShrink: 1, textAlign: "center", fontFamily: fonts.display, fontSize: 17, lineHeight: 20, letterSpacing: 1.2, textTransform: "uppercase" },
   iconButton: { alignItems: "center", justifyContent: "center" },
   listGroup: { borderRadius: radii.surface, borderWidth: 1 },
   listRowOuter: { flexDirection: "row", alignItems: "center" },
-  listRow: { flex: 1, minHeight: 68, paddingHorizontal: spacing.lg, paddingVertical: 14, flexDirection: "row", alignItems: "center", gap: spacing.md },
+  listRow: { flex: 1, minHeight: 56, paddingHorizontal: spacing.lg, paddingVertical: spacing.sm, flexDirection: "row", alignItems: "center", gap: spacing.md },
   listTrailing: { flexShrink: 0, paddingRight: 10, paddingLeft: 4 },
-  listIcon: { width: 36, height: 36, borderWidth: 1, borderRadius: radii.control, alignItems: "center", justifyContent: "center" },
-  listCopy: { flex: 1, minWidth: 0, gap: 3 },
+  listIcon: { width: 32, height: 32, borderWidth: 1, borderRadius: radii.control, alignItems: "center", justifyContent: "center" },
+  listCopy: { flex: 1, minWidth: 0, gap: 2 },
   checkbox: { width: 26, height: 26, borderRadius: radii.control, borderWidth: 2, alignItems: "center", justifyContent: "center" },
   listTitle: { fontFamily: fonts.semibold, fontSize: 16, lineHeight: 22 },
   listTitleSelected: { fontFamily: fonts.semibold },
@@ -1026,8 +1026,8 @@ const baseStyles = StyleSheet.create({
   listSubtitle: { fontFamily: fonts.mono, fontSize: 12, lineHeight: 18 },
   chip: { minHeight: 44, paddingHorizontal: 14, paddingVertical: 10, borderRadius: radii.control, borderWidth: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6 },
   chipText: { flexShrink: 1, fontFamily: fonts.monoSemibold, fontSize: 12, lineHeight: 20, textTransform: "uppercase" },
-  empty: { borderWidth: 1, borderRadius: radii.surface, padding: spacing.section, alignItems: "center", gap: spacing.md },
-  emptyIcon: { width: 52, height: 52, borderWidth: 1, borderRadius: radii.control, alignItems: "center", justifyContent: "center", marginBottom: 4 },
+  empty: { borderWidth: 1, borderRadius: radii.surface, padding: spacing.xl, alignItems: "center", gap: spacing.md },
+  emptyIcon: { width: 44, height: 44, borderWidth: 1, borderRadius: radii.control, alignItems: "center", justifyContent: "center", marginBottom: 4 },
   center: { textAlign: "center" },
   segment: { flexDirection: "row", borderRadius: radii.surface, borderWidth: 1, padding: 4, gap: 4 },
   segmentOption: { flex: 1, minWidth: 0, minHeight: 44, paddingHorizontal: 6, paddingVertical: 10, alignItems: "center", justifyContent: "center", borderRadius: radii.control },

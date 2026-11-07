@@ -156,9 +156,9 @@ Cards and list groups use radius 16; buttons, fields, and chips use radius 12. S
 
 ## Components
 
-- Use `ActionButton` variants to distinguish the primary action, supporting actions, and destructive confirmations. The base minimum height is 54 logical units and is clamped to the 48 touch-target minimum at smaller interface scales. Labels can wrap.
+- Use `ActionButton` variants to distinguish the primary action, supporting actions, and destructive confirmations. The base minimum height is 48 logical units and is clamped to the 48 touch-target minimum at smaller interface scales. Labels can wrap.
 - Use `IconButton` for labeled icon actions. Its hit box remains at least 48 even at a small interface scale.
-- Use `TextField` for text entry. When present, its label stays above the field; the single-line base minimum is 52 and the multiline base minimum is 84. Both follow the interface scale and retain at least 48 logical units. Multiline text is top-aligned; focused borders use the accent-strong role and validation uses the warning role.
+- Use `TextField` for text entry. When present, its label stays above the field; the single-line base minimum is 48 and the multiline base minimum is 72. Both follow the interface scale and retain at least 48 logical units. Multiline text is top-aligned; focused borders use the accent-strong role and validation uses the warning role.
 - Use `Card` for ordinary content surfaces: a 1px border, 16 radius, 16 padding, and 12 internal gap, with tonal layering instead of a decorative shadow.
 - Use `ListGroup` and `ListRow` for related destinations or records. Groups use the surface radius and a border; rows have a 68 logical-unit base minimum with 16 horizontal and 14 vertical padding, all scaled with the interface setting. Keep trailing controls separate from the row's pressable area. Descriptions can wrap without truncation.
 - Use `Chip` and `SegmentedControl` for selection. Chips use 12 radius, 10 by 14 padding, and a 48 minimum; their selected state uses the accent-soft fill and accent border and is exposed to accessibility services.
