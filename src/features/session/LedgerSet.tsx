@@ -266,12 +266,13 @@ export function LedgerActiveRow(props: LedgerActiveRowProps) {
 }
 
 const baseStyles = StyleSheet.create({
-  header: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: 32, borderBottomWidth: StyleSheet.hairlineWidth },
+  // Every row starts 8 dp in, so the set number does not touch the card's edge.
+  header: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: 32, paddingLeft: spacing.sm, borderBottomWidth: StyleSheet.hairlineWidth },
   headText: { fontFamily: fonts.mono, fontSize: 12, lineHeight: 16 },
   colSet: { width: 28, alignItems: 'flex-start', justifyContent: 'center' },
   colField: { flex: 1, minWidth: 0 },
   colDone: { width: MIN_TOUCH_TARGET, alignItems: 'center', justifyContent: 'center' },
-  row: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: 44, borderBottomWidth: StyleSheet.hairlineWidth, paddingVertical: spacing.xs },
+  row: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: 44, borderBottomWidth: StyleSheet.hairlineWidth, paddingVertical: spacing.xs, paddingLeft: spacing.sm },
   valueCell: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'baseline' },
   bandsCell: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: spacing.xs },
   setLabel: { fontFamily: fonts.monoSemibold, fontSize: 15, lineHeight: 22 },
@@ -282,7 +283,7 @@ const baseStyles = StyleSheet.create({
   box: { width: 20, height: 20, borderWidth: 1, borderRadius: radii.small },
   swatch: { width: 12, height: 12, borderRadius: radii.small, borderWidth: 1 },
   active: { borderTopWidth: 1, borderBottomWidth: 1, paddingVertical: spacing.sm, gap: spacing.sm },
-  activeMain: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
+  activeMain: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, paddingLeft: spacing.sm },
   stack: { gap: spacing.sm, paddingHorizontal: spacing.xs },
   fieldBox: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderRadius: radii.control, minHeight: MIN_TOUCH_TARGET, paddingHorizontal: spacing.xs },
   fieldStacked: { alignSelf: 'stretch' },
@@ -290,7 +291,7 @@ const baseStyles = StyleSheet.create({
   completeBtn: { minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center', borderRadius: radii.control, flexDirection: 'row', gap: spacing.sm },
   completeStacked: { alignSelf: 'stretch', minHeight: MIN_TOUCH_TARGET, paddingHorizontal: spacing.md },
   completeText: { fontFamily: fonts.monoBold, fontSize: 15, lineHeight: 22 },
-  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, paddingLeft: 28 + spacing.sm, alignItems: 'center' },
+  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, paddingLeft: spacing.sm + 28 + spacing.xs, alignItems: 'center' },
   chipsFlush: { paddingLeft: spacing.xs },
   chip: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, minHeight: 32, paddingHorizontal: spacing.sm, borderWidth: 1, borderRadius: radii.control, maxWidth: '100%' },
   chipText: { fontFamily: fonts.mono, fontSize: 12, lineHeight: 16, flexShrink: 1 },

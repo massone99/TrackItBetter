@@ -787,11 +787,25 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
           const bands = described ? { colors: described.colors, assist } : null;
           const openSet = () => { tapFeedback(); unfold(set.id); setPicked({ id: set.id, done }); };
           const inHand = set.id === focusedId && (!done || picked?.id === set.id);
+          // Every ledger row swipes: right completes (or reopens a done set), left removes it.
+          const swipe = (node: ReactNode, mode: string) => (
+            <SwipeableSetRow
+              key={`${set.id}-${mode}`}
+              done={done}
+              completeLabel={t('logger.swipeComplete')}
+              reopenLabel={t('logger.swipeReopen')}
+              removeLabel={t('logger.swipeRemove')}
+              onSwipeRight={() => { onSwiped?.(); if (done) uncomplete(set); else complete(set); }}
+              onSwipeLeft={() => { onSwiped?.(); onRemoveSet(set); }}
+            >
+              {node}
+            </SwipeableSetRow>
+          );
           if (!inHand) {
             const row = { label, side, warmup: set.kind === 'warmup', value: timed ? value : distance ? `${value} m` : value, load: withLoad ? loadText : null, bands, withLoad, onOpen: openSet, onMenu: openMenu };
             return done
-              ? <LedgerDoneRow key={`${set.id}-ld`} {...row} rpe={set.rpe !== null ? formatRpe(set.rpe) : null} />
-              : <LedgerUpcomingRow key={`${set.id}-lu`} {...row} />;
+              ? swipe(<LedgerDoneRow {...row} rpe={set.rpe !== null ? formatRpe(set.rpe) : null} />, 'ld')
+              : swipe(<LedgerUpcomingRow {...row} />, 'lu');
           }
           const restSec = set.restSec ?? defaultRest;
           const completeSlot = done ? (
@@ -803,9 +817,8 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
               <Icon name={holding ? 'stop' : 'play'} size={22} color={palette.accentText} />
             </Pressable>
           ) : undefined;
-          return (
+          return swipe(
             <LedgerActiveRow
-              key={`${set.id}-la`}
               label={label}
               side={side}
               warmup={set.kind === 'warmup'}
@@ -826,7 +839,8 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
               note={{ text: set.note || null, open: noteRow, onPress: () => { if (onNote) toggleOpen(set.id, 'note', noteRow); else { tapFeedback(); onSetOptions(set, 'note'); } } }}
               video={{ clips: set.clipCount, onPress: () => { tapFeedback(); if (set.clipCount > 0) onSetOptions(set); else router.push({ pathname: '/form-check/[setId]', params: { setId: set.id } }); } }}
               panel={valuePanelNode}
-            />
+            />,
+            done ? 'lad' : 'la',
           );
         }
         return (
