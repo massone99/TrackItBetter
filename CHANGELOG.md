@@ -2,6 +2,15 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.66.0 - 2026-11-08
+
+- Workout: a new compact "ledger" layout. Every set is one row (number, reps or time, kg, done); the set in hand edits in place with − and + and completes from its own row, with its optional data as small chips under it (RPE, form, ROM, bands with their assistance, rest, note, video). Tapping a chip opens exactly that setting. Complete set is no longer in the footer.
+- Workout: every set can be folded, the one in hand too (tap its number or any empty space in it); a folded set opens with a tap. Swipe right completes or reopens a set, swipe left removes it.
+- Workout: the header is one line (name, time, sets, volume); exercises start folded except the one in hand; long names wrap by word.
+- Workout: the set telemetry folds from its header and starts folded.
+- Foldable sections start folded: program days, builder days with exercises, pose groups.
+- Denser UI everywhere: buttons and inputs 48, list rows 56, tighter cards and spacing, smaller titles and tab bar; touch targets stay 48 dp.
+
 ## 0.65.0 - 2026-11-07
 
 - EMOM: a running EMOM takes the whole screen, readable from the floor: huge round and clock, one cell per round with the reps it saved, this round's reps, +1 round and hold to stop. Workout (or back) returns to the workout and the EMOM keeps running in a one-line mini dock at the bottom; tap it to open the full screen again. Complete set is hidden for the EMOM's exercise.
