@@ -41,6 +41,8 @@ export interface LedgerChip { onPress: () => void; open?: boolean }
 
 export interface LedgerActiveRowProps extends LedgerCommon {
   withLoad: boolean;
+  /** Folds the set in hand to a one-line row (its number becomes the button). */
+  onFold?: () => void;
   valueField: ReactNode;
   valueDown?: ReactNode;
   valueUp?: ReactNode;
@@ -251,9 +253,17 @@ export function LedgerActiveRow(props: LedgerActiveRowProps) {
         </View>
       ) : (
         <View style={styles.activeMain}>
-          <View style={styles.colSet}>
-            <Text style={[styles.setLabel, styles.activeLabel, props.warmup && styles.warmup, { color: palette.text }]}>{setText(props.label, props.side)}</Text>
-          </View>
+          {props.onFold ? (
+            // The number folds the set to one row like the others, so every set of the card can be folded at once.
+            <Pressable accessibilityRole="button" accessibilityLabel={t('ledger.fold', { label: setText(props.label, props.side) })} hitSlop={{ top: 4, bottom: 4, left: 8, right: 4 }} onPress={() => { tapFeedback(); props.onFold?.(); }} style={({ pressed }) => [styles.colSet, styles.foldTap, pressed && { opacity: 0.6 }]}>
+              <Text style={[styles.setLabel, styles.activeLabel, props.warmup && styles.warmup, { color: palette.text }]}>{setText(props.label, props.side)}</Text>
+              <Icon name="chevron-up" size={14} color={palette.textMuted} />
+            </Pressable>
+          ) : (
+            <View style={styles.colSet}>
+              <Text style={[styles.setLabel, styles.activeLabel, props.warmup && styles.warmup, { color: palette.text }]}>{setText(props.label, props.side)}</Text>
+            </View>
+          )}
           <Field stacked={false} down={props.valueDown} up={props.valueUp}>{props.valueField}</Field>
           {props.withLoad ? <Field stacked={false} down={props.loadDown} up={props.loadUp}>{props.loadField}</Field> : null}
           <View style={styles.colDone}>{complete}</View>
@@ -277,6 +287,7 @@ const baseStyles = StyleSheet.create({
   bandsCell: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: spacing.xs },
   setLabel: { fontFamily: fonts.monoSemibold, fontSize: 15, lineHeight: 22 },
   activeLabel: { fontFamily: fonts.monoBold },
+  foldTap: { minHeight: MIN_TOUCH_TARGET, alignItems: 'flex-start', justifyContent: 'center' },
   warmup: { textDecorationLine: 'underline', textDecorationStyle: 'dashed' },
   figure: { fontFamily: fonts.mono, fontSize: 15, lineHeight: 22 },
   small: { fontFamily: fonts.mono, fontSize: 12, lineHeight: 16 },

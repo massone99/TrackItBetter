@@ -786,7 +786,8 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
           const assist = set.bands.length === 0 ? null : set.assistKg === null ? null : formatNumber(set.assistKg);
           const bands = described ? { colors: described.colors, assist } : null;
           const openSet = () => { tapFeedback(); unfold(set.id); setPicked({ id: set.id, done }); };
-          const inHand = set.id === focusedId && (!done || picked?.id === set.id);
+          // A folded set in hand shows as a plain row; tapping it opens it again (unfold).
+          const inHand = set.id === focusedId && (!done || picked?.id === set.id) && !folded.has(set.id);
           // Every ledger row swipes: right completes (or reopens a done set), left removes it.
           const swipe = (node: ReactNode, mode: string) => (
             <SwipeableSetRow
@@ -823,6 +824,7 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
               side={side}
               warmup={set.kind === 'warmup'}
               withLoad={withLoad}
+              onFold={() => toggleFold(set.id)}
               valueField={valueField}
               valueDown={valueDown}
               valueUp={valueUp}
