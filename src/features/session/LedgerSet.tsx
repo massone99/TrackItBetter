@@ -257,7 +257,6 @@ export function LedgerActiveRow(props: LedgerActiveRowProps) {
             // The number folds the set to one row like the others, so every set of the card can be folded at once.
             <Pressable accessibilityRole="button" accessibilityLabel={t('ledger.fold', { label: setText(props.label, props.side) })} hitSlop={{ top: 4, bottom: 4, left: 8, right: 4 }} onPress={() => { tapFeedback(); props.onFold?.(); }} style={({ pressed }) => [styles.colSet, styles.foldTap, pressed && { opacity: 0.6 }]}>
               <Text style={[styles.setLabel, styles.activeLabel, props.warmup && styles.warmup, { color: palette.text }]}>{setText(props.label, props.side)}</Text>
-              <Icon name="chevron-up" size={14} color={palette.textMuted} />
             </Pressable>
           ) : (
             <View style={styles.colSet}>
