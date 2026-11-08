@@ -31,7 +31,7 @@ beforeEach(() => { mockFontScale = 1; });
 describe('Ledger rows', () => {
   it('shows the column header', () => {
     wrap(<LedgerHeader valueLabel="REPS" />);
-    for (const text of ['SET', 'REPS', 'KG', 'DONE']) expect(screen.getByText(text)).toBeTruthy();
+    for (const text of ['#', 'REPS', 'KG', 'DONE']) expect(screen.getByText(text)).toBeTruthy();
   });
 
   it('done row: tap opens, hold opens the menu, shows RPE and load', () => {

@@ -415,12 +415,12 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
         // The chip strip shows on done sets and the next one (every set in a finished workout); other sets show only what they carry.
         const strip = done || editDone || set.id === nextSetId || isOpen || editing;
         const title = `${set.kind === 'warmup' ? t('workout.blocks.warmup') : t('logger.setTitle', { number: workingNumber })}${set.side === 'left' ? ' · L' : set.side === 'right' ? ' · R' : ''}`;
-        const valueDown = showSteps ? <StepButton large={textIsLarge || bigButtons} icon="remove" label={t('logger.stepDown', { field: fieldLabel, number: workingNumber, side: sideLabel }).trim()} onPress={(multiplier) => step(set, field, (distance ? -0.5 : timed ? -5 : -1) * multiplier)} /> : null;
-        const valueUp = showSteps ? <StepButton large={textIsLarge || bigButtons} icon="add" label={t('logger.stepUp', { field: fieldLabel, number: workingNumber, side: sideLabel }).trim()} onPress={(multiplier) => step(set, field, (distance ? 0.5 : timed ? 5 : 1) * multiplier)} /> : null;
+        const valueDown = showSteps ? <StepButton flat={focus && !textIsLarge} large={textIsLarge || bigButtons} icon="remove" label={t('logger.stepDown', { field: fieldLabel, number: workingNumber, side: sideLabel }).trim()} onPress={(multiplier) => step(set, field, (distance ? -0.5 : timed ? -5 : -1) * multiplier)} /> : null;
+        const valueUp = showSteps ? <StepButton flat={focus && !textIsLarge} large={textIsLarge || bigButtons} icon="add" label={t('logger.stepUp', { field: fieldLabel, number: workingNumber, side: sideLabel }).trim()} onPress={(multiplier) => step(set, field, (distance ? 0.5 : timed ? 5 : 1) * multiplier)} /> : null;
         const valueField = (done && !editableDone) || holding ? (
           <Text style={[styles.setValue, { color: holding ? palette.accentStrong : palette.text }]}>{value}</Text>
         ) : timed ? (
-          <HoldDurationField compact flat={table} value={stored} label={`${t('logger.holdCol')} · ${t('logger.editValue', { number: set.index })}`} onChange={(next) => onSetValue(set, 'durationSec', next)} />
+          <HoldDurationField compact flat={table || focus} value={stored} label={`${t('logger.holdCol')} · ${t('logger.editValue', { number: set.index })}`} onChange={(next) => onSetValue(set, 'durationSec', next)} />
         ) : (
           <NumberEdit
             value={stored}
@@ -430,11 +430,11 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
             onCommit={(next) => onSetValue(set, field, field === 'reps' ? Math.round(next) : next)}
             onControl={(control) => { controls.current.set(`${set.id}:${field}`, control); }}
             onLongPress={openMenu}
-            style={[styles.setValue, { color: palette.text }]}
+            style={[styles.setValue, focus && styles.setValueLedger, { color: palette.text }]}
           />
         );
-        const loadDown = showSteps ? <StepButton large={textIsLarge || bigButtons} icon="remove" label={t('logger.stepDown', { field: t('history.addedLoad'), number: workingNumber, side: sideLabel }).trim()} onPress={(multiplier) => step(set, 'addedLoadKg', -LOAD_STEP_KG * multiplier)} /> : null;
-        const loadUp = showSteps ? <StepButton large={textIsLarge || bigButtons} icon="add" label={t('logger.stepUp', { field: t('history.addedLoad'), number: workingNumber, side: sideLabel }).trim()} onPress={(multiplier) => step(set, 'addedLoadKg', LOAD_STEP_KG * multiplier)} /> : null;
+        const loadDown = showSteps ? <StepButton flat={focus && !textIsLarge} large={textIsLarge || bigButtons} icon="remove" label={t('logger.stepDown', { field: t('history.addedLoad'), number: workingNumber, side: sideLabel }).trim()} onPress={(multiplier) => step(set, 'addedLoadKg', -LOAD_STEP_KG * multiplier)} /> : null;
+        const loadUp = showSteps ? <StepButton flat={focus && !textIsLarge} large={textIsLarge || bigButtons} icon="add" label={t('logger.stepUp', { field: t('history.addedLoad'), number: workingNumber, side: sideLabel }).trim()} onPress={(multiplier) => step(set, 'addedLoadKg', LOAD_STEP_KG * multiplier)} /> : null;
         const loadField = done && !editableDone ? (
           <Text style={[styles.loadValue, { color: set.addedLoadKg === 0 ? palette.textMuted : palette.text }]}>{loadText}</Text>
         ) : (
@@ -810,7 +810,6 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
               side={side}
               warmup={set.kind === 'warmup'}
               withLoad={withLoad}
-              valueWide={timed}
               valueField={valueField}
               valueDown={valueDown}
               valueUp={valueUp}
@@ -1153,7 +1152,7 @@ const baseStyles = StyleSheet.create({
   // Focus card: one 16 rhythm between header, fields, chips, scale and button.
   largeBlock: { borderRadius: radii.control, borderWidth: 2, padding: 16, gap: 16, marginVertical: 8, marginHorizontal: -spacing.sm },
   largeStripWrap: { flexWrap: 'wrap', paddingBottom: spacing.sm },
-  largeStrip: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: 56, marginHorizontal: -16, marginTop: -16, paddingHorizontal: spacing.md },
+  largeStrip: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: 56, marginHorizontal: -spacing.md, marginTop: -16, paddingHorizontal: spacing.md },
   stripTitles: { flex: 1, minWidth: 0 },
   largeStripText: { fontFamily: fonts.monoSemibold, fontSize: 13, lineHeight: 18, textTransform: 'uppercase', letterSpacing: 0.5 },
   largeFields: { gap: spacing.md },
@@ -1187,11 +1186,12 @@ const baseStyles = StyleSheet.create({
   summaryText: { flex: 1, fontFamily: fonts.semibold, fontSize: 15 },
   addRowLarge: { flexDirection: 'column', flexWrap: 'nowrap', alignItems: 'stretch', gap: 8, marginTop: 4 },
   addSetLarge: { justifyContent: 'center', borderWidth: 1, borderRadius: radii.control, paddingHorizontal: 12 },
-  exerciseCard: { borderRadius: instrument.radius, borderWidth: instrument.line, padding: spacing.lg, gap: spacing.sm },
+  // 12 at the sides (not 16): the ledger's fields need the width more than the card needs the margin.
+  exerciseCard: { borderRadius: instrument.radius, borderWidth: instrument.line, paddingHorizontal: spacing.md, paddingVertical: spacing.lg, gap: spacing.sm },
   halo: { position: 'absolute', top: -4, left: -4, right: -4, bottom: -4, borderWidth: 3, borderRadius: instrument.radius + 3 },
   nowRow: { paddingHorizontal: spacing.xs },
   exerciseNameCard: { fontSize: 30, lineHeight: 32, textTransform: 'uppercase' },
-  tableBleed: { marginHorizontal: -spacing.lg },
+  tableBleed: { marginHorizontal: -spacing.md },
   tableBadgeCol: { width: spacing.section * 2, minHeight: MIN_TOUCH_TARGET, alignItems: 'center', justifyContent: 'center' },
   tableNumber: { fontFamily: fonts.monoBold, fontSize: 16 },
   tableNumberWarmup: { textDecorationLine: 'underline', textDecorationStyle: 'dashed' },
@@ -1207,7 +1207,7 @@ const baseStyles = StyleSheet.create({
   valueChipMono: { fontFamily: fonts.monoSemibold, fontSize: 12, textTransform: 'uppercase' },
   addSetMono: { fontFamily: fonts.monoSemibold, fontSize: 12, textTransform: 'uppercase' },
   tableBlock: { borderRadius: 0, marginBottom: 0, borderTopWidth: 1 },
-  addRowTable: { borderTopWidth: 1, marginHorizontal: -spacing.lg, marginBottom: -spacing.lg, marginTop: 0, paddingHorizontal: spacing.lg, justifyContent: 'center' },
+  addRowTable: { borderTopWidth: 1, marginHorizontal: -spacing.md, marginBottom: -spacing.lg, marginTop: 0, paddingHorizontal: spacing.md, justifyContent: 'center' },
   tableChips: { paddingLeft: spacing.lg, paddingRight: spacing.lg, paddingTop: spacing.lg, paddingBottom: spacing.md },
   tablePanel: { marginLeft: spacing.lg, marginRight: spacing.lg },
   tableSetRow: { paddingHorizontal: spacing.lg, paddingTop: spacing.sm, gap: spacing.xs },
@@ -1231,6 +1231,7 @@ const baseStyles = StyleSheet.create({
   setBadgeText: { fontFamily: fonts.display, fontSize: 16 },
   setBadgeSide: { fontFamily: fonts.semibold, fontSize: 10, lineHeight: 11, marginTop: -2 },
   stepper: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4 },
+  setValueLedger: { fontSize: 20, lineHeight: 26 },
   setValue: { fontFamily: fonts.display, fontSize: 24, lineHeight: 30, minWidth: 34, textAlign: 'center', fontVariant: ['tabular-nums'] },
   loadValue: { fontFamily: fonts.display, fontSize: 20, lineHeight: 26, minWidth: 34, textAlign: 'center', fontVariant: ['tabular-nums'] },
   openAll: { alignSelf: 'flex-end', flexDirection: 'row', alignItems: 'center', gap: spacing.xs, minHeight: MIN_TOUCH_TARGET - spacing.sm, paddingHorizontal: spacing.xs },

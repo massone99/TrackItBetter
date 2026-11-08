@@ -41,8 +41,6 @@ export interface LedgerChip { onPress: () => void; open?: boolean }
 
 export interface LedgerActiveRowProps extends LedgerCommon {
   withLoad: boolean;
-  /** A clock value (m:ss) needs more room than reps: the value field takes the larger share of the row. */
-  valueWide?: boolean;
   valueField: ReactNode;
   valueDown?: ReactNode;
   valueUp?: ReactNode;
@@ -187,12 +185,12 @@ function Chip({ label, filled, open, onPress, colors }: { label: string; filled:
   );
 }
 
-function Field({ children, down, up, stacked, wide = false }: { children: ReactNode; down?: ReactNode; up?: ReactNode; stacked: boolean; wide?: boolean }) {
+function Field({ children, down, up, stacked }: { children: ReactNode; down?: ReactNode; up?: ReactNode; stacked: boolean }) {
   const styles = useScaledStyles(baseStyles);
   const ink = useInk();
   const { palette } = useTheme();
   return (
-    <View style={[styles.fieldBox, stacked ? styles.fieldStacked : [styles.colField, wide && styles.colWide], { borderColor: ink, backgroundColor: palette.surface }]}>
+    <View style={[styles.fieldBox, stacked ? styles.fieldStacked : styles.colField, { borderColor: ink, backgroundColor: palette.surface }]}>
       {down}
       <View style={styles.fieldValue}>{children}</View>
       {up}
@@ -256,7 +254,7 @@ export function LedgerActiveRow(props: LedgerActiveRowProps) {
           <View style={styles.colSet}>
             <Text style={[styles.setLabel, styles.activeLabel, props.warmup && styles.warmup, { color: palette.text }]}>{setText(props.label, props.side)}</Text>
           </View>
-          <Field stacked={false} wide={props.valueWide} down={props.valueDown} up={props.valueUp}>{props.valueField}</Field>
+          <Field stacked={false} down={props.valueDown} up={props.valueUp}>{props.valueField}</Field>
           {props.withLoad ? <Field stacked={false} down={props.loadDown} up={props.loadUp}>{props.loadField}</Field> : null}
           <View style={styles.colDone}>{complete}</View>
         </View>
@@ -270,9 +268,8 @@ export function LedgerActiveRow(props: LedgerActiveRowProps) {
 const baseStyles = StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: 32, borderBottomWidth: StyleSheet.hairlineWidth },
   headText: { fontFamily: fonts.mono, fontSize: 12, lineHeight: 16 },
-  colSet: { width: 32, alignItems: 'flex-start', justifyContent: 'center' },
+  colSet: { width: 28, alignItems: 'flex-start', justifyContent: 'center' },
   colField: { flex: 1, minWidth: 0 },
-  colWide: { flex: 1.6 },
   colDone: { width: MIN_TOUCH_TARGET, alignItems: 'center', justifyContent: 'center' },
   row: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: 44, borderBottomWidth: StyleSheet.hairlineWidth, paddingVertical: spacing.xs },
   valueCell: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'baseline' },
@@ -285,15 +282,15 @@ const baseStyles = StyleSheet.create({
   box: { width: 20, height: 20, borderWidth: 1, borderRadius: radii.small },
   swatch: { width: 12, height: 12, borderRadius: radii.small, borderWidth: 1 },
   active: { borderTopWidth: 1, borderBottomWidth: 1, paddingVertical: spacing.sm, gap: spacing.sm },
-  activeMain: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  activeMain: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
   stack: { gap: spacing.sm, paddingHorizontal: spacing.xs },
-  fieldBox: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderRadius: radii.control, minHeight: MIN_TOUCH_TARGET },
+  fieldBox: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderRadius: radii.control, minHeight: MIN_TOUCH_TARGET, paddingHorizontal: spacing.xs },
   fieldStacked: { alignSelf: 'stretch' },
   fieldValue: { flex: 1, minWidth: 0, alignItems: 'center', justifyContent: 'center' },
   completeBtn: { minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center', borderRadius: radii.control, flexDirection: 'row', gap: spacing.sm },
   completeStacked: { alignSelf: 'stretch', minHeight: MIN_TOUCH_TARGET, paddingHorizontal: spacing.md },
   completeText: { fontFamily: fonts.monoBold, fontSize: 15, lineHeight: 22 },
-  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, paddingLeft: 40, alignItems: 'center' },
+  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, paddingLeft: 28 + spacing.sm, alignItems: 'center' },
   chipsFlush: { paddingLeft: spacing.xs },
   chip: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, minHeight: 32, paddingHorizontal: spacing.sm, borderWidth: 1, borderRadius: radii.control, maxWidth: '100%' },
   chipText: { fontFamily: fonts.mono, fontSize: 12, lineHeight: 16, flexShrink: 1 },
