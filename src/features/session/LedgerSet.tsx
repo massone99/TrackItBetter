@@ -41,8 +41,10 @@ export interface LedgerChip { onPress: () => void; open?: boolean }
 
 export interface LedgerActiveRowProps extends LedgerCommon {
   withLoad: boolean;
-  /** Folds the set in hand to a one-line row (its number becomes the button). */
+  /** Folds the set in hand to a one-line row (its number becomes the button; a tap on empty space does it too). */
   onFold?: () => void;
+  /** Held press on the row: the set menu, as its three dots. */
+  onMenu?: () => void;
   valueField: ReactNode;
   valueDown?: ReactNode;
   valueUp?: ReactNode;
@@ -240,8 +242,14 @@ export function LedgerActiveRow(props: LedgerActiveRowProps) {
     </View>
   );
   return (
-    <View
-      accessibilityLabel={name}
+    // A tap on empty space folds the set, a held press opens its menu; buttons, fields and chips keep their own taps.
+    // Screen readers fold it from the number button instead (this container is not an accessibility element).
+    <Pressable
+      accessible={false}
+      accessibilityRole="none"
+      onPress={props.onFold ? () => { tapFeedback(); props.onFold?.(); } : undefined}
+      onLongPress={props.onMenu}
+      delayLongPress={450}
       style={[styles.active, { backgroundColor: palette.accentSoft, borderTopColor: palette.accentStrong, borderBottomColor: palette.accentStrong }]}
     >
       {largeText ? (
@@ -270,7 +278,7 @@ export function LedgerActiveRow(props: LedgerActiveRowProps) {
       )}
       {chips}
       {props.panel}
-    </View>
+    </Pressable>
   );
 }
 

@@ -825,6 +825,7 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
               warmup={set.kind === 'warmup'}
               withLoad={withLoad}
               onFold={() => toggleFold(set.id)}
+              onMenu={openMenu}
               valueField={valueField}
               valueDown={valueDown}
               valueUp={valueUp}
