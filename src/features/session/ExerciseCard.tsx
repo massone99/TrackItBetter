@@ -810,6 +810,7 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
               side={side}
               warmup={set.kind === 'warmup'}
               withLoad={withLoad}
+              valueWide={timed}
               valueField={valueField}
               valueDown={valueDown}
               valueUp={valueUp}
@@ -1128,7 +1129,7 @@ const baseStyles = StyleSheet.create({
   // As tall as the 48 dp buttons beside it, so the chevron and the buttons share one centre line.
   nameRow: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: MIN_TOUCH_TARGET },
   progressRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', columnGap: 5 },
-  exerciseName: { fontFamily: fonts.display, fontSize: 24, lineHeight: 28 },
+  exerciseName: { fontFamily: fonts.display, fontSize: 21, lineHeight: 25 },
   // Column labels only: the section's hairline above already separates it, a second line would be noise.
   columns: { flexDirection: 'row', alignItems: 'center', paddingLeft: 2 },
   colSet: { width: 40 },

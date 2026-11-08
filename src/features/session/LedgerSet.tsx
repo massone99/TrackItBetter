@@ -41,6 +41,8 @@ export interface LedgerChip { onPress: () => void; open?: boolean }
 
 export interface LedgerActiveRowProps extends LedgerCommon {
   withLoad: boolean;
+  /** A clock value (m:ss) needs more room than reps: the value field takes the larger share of the row. */
+  valueWide?: boolean;
   valueField: ReactNode;
   valueDown?: ReactNode;
   valueUp?: ReactNode;
@@ -185,12 +187,12 @@ function Chip({ label, filled, open, onPress, colors }: { label: string; filled:
   );
 }
 
-function Field({ children, down, up, stacked }: { children: ReactNode; down?: ReactNode; up?: ReactNode; stacked: boolean }) {
+function Field({ children, down, up, stacked, wide = false }: { children: ReactNode; down?: ReactNode; up?: ReactNode; stacked: boolean; wide?: boolean }) {
   const styles = useScaledStyles(baseStyles);
   const ink = useInk();
   const { palette } = useTheme();
   return (
-    <View style={[styles.fieldBox, stacked ? styles.fieldStacked : styles.colField, { borderColor: ink, backgroundColor: palette.surface }]}>
+    <View style={[styles.fieldBox, stacked ? styles.fieldStacked : [styles.colField, wide && styles.colWide], { borderColor: ink, backgroundColor: palette.surface }]}>
       {down}
       <View style={styles.fieldValue}>{children}</View>
       {up}
@@ -254,7 +256,7 @@ export function LedgerActiveRow(props: LedgerActiveRowProps) {
           <View style={styles.colSet}>
             <Text style={[styles.setLabel, styles.activeLabel, props.warmup && styles.warmup, { color: palette.text }]}>{setText(props.label, props.side)}</Text>
           </View>
-          <Field stacked={false} down={props.valueDown} up={props.valueUp}>{props.valueField}</Field>
+          <Field stacked={false} wide={props.valueWide} down={props.valueDown} up={props.valueUp}>{props.valueField}</Field>
           {props.withLoad ? <Field stacked={false} down={props.loadDown} up={props.loadUp}>{props.loadField}</Field> : null}
           <View style={styles.colDone}>{complete}</View>
         </View>
@@ -270,6 +272,7 @@ const baseStyles = StyleSheet.create({
   headText: { fontFamily: fonts.mono, fontSize: 12, lineHeight: 16 },
   colSet: { width: 32, alignItems: 'flex-start', justifyContent: 'center' },
   colField: { flex: 1, minWidth: 0 },
+  colWide: { flex: 1.6 },
   colDone: { width: MIN_TOUCH_TARGET, alignItems: 'center', justifyContent: 'center' },
   row: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: 44, borderBottomWidth: StyleSheet.hairlineWidth, paddingVertical: spacing.xs },
   valueCell: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'baseline' },
