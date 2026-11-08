@@ -46,6 +46,16 @@ workout, versioned): `docs/LANGUAGE.md`; use it in UI strings, code and answers.
   directly use a phone viewport or `?frame=0`. In dev builds on web, `globalThis.__seed(count, active)`
   (`src/dev/webSeed.ts`) creates two programs and `count` finished workouts; call it in chunks of
   about 8 (big batches hit "Sync operation timeout"). `__time(__loads.today)` times a data load.
+- Fast loop on the owner's S26 (USB, `adb devices`): a separate dev app, "TrackItBetter Dev"
+  (`com.trackitbetter.app.dev`, from `app.config.js` with `APP_VARIANT=dev`), installs next to the released app and
+  loads JS from Metro. Build it once only when native code changes: `APP_VARIANT=dev CI=1 npx expo prebuild -p android
+  --clean`, then `cd android && ./gradlew assembleDebug -PreactNativeArchitectures=arm64-v8a -x lint`, then
+  `adb install --streaming android/app/build/outputs/apk/debug/app-debug.apk`. Each session: `adb reverse tcp:8081
+  tcp:8081` and `APP_VARIANT=dev npx expo start --port 8081 < /dev/null` WITHOUT `CI=1`: `CI=1` turns off watch mode
+  ("reloads are disabled"), so every change then needs a Metro restart, a relaunch and a long wait. With watch mode on,
+  a saved file reaches the phone by Fast Refresh in a few seconds, state kept; check it with `adb exec-out screencap -p`
+  (and `adb shell input tap/swipe`). The same applies to Expo web: drop `CI=1` there too, or restart with `--clear`.
+  Never build release APKs just to look at a change.
 - Pose analysis (`app/pose/new.tsx`) does not run on web (`poseDetectionAvailable` is false), so it
   can only be checked with unit tests and on a phone.
 - Native-only behaviour (pickers, gestures, timers in the background) can only be confirmed by the owner.
