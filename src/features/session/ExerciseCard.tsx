@@ -261,6 +261,13 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
     >
       <RegistrationMarks />
       {nowLabel ? <View pointerEvents="none" style={[styles.halo, { borderColor: palette.accentSoft }]} /> : null}
+      {/* Empty space in the header block (figure tag, name row, the card's top and right edge, and the bottom edge when folded) folds or unfolds the exercise; the chevron stays the labelled control. */}
+      <Pressable
+        accessible={false}
+        accessibilityRole="none"
+        onPress={onToggleCollapsed}
+        style={[styles.headerTap, collapsed && styles.headerTapFolded]}
+      >
       {(table || focus) && (figure !== null || nowLabel) ? (
         <Tag color={nowLabel ? palette.accentStrong : undefined} style={styles.nowRow}>{[figure !== null ? `Fig. ${String(figure).padStart(2, '0')}` : null, nowLabel].filter(Boolean).join(' · ')}</Tag>
       ) : nowLabel ? <Label style={[styles.nowRow, { color: palette.accentStrong }]}>{nowLabel}</Label> : null}
@@ -328,6 +335,7 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
         ) : null}
         <IconButton icon="ellipsis-vertical" label={t('logger.options')} tone="plain" onPress={onOptions} />
       </View>
+      </Pressable>
       {goal ? (
         <View style={[styles.goalCard, { backgroundColor: goal.reached ? palette.successSoft : palette.surface, borderColor: goal.reached ? palette.success : palette.border }]}>
           <View style={styles.goalRow}>
@@ -1207,6 +1215,9 @@ const baseStyles = StyleSheet.create({
   exerciseCard: { borderRadius: instrument.radius, borderWidth: instrument.line, paddingHorizontal: spacing.md, paddingVertical: spacing.lg, gap: spacing.sm },
   halo: { position: 'absolute', top: -4, left: -4, right: -4, bottom: -4, borderWidth: 3, borderRadius: instrument.radius + 3 },
   nowRow: { paddingHorizontal: spacing.xs },
+  // Reaches the card's top and side edges (negative margins cancel the card padding) so the whole header block is a tap target.
+  headerTap: { marginHorizontal: -spacing.md, marginTop: -spacing.lg, paddingHorizontal: spacing.md, paddingTop: spacing.lg, gap: spacing.sm },
+  headerTapFolded: { marginBottom: -spacing.lg, paddingBottom: spacing.lg },
   exerciseNameCard: { fontSize: 30, lineHeight: 32, textTransform: 'uppercase' },
   tableBleed: { marginHorizontal: -spacing.md },
   tableBadgeCol: { width: spacing.section * 2, minHeight: MIN_TOUCH_TARGET, alignItems: 'center', justifyContent: 'center' },

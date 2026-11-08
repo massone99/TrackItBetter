@@ -1,8 +1,7 @@
-import { fireEvent, render, screen } from '@testing-library/react-native';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import i18n from '../../src/shared/i18n';
 import { ThemeProvider } from '../../src/shared/theme/ThemeProvider';
-import { setPendingExercise } from '../../src/features/programs/pendingExercise';
 import ProgramBuilder from '../program-builder';
 
 jest.mock('react-native-keyboard-controller', () => jest.requireActual('react-native-keyboard-controller/jest'));
@@ -39,76 +38,52 @@ jest.mock('../../src/features/exercises/repository', () => ({
 }));
 jest.mock('../../src/features/programs/userPrograms', () => ({ getUserProgram: jest.fn(), saveUserProgram: jest.fn() }));
 const { router } = jest.requireMock('expo-router');
-const { getUserProgram } = jest.requireMock('../../src/features/programs/userPrograms');
+const { getUserProgram, saveUserProgram } = jest.requireMock('../../src/features/programs/userPrograms');
 
 const metrics = { frame: { x: 0, y: 0, width: 390, height: 844 }, insets: { top: 0, left: 0, right: 0, bottom: 0 } };
 const renderScreen = () => render(<SafeAreaProvider initialMetrics={metrics}><ThemeProvider><ProgramBuilder /></ThemeProvider></SafeAreaProvider>);
-const t = (key: string) => i18n.t(key);
+const t = (key: string, options?: Record<string, unknown>) => i18n.t(key, options);
 
 beforeAll(async () => { await i18n.changeLanguage('en'); });
 beforeEach(() => {
   jest.clearAllMocks();
-  // A program that already has one (empty) workout, like after adding a day.
-  getUserProgram.mockResolvedValue({ id: 'program-1', name: 'Plan', updatedAt: '', sessions: [{ id: 'session-1', name: 'A', exercises: [] }] });
+  getUserProgram.mockResolvedValue({ id: 'program-1', name: 'Plan', updatedAt: '', sessions: [{ id: 'session-1', name: 'A', exercises: [{ id: 'old', exerciseId: 'push-up', sets: 3, target: 8, restSeconds: null }] }] });
 });
 
 describe('program builder', () => {
-  it('starts a new program with no workouts and lets you add them', async () => {
+  it('starts a new program with no workouts', async () => {
     getUserProgram.mockResolvedValue(null);
     renderScreen();
     expect(await screen.findByText(t('userProgram.noWorkoutsYet'))).toBeTruthy();
   });
 
-  it('sends the new exercise to the workout it was created for', async () => {
+  it('lists each workout as a compact row that opens its own screen', async () => {
     renderScreen();
-    fireEvent.press(await screen.findByRole('button', { name: t('programBuilder.addExercise') }));
-    fireEvent.press(await screen.findByText(t('logger.createExercise')));
-    const [{ params }] = router.push.mock.calls.map(([target]: [{ params: object }]) => target);
-    expect(params).toEqual({ addToProgram: expect.any(String) });
+    fireEvent.press(await screen.findByRole('button', { name: t('workoutBuilder.openWorkout', { name: 'A' }) }));
+    await waitFor(() => expect(router.push).toHaveBeenCalledWith({ pathname: '/program-workout', params: { programId: 'program-1', sessionId: 'session-1' } }));
   });
 
-  it('adds an exercise created in the meantime to that workout when coming back', async () => {
-    const first = renderScreen();
-    fireEvent.press(await screen.findByRole('button', { name: t('programBuilder.addExercise') }));
-    fireEvent.press(await screen.findByText(t('logger.createExercise')));
-    const { params } = router.push.mock.calls[0][0];
-    first.unmount();
-
-    setPendingExercise({ sessionId: params.addToProgram, exerciseId: 'my-hold', metric: 'time' });
+  it('adds a workout on the new screen, saving the program first', async () => {
+    saveUserProgram.mockResolvedValue({ id: 'program-1', name: 'Plan', updatedAt: '', sessions: [] });
     renderScreen();
-
-    // The new exercise opens in its editor, so its name and metric show in the row and in the sheet.
-    expect((await screen.findAllByText('My Hold')).length).toBeGreaterThan(0);
-    expect(screen.getAllByText(new RegExp(t('metric.time'))).length).toBeGreaterThan(0);
+    fireEvent.press(await screen.findByRole('button', { name: t('programBuilder.addDay') }));
+    await waitFor(() => expect(router.push).toHaveBeenCalledWith({ pathname: '/program-workout', params: { programId: 'program-1', sessionId: 'new' } }));
   });
 
-  it('replaces a movement with the exercise created for it, keeping its place in the workout', async () => {
-    getUserProgram.mockResolvedValue({ id: 'program-1', name: 'Plan', updatedAt: '', sessions: [{ id: 'session-1', name: 'A', exercises: [{ id: 'old', exerciseId: 'push-up', sets: 3, target: 8, restSeconds: null }] }] });
-    setPendingExercise({ sessionId: 'session-1', exerciseId: 'my-hold', metric: 'time', replaceId: 'old' });
+  it('asks for a program name before adding the first workout', async () => {
+    getUserProgram.mockResolvedValue(null);
     renderScreen();
-    expect(await screen.findByText('My Hold')).toBeTruthy();
-    expect(screen.queryByText('Push-up')).toBeNull();
+    fireEvent.press(await screen.findByRole('button', { name: t('programBuilder.addDay') }));
+    expect(await screen.findByText(t('userProgram.errors.nameMissing'))).toBeTruthy();
+    expect(router.push).not.toHaveBeenCalled();
   });
 
-  it('offers creating a movement while replacing one', async () => {
-    getUserProgram.mockResolvedValue({ id: 'program-1', name: 'Plan', updatedAt: '', sessions: [{ id: 'session-1', name: 'A', exercises: [{ id: 'old', exerciseId: 'push-up', sets: 3, target: 8, restSeconds: null }] }] });
+  it('removes a workout from its menu with an undo', async () => {
     renderScreen();
-    // Workouts with exercises start folded.
-    fireEvent.press(await screen.findByRole('button', { name: t('logger.expand').replace('{{name}}', 'A') }));
-    fireEvent.press(await screen.findByRole('button', { name: /Push-up/ }));
-    fireEvent.press(await screen.findByRole('button', { name: /^Replace Push-up/ }));
-    fireEvent.press(await screen.findByText(t('logger.createExercise')));
-    const { params } = router.push.mock.calls[0][0];
-    expect(params).toMatchObject({ addToProgram: 'session-1', replaceProgramExercise: 'old' });
-  });
-
-  it('starts every opening of the picker with a clean search', async () => {
-    renderScreen();
-    fireEvent.press(await screen.findByRole('button', { name: t('programBuilder.addExercise') }));
-    fireEvent.changeText(await screen.findByPlaceholderText(t('workout.search')), 'push');
-    fireEvent.press(await screen.findByRole('button', { name: t('workout.close') }));
-
-    fireEvent.press(await screen.findByRole('button', { name: t('programBuilder.addExercise') }));
-    expect((await screen.findByPlaceholderText(t('workout.search'))).props.value).toBe('');
+    fireEvent.press(await screen.findByRole('button', { name: t('workoutBuilder.rowMenu', { name: 'A' }) }));
+    fireEvent.press(await screen.findByText(t('programBuilder.removeDay')));
+    expect(await screen.findByText(t('userProgram.dayRemoved', { name: 'A' }))).toBeTruthy();
+    fireEvent.press(screen.getByText(t('userProgram.undo')));
+    expect(await screen.findByRole('button', { name: t('workoutBuilder.openWorkout', { name: 'A' }) })).toBeTruthy();
   });
 });

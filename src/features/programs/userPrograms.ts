@@ -2,6 +2,7 @@ import { eq } from 'drizzle-orm';
 import * as Crypto from 'expo-crypto';
 import { db, initializeDatabase } from '../../db/client';
 import { settings } from '../../db/schema';
+import { GROUP_KINDS, PROGRAM_LAYOUTS, PROGRAM_STATUSES, type ProgramGroup } from '../../domain/programStructure';
 import { isValidPrescription, validateUserProgram, WEEK_ORDER, type UserProgram, type UserProgramSession } from '../../domain/userProgram';
 
 export type { UserProgram, UserProgramExercise, UserProgramSession } from '../../domain/userProgram';
@@ -30,6 +31,10 @@ export async function saveUserProgram(program: Omit<UserProgram, 'id' | 'updated
     name: program.name.trim(),
     sessions: program.sessions.map((session) => ({ ...session, name: session.name.trim(), notes: session.notes?.trim().slice(0, 1000) || null })),
     updatedAt: new Date().toISOString(),
+    status: program.status,
+    layout: program.layout,
+    groups: program.groups,
+    lastUsedAt: program.lastUsedAt,
   };
   if (validateUserProgram(next).length > 0) {
     throw new Error('A program needs a name, and every workout in it a name and at least one valid exercise.');
@@ -47,11 +52,16 @@ export async function saveUserProgram(program: Omit<UserProgram, 'id' | 'updated
 export async function duplicateUserProgram(programId: string, name: string): Promise<UserProgram | null> {
   const source = await getUserProgram(programId);
   if (!source) return null;
+  const groupIds = new Map((source.groups ?? []).map((group) => [group.id, Crypto.randomUUID()]));
   return saveUserProgram({
     name,
+    layout: source.layout,
+    status: 'active',
+    groups: source.groups?.map((group) => ({ ...group, id: groupIds.get(group.id)!, parentId: group.parentId ? groupIds.get(group.parentId) ?? null : null })),
     sessions: source.sessions.map((session) => ({
       ...session,
       id: Crypto.randomUUID(),
+      groupId: session.groupId ? groupIds.get(session.groupId) ?? null : null,
       exercises: session.exercises.map((exercise) => ({ ...exercise, id: Crypto.randomUUID() })),
     })),
   });
@@ -94,13 +104,17 @@ function parseProgram(value: unknown): UserProgram | null {
     const exercises = candidate.exercises.filter((exercise) => exercise && typeof exercise === 'object' && isValidPrescription(exercise));
     if (exercises.length === 0) continue;
     const day = WEEK_ORDER.indexOf(candidate.weekday as never);
-    sessions.push({ id: candidate.id, name: candidate.name, notes: typeof candidate.notes === 'string' ? candidate.notes : null, exercises, order: (day >= 0 ? day : 7) * 1000 + position });
+    sessions.push({ id: candidate.id, name: candidate.name, notes: typeof candidate.notes === 'string' ? candidate.notes : null, exercises, groupId: typeof candidate.groupId === 'string' ? candidate.groupId : null, order: (day >= 0 ? day : 7) * 1000 + position });
   }
   return {
     id: item.id,
     name: item.name,
     sessions: sessions.sort((a, b) => a.order - b.order).map(({ order: _order, ...session }) => session),
     updatedAt: typeof item.updatedAt === 'string' ? item.updatedAt : new Date(0).toISOString(),
+    status: PROGRAM_STATUSES.includes(item.status as never) ? item.status : undefined,
+    layout: PROGRAM_LAYOUTS.includes(item.layout as never) ? item.layout : undefined,
+    groups: Array.isArray(item.groups) ? parseGroups(item.groups as unknown[]) : undefined,
+    lastUsedAt: typeof item.lastUsedAt === 'string' ? item.lastUsedAt : null,
   };
 }
 
@@ -108,5 +122,21 @@ function parseProgram(value: unknown): UserProgram | null {
 export async function addSessionToProgram(programId: string, session: UserProgramSession): Promise<UserProgram | null> {
   const program = await getUserProgram(programId);
   if (!program) return null;
-  return saveUserProgram({ id: program.id, name: program.name, sessions: [...program.sessions, session] });
+  return saveUserProgram({ ...program, sessions: [...program.sessions, session] });
+}
+
+function parseGroups(values: unknown[]): ProgramGroup[] {
+  return values.flatMap((value) => {
+    if (!value || typeof value !== 'object') return [];
+    const group = value as Partial<ProgramGroup>;
+    if (typeof group.id !== 'string' || typeof group.name !== 'string' || !GROUP_KINDS.includes(group.kind as never)) return [];
+    return [{ id: group.id, name: group.name, kind: group.kind!, parentId: typeof group.parentId === 'string' ? group.parentId : null }];
+  });
+}
+
+/** Partial update that keeps everything else (status, layout, groups, lastUsedAt). */
+export async function updateUserProgram(programId: string, change: (program: UserProgram) => Partial<UserProgram>): Promise<UserProgram | null> {
+  const program = await getUserProgram(programId);
+  if (!program) return null;
+  return saveUserProgram({ ...program, ...change(program), id: program.id });
 }

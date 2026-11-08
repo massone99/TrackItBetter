@@ -13,7 +13,6 @@ import { WorkoutInProgressSheet } from '../../src/features/session/WorkoutInProg
 import { listUserPrograms } from '../../src/features/programs/userPrograms';
 import { getMobilityCycles, getMobilityWeek } from '../../src/features/analytics/repository';
 import type { ExerciseCycle, MobilityWeek } from '../../src/features/analytics/mobility';
-import { readPreference, writePreference } from '../../src/shared/settings/preferences';
 import { formatMinutes } from '../../src/shared/utils/format';
 import { ActionButton, Chip, EmptyState, Icon, IconButton, ListGroup, ListRow, PageHeading, Screen, SectionTitle, Sheet, Text } from '../../src/shared/components/ui';
 import { useTheme } from '../../src/shared/theme/ThemeProvider';
@@ -21,18 +20,7 @@ import { fonts } from '../../src/shared/theme/typography';
 import { useScaledStyles } from '../../src/shared/theme/useScaledStyles';
 import { radii } from '../../src/shared/theme/tokens';
 
-const COLLAPSED_KEY = 'mobility.collapsedGroups';
-const CYCLES_OPEN_KEY = 'mobility.cyclesOpen';
 const NO_PROGRAM = 'none';
-
-function readCollapsed(): string[] {
-  try {
-    const parsed: unknown = JSON.parse(readPreference(COLLAPSED_KEY) ?? '[]');
-    return Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === 'string') : [];
-  } catch {
-    return [];
-  }
-}
 
 interface ProgramChoice { id: string; name: string; own: boolean }
 
@@ -47,8 +35,9 @@ export default function MobilityHubScreen() {
   const [week, setWeek] = useState<MobilityWeek | null>(null);
   const [cycles, setCycles] = useState<ExerciseCycle[]>([]);
   const [filter, setFilter] = useState<'all' | 'favourites'>('all');
-  const [collapsed, setCollapsed] = useState<string[]>(readCollapsed);
-  const [cyclesOpen, setCyclesOpen] = useState(() => readPreference(CYCLES_OPEN_KEY) === 'true');
+  // Every group starts folded each time the screen opens.
+  const [opened, setOpened] = useState<string[]>([]);
+  const [cyclesOpen, setCyclesOpen] = useState(false);
   const [menuFor, setMenuFor] = useState<MobilityRoutine | null>(null);
   const [moveFor, setMoveFor] = useState<MobilityRoutine | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<MobilityRoutine | null>(null);
@@ -73,16 +62,12 @@ export default function MobilityHubScreen() {
     void action().then(reload).catch(() => setFailed(true));
   };
   const toggleGroup = (key: string) => {
-    const next = collapsed.includes(key) ? collapsed.filter((item) => item !== key) : [...collapsed, key];
-    setCollapsed(next);
-    writePreference(COLLAPSED_KEY, JSON.stringify(next));
+    setOpened((current) => (current.includes(key) ? current.filter((item) => item !== key) : [...current, key]));
   };
   const keys = groups.map((group) => group.programId ?? NO_PROGRAM);
-  const allCollapsed = keys.length > 0 && keys.every((key) => collapsed.includes(key));
+  const allCollapsed = keys.length > 0 && keys.every((key) => !opened.includes(key));
   const toggleAll = () => {
-    const next = allCollapsed ? [] : keys;
-    setCollapsed(next);
-    writePreference(COLLAPSED_KEY, JSON.stringify(next));
+    setOpened(allCollapsed ? keys : []);
   };
   /** Starts the routine as a regular workout (sets to log in the usual screen) instead of the guided player. */
   const startAsWorkout = async (routine: MobilityRoutine) => {
@@ -232,7 +217,7 @@ export default function MobilityHubScreen() {
       {failed ? <Text style={[styles.meta, { color: palette.warning }]}>{t('mobility.invalid')}</Text> : null}
       {groups.map((group) => {
         const key = group.programId ?? NO_PROGRAM;
-        const open = !collapsed.includes(key);
+        const open = opened.includes(key);
         const name = group.name ?? t('mobilityHub.ungrouped');
         const seconds = group.routines.reduce((sum, routine) => sum + estimateRoutineSeconds(routine), 0);
         return (
@@ -283,7 +268,7 @@ export default function MobilityHubScreen() {
             accessibilityRole="button"
             accessibilityState={{ expanded: cyclesOpen }}
             accessibilityLabel={t(cyclesOpen ? 'mobilityHub.collapseGroup' : 'mobilityHub.expandGroup', { name: t('exerciseCycle.hubTitle') })}
-            onPress={() => { const next = !cyclesOpen; setCyclesOpen(next); writePreference(CYCLES_OPEN_KEY, String(next)); }}
+            onPress={() => setCyclesOpen(!cyclesOpen)}
             style={styles.groupHead}
           >
             <Icon name={cyclesOpen ? 'chevron-down' : 'chevron-forward'} size={20} color={palette.textMuted} />

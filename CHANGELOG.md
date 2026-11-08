@@ -2,6 +2,15 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.67.0 - 2026-11-08
+
+- Programs: many programs stay manageable. The program in progress sits on top with its next workout and a Start button; search (from 6 programs), Active / Paused / Archived filters, sort by last use or name, dense rows with progress, and a menu to pause, archive, duplicate or delete. Ready-made templates move to the end.
+- Programs: workouts can be organised as a sequence, by weeks or phases, or in groups. A "pick 1 of N" group holds alternatives (the least recent is suggested), extras stay outside the rotation, groups nest one level. Several groups can be selected and removed at once, keeping or deleting their workouts, with undo.
+- Builder: generate the next weeks with a progression (reps per week, load, cap and reset, deload week), duplicate a week or group, edit several exercises together, add exercises by typing "curl 3x10 @7 r90", and see sets per category with low ones flagged.
+- Workouts of a program have their own builder screen: name, notes, group, live summary, exercises by block, quick add, Start now.
+- Narrated mode works in every workout, not only mobility ones.
+- Workout: tapping empty space in an exercise's header folds or opens it. Every foldable list opens folded each time.
+
 ## 0.66.0 - 2026-11-08
 
 - Workout: a new compact "ledger" layout. Every set is one row (number, reps or time, kg, done); the set in hand edits in place with − and + and completes from its own row, with its optional data as small chips under it (RPE, form, ROM, bands with their assistance, rest, note, video). Tapping a chip opens exactly that setting. Complete set is no longer in the footer.

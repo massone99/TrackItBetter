@@ -29,11 +29,13 @@ export type ExerciseChoice = {
 const CATEGORIES = EXERCISE_CATEGORIES;
 
 /** Full-screen exercise search with category filters and an optional "create" entry. */
-export function ExercisePicker({ visible, title, subtitle, initialCategory = null, include, selected, onChoose, onCreate, onClose }: {
+export function ExercisePicker({ visible, title, subtitle, initialCategory = null, initialQuery = '', include, selected, onChoose, onCreate, onClose }: {
   visible: boolean;
   title: string;
   subtitle?: string;
   initialCategory?: string | null;
+  /** What the search starts with each time the picker opens, e.g. a quick-add name that matched nothing. */
+  initialQuery?: string;
   /** Limits the list, e.g. to exercises measured like another one. */
   include?: (choice: ExerciseChoice) => boolean;
   /** Pick several: a tap toggles an exercise (marked when in this set) and the picker stays open until Done. */
@@ -48,10 +50,16 @@ export function ExercisePicker({ visible, title, subtitle, initialCategory = nul
   const { palette } = useTheme();
   const insets = useAppInsets();
   const { speed, reducedMotion } = useAnimationSettings();
-  const [query, setQuery] = useState('');
+  const [query, setQuery] = useState(visible ? initialQuery : '');
   const [category, setCategory] = useState<string | null>(initialCategory);
   const [choices, setChoices] = useState<ExerciseChoice[]>([]);
   const { grouping } = useExerciseGrouping();
+  // Each opening starts from `initialQuery`, even when the last one was closed by another way.
+  const [wasVisible, setWasVisible] = useState(visible);
+  if (visible !== wasVisible) {
+    setWasVisible(visible);
+    if (visible) { setQuery(initialQuery); setCategory(initialCategory); }
+  }
 
   useEffect(() => {
     if (!visible) return;

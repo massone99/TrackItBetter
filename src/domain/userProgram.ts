@@ -1,4 +1,5 @@
 import type { Block } from './blocks';
+import { nextSession, type ProgramGroup, type ProgramLayout, type ProgramStatus } from './programStructure';
 
 import { ESTIMATED_SEC_PER_REP } from './mobilityPlan';
 import { isValidRpe } from './rpe';
@@ -42,6 +43,8 @@ export interface UserProgramSession {
   /** Free text for the whole prescribed workout (focus of the day, cues); copied to the workout's notes when it starts. */
   notes?: string | null;
   exercises: UserProgramExercise[];
+  /** Group (week, phase, alternatives) this workout belongs to; null or missing: ungrouped. */
+  groupId?: string | null;
 }
 
 export interface UserProgram {
@@ -49,6 +52,13 @@ export interface UserProgram {
   name: string;
   sessions: UserProgramSession[];
   updatedAt: string;
+  /** Missing means active. */
+  status?: ProgramStatus;
+  /** Missing means sequence. */
+  layout?: ProgramLayout;
+  groups?: ProgramGroup[];
+  /** Last time a workout of this program was started (ISO); for sorting the list. */
+  lastUsedAt?: string | null;
 }
 
 export type ProgramErrorCode = 'nameMissing' | 'sessionNameMissing' | 'sessionEmpty' | 'invalidValue';
@@ -158,12 +168,7 @@ export function programSessionWorkoutName(program: Pick<UserProgram, 'name'>, se
 
 /** The session after the latest one done (`recentWorkoutNames` newest first), wrapping; the first when none was done; null for a program without workouts. */
 export function nextSessionInRotation(program: UserProgram, recentWorkoutNames: readonly string[]): UserProgramSession | null {
-  if (program.sessions.length === 0) return null;
-  for (const name of recentWorkoutNames) {
-    const index = program.sessions.findIndex((session) => programSessionWorkoutName(program, session) === name);
-    if (index >= 0) return program.sessions[(index + 1) % program.sessions.length];
-  }
-  return program.sessions[0];
+  return nextSession(program, recentWorkoutNames);
 }
 
 /**
@@ -176,6 +181,7 @@ export function programsByRecentUse(programs: readonly UserProgram[], recentWork
     return index < 0 ? Number.POSITIVE_INFINITY : index;
   };
   return programs
+    .filter((program) => (program.status ?? 'active') === 'active')
     .flatMap((program) => { const session = nextSessionInRotation(program, recentWorkoutNames); return session ? [{ program, session, used: lastUse(program) }] : []; })
     .sort((a, b) => a.used - b.used)
     .map(({ program, session }) => ({ program, session }));

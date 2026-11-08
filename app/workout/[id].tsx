@@ -820,9 +820,9 @@ export default function WorkoutScreen() {
   if (!workout) return <Screen><PageHeading title={t('workout.unavailable')} subtitle={t('workout.finished')} /><ActionButton label={t('workout.backToToday')} onPress={() => router.replace('/(tabs)/today')} /></Screen>;
 
   const allSets = workout.exercises.flatMap((exercise) => exercise.sets);
-  // Narration needs open sets, and only fits a workout of mobility exercises.
+  // Narration needs open sets; it works for any exercise (timed or rep-based).
   const openExercises = workout.exercises.filter((exercise) => exercise.sets.some((set) => !set.completedAt));
-  const narratable = openExercises.length > 0 && openExercises.every((exercise) => exercise.mobility);
+  const narratable = openExercises.length > 0;
   const allCollapsed = workout.exercises.every((exercise) => collapsedEntries.get(exercise.entryId) ?? exercise.entryId !== currentEntryId);
   const totalSets = groupSets(allSets).length;
   const showBlocks = usesBlocks(workout.exercises);
