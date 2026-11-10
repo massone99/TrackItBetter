@@ -834,12 +834,13 @@ export default function WorkoutScreen() {
   const telemetryCompact = largeText || windowHeight < 700 || hold.active !== null || restEndsAt !== null || Boolean(emom.plan);
   // Ledger: each set completes from its own row, so the footer carries no Complete button.
   // Focus mode: Add and Finish live in a Workout rail next to a Telemetry rail, under the fixed main action; one panel open at a time.
-  const railsMode = focusMode && handExercise !== null;
+  // Rails stay while the workout has exercises, even when none has sets left (all removed or all done): Discard lives there.
+  const railsMode = focusMode && workout.exercises.length > 0;
   const telemetryInline = windowHeight >= 880 && !largeText;
-  const exercisePosition = handExercise ? workout.exercises.findIndex((exercise) => exercise.entryId === handExercise.entryId) + 1 : 0;
+  const exercisePosition = handExercise ? workout.exercises.findIndex((exercise) => exercise.entryId === handExercise.entryId) + 1 : 1;
   const railsTop = railsMode ? (
     <>
-      {dockPanel === 'telemetry' && telemetryInline && telemetry ? <TelemetryPanel view={telemetry} /> : null}
+      {dockPanel === 'telemetry' && telemetryInline ? (telemetry ? <TelemetryPanel view={telemetry} /> : <Card><Body>{t('telemetry.empty')}</Body></Card>) : null}
       {dockPanel === 'workout' ? (
         <WorkoutDockPanel
           title={t('dock.workoutPanel', { current: exercisePosition, total: workout.exercises.length })}
@@ -1083,8 +1084,8 @@ export default function WorkoutScreen() {
           if (top !== undefined) scrollRef.current?.scrollTo({ y: Math.max(0, top - 16), animated: true });
         }}
       />
-      <Sheet visible={telemetrySheet && telemetry !== null} onClose={() => setTelemetrySheet(false)} title={t('telemetry.title')}>
-        {telemetry ? <TelemetryPanel view={telemetry} bordered={false} /> : null}
+      <Sheet visible={telemetrySheet} onClose={() => setTelemetrySheet(false)} title={t('telemetry.title')}>
+        {telemetry ? <TelemetryPanel view={telemetry} bordered={false} /> : <Body>{t('telemetry.empty')}</Body>}
       </Sheet>
       <Toast
         message={undo?.message ?? null}

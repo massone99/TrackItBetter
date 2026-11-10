@@ -2,6 +2,10 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.67.1 - 2026-11-10
+
+- Workout: after "Remove all sets" (or when no exercise has sets left) the dock keeps all its options: Telemetry and Workout with Add exercise, Finish and Discard. Telemetry without sets says to add one.
+
 ## 0.67.0 - 2026-11-08
 
 - Programs: many programs stay manageable. The program in progress sits on top with its next workout and a Start button; search (from 6 programs), Active / Paused / Archived filters, sort by last use or name, dense rows with progress, and a menu to pause, archive, duplicate or delete. Ready-made templates move to the end.
