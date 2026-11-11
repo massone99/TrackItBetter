@@ -94,6 +94,10 @@ describe('LedgerActiveRow', () => {
       video: { clips: 0, onPress: video },
       panel: <Text>picker</Text>,
     })} />);
+    // Folded by default: no chips, the picker still shows.
+    expect(screen.queryByLabelText('+ BANDS')).toBeNull();
+    expect(screen.getByLabelText('DETAILS. FORM 4').props.accessibilityState).toMatchObject({ expanded: false });
+    fireEvent.press(screen.getByLabelText('DETAILS. FORM 4'));
     expect(screen.getByLabelText('RPE @8')).toBeTruthy();
     expect(screen.getByLabelText('FORM 4')).toBeTruthy();
     expect(screen.getByLabelText('ROM')).toBeTruthy();
@@ -113,6 +117,7 @@ describe('LedgerActiveRow', () => {
       note: { text: 'slow tempo', onPress: noop },
       video: { clips: 2, onPress: noop },
     })} />);
+    fireEvent.press(screen.getByLabelText(/^DETAILS/));
     expect(screen.getByLabelText('RPE 8')).toBeTruthy();
     expect(screen.getByLabelText('−15 KG')).toBeTruthy();
     expect(screen.getByLabelText('slow tempo')).toBeTruthy();

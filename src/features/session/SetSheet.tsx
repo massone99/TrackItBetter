@@ -5,12 +5,12 @@ import { useTranslation } from 'react-i18next';
 import { View } from 'react-native';
 import type { HoldMode } from '../../domain/holdTimer';
 import { poseDetectionAvailable } from '../pose/detectPose';
-import { ActionButton, Body, Label, MenuList, MenuRow, SegmentedControl, Sheet, TextField } from '../../shared/components/ui';
-import { formatClock } from '../../shared/utils/format';
+import { ActionButton, Body, Chip, IconButton, Label, MenuList, MenuRow, SegmentedControl, Sheet, TextField } from '../../shared/components/ui';
+import { formatClock, formatNumber } from '../../shared/utils/format';
+import { formatRpe } from '../../domain/rpe';
+import { ScaleRow } from './ScaleRow';
 import { describePreviousSet } from './ExerciseCard';
-import { FormRating } from './LastTime';
 import { removeSetWithUndo, setSetFormRating, setSetRomRating, updateSetNote, updateSetRpe, type PreviousSetValues, type RemovedRows, type SessionExercise, type SessionSet } from './repository';
-import { RpePicker } from './RpePicker';
 import { SetBandsField } from '../equipment/SetBandsField';
 import { bandsById, describeSetBands, useEquipment } from '../equipment/useEquipment';
 
@@ -46,7 +46,9 @@ export function SetSheet({ initialView, exercise, set, holdMode, onHoldMode, onC
   const [confirming, setConfirming] = useState(false);
   // Bands open in their own view of the sheet, so the main view stays short.
   const [bandsOpen, setBandsOpen] = useState(initialView === 'bands');
-  const [restOpen] = useState(initialView === 'rest');
+  const [restOpen, setRestOpen] = useState(initialView === 'rest');
+  // The ⋮ menu in the header: rare actions and removal.
+  const [moreOpen, setMoreOpen] = useState(false);
   const { catalog } = useEquipment();
   const bandsText = catalog ? describeSetBands(set, bandsById(catalog), t)?.text ?? null : null;
   // Clips cannot be restored, so only a set with clips asks first; any other removal can be undone.
@@ -73,17 +75,23 @@ export function SetSheet({ initialView, exercise, set, holdMode, onHoldMode, onC
     await onChanged();
   };
 
+  const valueText = timed ? formatClock(set.durationSec ?? 0) : exercise.metric === 'distance' ? `${formatNumber(set.distanceM ?? 0)} m` : `${set.reps ?? 0} ${t('history.units.reps')}`;
+  const subtitle = [valueText, set.addedLoadKg ? `${formatNumber(set.addedLoadKg)} kg` : null, set.completedAt ? t('history.setCompleted') : null].filter(Boolean).join(' · ');
+  const mainView = !(confirming || bandsOpen || restOpen);
+
   return (
     <Sheet
       visible
       onClose={close}
       title={restOpen ? `${t('logger.restGroup')} · ${exercise.name}` : bandsOpen ? `${t('bands.title')} · ${t('logger.setTitle', { number: set.index })}` : `${exercise.name} · ${t('logger.setTitle', { number: set.index })}`}
+      subtitle={mainView ? subtitle : undefined}
+      headerAction={mainView ? <IconButton icon="ellipsis-vertical" label={t('logger.moreSetActions')} tone="plain" onPress={() => setMoreOpen(!moreOpen)} /> : undefined}
       body={confirming ? t('logger.removeCompletedWarning') : undefined}
     >
       {restOpen ? (
         <>
           <ExerciseRestFields exercise={exercise} onSaved={() => void onChanged()} />
-          <ActionButton label={t('logger.done')} onPress={close} />
+          {initialView === 'rest' ? <ActionButton label={t('logger.done')} onPress={close} /> : <ActionButton icon="arrow-back" label={t('bands.back')} onPress={() => setRestOpen(false)} />}
         </>
       ) : null}
       {bandsOpen ? (
@@ -92,8 +100,18 @@ export function SetSheet({ initialView, exercise, set, holdMode, onHoldMode, onC
           <ActionButton icon="arrow-back" label={t('bands.back')} onPress={() => setBandsOpen(false)} />
         </>
       ) : null}
-      {confirming || bandsOpen || restOpen ? null : (
+      {mainView ? (
         <>
+          {/* The ⋮ menu: what is used rarely (copy last time, L/R pair, pose, removal) stays out of the way. */}
+          {moreOpen ? (
+            <MenuList>
+              {lastTime && onCopyLast && !set.completedAt ? <MenuRow icon="arrow-undo-outline" label={t('logger.copyPrevious', { value: describePreviousSet(lastTime, exercise.metric) })} onPress={() => { setMoreOpen(false); onCopyLast(lastTime); }} /> : null}
+              {onPair ? <MenuRow icon="git-compare-outline" label={set.pairId ? t('history.editPair') : t('history.convertPair')} onPress={() => { close(); onPair(); }} /> : null}
+              {(set.poseCount ?? 0) > 0 ? <MenuRow icon="scan-outline" label={t('poseLink.setActionCount', { count: set.poseCount })} onPress={() => { close(); router.push({ pathname: '/pose/[positionId]', params: { positionId: 'free', setId: set.id } }); }} /> : null}
+              {poseDetectionAvailable ? <MenuRow icon="body-outline" label={t('poseLink.setAction')} onPress={() => { close(); router.push({ pathname: '/pose/new', params: { positionId: 'free', setId: set.id } }); }} /> : null}
+              <MenuRow icon="trash-outline" label={t('logger.removeSet')} tone="danger" onPress={() => void remove()} />
+            </MenuList>
+          ) : null}
           {timed && holdMode && onHoldMode ? (
             <View style={{ gap: 6 }}>
               <Label>{t('logger.holdMode')}</Label>
@@ -116,15 +134,39 @@ export function SetSheet({ initialView, exercise, set, holdMode, onHoldMode, onC
               <Body>{t('logger.holdLongPressHint')}</Body>
             </View>
           ) : null}
-          {lastTime && onCopyLast && !set.completedAt ? (
-            <ActionButton icon="arrow-undo-outline" label={t('logger.copyPrevious', { value: describePreviousSet(lastTime, exercise.metric) })} secondary onPress={() => onCopyLast(lastTime)} />
+          {/* Ratings first: each is one tap on its row. */}
+          <ScaleRow
+            label={t('ledger.rpe')}
+            hint={set.targetRpe !== null ? t('activeSet.target', { value: formatRpe(set.targetRpe) }) : null}
+            values={RPE_WHOLE}
+            value={rpe}
+            half
+            halfLabel={t('logger.halfPoint')}
+            valueLabel={(value) => t('logger.rpeTag', { value: formatRpe(value) })}
+            onChange={(next) => { setRpe(next); void updateSetRpe(set.id, next).then(onChanged); }}
+          />
+          {set.kind === 'working' ? (
+            <ScaleRow
+              label={t('ledger.form')}
+              values={FORM_WHOLE}
+              value={form}
+              half
+              halfLabel={t('logger.halfPoint')}
+              valueLabel={(value) => t('lastTime.formRating', { value: formatNumber(value) })}
+              onChange={(next) => { setForm(next); void setSetFormRating(set.id, next).then(onChanged); }}
+            />
           ) : null}
-          <RpePicker value={rpe} onChange={(next) => { setRpe(next); void updateSetRpe(set.id, next).then(onChanged); }} />
-          {set.kind === 'working' ? <FormRating value={form} onChange={(next) => { setForm(next); void setSetFormRating(set.id, next).then(onChanged); }} /> : null}
-          {set.kind === 'working' ? <FormRating rom value={rom} onChange={(next) => { setRom(next); void setSetRomRating(set.id, next).then(onChanged); }} /> : null}
-          <MenuList>
-            <MenuRow icon="git-commit-outline" label={bandsText ? `${t('bands.title')}: ${bandsText}` : t('bands.addRow')} onPress={() => setBandsOpen(true)} />
-          </MenuList>
+          {set.kind === 'working' ? (
+            <ScaleRow
+              label={t('ledger.rom')}
+              values={FORM_WHOLE}
+              value={rom}
+              half
+              halfLabel={t('logger.halfPoint')}
+              valueLabel={(value) => t('lastTime.romRating', { value: formatNumber(value) })}
+              onChange={(next) => { setRom(next); void setSetRomRating(set.id, next).then(onChanged); }}
+            />
+          ) : null}
           <TextField
             label={t('logger.noteLabel')}
             value={note}
@@ -134,27 +176,21 @@ export function SetSheet({ initialView, exercise, set, holdMode, onHoldMode, onC
             autoFocus={initialView === 'note'}
             maxLength={500}
           />
-          <ActionButton
-            icon={set.clipCount > 0 ? 'play-circle-outline' : 'videocam-outline'}
-            label={set.clipCount > 0 ? t('logger.videoView', { count: set.clipCount }) : t('logger.videoAttach')}
-            secondary
-            onPress={openVideo}
-          />
-          {(set.poseCount ?? 0) > 0 ? (
-            <ActionButton icon="scan-outline" label={t('poseLink.setActionCount', { count: set.poseCount })} secondary onPress={() => { close(); router.push({ pathname: '/pose/[positionId]', params: { positionId: 'free', setId: set.id } }); }} />
-          ) : null}
-          {onPair ? (
-            <ActionButton icon="git-compare-outline" label={set.pairId ? t('history.editPair') : t('history.convertPair')} secondary onPress={() => { close(); onPair(); }} />
-          ) : null}
-          {poseDetectionAvailable ? (
-            <ActionButton icon="body-outline" label={t('poseLink.setAction')} secondary onPress={() => { close(); router.push({ pathname: '/pose/new', params: { positionId: 'free', setId: set.id } }); }} />
-          ) : null}
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+            <Chip icon="git-commit-outline" label={bandsText ?? t('bands.chipEmpty')} selected={Boolean(bandsText)} onPress={() => setBandsOpen(true)} />
+            <Chip icon="timer-outline" label={set.restSec !== null ? t('logger.restChip', { value: formatClock(set.restSec) }) : t('logger.restGroup')} selected={set.restSec !== null} onPress={() => setRestOpen(true)} />
+            <Chip icon={set.clipCount > 0 ? 'play-circle-outline' : 'videocam-outline'} label={set.clipCount > 0 ? t('logger.clip', { count: set.clipCount }) : t('logger.videoChip')} selected={set.clipCount > 0} onPress={openVideo} />
+          </View>
         </>
-      )}
-      {bandsOpen || restOpen ? null : <ActionButton icon="trash-outline" label={confirming ? t('logger.confirmRemove') : t('logger.removeSet')} variant="danger" onPress={() => void remove()} />}
+      ) : null}
+      {confirming ? <ActionButton icon="trash-outline" label={t('logger.confirmRemove')} variant="danger" onPress={() => void remove()} /> : null}
       {bandsOpen || restOpen ? null : confirming
         ? <ActionButton label={t('common.cancel')} secondary onPress={() => setConfirming(false)} />
         : <ActionButton label={t('logger.done')} onPress={close} />}
     </Sheet>
   );
 }
+
+/** Whole values of each scale; the half points come from the row's "+½" toggle. */
+const RPE_WHOLE = [6, 7, 8, 9, 10] as const;
+const FORM_WHOLE = [1, 2, 3, 4, 5] as const;

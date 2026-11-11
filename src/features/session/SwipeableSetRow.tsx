@@ -69,7 +69,7 @@ export function SwipeableSetRow({ done, completeLabel, reopenLabel, removeLabel,
     >
       {/* Opaque so the action panels stay hidden until the row moves. */}
       <View style={{ backgroundColor: onPage ? palette.background : palette.surface }}>
-        <DoneTint done={done} color={palette.accentSoft} />
+        <DoneTint done={done} color={palette.surfaceMuted} />
         {children}
       </View>
     </ReanimatedSwipeable>

@@ -676,7 +676,7 @@ export function MenuTile({ icon, label, onPress }: { icon: IconName; label: stri
 }
 
 /** Bottom sheet for confirmations and short choices; works the same on web and native. */
-export function Sheet({ visible, onClose, title, body, children }: PropsWithChildren<{ visible: boolean; onClose: () => void; title: string; body?: string }>) {
+export function Sheet({ visible, onClose, title, subtitle, headerAction, body, children }: PropsWithChildren<{ visible: boolean; onClose: () => void; title: string; /** A quiet line under the title (mono, muted). */ subtitle?: string; /** One control beside the close button (e.g. a "more" menu). */ headerAction?: ReactNode; body?: string }>) {
   const styles = useScaledStyles(baseStyles);
   const { t } = useTranslation();
   const { palette } = useTheme();
@@ -694,7 +694,11 @@ export function Sheet({ visible, onClose, title, body, children }: PropsWithChil
             <View style={[styles.sheetHandle, { backgroundColor: palette.border }]} />
             <ScrollView bounces={false} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} contentContainerStyle={styles.sheetContent}>
               <View style={styles.sheetHeading}>
-                <Heading style={styles.sheetTitle}>{title}</Heading>
+                <View style={styles.sheetTitleBlock}>
+                  <Heading style={styles.sheetTitle}>{title}</Heading>
+                  {subtitle ? <Text style={[styles.sheetSubtitle, { color: palette.textMuted }]}>{subtitle}</Text> : null}
+                </View>
+                {headerAction}
                 <IconButton icon="close" label={t("common.close")} tone="plain" onPress={onClose} />
               </View>
               {body ? <Body>{body}</Body> : null}
@@ -975,7 +979,9 @@ const baseStyles = StyleSheet.create({
   sheet: { borderTopLeftRadius: radii.sheet, borderTopRightRadius: radii.sheet, borderTopWidth: 1, paddingHorizontal: spacing.page, paddingTop: 12, gap: 10, width: "100%", maxWidth: 640, alignSelf: "center" },
   sheetHandle: { width: 40, height: 4, borderRadius: 2, alignSelf: "center", marginBottom: 8 },
   sheetHeading: { flexDirection: "row", alignItems: "center", gap: spacing.md },
-  sheetTitle: { flex: 1, fontFamily: fonts.display, fontSize: 24, lineHeight: 28 },
+  sheetTitleBlock: { flex: 1, minWidth: 0, gap: 2 },
+  sheetTitle: { fontFamily: fonts.display, fontSize: 24, lineHeight: 28 },
+  sheetSubtitle: { fontFamily: fonts.mono, fontSize: 12, lineHeight: 16, letterSpacing: 1, textTransform: "uppercase" },
   menuGroup: { borderRadius: radii.surface, borderWidth: StyleSheet.hairlineWidth, padding: spacing.md, gap: spacing.md },
   menuGroupTitle: { fontFamily: fonts.semibold, fontSize: 16, lineHeight: 22 },
   menuList: { borderRadius: radii.surface, borderWidth: StyleSheet.hairlineWidth, overflow: "hidden", gap: StyleSheet.hairlineWidth },

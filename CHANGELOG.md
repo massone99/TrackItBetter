@@ -2,6 +2,16 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.68.0 - 2026-11-12
+
+- Workout: more compact everywhere. The open set is shorter (36 dp fields, same 48 dp touch areas), the rest bar fits on one line, "Copy last time" is a small link, and the card, last-time strip and dock take less room.
+- Workout: set states are clear at a glance. A done set being edited is green, the next set to fill is blue (rail, number tag, NEXT); done rows are neutral grey.
+- Workout: the set's chips (RPE, form, ROM, bands, rest, note, video) sit under a "Details" fold, closed by default, with a one-line summary.
+- Workout: when an exercise uses bands, the open set shows its bands and assistance on one line, one tap to change them (colours only when the kg are unknown).
+- Workout: "Add set" is a compact split button; the chevron holds "Add warm-up".
+- Set details sheet: RPE, form and ROM are one-tap segmented rows (with a +½ toggle), then note and chips for bands, rest and video; rare actions and Remove set move to the ⋮ menu.
+- Bands: one list of your bands; a tap picks or drops a band, its tension 1·2·3 sits on the same row, a held press renames it; the assistance shows on top.
+
 ## 0.67.1 - 2026-11-10
 
 - Workout: after "Remove all sets" (or when no exercise has sets left) the dock keeps all its options: Telemetry and Workout with Add exercise, Finish and Discard. Telemetry without sets says to add one.

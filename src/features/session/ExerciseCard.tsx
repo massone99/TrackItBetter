@@ -10,7 +10,7 @@ import type { RecordKind } from '../analytics/records';
 import { openExercisePage } from '../exercises/openExercise';
 import { openReferenceVideo } from '../exercises/ReferenceLinkSheet';
 import { HoldDurationField } from '../../shared/components/DateTimePickers';
-import { ActionButton, Heading, Icon, IconButton, Label, NumberEdit, ProgressMeter, tapFeedback, Text, TextField, type NumberEditControl } from '../../shared/components/ui';
+import { Heading, Icon, IconButton, Label, NumberEdit, ProgressMeter, tapFeedback, Text, TextField, type NumberEditControl } from '../../shared/components/ui';
 import { totalProgress } from '../../domain/totalGoal';
 import { useAnimationSettings } from '../../shared/settings/AnimationProvider';
 import { useTheme } from '../../shared/theme/ThemeProvider';
@@ -20,6 +20,7 @@ import { useScaledStyles } from '../../shared/theme/useScaledStyles';
 import { formatClock, formatNumber } from '../../shared/utils/format';
 import { Gauge, RegistrationMarks, Tag, useInk } from './instrument';
 import { readBooleanPreference, writePreference } from '../../shared/settings/preferences';
+import { ChipsFold } from './ChipsFold';
 import { LedgerActiveRow, LedgerDoneRow, LedgerHeader, LedgerUpcomingRow } from './LedgerSet';
 import { BandsStrip, DetailsToggle, MeasureBox, PreviousSetBox, RatingCells, WorkOutput, gaugeMax, type RatingCell } from './ActiveSetParts';
 import { FormRating, LastTimeStrip } from './LastTime';
@@ -42,6 +43,10 @@ const NO_RECORDS: ReadonlyMap<string, RecordKind[]> = new Map();
  * parts (hold timer, EMOM, comparison with last time, records) are optional.
  */
 const BANDS_FOLDED_KEY = 'workout.bandsFolded';
+
+/** The Add set button draws 32 dp tall; these bring it and its chevron (36 dp wide) to a 48 dp touch area. */
+const ADD_SLOP = { top: spacing.sm, bottom: spacing.sm, left: spacing.sm, right: 0 };
+const ADD_MORE_SLOP = { top: spacing.sm, bottom: spacing.sm, left: 0, right: spacing.md };
 
 export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, previous, hold = null, onChange, onSetValue, onComplete, onStartHold, onFinishHold, onAddSet, onAddWarmup, onCopyAllLast, onSetOptions, onUncomplete, onRemoveSet, onSwiped, showRpe, onRpe, onOptions, onToggleWarmup, setRecords = NO_RECORDS, volumeRecord = false, sameLoadRecord = null, supersetLabel = null, emomLabel: emomBadgeLabel, defaultRest = 0, onFormRating, onRomRating, onNote, focus = false, nowLabel = null, figure = null, editDone = false, typeDone = false, compare = true, apparatusLabel = null, firstTimeLabel, describeBands, compareBands, renderBandsEditor, fixedAction = false, onSetExpanded }: {
   handle?: ReactNode;
@@ -217,6 +222,10 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
   const [bandsFolded, setBandsFolded] = useState(() => readBooleanPreference(BANDS_FOLDED_KEY, false));
   const toggleBandsFolded = () => { setBandsFolded(!bandsFolded); writePreference(BANDS_FOLDED_KEY, String(!bandsFolded)); };
   const [detailsOpen, setDetailsOpen] = useState<ReadonlySet<string>>(() => new Set());
+  // Sets whose chips are unfolded; folded by default so the sets read as values, not as rows of buttons.
+  const [chipsOpen, setChipsOpen] = useState<ReadonlySet<string>>(() => new Set());
+  // The "more ways to add" list under the Add set button (warm-up); closed by default and after each choice.
+  const [addMenuOpen, setAddMenuOpen] = useState(false);
   // Sets whose telemetry (RPE, form, ROM and their pickers) is unfolded; folded by default.
   const [telemetryOpen, setTelemetryOpen] = useState<ReadonlySet<string>>(() => new Set());
   // Bands belong in the set in hand when the exercise already uses them, now or last time.
@@ -361,7 +370,11 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
       ) : null}
 
       {!collapsed && onCopyAllLast ? (
-        <ActionButton icon="arrow-undo-outline" label={t('logger.copyAllPrevious')} secondary onPress={() => { tapFeedback(); onCopyAllLast(); }} />
+        // A quiet link, not a full-width button: it is used once per exercise at most.
+        <Pressable accessibilityRole="button" hitSlop={ADD_SLOP} onPress={() => { tapFeedback(); onCopyAllLast(); }} style={({ pressed }) => [styles.copyLink, pressed && { opacity: 0.6 }]}>
+          <Icon name="arrow-undo-outline" size={14} color={palette.accentStrong} />
+          <Text style={[styles.addSetText, { color: palette.accentStrong }]}>{t('logger.copyAllPrevious')}</Text>
+        </Pressable>
       ) : null}
 
 
@@ -814,15 +827,15 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
             const row = { label, side, warmup: set.kind === 'warmup', value: timed ? value : distance ? `${value} m` : value, load: withLoad ? loadText : null, bands, withLoad, onOpen: openSet, onMenu: openMenu };
             return done
               ? swipe(<LedgerDoneRow {...row} rpe={set.rpe !== null ? formatRpe(set.rpe) : null} />, 'ld')
-              : swipe(<LedgerUpcomingRow {...row} />, 'lu');
+              : swipe(<LedgerUpcomingRow {...row} next={set.id === nextSetId} />, 'lu');
           }
           const restSec = set.restSec ?? defaultRest;
           const completeSlot = done ? (
-            <Pressable accessibilityRole="button" accessibilityState={{ checked: true }} accessibilityLabel={t('workout.setCompleted')} accessibilityHint={t('logger.swipeReopen')} onPress={() => uncomplete(set)} onLongPress={openMenu} delayLongPress={450} style={({ pressed }) => [styles.ledgerCheck, { backgroundColor: palette.success }, pressed && styles.checkPressed]}>
+            <Pressable accessibilityRole="button" accessibilityState={{ checked: true }} accessibilityLabel={t('workout.setCompleted')} accessibilityHint={t('logger.swipeReopen')} hitSlop={6} onPress={() => uncomplete(set)} onLongPress={openMenu} delayLongPress={450} style={({ pressed }) => [styles.ledgerCheck, { backgroundColor: palette.success }, pressed && styles.checkPressed]}>
               <Icon name="checkmark" size={22} color={palette.successText} />
             </Pressable>
           ) : timed && onStartHold ? (
-            <Pressable accessibilityRole="button" accessibilityLabel={holding ? t('logger.doneHold') : t('logger.startHold')} accessibilityHint={holding ? undefined : t('logger.holdLongPressHint')} onPress={() => (holding ? onFinishHold?.() : onStartHold(set))} onLongPress={holding ? undefined : () => { tapFeedback(); complete(set); }} delayLongPress={400} style={({ pressed }) => [styles.ledgerCheck, { backgroundColor: palette.accent }, pressed && styles.checkPressed]}>
+            <Pressable accessibilityRole="button" accessibilityLabel={holding ? t('logger.doneHold') : t('logger.startHold')} accessibilityHint={holding ? undefined : t('logger.holdLongPressHint')} onPress={() => (holding ? onFinishHold?.() : onStartHold(set))} onLongPress={holding ? undefined : () => { tapFeedback(); complete(set); }} delayLongPress={400} hitSlop={6} style={({ pressed }) => [styles.ledgerCheck, { backgroundColor: palette.accent }, pressed && styles.checkPressed]}>
               <Icon name={holding ? 'stop' : 'play'} size={22} color={palette.accentText} />
             </Pressable>
           ) : undefined;
@@ -850,6 +863,8 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
               note={{ text: set.note || null, open: noteRow, onPress: () => { if (onNote) toggleOpen(set.id, 'note', noteRow); else { tapFeedback(); onSetOptions(set, 'note'); } } }}
               video={{ clips: set.clipCount, onPress: () => { tapFeedback(); if (set.clipCount > 0) onSetOptions(set); else router.push({ pathname: '/form-check/[setId]', params: { setId: set.id } }); } }}
               panel={valuePanelNode}
+              tone={done ? 'edit' : 'next'}
+              bandsInUse={bandsInUse}
             />,
             done ? 'lad' : 'la',
           );
@@ -933,8 +948,35 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
                 </>
               );
             })() : null}
-            {!quiet && (!table || isOpen) && !(focus && editing && !detailsOpen.has(set.id)) && (strip || set.note || set.clipCount > 0 || (set.poseCount ?? 0) > 0 || set.rpe !== null || setRecords.has(set.id) || set.bands.length > 0) ? (
-              <View style={[styles.setMeta, editing && styles.setMetaLarge, table && styles.tableChips]}>
+            {!quiet && (!table || isOpen) && !(focus && editing && !detailsOpen.has(set.id)) && (strip || set.note || set.clipCount > 0 || (set.poseCount ?? 0) > 0 || set.rpe !== null || setRecords.has(set.id) || set.bands.length > 0) ? (() => {
+              // The chips fold behind one quiet line, folded by default; the open set of the ledger has its own "Additional" fold.
+              const folds = !(focus && editing);
+              const chipsShown = !folds || chipsOpen.has(set.id);
+              const described = set.bands.length > 0 ? describeBands?.(set) : null;
+              const summary = [
+                canRpe && set.rpe !== null ? t('logger.rpeTag', { value: formatRpe(set.rpe) }) : null,
+                canForm && set.formRating !== null ? `${t('lastTime.form')} ${formatNumber(set.formRating)}` : null,
+                canRom && set.romRating !== null ? `${t('lastTime.rom')} ${formatNumber(set.romRating)}` : null,
+                described ? described.text : null,
+                set.restSec !== null && set.restSec > 0 ? t('logger.restChip', { value: formatClock(set.restSec) }) : null,
+                set.note ? t('logger.noteChip') : null,
+                set.clipCount > 0 ? t('logger.clip', { count: set.clipCount }) : null,
+              ].filter(Boolean).join(' · ');
+              return (
+              <>
+              {folds ? (
+                <ChipsFold
+                  label={t('logger.chipsFold').toUpperCase()}
+                  summary={summary}
+                  record={setRecords.has(set.id)}
+                  open={chipsShown}
+                  onPress={() => { tapFeedback(); setChipsOpen((current) => { const next = new Set(current); if (!next.delete(set.id)) next.add(set.id); return next; }); }}
+                  trailing={table && isOpen ? menu : null}
+                  style={[styles.chipsFold, editing && styles.chipsFoldLarge, table && styles.chipsFoldTable]}
+                />
+              ) : null}
+              {chipsShown ? (
+              <View style={[styles.setMeta, editing && styles.setMetaLarge, table && styles.tableChips, folds && table && styles.tableChipsFolded]}>
                 {canRpe && !(focus && editing) && (strip || set.rpe !== null) ? (
                   <ValueChip flat={table} label={set.rpe !== null ? t('logger.rpeTag', { value: formatRpe(set.rpe) }) : t('lastTime.rpeChip')} icon="speedometer-outline" filled={set.rpe !== null} open={rpeRow} onPress={() => toggleOpen(set.id, 'rpe', rpeRow)} />
                 ) : null}
@@ -985,7 +1027,7 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
                     <Text style={[styles.clipChipText, { color: palette.accentStrong }]}>{t('logger.clip', { count: set.clipCount })}</Text>
                   </Pressable>
                 ) : null}
-                {table && isOpen ? menu : null}
+                {table && isOpen && !folds ? menu : null}
                 {(set.poseCount ?? 0) > 0 ? (
                   <Pressable accessibilityRole="button" accessibilityLabel={t('poseLink.setActionCount', { count: set.poseCount })} hitSlop={8} onPress={() => onSetOptions(set)} style={[styles.clipChip, { backgroundColor: palette.surface }]}>
                     <Icon name="scan-outline" size={13} color={palette.accentStrong} />
@@ -993,7 +1035,10 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
                   </Pressable>
                 ) : null}
               </View>
-            ) : null}
+              ) : null}
+              </>
+              );
+            })() : null}
             {focus && editing ? null : valuePanelNode}
             {focus && editing && !done ? (() => {
               const following = exercise.sets.find((item) => !item.completedAt && item.id !== set.id && item.index > set.index);
@@ -1067,16 +1112,43 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
       })}
       </View>
 
-      {collapsed ? null : <View style={[styles.addRow, largeText && styles.addRowLarge, table && [styles.addRowTable, { borderTopColor: palette.border }]]}>
-        <Pressable accessibilityRole="button" onPress={() => { tapFeedback(); onAddSet(); }} style={({ pressed }) => [styles.addSet, largeText && [styles.addSetLarge, { borderColor: palette.border }], { opacity: pressed ? 0.6 : 1 }]}>
-          <Icon name="add" size={18} color={palette.accentStrong} />
-          <Text style={[styles.addSetText, table && styles.addSetMono, { color: palette.accentStrong }]}>{emomBadgeLabel ? t('emom.addRound') : t('logger.addSet')}</Text>
-        </Pressable>
-        {onAddWarmup ? (
-          <Pressable accessibilityRole="button" accessibilityHint={t('logger.warmupHint')} onPress={() => { tapFeedback(); onAddWarmup(); }} style={({ pressed }) => [styles.addSet, largeText && [styles.addSetLarge, { borderColor: palette.border }], { opacity: pressed ? 0.6 : 1 }]}>
-            <Icon name="flame-outline" size={18} color={palette.textMuted} />
-            <Text style={[styles.addSetText, table && styles.addSetMono, { color: palette.textMuted }]}>{t('logger.addWarmup')}</Text>
+      {/* One compact split button under the sets: "+ Add set", and a chevron that unfolds the other ways to add (warm-up) below it. */}
+      {collapsed ? null : <View style={[styles.addRow, table && [styles.addRowTable, { borderTopColor: palette.border }]]}>
+        <View style={styles.addSplit}>
+          <Pressable
+            accessibilityRole="button"
+            hitSlop={ADD_SLOP}
+            onPress={() => { tapFeedback(); setAddMenuOpen(false); onAddSet(); }}
+            style={({ pressed }) => [styles.addSet, onAddWarmup ? styles.addSetJoined : null, { borderColor: ink, backgroundColor: palette.surface }, pressed && { backgroundColor: palette.accentSoft }]}
+          >
+            <Icon name="add" size={14} color={palette.accentStrong} />
+            <Text style={[styles.addSetText, { color: palette.accentStrong }]}>{emomBadgeLabel ? t('emom.addRound') : t('logger.addSet')}</Text>
           </Pressable>
+          {onAddWarmup ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={t('logger.addMore')}
+              accessibilityState={{ expanded: addMenuOpen }}
+              hitSlop={ADD_MORE_SLOP}
+              onPress={() => { tapFeedback(); setAddMenuOpen(!addMenuOpen); }}
+              style={({ pressed }) => [styles.addMore, { borderColor: ink, backgroundColor: addMenuOpen || pressed ? palette.accentSoft : palette.surface }]}
+            >
+              <Icon name={addMenuOpen ? 'chevron-up' : 'chevron-down'} size={14} color={palette.accentStrong} />
+            </Pressable>
+          ) : null}
+        </View>
+        {addMenuOpen && onAddWarmup ? (
+          <View style={[styles.addMenu, { borderColor: ink, backgroundColor: palette.surface }]}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityHint={t('logger.warmupHint')}
+              onPress={() => { tapFeedback(); setAddMenuOpen(false); onAddWarmup(); }}
+              style={({ pressed }) => [styles.addMenuItem, pressed && { backgroundColor: palette.accentSoft }]}
+            >
+              <Icon name="flame-outline" size={16} color={palette.textMuted} />
+              <Text style={[styles.addMenuText, { color: palette.text }]}>{t('logger.addWarmup')}</Text>
+            </Pressable>
+          </View>
         ) : null}
       </View>}
 
@@ -1196,7 +1268,7 @@ const baseStyles = StyleSheet.create({
   queue: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', gap: spacing.xs, paddingVertical: spacing.sm },
   queueText: { fontSize: 12, letterSpacing: 0.5 },
   fixedActionRoom: { minHeight: 56 },
-  ledgerCheck: { minWidth: 48, minHeight: 44, borderRadius: radii.control, alignItems: 'center', justifyContent: 'center' },
+  ledgerCheck: { minWidth: 40, minHeight: 36, borderRadius: radii.control, alignItems: 'center', justifyContent: 'center' },
   actionRow: { flexDirection: 'row', alignItems: 'stretch', gap: spacing.sm },
   actionRowWrap: { flexWrap: 'wrap' },
   detailsButtonWide: { flexBasis: '100%', flexDirection: 'row', gap: spacing.sm, paddingHorizontal: spacing.lg },
@@ -1209,14 +1281,12 @@ const baseStyles = StyleSheet.create({
   stripBadge: { minWidth: 40, minHeight: 40, paddingHorizontal: 6, borderRadius: radii.control, alignItems: 'center', justifyContent: 'center' },
   summaryBox: { width: 28, height: 28, borderRadius: radii.control, alignItems: 'center', justifyContent: 'center' },
   summaryText: { flex: 1, fontFamily: fonts.semibold, fontSize: 15 },
-  addRowLarge: { flexDirection: 'column', flexWrap: 'nowrap', alignItems: 'stretch', gap: 8, marginTop: 4 },
-  addSetLarge: { justifyContent: 'center', borderWidth: 1, borderRadius: radii.control, paddingHorizontal: 12 },
   // 12 at the sides (not 16): the ledger's fields need the width more than the card needs the margin.
-  exerciseCard: { borderRadius: instrument.radius, borderWidth: instrument.line, paddingHorizontal: spacing.md, paddingVertical: spacing.lg, gap: spacing.sm },
+  exerciseCard: { borderRadius: instrument.radius, borderWidth: instrument.line, paddingHorizontal: spacing.md, paddingVertical: spacing.md, gap: spacing.sm },
   halo: { position: 'absolute', top: -4, left: -4, right: -4, bottom: -4, borderWidth: 3, borderRadius: instrument.radius + 3 },
   nowRow: { paddingHorizontal: spacing.xs },
   // Reaches the card's top and side edges (negative margins cancel the card padding) so the whole header block is a tap target.
-  headerTap: { marginHorizontal: -spacing.md, marginTop: -spacing.lg, paddingHorizontal: spacing.md, paddingTop: spacing.lg, gap: spacing.sm },
+  headerTap: { marginHorizontal: -spacing.md, marginTop: -spacing.md, paddingHorizontal: spacing.md, paddingTop: spacing.md, gap: spacing.xs },
   headerTapFolded: { marginBottom: -spacing.lg, paddingBottom: spacing.lg },
   exerciseNameCard: { fontSize: 30, lineHeight: 32, textTransform: 'uppercase' },
   tableBleed: { marginHorizontal: -spacing.md },
@@ -1233,10 +1303,13 @@ const baseStyles = StyleSheet.create({
   tableCheck: { borderRadius: instrument.radius, alignItems: 'center', justifyContent: 'center' },
   openGauge: { paddingHorizontal: spacing.lg, paddingTop: spacing.md, paddingBottom: spacing.md },
   valueChipMono: { fontFamily: fonts.monoSemibold, fontSize: 12, textTransform: 'uppercase' },
-  addSetMono: { fontFamily: fonts.monoSemibold, fontSize: 12, textTransform: 'uppercase' },
   tableBlock: { borderRadius: 0, marginBottom: 0, borderTopWidth: 1 },
   addRowTable: { borderTopWidth: 1, marginHorizontal: -spacing.md, marginBottom: -spacing.lg, marginTop: 0, paddingHorizontal: spacing.md, justifyContent: 'center' },
   tableChips: { paddingLeft: spacing.lg, paddingRight: spacing.lg, paddingTop: spacing.lg, paddingBottom: spacing.md },
+  tableChipsFolded: { paddingTop: spacing.xs },
+  chipsFold: { paddingLeft: 48, paddingRight: spacing.md }, // 48: under the values, after the set number
+  chipsFoldLarge: { paddingLeft: 0, paddingRight: 0 },
+  chipsFoldTable: { paddingLeft: spacing.lg, paddingRight: spacing.lg, paddingTop: spacing.xs },
   tablePanel: { marginLeft: spacing.lg, marginRight: spacing.lg },
   tableSetRow: { paddingHorizontal: spacing.lg, paddingTop: spacing.sm, gap: spacing.xs },
   tile: { borderRadius: radii.control, paddingVertical: spacing.xs, marginHorizontal: spacing.sm },
@@ -1268,9 +1341,16 @@ const baseStyles = StyleSheet.create({
   largeTitleTap: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: MIN_TOUCH_TARGET },
   checkButton: { borderRadius: radii.control, alignItems: 'center', justifyContent: 'center' },
   checkPressed: { opacity: 0.7, transform: [{ scale: 0.94 }] },
-  addSet: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 48, paddingHorizontal: 4 },
-  addRow: { flexDirection: 'row', flexWrap: 'wrap', columnGap: 20 },
-  addSetText: { fontFamily: fonts.semibold, fontSize: 15 },
+  addRow: { alignItems: 'flex-start', gap: spacing.xs, paddingVertical: spacing.sm },
+  copyLink: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', gap: spacing.xs, minHeight: MIN_TOUCH_TARGET - 2 * spacing.sm },
+  addSplit: { flexDirection: 'row', alignItems: 'stretch', maxWidth: '100%' },
+  addSet: { flexDirection: 'row', flexShrink: 1, alignItems: 'center', gap: spacing.xs, minHeight: MIN_TOUCH_TARGET - 2 * spacing.sm, paddingHorizontal: spacing.md, borderWidth: 1, borderRadius: radii.control },
+  addSetJoined: { borderTopRightRadius: 0, borderBottomRightRadius: 0 },
+  addSetText: { fontFamily: fonts.monoSemibold, fontSize: 12, letterSpacing: 1, textTransform: 'uppercase', flexShrink: 1 },
+  addMore: { minWidth: 36, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderLeftWidth: 0, borderTopRightRadius: radii.control, borderBottomRightRadius: radii.control },
+  addMenu: { minWidth: 200, maxWidth: '100%', borderWidth: 1, borderRadius: radii.control, overflow: 'hidden' },
+  addMenuItem: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: MIN_TOUCH_TARGET, paddingHorizontal: spacing.md },
+  addMenuText: { fontFamily: fonts.body, fontSize: 15, flexShrink: 1 },
 });
 
 /** The set's note typed in place: the keyboard opens at once, and the text is saved on blur or when the field closes. */

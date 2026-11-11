@@ -100,7 +100,7 @@ export function WorkoutDockPanel({ title, options }: { title: string; options: D
 
 const baseStyles = StyleSheet.create({
   rails: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
-  rail: { flexGrow: 1, flexBasis: 140, minHeight: MIN_TOUCH_TARGET, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.sm, borderWidth: 1, borderRadius: instrument.radius, paddingHorizontal: spacing.md, paddingVertical: spacing.sm },
+  rail: { flexGrow: 1, flexBasis: 140, minHeight: MIN_TOUCH_TARGET, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.sm, borderWidth: 1, borderRadius: instrument.radius, paddingHorizontal: spacing.md, paddingVertical: spacing.xs },
   railStacked: { flexBasis: '100%' },
   railText: { flexShrink: 1, minWidth: 0, gap: 2 },
   railLabel: { fontSize: 12, fontWeight: '700', letterSpacing: 0.5 },

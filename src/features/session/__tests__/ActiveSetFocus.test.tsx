@@ -58,6 +58,9 @@ function show(sets: SessionSet[], props: Partial<Parameters<typeof ExerciseCard>
   return { onSetOptions };
 }
 
+/** The chips sit behind the "Details" fold, folded by default. */
+const openDetails = () => fireEvent.press(screen.getAllByLabelText(/^DETAILS/)[0]);
+
 describe('active set in focus mode', () => {
   beforeAll(async () => { await i18n.changeLanguage('en'); });
 
@@ -65,6 +68,8 @@ describe('active set in focus mode', () => {
     show([set(1), set(2)]);
     // Jest runs at large text, where the column header is hidden; no picker opens by itself.
     expect(screen.queryByText('Effort (RPE)')).toBeNull();
+    expect(screen.queryByLabelText('+ BANDS')).toBeNull();
+    openDetails();
     expect(screen.getAllByLabelText(/^RPE/).length).toBeGreaterThan(0);
     expect(screen.getByLabelText(/^FORM/)).toBeTruthy();
     expect(screen.getByLabelText(/^ROM/)).toBeTruthy();
@@ -73,14 +78,16 @@ describe('active set in focus mode', () => {
 
   it('a rating chip opens only its own picker', () => {
     show([set(1, { rpe: 8.5, formRating: 4 })]);
+    openDetails();
     const chip = (pattern: RegExp) => screen.getAllByLabelText(pattern).find((node) => node.props.accessibilityState?.expanded !== undefined)!;
     fireEvent.press(chip(/^FORM/));
     expect(chip(/^FORM/).props.accessibilityState).toMatchObject({ expanded: true });
-    expect(chip(/RPE/).props.accessibilityState).toMatchObject({ expanded: false });
+    expect(chip(/^RPE/).props.accessibilityState).toMatchObject({ expanded: false });
   });
 
   it('the bands and rest chips open their own settings, not the generic set menu', () => {
     const { onSetOptions } = show([set(1)], { defaultRest: 90 });
+    openDetails();
     fireEvent.press(screen.getByLabelText('+ BANDS'));
     expect(onSetOptions).toHaveBeenLastCalledWith(expect.objectContaining({ id: 's1' }), 'bands');
     fireEvent.press(screen.getByLabelText(/^REST/));

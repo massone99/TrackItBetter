@@ -1401,7 +1401,7 @@ function TimerBar({ hold, restEndsAt, voiceCues, onRestEnd, onFinishHold, onExte
 }) {
   const styles = useScaledStyles(baseStyles);
   const { t } = useTranslation();
-  const { palette } = useTheme();
+  const { palette, largeText } = useTheme();
   if (hold === null && restEndsAt === null) return null;
   const holding = hold !== null;
   const countingDown = hold?.phase.phase === 'countdown';
@@ -1414,8 +1414,8 @@ function TimerBar({ hold, restEndsAt, voiceCues, onRestEnd, onFinishHold, onExte
         : t('logger.holding');
   return (
     <View style={[styles.timerBar, { backgroundColor: palette.hero }]}>
-      <View style={styles.timerInner}>
-      <IconButton icon="chevron-down" label={t('workout.collapseDock')} tone="plain" size={48} color={palette.heroText} onPress={onCollapse} />
+      <View style={[styles.timerInner, !largeText && styles.timerInnerLine]}>
+      <IconButton icon="chevron-down" label={t('workout.collapseDock')} tone="plain" size={40} color={palette.heroText} onPress={onCollapse} />
       <View style={styles.timerReadout}>
         <Text style={[styles.timerLabel, { color: palette.heroText }]}>{label}</Text>
         {hold || restEndsAt === null
@@ -1488,6 +1488,7 @@ function TimerAction({ label, filled = false, accessibilityLabel, onPress }: { l
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel}
+      hitSlop={4}
       onPress={() => { tapFeedback(); onPress(); }}
       style={({ pressed }) => [styles.timerAction, { backgroundColor: filled ? palette.heroText : palette.heroOverlay, opacity: pressed ? 0.8 : 1 }]}
     >
@@ -1553,15 +1554,17 @@ const baseStyles = StyleSheet.create({
   swipeHint: { flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: radii.control, paddingHorizontal: 14, paddingVertical: 10 },
   swipeHintText: { flex: 1, fontFamily: fonts.medium, fontSize: 14 },
   footerActions: { gap: 10, marginTop: 4 },
-  timerBar: { borderRadius: instrument.radius, paddingHorizontal: 16, paddingVertical: 12 },
+  timerBar: { borderRadius: instrument.radius, paddingHorizontal: 8, paddingVertical: 6 },
   collapsed: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderRadius: instrument.radius, paddingLeft: 16, paddingRight: 4, minHeight: 48 },
-  timerInner: { width: '100%', maxWidth: 640, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
-  timerLabel: { fontFamily: fonts.medium, fontSize: 14, opacity: 0.85 },
-  timerValue: { fontFamily: fonts.monoBold, fontSize: 32, lineHeight: 40, fontVariant: ['tabular-nums'] },
-  timerReadout: { flexGrow: 1, minWidth: 110 },
-  timerActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  timerInner: { width: '100%', maxWidth: 640, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
+  timerLabel: { fontFamily: fonts.medium, fontSize: 12, lineHeight: 14, opacity: 0.85 },
+  timerValue: { fontFamily: fonts.monoBold, fontSize: 24, lineHeight: 28, fontVariant: ['tabular-nums'] },
+  // Normal text: chevron, clock and the three actions on one line.
+  timerInnerLine: { flexWrap: 'nowrap' },
+  timerReadout: { flexGrow: 1, flexShrink: 0 },
+  timerActions: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   // No wrapping here: a wrapping column lays the two rows side by side and squeezes the labels to nothing.
-  timerAction: { minWidth: 56, minHeight: 48, borderRadius: instrument.radius, paddingHorizontal: 14, paddingVertical: 10, alignItems: 'center', justifyContent: 'center' },
+  timerAction: { minWidth: 44, minHeight: 40, borderRadius: instrument.radius, paddingHorizontal: 8, paddingVertical: 6, alignItems: 'center', justifyContent: 'center' },
   timerActionText: { fontFamily: fonts.semibold, fontSize: 15 },
   timerActionSymbol: { fontSize: 26, lineHeight: 30 },
   // The surrounding box carries the border, so the browser focus outline is replaced by it.

@@ -1,7 +1,8 @@
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { Icon, Text, tapFeedback } from '../../shared/components/ui';
+import { ChipsFold } from './ChipsFold';
 import { useInk } from '../../shared/theme/ink';
 import { useScaledStyles } from '../../shared/theme/useScaledStyles';
 import { useTheme } from '../../shared/theme/ThemeProvider';
@@ -35,6 +36,8 @@ export interface LedgerRowProps extends LedgerCommon {
   withLoad?: boolean;
   onOpen: () => void;
   onMenu: () => void;
+  /** The next set to fill while another one is open: blue tint, rail, number tag and a NEXT mark. */
+  next?: boolean;
 }
 
 export interface LedgerChip { onPress: () => void; open?: boolean }
@@ -63,6 +66,10 @@ export interface LedgerActiveRowProps extends LedgerCommon {
   video?: (LedgerChip & { clips: number }) | null;
   /** The open RPE / form / ROM picker. */
   panel?: ReactNode;
+  /** A done set opened to edit (green) or the set to fill now (blue). */
+  tone?: 'next' | 'edit';
+  /** The exercise uses bands: the band line shows on the set in hand even when it has none yet. */
+  bandsInUse?: boolean;
 }
 
 function setText(label: string, side: 'L' | 'R' | null | undefined) {
@@ -109,7 +116,7 @@ function LoadCell({ load, bands, muted }: { load?: string | null; bands?: Ledger
     return (
       <View style={[styles.colField, styles.bandsCell]}>
         <Swatches colors={bands.colors} />
-        <Text style={[styles.figure, { color }]}>{bands.assist ? `−${bands.assist}` : '?'}</Text>
+        {bands.assist ? <Text style={[styles.figure, { color }]}>{`−${bands.assist}`}</Text> : null}
       </View>
     );
   }
@@ -124,13 +131,25 @@ function summary(t: (key: string, options?: Record<string, unknown>) => string, 
   return t(`ledger.${key}`, { set: name, value: parts.join(', ') });
 }
 
+/** The set number in a filled square: green while a done set is edited, blue for the set to fill. */
+function NumberTag({ text, tone, warmup }: { text: string; tone: 'next' | 'edit'; warmup?: boolean }) {
+  const styles = useScaledStyles(baseStyles);
+  const { palette } = useTheme();
+  return (
+    <View style={[styles.numberTag, { backgroundColor: tone === 'edit' ? palette.success : palette.accentStrong }]}>
+      <Text style={[styles.numberTagText, warmup && styles.warmup, { color: tone === 'edit' ? palette.successText : palette.accentText }]}>{text}</Text>
+    </View>
+  );
+}
+
 function StaticRow(props: LedgerRowProps & { done: boolean }) {
   const { t } = useTranslation();
   const styles = useScaledStyles(baseStyles);
   const { palette } = useTheme();
   const name = useSetName(props);
   const { done, withLoad = true } = props;
-  const muted = !done;
+  const next = !done && props.next;
+  const muted = !done && !next;
   const color = muted ? palette.textMuted : palette.text;
   return (
     <Pressable
@@ -141,20 +160,23 @@ function StaticRow(props: LedgerRowProps & { done: boolean }) {
       onPress={() => { tapFeedback(); props.onOpen(); }}
       onLongPress={() => { tapFeedback(); props.onMenu(); }}
       delayLongPress={450}
-      style={[styles.row, { borderBottomColor: palette.border }]}
+      style={[styles.row, { borderBottomColor: palette.border }, next && [styles.railed, { backgroundColor: palette.accentSoft, borderLeftColor: palette.accentStrong }]]}
     >
       <View style={styles.colSet}>
-        <Text style={[styles.setLabel, { color }, props.warmup && styles.warmup]}>{setText(props.label, props.side)}</Text>
+        {next
+          ? <NumberTag text={setText(props.label, props.side)} tone="next" warmup={props.warmup} />
+          : <Text style={[styles.setLabel, { color }, props.warmup && styles.warmup]}>{setText(props.label, props.side)}</Text>}
       </View>
       <View style={[styles.colField, styles.valueCell]}>
         <Text style={[styles.figure, { color }]}>{props.value}</Text>
         {props.rpe ? <Text style={[styles.small, { color: palette.textMuted }]}>{` · ${t('ledger.withRpe', { value: props.rpe })}`}</Text> : null}
+        {next ? <Text style={[styles.statusTag, { color: palette.accentStrong }]}>{`  ${t('ledger.next')}`}</Text> : null}
       </View>
       {withLoad ? <LoadCell load={props.load} bands={props.bands} muted={muted} /> : null}
       <View style={styles.colDone}>
         {done
           ? <Icon name="checkmark" size={22} color={palette.success} />
-          : <View style={[styles.box, { borderColor: palette.textMuted }]} />}
+          : <View style={[styles.box, next ? [styles.boxNext, { borderColor: palette.accentStrong, backgroundColor: palette.surface }] : { borderColor: palette.textMuted }]} />}
       </View>
     </Pressable>
   );
@@ -212,7 +234,7 @@ export function LedgerActiveRow(props: LedgerActiveRowProps) {
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={t('ledger.complete')}
-      hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
+      hitSlop={6}
       onPress={() => { tapFeedback('success'); props.onComplete(); }}
       style={[styles.completeBtn, largeText && styles.completeStacked, { backgroundColor: palette.accent }]}
     >
@@ -221,7 +243,29 @@ export function LedgerActiveRow(props: LedgerActiveRowProps) {
     </Pressable>
   );
   const { rpe, form, rom, bands, rest, note, video } = props;
-  const chips = (
+  const tone = props.tone ?? 'next';
+  // The chips fold behind one quiet line, folded by default: the set reads as its numbers, the extras stay one tap away.
+  const [chipsOpen, setChipsOpen] = useState(false);
+  const summary = [
+    rpe?.value != null ? t('ledger.withRpe', { value: rpe.value }) : null,
+    form?.value != null ? `${t('ledger.form')} ${form.value}` : null,
+    rom?.value != null ? `${t('ledger.rom')} ${rom.value}` : null,
+    rest?.filled ? t('ledger.rest', { value: rest.value }) : null,
+    note?.text ? t('logger.noteChip') : null,
+    video && video.clips > 0 ? t('ledger.clips', { count: video.clips }) : null,
+  ].filter(Boolean).join(' · ');
+  const hasChips = Boolean(rpe || form || rom || bands || rest || note || video);
+  const fold = hasChips ? (
+    <ChipsFold
+      label={t('logger.chipsFold').toUpperCase()}
+      summary={summary}
+      record={false}
+      open={chipsOpen}
+      onPress={() => { tapFeedback(); setChipsOpen(!chipsOpen); }}
+      style={styles.chipsFold}
+    />
+  ) : null;
+  const chips = !chipsOpen ? null : (
     <View style={[styles.chips, largeText && styles.chipsFlush]}>
       {rpe ? (
         <Chip
@@ -250,7 +294,7 @@ export function LedgerActiveRow(props: LedgerActiveRowProps) {
       onPress={props.onFold ? () => { tapFeedback(); props.onFold?.(); } : undefined}
       onLongPress={props.onMenu}
       delayLongPress={450}
-      style={[styles.active, { backgroundColor: palette.accentSoft, borderTopColor: palette.accentStrong, borderBottomColor: palette.accentStrong }]}
+      style={[styles.active, styles.railedActive, { backgroundColor: tone === 'edit' ? palette.successSoft : palette.accentSoft, borderLeftColor: tone === 'edit' ? palette.success : palette.accentStrong, borderBottomColor: palette.border }]}
     >
       {largeText ? (
         <View style={styles.stack}>
@@ -264,11 +308,11 @@ export function LedgerActiveRow(props: LedgerActiveRowProps) {
           {props.onFold ? (
             // The number folds the set to one row like the others, so every set of the card can be folded at once.
             <Pressable accessibilityRole="button" accessibilityLabel={t('ledger.fold', { label: setText(props.label, props.side) })} hitSlop={{ top: 4, bottom: 4, left: 8, right: 4 }} onPress={() => { tapFeedback(); props.onFold?.(); }} style={({ pressed }) => [styles.colSet, styles.foldTap, pressed && { opacity: 0.6 }]}>
-              <Text style={[styles.setLabel, styles.activeLabel, props.warmup && styles.warmup, { color: palette.text }]}>{setText(props.label, props.side)}</Text>
+              <NumberTag text={setText(props.label, props.side)} tone={tone} warmup={props.warmup} />
             </Pressable>
           ) : (
             <View style={styles.colSet}>
-              <Text style={[styles.setLabel, styles.activeLabel, props.warmup && styles.warmup, { color: palette.text }]}>{setText(props.label, props.side)}</Text>
+              <NumberTag text={setText(props.label, props.side)} tone={tone} warmup={props.warmup} />
             </View>
           )}
           <Field stacked={false} down={props.valueDown} up={props.valueUp}>{props.valueField}</Field>
@@ -276,6 +320,23 @@ export function LedgerActiveRow(props: LedgerActiveRowProps) {
           <View style={styles.colDone}>{complete}</View>
         </View>
       )}
+      <View style={[styles.subRow, largeText && styles.chipsFlush]}>
+      {bands && (bands.colors.length > 0 || props.bandsInUse) ? (
+        // Bands stay in view on the set in hand: what helps, how much, one tap to change.
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`${t('ledger.bands')} ${bands.assist ? t('ledger.withAssist', { value: bands.assist }) : ''}`.trim()}
+          hitSlop={{ top: 8, bottom: 8 }}
+          onPress={() => { tapFeedback(); bands.onPress(); }}
+          style={({ pressed }) => [styles.bandLine, pressed && { opacity: 0.6 }]}
+        >
+          {bands.colors.length > 0 ? <Swatches colors={bands.colors} /> : null}
+          <Text style={[styles.bandText, { color: bands.colors.length > 0 ? palette.text : palette.textMuted }]}>{bands.colors.length === 0 ? t('ledger.noBands') : bands.assist ? `−${bands.assist} ${t('ledger.kgCol')}` : ''}</Text>
+          <Text style={[styles.statusTag, { color: palette.accentStrong }]}>{bands.colors.length > 0 ? t('ledger.editBands') : t('ledger.addBands')}</Text>
+        </Pressable>
+      ) : null}
+        {fold}
+      </View>
       {chips}
       {props.panel}
     </Pressable>
@@ -300,17 +361,30 @@ const baseStyles = StyleSheet.create({
   small: { fontFamily: fonts.mono, fontSize: 12, lineHeight: 16 },
   box: { width: 20, height: 20, borderWidth: 1, borderRadius: radii.small },
   swatch: { width: 12, height: 12, borderRadius: radii.small, borderWidth: 1 },
-  active: { borderTopWidth: 1, borderBottomWidth: 1, paddingVertical: spacing.sm, gap: spacing.sm },
-  activeMain: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, paddingLeft: spacing.sm },
+  active: { borderBottomWidth: StyleSheet.hairlineWidth, paddingVertical: spacing.xs + 2, gap: spacing.xs },
+  // The rail replaces part of the 8 dp inset, so the set number stays in line with the other rows.
+  railed: { borderLeftWidth: spacing.xs, paddingLeft: spacing.sm - spacing.xs },
+  railedActive: { borderLeftWidth: spacing.xs },
+  numberTag: { minWidth: 24, minHeight: 24, paddingHorizontal: 3, borderRadius: radii.small, alignItems: 'center', justifyContent: 'center', alignSelf: 'flex-start' },
+  numberTagText: { fontFamily: fonts.monoBold, fontSize: 13, lineHeight: 18 },
+  statusTag: { fontFamily: fonts.monoSemibold, fontSize: 12, letterSpacing: 1, textTransform: 'uppercase' },
+  boxNext: { borderWidth: 2 },
+  // Bands and the Details fold share one line under the fields; they wrap at large text.
+  subRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', columnGap: spacing.md, paddingLeft: spacing.xs + 28 + spacing.xs, paddingRight: spacing.sm },
+  bandLine: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs + 2, minHeight: 32 },
+  bandText: { fontFamily: fonts.monoSemibold, fontSize: 13 },
+  activeMain: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, paddingLeft: spacing.sm - spacing.xs },
   stack: { gap: spacing.sm, paddingHorizontal: spacing.xs },
-  fieldBox: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderRadius: radii.control, minHeight: MIN_TOUCH_TARGET, paddingHorizontal: spacing.xs },
+  // 36 dp drawn: the − and + inside keep a 48 dp touch area through their hitSlop.
+  fieldBox: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderRadius: radii.control, minHeight: MIN_TOUCH_TARGET - 12, paddingHorizontal: spacing.xs },
   fieldStacked: { alignSelf: 'stretch' },
   fieldValue: { flex: 1, minWidth: 0, alignItems: 'center', justifyContent: 'center' },
-  completeBtn: { minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center', borderRadius: radii.control, flexDirection: 'row', gap: spacing.sm },
+  completeBtn: { minWidth: 40, minHeight: 36, alignItems: 'center', justifyContent: 'center', borderRadius: radii.control, flexDirection: 'row', gap: spacing.sm },
   completeStacked: { alignSelf: 'stretch', minHeight: MIN_TOUCH_TARGET, paddingHorizontal: spacing.md },
   completeText: { fontFamily: fonts.monoBold, fontSize: 15, lineHeight: 22 },
-  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, paddingLeft: spacing.sm + 28 + spacing.xs, alignItems: 'center' },
+  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, paddingLeft: spacing.xs + 28 + spacing.xs, alignItems: 'center' },
   chipsFlush: { paddingLeft: spacing.xs },
+  chipsFold: {},
   chip: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, minHeight: 32, paddingHorizontal: spacing.sm, borderWidth: 1, borderRadius: radii.control, maxWidth: '100%' },
   chipText: { fontFamily: fonts.mono, fontSize: 12, lineHeight: 16, flexShrink: 1 },
 });
