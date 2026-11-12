@@ -2,6 +2,12 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.69.0 - 2026-11-12
+
+- Switch to: an exercise in a chain shows the whole chain as a ladder, so any step is one tap away (not only the nearest two). It marks where you are, the steps reached and the one your sets suggest; with several chains, a chip picks which one.
+- Compact layout: tighter page margins and spacing, smaller titles, a lower tab bar, and the back arrow sits on the title row.
+- Very large text: the footer actions stack one per line (no more "Repeat workout" running off screen), the recap "better than last time" badge wraps, and tab labels keep their base size.
+
 ## 0.68.0 - 2026-11-12
 
 - Workout: more compact everywhere. The open set is shorter (36 dp fields, same 48 dp touch areas), the rest bar fits on one line, "Copy last time" is a small link, and the card, last-time strip and dock take less room.
