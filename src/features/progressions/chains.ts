@@ -372,7 +372,8 @@ export type ExerciseProgressions = {
   best: Map<string, { reps: number | null; seconds: number | null }>;
   /** Where the next step's criteria are met: the exercise ids reached. */
   reached: Set<string>;
-  chains: { id: string; name: string; position: number; count: number }[];
+  /** The chains the exercise is in; `steps` are their exercise ids in order, so a step can be picked directly. */
+  chains: { id: string; name: string; position: number; count: number; steps: string[] }[];
   links: LinkView[];
 };
 
@@ -381,13 +382,16 @@ export async function getExerciseProgressions(exerciseId: string): Promise<Exerc
   await initializeDatabase();
   const edges = await allEdges();
   const tree = exerciseTree(edges, exerciseId);
-  const ids = [exerciseId, ...tree.regressions.map((node) => node.id), ...tree.progressions.map((node) => node.id), ...tree.prerequisites, ...tree.unlocks, ...tree.variations];
-  const [names, history, steps, links] = await Promise.all([
+  const [names, steps, links] = await Promise.all([
     exerciseNames(),
-    historyOf(ids),
     db.select({ step: chainSteps, chainName: progressionChains.name }).from(chainSteps).innerJoin(progressionChains, eq(chainSteps.chainId, progressionChains.id)),
     listLinks(exerciseId),
   ]);
+  // Every step of the exercise's own chains is offered in "Switch to", so their bests are loaded too.
+  const ownChains = new Set(steps.filter(({ step }) => step.exerciseId === exerciseId).map(({ step }) => step.chainId));
+  const chainIds = steps.filter(({ step }) => ownChains.has(step.chainId)).map(({ step }) => step.exerciseId);
+  const ids = [...new Set([exerciseId, ...tree.regressions.map((node) => node.id), ...tree.progressions.map((node) => node.id), ...tree.prerequisites, ...tree.unlocks, ...tree.variations, ...chainIds])];
+  const history = await historyOf(ids);
   const reached = new Set<string>();
   for (const { step } of steps) {
     if (step.reachedAt !== null || criteriaMet(criteriaFromRow(step.target, step.requiredSessions), history.get(step.exerciseId))) reached.add(step.exerciseId);
@@ -396,7 +400,7 @@ export async function getExerciseProgressions(exerciseId: string): Promise<Exerc
   for (const { step } of steps) counts.set(step.chainId, (counts.get(step.chainId) ?? 0) + 1);
   const chains = steps.filter(({ step }) => step.exerciseId === exerciseId).map(({ step, chainName }) => {
     const order = steps.filter((item) => item.step.chainId === step.chainId).sort((a, b) => a.step.position - b.step.position);
-    return { id: step.chainId, name: chainName, position: order.findIndex((item) => item.step.id === step.id) + 1, count: counts.get(step.chainId) ?? 0 };
+    return { id: step.chainId, name: chainName, position: order.findIndex((item) => item.step.id === step.id) + 1, count: counts.get(step.chainId) ?? 0, steps: order.map((item) => item.step.exerciseId) };
   });
   const best = new Map([...history].map(([id, item]) => [id, { reps: item.bestReps, seconds: item.bestSeconds }]));
   return { tree, names, best, reached, chains, links };

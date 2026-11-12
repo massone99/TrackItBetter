@@ -1,5 +1,5 @@
 import type { ExerciseTree } from '../progressionGraph';
-import { switchOptions, switchSignal, type SwitchSet } from '../switchOptions';
+import { switchOptions, switchSignal, type SwitchSet, chainLadder } from '../switchOptions';
 
 const set = (over: Partial<SwitchSet>): SwitchSet => ({ kind: 'working', completed: true, rpe: null, targetRpe: null, ...over });
 const tree: ExerciseTree = {
@@ -33,5 +33,18 @@ describe('switch options', () => {
     expect(switchOptions(tree, 'regress')[0]).toEqual({ id: 'easy', relation: 'easier', depth: 1, suggested: true });
     expect(switchOptions(tree, 'progress').map((option) => option.id)).toEqual(['hard', 'easy', 'easier', 'side', 'need']);
     expect(switchOptions({ ...tree, regressions: [] }, 'regress').some((option) => option.suggested)).toBe(false);
+  });
+});
+
+describe('chainLadder', () => {
+  const steps = ['lean', 'frog', 'tuck', 'adv', 'straddle'];
+
+  it('lists every step in order, not only the neighbours', () => {
+    expect(chainLadder(steps, 'tuck', new Set(), null).map((step) => [step.id, step.position])).toEqual([['lean', 1], ['frog', 2], ['tuck', 3], ['adv', 4], ['straddle', 5]]);
+  });
+
+  it('marks current, reached and suggested steps, the current one first', () => {
+    const ladder = chainLadder(steps, 'tuck', new Set(['lean', 'frog', 'tuck']), 'adv');
+    expect(ladder.map((step) => step.state)).toEqual(['reached', 'reached', 'current', 'suggested', 'open']);
   });
 });
