@@ -17,7 +17,7 @@ import { movementTagLabel } from './ClassificationChoices';
 import { groupExercises } from './groupExercises';
 import { ExerciseGroupingControls, ExerciseGroupingHeader, useExerciseGrouping } from './ExerciseGrouping';
 import { MAX_FONT_SCALE } from '../../shared/theme/scale';
-import { radii } from '../../shared/theme/tokens';
+import { radii, spacing } from '../../shared/theme/tokens';
 
 const categories = ['all', ...EXERCISE_CATEGORIES] as const;
 type CategoryFilter = (typeof categories)[number];
@@ -112,10 +112,10 @@ export function LibraryView() {
 }
 
 const baseStyles = StyleSheet.create({
-  searchBox: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, borderWidth: 1, borderRadius: radii.control, minHeight: 56 },
+  searchBox: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: spacing.md, borderWidth: 1, borderRadius: radii.control, minHeight: 52 },
   search: { flex: 1, minHeight: 48, fontFamily: fonts.body, fontSize: 16, outlineWidth: 0 },
-  chipRow: { marginHorizontal: -20 },
-  categories: { gap: 8, paddingHorizontal: 20 },
+  chipRow: { marginHorizontal: -spacing.page },
+  categories: { gap: 8, paddingHorizontal: spacing.page },
   star: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center' },
   group: { gap: 12 },
 });

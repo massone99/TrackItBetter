@@ -1,5 +1,5 @@
 /** Shared native UI measurements. Layout values follow the user's interface scale. */
-export const spacing = { xs: 4, sm: 8, md: 12, lg: 16, xl: 20, section: 24, page: 20 } as const;
+export const spacing = { xs: 4, sm: 8, md: 12, lg: 16, xl: 20, section: 24, page: 16 } as const;
 
 /**
  * Depth: a soft, low shadow that lifts surfaces off the page in the light theme. In the dark theme
@@ -13,9 +13,9 @@ export const elevation = {
 export const radii = { small: 2, control: 4, surface: 4, sheet: 4, pill: 4 } as const;
 
 export const typeScale = {
-  title: { fontSize: 32, lineHeight: 36, letterSpacing: -0.4 },
-  section: { fontSize: 23, lineHeight: 28 },
-  heading: { fontSize: 18, lineHeight: 25 },
+  title: { fontSize: 28, lineHeight: 32, letterSpacing: -0.3 },
+  section: { fontSize: 21, lineHeight: 26 },
+  heading: { fontSize: 17, lineHeight: 24 },
   body: { fontSize: 15, lineHeight: 22 },
   label: { fontSize: 13, lineHeight: 19 },
   metric: { fontSize: 40, lineHeight: 44 },

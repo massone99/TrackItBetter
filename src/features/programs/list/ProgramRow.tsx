@@ -54,7 +54,7 @@ export function ProgramRow({ program, recentNames, now, onOpen, onActions }: {
 
 const baseStyles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center' },
-  main: { flex: 1, minHeight: 56, flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 8, paddingLeft: 12 },
+  main: { flex: 1, minHeight: 52, flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 6, paddingLeft: 12 },
   copy: { flex: 1, minWidth: 0, gap: 2, alignItems: 'flex-start' },
   name: { fontFamily: fonts.semibold, fontSize: 16 },
   meta: { fontFamily: fonts.body, fontSize: 13 },

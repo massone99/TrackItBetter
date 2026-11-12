@@ -69,7 +69,7 @@ export function Screen({ children, contentContainerStyle, overlay, footer, foote
         scrollEventThrottle={16}
         onScroll={(event) => { offset.current = event.nativeEvent.contentOffset.y; }}
         style={{ backgroundColor: backdrop === null ? palette.background : 'transparent' }}
-        contentContainerStyle={[styles.screen, { paddingTop: Math.max(insets.top, 14) + 10, paddingBottom: footer ? spacing.xl : insets.bottom + 36 }, contentContainerStyle]}
+        contentContainerStyle={[styles.screen, { paddingTop: Math.max(insets.top, 14) + 6, paddingBottom: footer ? spacing.xl : insets.bottom + 32 }, contentContainerStyle]}
         showsVerticalScrollIndicator={false}
       >
         <ScrollControlContext.Provider value={control}><View style={styles.column}>{children}</View></ScrollControlContext.Provider>
@@ -304,12 +304,12 @@ export function PageHeading({ title, subtitle, action, onTitleLongPress, titleLo
   const goBack = () => (router.canGoBack() ? router.back() : router.replace("/(tabs)/today"));
   return (
     <View style={styles.pageHeading}>
-      {showBack ? (
-        <View style={styles.pageTopBar}>
-          <IconButton icon="arrow-back" tone="plain" label={t("common.back")} onPress={goBack} />
-        </View>
-      ) : null}
       <View style={[styles.pageTitleRow, largeText && action ? styles.pageTitleStacked : null]}>
+        {showBack ? (
+          <View style={styles.pageBack}>
+            <IconButton icon="arrow-back" tone="plain" label={t("common.back")} onPress={goBack} />
+          </View>
+        ) : null}
         {onTitleLongPress ? (
           <Pressable
             accessibilityRole="button"
@@ -994,9 +994,9 @@ const baseStyles = StyleSheet.create({
   sheetContent: { gap: 10 },
   sheetActions: { gap: 10, marginTop: 8 },
   screen: { paddingHorizontal: spacing.page, alignItems: "center" },
-  column: { width: "100%", maxWidth: 640, gap: spacing.lg },
+  column: { width: "100%", maxWidth: 640, gap: spacing.md },
   pageHeading: { gap: spacing.sm },
-  pageTopBar: { flexDirection: "row", alignItems: "center", marginLeft: -12, marginTop: -8 },
+  pageBack: { marginLeft: -12, marginRight: -4 },
   pageTitleRow: { flexDirection: "row", alignItems: "center", gap: spacing.md },
   pageTitle: { flex: 1 },
   // Large text: the heading's action moves under the title instead of squeezing it.
@@ -1013,15 +1013,15 @@ const baseStyles = StyleSheet.create({
   progressTrack: { height: 12, borderRadius: radii.pill, borderWidth: 1, overflow: "hidden" },
   progressTick: { position: "absolute", top: 0, bottom: 0, width: StyleSheet.hairlineWidth },
   progressFill: { height: "100%", borderRadius: radii.pill },
-  card: { borderWidth: 1, borderRadius: radii.surface, paddingHorizontal: spacing.lg, paddingVertical: spacing.md, gap: spacing.md },
-  sectionTitle: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: spacing.md, marginTop: spacing.sm, paddingBottom: spacing.xs, borderBottomWidth: 1 },
+  card: { borderWidth: 1, borderRadius: radii.surface, paddingHorizontal: spacing.lg, paddingVertical: spacing.sm, gap: spacing.sm },
+  sectionTitle: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: spacing.md, marginTop: spacing.xs, paddingBottom: spacing.xs, borderBottomWidth: 1 },
   sectionHeading: { flex: 1, fontFamily: fonts.monoSemibold, fontSize: 13, lineHeight: 20, letterSpacing: 1.4, textTransform: "uppercase" },
   button: { minHeight: 48, borderRadius: radii.control, paddingHorizontal: spacing.lg, paddingVertical: spacing.sm, flexDirection: "row", justifyContent: "center", alignItems: "center", gap: 9 },
   buttonText: { flexShrink: 1, textAlign: "center", fontFamily: fonts.display, fontSize: 17, lineHeight: 20, letterSpacing: 1.2, textTransform: "uppercase" },
   iconButton: { alignItems: "center", justifyContent: "center" },
   listGroup: { borderRadius: radii.surface, borderWidth: 1 },
   listRowOuter: { flexDirection: "row", alignItems: "center" },
-  listRow: { flex: 1, minHeight: 56, paddingHorizontal: spacing.lg, paddingVertical: spacing.sm, flexDirection: "row", alignItems: "center", gap: spacing.md },
+  listRow: { flex: 1, minHeight: 52, paddingHorizontal: spacing.md, paddingVertical: spacing.sm, flexDirection: "row", alignItems: "center", gap: spacing.md },
   listTrailing: { flexShrink: 0, paddingRight: 10, paddingLeft: 4 },
   listIcon: { width: 32, height: 32, borderWidth: 1, borderRadius: radii.control, alignItems: "center", justifyContent: "center" },
   listCopy: { flex: 1, minWidth: 0, gap: 2 },
@@ -1032,7 +1032,7 @@ const baseStyles = StyleSheet.create({
   listSubtitle: { fontFamily: fonts.mono, fontSize: 12, lineHeight: 18 },
   chip: { minHeight: 44, paddingHorizontal: 14, paddingVertical: 10, borderRadius: radii.control, borderWidth: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6 },
   chipText: { flexShrink: 1, fontFamily: fonts.monoSemibold, fontSize: 12, lineHeight: 20, textTransform: "uppercase" },
-  empty: { borderWidth: 1, borderRadius: radii.surface, padding: spacing.xl, alignItems: "center", gap: spacing.md },
+  empty: { borderWidth: 1, borderRadius: radii.surface, padding: spacing.lg, alignItems: "center", gap: spacing.md },
   emptyIcon: { width: 44, height: 44, borderWidth: 1, borderRadius: radii.control, alignItems: "center", justifyContent: "center", marginBottom: 4 },
   center: { textAlign: "center" },
   segment: { flexDirection: "row", borderRadius: radii.surface, borderWidth: 1, padding: 4, gap: 4 },
