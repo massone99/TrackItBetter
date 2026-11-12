@@ -8,8 +8,10 @@ import { useInk } from "../../src/shared/theme/ink";
 import { useTheme } from "../../src/shared/theme/ThemeProvider";
 import { fonts } from "../../src/shared/theme/typography";
 import { MIN_TOUCH_TARGET, radii } from "../../src/shared/theme/tokens";
-// Tab labels grow with the system font only this far: the bar has five of them side by side.
-const LABEL_MAX_SCALE = 1.3;
+// Tab labels grow with the system font only this far: five of them share a 360 dp row, and
+// "PROGRAMMI" in mono capitals fills its 72 dp cell at 1.0, so labels stay at their base size
+// (the icon carries the meaning; screen readers get the full label).
+const LABEL_MAX_SCALE = 1;
 
 const icons: Record<string, [IconName, IconName]> = {
   today: ["sunny-outline", "sunny"],
@@ -37,7 +39,7 @@ export default function TabLayout() {
         tabBarPosition: expanded ? "left" : "bottom",
         tabBarVariant: expanded ? "material" : "uikit",
         tabBarLabelPosition: "below-icon",
-        tabBarItemStyle: { minHeight: MIN_TOUCH_TARGET, paddingVertical: 2 },
+        tabBarItemStyle: { minHeight: MIN_TOUCH_TARGET, paddingVertical: 2, paddingHorizontal: 0 },
         tabBarIconStyle: { height: 26, width: 56 },
         tabBarStyle: expanded ? {
           backgroundColor: palette.tabBar,
