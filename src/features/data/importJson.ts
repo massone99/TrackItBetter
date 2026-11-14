@@ -71,6 +71,10 @@ const prescriptionSchema = z.object({
 
 const programSchema = z.object({
   name: z.string().trim().min(1).max(80),
+  category: z.string().trim().max(40).nullable().optional().default(null),
+  author: z.string().trim().max(60).nullable().optional().default(null),
+  discipline: z.enum(['strength', 'mobility']).optional(),
+  clusters: z.array(z.string().trim().max(40)).optional().default([]),
   sessions: z.array(z.object({
     name: z.string().trim().min(1).max(80),
     notes: z.string().max(1000).nullable().default(null),
@@ -181,9 +185,13 @@ export function planImport(text: string, known: readonly { id: string; name: str
   return { file, create, existing, images: file.exercises.reduce((total, exercise) => total + exercise.images.length, 0) };
 }
 
-function toProgram(program: ImportFile['programs'][number], idOf: (reference: string) => string): Pick<UserProgram, 'name' | 'sessions'> {
+function toProgram(program: ImportFile['programs'][number], idOf: (reference: string) => string): Pick<UserProgram, 'name' | 'category' | 'author' | 'discipline' | 'clusters' | 'sessions'> {
   return {
     name: program.name,
+    category: program.category ?? null,
+    author: program.author ?? null,
+    discipline: program.discipline,
+    clusters: program.clusters.length > 0 ? program.clusters : undefined,
     sessions: program.sessions.map((session) => ({
       id: Crypto.randomUUID(),
       name: session.name,

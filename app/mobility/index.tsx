@@ -297,6 +297,7 @@ export default function MobilityHubScreen() {
 
       <SectionTitle title={t('mobility.tests')} />
       <ListGroup>
+        <ListRow icon="albums-outline" title={t('programDiscipline.mobilityPage')} onPress={() => router.push('/programs/mobility')} />
         <ListRow icon="analytics-outline" title={t('mobility.tests')} subtitle={t('mobility.testsBody')} onPress={() => router.push('/mobility/tests')} />
         {Platform.OS === 'web' ? null : (
           <ListRow icon="scan-outline" title={t('mobility.poseTitle')} subtitle={t('mobility.poseBody')} onPress={() => router.push('/pose')} />

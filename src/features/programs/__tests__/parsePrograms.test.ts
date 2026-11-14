@@ -31,4 +31,14 @@ describe('parsePrograms', () => {
     const [program] = parsePrograms([{ id: 'p', name: 'Plan', updatedAt: 'x', sessions: [{ id: 's', name: 'A', exercises: [noRest, { ...exercise, id: 'e2', restSeconds: null }] }] }]);
     expect(program.sessions[0].exercises).toHaveLength(2);
   });
+
+  it('normalizes program categories and authors on parse and defaults missing or blank to null', () => {
+    const programs = parsePrograms([
+      { id: 'p1', name: 'Plan 1', updatedAt: 'x', category: '  Strength  ', author: '  Tom Merrick  ', sessions: [{ id: 's', name: 'A', exercises: [exercise] }] },
+      { id: 'p2', name: 'Plan 2', updatedAt: 'x', category: '   ', author: '   ', sessions: [{ id: 's', name: 'A', exercises: [exercise] }] },
+      { id: 'p3', name: 'Plan 3', updatedAt: 'x', sessions: [{ id: 's', name: 'A', exercises: [exercise] }] },
+    ]);
+    expect(programs.map((program) => program.category)).toEqual(['Strength', null, null]);
+    expect(programs.map((program) => program.author)).toEqual(['Tom Merrick', null, null]);
+  });
 });

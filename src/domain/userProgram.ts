@@ -47,11 +47,53 @@ export interface UserProgramSession {
   groupId?: string | null;
 }
 
+export const CATEGORY_MAX = 40;
+export const AUTHOR_MAX = 60;
+export const CLUSTER_MAX = 40;
+
+export type ProgramDiscipline = 'strength' | 'mobility';
+export const PROGRAM_DISCIPLINES: readonly ProgramDiscipline[] = ['strength', 'mobility'];
+
+export function normalizeField(value: string | null | undefined, max: number): string | null {
+  const trimmed = value?.trim().slice(0, max);
+  return trimmed ? trimmed : null;
+}
+
+export const normalizeCategory = (value: string | null | undefined): string | null => normalizeField(value, CATEGORY_MAX);
+
+export const normalizeAuthor = (value: string | null | undefined): string | null => normalizeField(value, AUTHOR_MAX);
+
+export const normalizeClusterName = (value: string | null | undefined): string | null => normalizeField(value, CLUSTER_MAX);
+
+/** Trims, caps length, and deduplicates cluster names case-insensitively while preserving order. */
+export function normalizeClusters(values: readonly string[] | null | undefined): string[] {
+  if (!values || values.length === 0) return [];
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const raw of values) {
+    const clean = normalizeClusterName(raw);
+    if (!clean) continue;
+    const key = clean.toLocaleLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(clean);
+  }
+  return out;
+}
+
 export interface UserProgram {
   id: string;
   name: string;
   sessions: UserProgramSession[];
   updatedAt: string;
+  /** Optional user-defined category (e.g. "Strength", "Mobility"); null or missing means uncategorized. */
+  category?: string | null;
+  /** Optional author or coach name (e.g. "Tom Merrick", "Coach"); null or missing means unset. */
+  author?: string | null;
+  /** Program split: strength vs mobility. Missing defaults via `disciplineOf` (inferred from category or strength). */
+  discipline?: ProgramDiscipline;
+  /** Custom user-created cluster names (e.g. "bands programs"). */
+  clusters?: string[];
   /** Missing means active. */
   status?: ProgramStatus;
   /** Missing means sequence. */
@@ -59,6 +101,13 @@ export interface UserProgram {
   groups?: ProgramGroup[];
   /** Last time a workout of this program was started (ISO); for sorting the list. */
   lastUsedAt?: string | null;
+}
+
+/** Resolves a program's discipline, defaulting to 'strength' unless explicitly 'mobility' or categorized as 'mobility'. */
+export function disciplineOf(program: Pick<UserProgram, 'discipline' | 'category'>): ProgramDiscipline {
+  if (program.discipline === 'mobility' || program.discipline === 'strength') return program.discipline;
+  if (program.category?.trim().toLocaleLowerCase() === 'mobility') return 'mobility';
+  return 'strength';
 }
 
 export type ProgramErrorCode = 'nameMissing' | 'sessionNameMissing' | 'sessionEmpty' | 'invalidValue';

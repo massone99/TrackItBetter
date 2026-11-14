@@ -5,12 +5,13 @@ import { useTranslation } from 'react-i18next';
 import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
 import { getActiveWorkout, listRecentWorkoutNames } from '../../src/features/session/repository';
 import { WorkoutInProgressSheet } from '../../src/features/session/WorkoutInProgressSheet';
+import { disciplineCounts } from '../../src/features/programs/list/derive';
 import { ProgramsView as MyPrograms } from '../../src/features/programs/list/ProgramsView';
 import { startUserProgramSession } from '../../src/features/programs/startUserSession';
 import { LibraryView } from '../../src/features/exercises/LibraryView';
 import { programTemplates } from '../../src/features/programs/catalog';
 import { listHiddenTemplates, setHiddenTemplates } from '../../src/features/programs/hiddenTemplates';
-import { listUserPrograms, type UserProgram } from '../../src/features/programs/userPrograms';
+import { listProgramClusters, listUserPrograms, type UserProgram } from '../../src/features/programs/userPrograms';
 import { ActionButton, EmptyState, Icon, IconButton, ListGroup, ListRow, PageHeading, Screen, SectionTitle, SegmentedControl, Tag, Text, Toast, tapFeedback } from '../../src/shared/components/ui';
 import i18n from '../../src/shared/i18n';
 import { useTheme } from '../../src/shared/theme/ThemeProvider';
@@ -28,6 +29,7 @@ export default function ProgramsTab() {
   // The view lives in the URL, so a link (e.g. back from an exercise) can open either one.
   const view: ProgramsView = params.view === 'exercises' ? 'exercises' : 'programs';
   const [mine, setMine] = useState<UserProgram[] | null>(null);
+  const [savedClusters, setSavedClusters] = useState<string[]>([]);
   const [loadFailed, setLoadFailed] = useState(false);
   const [hidden, setHidden] = useState<string[]>([]);
   const [recentNames, setRecentNames] = useState<string[]>([]);
@@ -41,8 +43,15 @@ export default function ProgramsTab() {
 
   const load = useCallback(async () => {
     try {
-      const [programs, hiddenIds, names, activeWorkout] = await Promise.all([listUserPrograms(), listHiddenTemplates(), listRecentWorkoutNames(), getActiveWorkout()]);
+      const [programs, clusters, hiddenIds, names, activeWorkout] = await Promise.all([
+        listUserPrograms(),
+        typeof listProgramClusters === 'function' ? listProgramClusters() : Promise.resolve([]),
+        listHiddenTemplates(),
+        listRecentWorkoutNames(),
+        getActiveWorkout(),
+      ]);
       setMine(programs);
+      setSavedClusters(clusters);
       setActive(activeWorkout ? { id: activeWorkout.id, name: activeWorkout.name } : null);
       setRecentNames(names);
       setHidden(hiddenIds);
@@ -123,14 +132,36 @@ export default function ProgramsTab() {
             />
           ) : null}
           {mine && mine.length > 0 ? (
-            <MyPrograms
-              programs={mine}
-              recentNames={recentNames}
-              starting={starting}
-              onStartHero={(program, sessionId) => void startHero(program, sessionId)}
-              onChanged={() => void load()}
-              onNotice={(message) => setUndo({ message, previous: null })}
-            />
+            <>
+              {(() => {
+                const counts = disciplineCounts(mine);
+                return (
+                  <ListGroup>
+                    <ListRow
+                      icon="barbell-outline"
+                      title={t('programDiscipline.strengthPage')}
+                      subtitle={t('programDiscipline.strengthPageBody', { count: counts.strength })}
+                      onPress={() => router.push('/programs/strength')}
+                    />
+                    <ListRow
+                      icon="body-outline"
+                      title={t('programDiscipline.mobilityPage')}
+                      subtitle={t('programDiscipline.mobilityPageBody', { count: counts.mobility })}
+                      onPress={() => router.push('/programs/mobility')}
+                    />
+                  </ListGroup>
+                );
+              })()}
+              <MyPrograms
+                programs={mine}
+                savedClusters={savedClusters}
+                recentNames={recentNames}
+                starting={starting}
+                onStartHero={(program, sessionId) => void startHero(program, sessionId)}
+                onChanged={() => void load()}
+                onNotice={(message) => setUndo({ message, previous: null })}
+              />
+            </>
           ) : null}
 
           <ActionButton icon="document-outline" variant="ghost" label={t('importJson.programsAction')} onPress={() => router.push('/import-json')} />

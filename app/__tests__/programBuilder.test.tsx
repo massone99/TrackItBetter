@@ -36,9 +36,9 @@ jest.mock('../../src/features/exercises/repository', () => ({
     { id: 'my-hold', name: 'My Hold', metric: 'time', category: 'core', extraCategories: '[]', level: null },
   ]),
 }));
-jest.mock('../../src/features/programs/userPrograms', () => ({ getUserProgram: jest.fn(), saveUserProgram: jest.fn() }));
+jest.mock('../../src/features/programs/userPrograms', () => ({ getUserProgram: jest.fn(), listUserPrograms: jest.fn(async () => []), saveUserProgram: jest.fn() }));
 const { router } = jest.requireMock('expo-router');
-const { getUserProgram, saveUserProgram } = jest.requireMock('../../src/features/programs/userPrograms');
+const { getUserProgram, listUserPrograms, saveUserProgram } = jest.requireMock('../../src/features/programs/userPrograms');
 
 const metrics = { frame: { x: 0, y: 0, width: 390, height: 844 }, insets: { top: 0, left: 0, right: 0, bottom: 0 } };
 const renderScreen = () => render(<SafeAreaProvider initialMetrics={metrics}><ThemeProvider><ProgramBuilder /></ThemeProvider></SafeAreaProvider>);
@@ -85,5 +85,24 @@ describe('program builder', () => {
     expect(await screen.findByText(t('userProgram.dayRemoved', { name: 'A' }))).toBeTruthy();
     fireEvent.press(screen.getByText(t('userProgram.undo')));
     expect(await screen.findByRole('button', { name: t('workoutBuilder.openWorkout', { name: 'A' }) })).toBeTruthy();
+  });
+
+  it('sets a category and author from existing chips and saves them', async () => {
+    listUserPrograms.mockResolvedValue([{ id: 'other', name: 'Other', category: 'Strength', author: 'Tom Merrick', updatedAt: '', sessions: [] }]);
+    saveUserProgram.mockResolvedValue({ id: 'program-1', name: 'Plan', category: 'Strength', author: 'Tom Merrick', updatedAt: '', sessions: [{ id: 'session-1', name: 'A', exercises: [{ id: 'old', exerciseId: 'push-up', sets: 3, target: 8, restSeconds: null }] }] });
+    renderScreen();
+    const strengthButtons = await screen.findAllByRole('button', { name: 'Strength' });
+    fireEvent.press(strengthButtons[strengthButtons.length - 1]);
+    fireEvent.press(screen.getByRole('button', { name: 'Tom Merrick' }));
+    fireEvent.press(screen.getByRole('button', { name: t('programBuilder.save') }));
+    await waitFor(() => expect(saveUserProgram).toHaveBeenCalledWith(expect.objectContaining({ category: 'Strength', author: 'Tom Merrick' })));
+  });
+
+  it('toggles barebone names-only view on workouts', async () => {
+    renderScreen();
+    expect(await screen.findByText(/3 sets/)).toBeTruthy();
+    fireEvent.press(screen.getByRole('button', { name: t('programsList.barebone') }));
+    expect(screen.queryByText(/3 sets/)).toBeNull();
+    expect(screen.getByRole('button', { name: t('workoutBuilder.openWorkout', { name: 'A' }) })).toBeTruthy();
   });
 });

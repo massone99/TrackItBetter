@@ -54,6 +54,10 @@
       "required": ["name", "sessions"],
       "properties": {
         "name": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "category": { "type": ["string", "null"], "maxLength": 40, "default": null },
+        "author": { "type": ["string", "null"], "maxLength": 60, "default": null },
+        "discipline": { "type": "string", "enum": ["strength", "mobility"] },
+        "clusters": { "type": "array", "items": { "type": "string", "maxLength": 40 } },
         "sessions": {
           "type": "array",
           "minItems": 1,

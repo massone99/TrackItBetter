@@ -1,4 +1,4 @@
-import { programSessionWorkoutName, type UserProgram, type UserProgramExercise, type UserProgramSession } from './userProgram';
+import { disciplineOf, programSessionWorkoutName, type ProgramDiscipline, type UserProgram, type UserProgramExercise, type UserProgramSession } from './userProgram';
 
 /** Where a program stands in the Programs list: only active ones compete for "next workout". */
 export type ProgramStatus = 'active' | 'paused' | 'archived';
@@ -262,8 +262,44 @@ export function lowCategories(totals: ReadonlyMap<string, number>): string[] {
   return [...totals].filter(([, sets]) => max > 0 && sets < max / 2).map(([category]) => category);
 }
 
+export const UNSET_FILTER = '__unset__' as const;
+export const UNCATEGORIZED_FILTER = '__uncategorized__' as const;
+
+function matchesOptionalField(value: string | null | undefined, filter: string | null | undefined): boolean {
+  if (!filter) return true;
+  if (filter === UNSET_FILTER || filter === UNCATEGORIZED_FILTER) return !value;
+  return value === filter;
+}
+
+function matchesCluster(clusters: readonly string[] | undefined, filter: string | null | undefined): boolean {
+  if (!filter) return true;
+  if (filter === UNSET_FILTER || filter === UNCATEGORIZED_FILTER) return !clusters || clusters.length === 0;
+  return Boolean(clusters?.includes(filter));
+}
+
 /** Search and filter for the Programs list. */
-export function filterPrograms<T extends Pick<UserProgram, 'name' | 'status'>>(programs: readonly T[], query: string, status: ProgramStatus | 'all'): T[] {
+export function filterPrograms<T extends Pick<UserProgram, 'name' | 'status' | 'category' | 'author' | 'discipline' | 'clusters'>>(
+  programs: readonly T[],
+  query: string,
+  status: ProgramStatus | 'all',
+  category?: string | null,
+  author?: string | null,
+  cluster?: string | null,
+  discipline?: ProgramDiscipline | 'all',
+): T[] {
   const needle = query.trim().toLocaleLowerCase();
-  return programs.filter((program) => (status === 'all' || (program.status ?? 'active') === status) && (!needle || program.name.toLocaleLowerCase().includes(needle)));
+  return programs.filter((program) => {
+    if (status !== 'all' && (program.status ?? 'active') !== status) return false;
+    if (discipline && discipline !== 'all' && disciplineOf(program) !== discipline) return false;
+    if (!matchesOptionalField(program.category, category)) return false;
+    if (!matchesOptionalField(program.author, author)) return false;
+    if (!matchesCluster(program.clusters, cluster)) return false;
+    if (!needle) return true;
+    return (
+      program.name.toLocaleLowerCase().includes(needle)
+      || (program.category ?? '').toLocaleLowerCase().includes(needle)
+      || (program.author ?? '').toLocaleLowerCase().includes(needle)
+      || (program.clusters ?? []).some((item) => item.toLocaleLowerCase().includes(needle))
+    );
+  });
 }

@@ -123,6 +123,32 @@ export function CompactSession({ session, isNext, starting, onToggle, onMenu, on
   );
 }
 
+/** Minimal name-only row for scanning many prescribed workouts; tap to inspect, long-press for actions. */
+export function BareboneSessionRow({ session, isNext, bordered = true, onToggle, onMenu }: Pick<SessionViewProps, 'session' | 'isNext' | 'onToggle' | 'onMenu'> & { bordered?: boolean }) {
+  const styles = useScaledStyles(baseStyles);
+  const { t } = useTranslation();
+  const { palette } = useTheme();
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityState={{ expanded: false }}
+      accessibilityLabel={t('userProgram.expandDay', { name: session.name })}
+      accessibilityHint={t('workoutDetails.editHint')}
+      accessibilityActions={[{ name: 'longpress', label: t('workoutDetails.editHint') }]}
+      onAccessibilityAction={(event) => { if (event.nativeEvent.actionName === 'longpress') onMenu(); }}
+      onPress={onToggle}
+      onLongPress={onMenu}
+      style={({ pressed }) => [
+        styles.bareboneRow,
+        bordered && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: palette.border },
+        { backgroundColor: pressed ? palette.surfaceMuted : 'transparent' },
+      ]}
+    >
+      <Text style={[styles.bareboneName, { color: isNext ? palette.accentStrong : palette.text }]}>{session.name}</Text>
+    </Pressable>
+  );
+}
+
 const baseStyles = StyleSheet.create({
   flex: { flex: 1, gap: 4 },
   session: { gap: 12 },
@@ -136,4 +162,6 @@ const baseStyles = StyleSheet.create({
   compact: { flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: radii.surface, paddingLeft: 12, paddingRight: 4 },
   compactMain: { flex: 1, minHeight: 56, paddingVertical: 8, gap: 2, justifyContent: 'center' },
   compactName: { fontFamily: fonts.semibold, fontSize: 16 },
+  bareboneRow: { minHeight: 48, justifyContent: 'center', paddingVertical: 10, paddingHorizontal: 12 },
+  bareboneName: { fontFamily: fonts.semibold, fontSize: 15 },
 });

@@ -28,12 +28,13 @@ export interface GroupsViewProps {
   onStartSelect?: () => void;
   /** How a workout shows inside a section. */
   renderSession: (section: SectionNode, sessionIndex: number, mode: 'card' | 'compact') => ReactNode;
+  barebone?: boolean;
 }
 
 const isOpen = (section: SectionNode, openMap: Readonly<Record<string, boolean>>) => openMap[section.id] ?? (section.current || section.group === null);
 
 /** Weeks and Groups layouts: a week strip (Weeks) and collapsible sections per group. */
-export function GroupsView({ layout, sections, openMap, onSetOpen, onMenu, onNewGroup, selection = null, onToggle, onSelectAll, onStartSelect, renderSession }: GroupsViewProps) {
+export function GroupsView({ layout, sections, openMap, onSetOpen, onMenu, onNewGroup, selection = null, onToggle, onSelectAll, onStartSelect, renderSession, barebone = false }: GroupsViewProps) {
   const styles = useScaledStyles(baseStyles);
   const { t } = useTranslation();
   const { palette } = useTheme();
@@ -83,7 +84,7 @@ export function GroupsView({ layout, sections, openMap, onSetOpen, onMenu, onNew
 
       {sections.map((section) => (
         <View key={section.id} ref={(node) => { if (node) nodes.current.set(section.id, node); else nodes.current.delete(section.id); }} collapsable={false}>
-          <Section section={section} layout={layout} openMap={openMap} onSetOpen={onSetOpen} onMenu={onMenu} selection={selection} onToggle={onToggle} renderSession={renderSession} />
+          <Section section={section} layout={layout} openMap={openMap} onSetOpen={onSetOpen} onMenu={onMenu} selection={selection} onToggle={onToggle} renderSession={renderSession} barebone={barebone} />
         </View>
       ))}
 
@@ -97,7 +98,7 @@ export function GroupsView({ layout, sections, openMap, onSetOpen, onMenu, onNew
   );
 }
 
-function Section({ section, layout, openMap, onSetOpen, onMenu, selection = null, onToggle, renderSession, nested = false }: Pick<GroupsViewProps, 'layout' | 'openMap' | 'onSetOpen' | 'onMenu' | 'renderSession' | 'selection' | 'onToggle'> & { section: SectionNode; nested?: boolean }) {
+function Section({ section, layout, openMap, onSetOpen, onMenu, selection = null, onToggle, renderSession, barebone = false, nested = false }: Pick<GroupsViewProps, 'layout' | 'openMap' | 'onSetOpen' | 'onMenu' | 'renderSession' | 'selection' | 'onToggle' | 'barebone'> & { section: SectionNode; nested?: boolean }) {
   const styles = useScaledStyles(baseStyles);
   const { t } = useTranslation();
   const { palette } = useTheme();
@@ -124,7 +125,7 @@ function Section({ section, layout, openMap, onSetOpen, onMenu, selection = null
       </Paged>
       {section.children.map((child) => (
         <View key={child.id} style={[styles.child, { borderLeftColor: ink }]}>
-          <Section section={child} layout={layout} openMap={openMap} onSetOpen={onSetOpen} onMenu={onMenu} selection={selection} onToggle={onToggle} renderSession={renderSession} nested />
+          <Section section={child} layout={layout} openMap={openMap} onSetOpen={onSetOpen} onMenu={onMenu} selection={selection} onToggle={onToggle} renderSession={renderSession} barebone={barebone} nested />
         </View>
       ))}
     </>
@@ -149,7 +150,7 @@ function Section({ section, layout, openMap, onSetOpen, onMenu, selection = null
         </Pressable>
         {section.group && !selecting ? <IconButton icon="ellipsis-horizontal" tone="plain" label={t('programDetail.groupOptionsFor', { name })} onPress={() => onMenu(section)} /> : null}
       </View>
-      {open ? <View style={styles.body}>{body}</View> : null}
+      {open ? <View style={[styles.body, barebone && styles.bodyBarebone]}>{body}</View> : null}
     </View>
   );
   if (kind !== 'extra') return inner;
@@ -169,6 +170,7 @@ const baseStyles = StyleSheet.create({
   nameNested: { fontSize: 18, lineHeight: 22 },
   progress: { fontFamily: fonts.monoSemibold, fontSize: 13 },
   body: { gap: spacing.md },
+  bodyBarebone: { gap: 0 },
   child: { marginLeft: spacing.sm, paddingLeft: spacing.md, borderLeftWidth: 1 },
   empty: { fontFamily: fonts.medium, fontSize: 14 },
   dashed: { borderWidth: 1, borderStyle: 'dashed', borderRadius: radii.surface, padding: spacing.md },

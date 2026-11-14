@@ -7,7 +7,9 @@ import { PastWorkoutFlow } from '../../src/features/session/PastWorkoutFlow';
 import { getActiveWorkout, listWorkoutsBetween, listWorkoutsPage, listWorkoutStarts } from '../../src/features/session/repository';
 import type { WorkoutHistoryItem } from '../../src/features/session/repository';
 import { WorkoutLogRow } from '../../src/features/session/WorkoutLogRow';
-import { ActionButton, Body, Card, EmptyState, Heading, IconButton, Label, PageHeading, Screen } from '../../src/shared/components/ui';
+import { ActionButton, Body, Card, Chip, EmptyState, Heading, IconButton, Label, PageHeading, Screen } from '../../src/shared/components/ui';
+import { LOG_BAREBONE_KEY } from '../../src/shared/settings/preferences';
+import { useBooleanPreference } from '../../src/shared/settings/useBooleanPreference';
 import { useTheme } from '../../src/shared/theme/ThemeProvider';
 import { useScaledStyles } from '../../src/shared/theme/useScaledStyles';
 import { fonts } from '../../src/shared/theme/typography';
@@ -32,6 +34,7 @@ export default function LogScreen() {
   const [dayWorkouts, setDayWorkouts] = useState<WorkoutHistoryItem[] | null>(null);
   const [counts, setCounts] = useState<ReadonlyMap<string, number>>(new Map());
   const [pastOpen, setPastOpen] = useState(false);
+  const [barebone, toggleBarebone] = useBooleanPreference(LOG_BAREBONE_KEY, false);
   const [todayKey] = useState(() => dateKey(new Date()));
   // Date keys are YYYY-MM-DD, so they compare as strings.
   const selectedIsFuture = selectedDate !== null && selectedDate > todayKey;
@@ -144,11 +147,16 @@ export default function LogScreen() {
             ) : null}
           </Card>
           {selectedDate && dayWorkouts && dayWorkouts.length === 0 ? <Body style={styles.center}>{t('log.noWorkoutsOnDate')}</Body> : null}
+          {shown.length > 0 ? (
+            <View style={styles.viewBar}>
+              <Chip icon="list-outline" label={t('programsList.barebone')} selected={barebone} onPress={() => toggleBarebone()} />
+            </View>
+          ) : null}
           {months.map((month) => (
             <View key={month.label} style={styles.month}>
               <Label style={styles.monthLabel}>{month.label}</Label>
               <View style={[styles.rows, { borderTopColor: palette.border }]}>
-                {month.items.map((workout, index) => <WorkoutLogRow key={workout.id} workout={workout} locale={locale} first={index === 0} />)}
+                {month.items.map((workout, index) => <WorkoutLogRow key={workout.id} workout={workout} locale={locale} first={index === 0} barebone={barebone} />)}
               </View>
             </View>
           ))}
@@ -176,6 +184,7 @@ const baseStyles = StyleSheet.create({
   calendarFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', minHeight: 32, paddingHorizontal: 4 },
   clear: { fontFamily: fonts.semibold, fontSize: 14 },
   month: { gap: 6 },
+  viewBar: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   monthLabel: { textTransform: 'capitalize', paddingHorizontal: 4 },
   rows: { borderTopWidth: StyleSheet.hairlineWidth },
 });
