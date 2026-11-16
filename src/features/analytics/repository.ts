@@ -223,14 +223,17 @@ async function readRecordRows(onlyWorkoutId?: string): Promise<RecordRow[]> {
     if (row.kind !== 'working') continue;
     // Band assistance counts as negative load, so an assisted set is compared at its real load.
     const addedLoadKg = row.addedLoadKg - (row.assistKg ?? 0);
-    const effectiveLoadKg = getEffectiveLoad({ ...row, addedLoadKg, assistKg: null, bandCount: 0, distanceM: null, completedAt: null } as never) ?? null;
+    const bands = parseSetBands(row.bands);
+    // With bands of unknown kg the load is unknown: no 1RM estimate from such a set.
+    const effectiveLoadKg = bands.length > 0 && row.assistKg == null ? null
+      : getEffectiveLoad({ ...row, addedLoadKg, assistKg: null, bandCount: 0, distanceM: null, completedAt: null } as never) ?? null;
     const apparatus = row.apparatusAffectsDifficulty ? row.apparatusId ?? row.defaultApparatusId : null;
     result.push({
       pairId: row.pairId, side: row.side,
       setId: row.setId, workoutId: row.workoutId, exerciseId: row.exerciseId, metric: row.metric,
       compareKey: apparatus ? `${row.exerciseId}@${apparatus}` : row.exerciseId,
       reps: row.reps, durationSec: row.durationSec, addedLoadKg, effectiveLoadKg, restBeforeSec,
-      bands: parseSetBands(row.bands), assistKg: row.assistKg,
+      bands, assistKg: row.assistKg,
     });
     }
     previous = group.at(-1) ?? null;

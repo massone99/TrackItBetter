@@ -53,8 +53,16 @@ export interface SetRecord {
  * A mini-PR: more total reps (or seconds) than ever before at the same load with the same number of sets,
  * e.g. 3 sets of 20 kg that add up to 18 reps where the best 3 sets at 20 kg added up to 16.
  */
-export interface SameLoadRecord { exerciseId: string; loadKg: number; sets: number; value: number; previous: number; scope?: RecordScope }
-export interface VolumeRecord { exerciseId: string; value: number; previous: number; scope?: RecordScope }
+export interface SameLoadRecord {
+  exerciseId: string; loadKg: number; sets: number; value: number; previous: number; scope?: RecordScope;
+  /** Done with the same bands of unknown kg: `loadKg` is the added load only, the bands' help is not in it. */
+  sameBands?: boolean;
+}
+export interface VolumeRecord {
+  exerciseId: string; value: number; previous: number; scope?: RecordScope;
+  /** Compared only with sessions done with the same bands of unknown kg. */
+  sameBands?: boolean;
+}
 
 const EPSILON = 1e-6;
 const timed = (metric: string) => metric === 'time' || metric === 'time_load';
@@ -73,6 +81,23 @@ const sameLoadWithinPair = (row: RecordRow) => samePairValue(row, (side) => side
 
 const sameLoad = (left: number, right: number) => Math.abs(left - right) <= EPSILON;
 
+const banded = (row: RecordRow) => (row.bands?.length ?? 0) > 0;
+
+/**
+ * Bands whose kg are unknown, as a key ('' without bands, or when their kg are known: then the
+ * help is already in the load). Such a set has no known load, so it is only compared with sets
+ * done with the same bands, and it always counts as less than the same work without bands.
+ */
+export function unknownHelpKey(row: Pick<RecordRow, 'bands' | 'assistKg'>): string {
+  if (!row.bands?.length || row.assistKg != null) return '';
+  return row.bands.map((band) => `${band.bandId}:${band.tension}`).sort().join(',');
+}
+
+const sameHelp = (left: RecordRow, right: RecordRow) => unknownHelpKey(left) === unknownHelpKey(right);
+
+/** Help a session's volume is compared within: none, bands of known kg (by kg) or the same bands of unknown kg. */
+const volumeHelpKey = (row: RecordRow) => (!banded(row) ? '' : row.assistKg != null ? `kg:${Math.round(row.assistKg * 100)}` : `b:${unknownHelpKey(row)}`);
+
 function sameRecordScope(left: RecordRow, right: RecordRow): boolean {
   return recordScope(left) === recordScope(right);
 }
@@ -82,6 +107,8 @@ function scopedRows(rows: readonly RecordRow[], scope: RecordScope): RecordRow[]
 }
 
 function oneRepMaxForSide(row: RecordRow): number | null {
+  // With bands of unknown kg the load is unknown, so there is nothing to estimate from.
+  if (unknownHelpKey(row) !== '') return null;
   if (row.metric !== 'reps_load' || row.effectiveLoadKg === null || row.effectiveLoadKg === undefined
     || row.effectiveLoadKg <= 0 || row.reps === null || row.reps === undefined || row.reps > 12) return null;
   try {
@@ -121,13 +148,13 @@ export function detectSetRecords(rows: readonly RecordRow[], workoutId: string, 
 
     if (loaded(row.metric) && sameAmountWithinPair(row)) {
       const previous = maxOf(earlier
-        .filter((item) => sameRecordScope(item, row) && sameAmountWithinPair(item) && amountOf(item) >= amount)
+        .filter((item) => sameRecordScope(item, row) && sameHelp(item, row) && sameAmountWithinPair(item) && amountOf(item) >= amount)
         .map(loadOf));
       if (previous !== null && load > previous + EPSILON) add('loadAtReps', load, previous);
     }
     const previousAmount = sameLoadWithinPair(row)
       ? maxOf(earlier
-        .filter((item) => sameRecordScope(item, row) && sameLoadWithinPair(item) && sameLoad(loadOf(item), load))
+        .filter((item) => sameRecordScope(item, row) && sameHelp(item, row) && sameLoadWithinPair(item) && sameLoad(loadOf(item), load))
         .map(amountOf))
       : null;
     if (previousAmount !== null && amount > previousAmount) add(timed(row.metric) ? 'holdAtLoad' : 'repsAtLoad', amount, previousAmount);
@@ -141,7 +168,10 @@ export function detectSetRecords(rows: readonly RecordRow[], workoutId: string, 
 
     // At least the same work as an earlier set, with less help from bands: kg when both are known, else the bands' strength order.
     const helpVersus = (item: RecordRow): -1 | 0 | 1 | null => {
-      if ((row.bands?.length ?? 0) === 0 && (item.bands?.length ?? 0) === 0) return 0;
+      if (!banded(row) && !banded(item)) return 0;
+      // No bands is always the least help, whatever the other set's bands weigh.
+      if (!banded(row)) return -1;
+      if (!banded(item)) return 1;
       const kgRow = (row.bands?.length ?? 0) === 0 ? 0 : row.assistKg ?? null;
       const kgItem = (item.bands?.length ?? 0) === 0 ? 0 : item.assistKg ?? null;
       if (kgRow !== null && kgItem !== null) return Math.abs(kgRow - kgItem) <= EPSILON ? 0 : kgRow < kgItem ? -1 : 1;
@@ -158,7 +188,7 @@ export function detectSetRecords(rows: readonly RecordRow[], workoutId: string, 
     }
 
     if (row.restBeforeSec !== null && sameAmountWithinPair(row) && sameLoadWithinPair(row)) {
-      const comparable = earlier.filter((item) => sameRecordScope(item, row) && item.restBeforeSec !== null
+      const comparable = earlier.filter((item) => sameRecordScope(item, row) && sameHelp(item, row) && item.restBeforeSec !== null
         && sameAmountWithinPair(item) && sameLoadWithinPair(item)
         && amountOf(item) >= amount && loadOf(item) >= load - EPSILON);
       const shortest = comparable.length ? Math.min(...comparable.map((item) => item.restBeforeSec!)) : null;
@@ -183,7 +213,8 @@ export function detectVolumeRecords(rows: readonly RecordRow[], workoutId: strin
   const exerciseOf = new Map<string, string>();
   for (const row of scopedRows(rows, scope)) {
     if (row.metric === 'distance') continue;
-    const key = `${row.compareKey ?? row.exerciseId}\u0000${recordScope(row)}`;
+    // Work done with bands is compared only with work done with the same help.
+    const key = `${row.compareKey ?? row.exerciseId}\u0000${recordScope(row)}\u0000${volumeHelpKey(row)}`;
     exerciseOf.set(key, row.exerciseId);
     const byWorkout = sessions.get(key) ?? new Map<string, number>();
     byWorkout.set(row.workoutId, (byWorkout.get(row.workoutId) ?? 0) + volumeOf(row));
@@ -191,14 +222,14 @@ export function detectVolumeRecords(rows: readonly RecordRow[], workoutId: strin
   }
   const records: VolumeRecord[] = [];
   for (const [key, byWorkout] of sessions) {
-    const separator = key.indexOf('\u0000');
-    const exerciseId = exerciseOf.get(key) ?? key.slice(0, separator);
-    const rowScope = key.slice(separator + 1) as RecordScope;
+    const [, rowScope, help] = key.split('\u0000') as [string, RecordScope, string];
+    const exerciseId = exerciseOf.get(key)!;
     const value = byWorkout.get(workoutId);
     const previous = maxOf([...byWorkout].filter(([id]) => id !== workoutId).map(([, volume]) => volume));
     if (value !== undefined && previous !== null && value > previous + EPSILON) {
       const record: VolumeRecord = { exerciseId, value, previous };
       if (rowScope !== 'legacy') record.scope = rowScope;
+      if (help.startsWith('b:')) record.sameBands = true;
       records.push(record);
     }
   }
@@ -207,20 +238,19 @@ export function detectVolumeRecords(rows: readonly RecordRow[], workoutId: strin
 
 /** Mini-PRs of a workout: same load (and band help) and same number of sets as an earlier workout, with more reps or seconds in total. */
 export function detectSameLoadRecords(rows: readonly RecordRow[], workoutId: string, scope: RecordScope = 'average'): SameLoadRecord[] {
-  type Group = { loadKg: number; sets: number; total: number };
+  type Group = { loadKg: number; sets: number; total: number; sameBands: boolean };
   const groups = new Map<string, Map<string, Map<string, Group>>>();
   const exerciseOf = new Map<string, string>();
   for (const row of scopedRows(rows, scope)) {
     if (row.metric === 'distance') continue;
-    // Help from bands of unknown kg has no comparable load.
-    const help = (row.bands?.length ?? 0) === 0 ? 0 : row.assistKg ?? null;
-    if (help === null) continue;
+    // Bands of known kg are part of the load; bands of unknown kg are compared only with the same bands.
+    const help = volumeHelpKey(row);
     const key = `${row.compareKey ?? row.exerciseId}\u0000${recordScope(row)}`;
     exerciseOf.set(key, row.exerciseId);
     const byWorkout = groups.get(key) ?? new Map<string, Map<string, Group>>();
     const byLoad = byWorkout.get(row.workoutId) ?? new Map<string, Group>();
-    const loadKey = `${Math.round(loadOf(row) * 100)}|${Math.round(help * 100)}`;
-    const group = byLoad.get(loadKey) ?? { loadKg: loadOf(row), sets: 0, total: 0 };
+    const loadKey = `${Math.round(loadOf(row) * 100)}|${help}`;
+    const group = byLoad.get(loadKey) ?? { loadKg: loadOf(row), sets: 0, total: 0, sameBands: help.startsWith('b:') };
     group.sets += 1;
     group.total += Math.max(0, amountOf(row));
     byLoad.set(loadKey, group);
@@ -238,6 +268,7 @@ export function detectSameLoadRecords(rows: readonly RecordRow[], workoutId: str
       if (previous !== null && group.total > previous + EPSILON) {
         const record: SameLoadRecord = { exerciseId: exerciseOf.get(key) ?? key.slice(0, separator), loadKg: group.loadKg, sets: group.sets, value: group.total, previous };
         if (rowScope !== 'legacy') record.scope = rowScope;
+        if (group.sameBands) record.sameBands = true;
         records.push(record);
       }
     }
@@ -248,10 +279,10 @@ export function detectSameLoadRecords(rows: readonly RecordRow[], workoutId: str
 export interface ExerciseRecordSummary {
   /** Heaviest load for each rep count (weighted rep exercises), fewest reps first. */
   repMaxes: { reps: number; loadKg: number }[];
-  /** Most reps, or longest hold in seconds, in one set. */
+  /** Most reps, or longest hold in seconds, in one set without bands. */
   bestAmount: number | null;
   bestE1rm: number | null;
-  /** Largest session volume (see volumeOf). */
+  /** Largest session volume without bands (see volumeOf). */
   bestVolume: number | null;
 }
 
@@ -262,17 +293,18 @@ export function exerciseRecordSummary(rows: readonly RecordRow[], exerciseId: st
   const repMaxes = new Map<number, number>();
   const volumes = new Map<string, number>();
   for (const row of own) {
-    if (row.metric === 'reps_load' && row.reps && sameAmountWithinPair(row) && loadOf(row) > 0) {
+    if (row.metric === 'reps_load' && row.reps && sameAmountWithinPair(row) && loadOf(row) > 0 && unknownHelpKey(row) === '') {
       repMaxes.set(row.reps, Math.max(repMaxes.get(row.reps) ?? 0, loadOf(row)));
     }
-    volumes.set(row.workoutId, (volumes.get(row.workoutId) ?? 0) + volumeOf(row));
+    // The best set and session count only work done without help from bands.
+    if (!banded(row)) volumes.set(row.workoutId, (volumes.get(row.workoutId) ?? 0) + volumeOf(row));
   }
   // A rep count only counts when no higher rep count was done with at least as much load.
   const sorted = [...repMaxes].sort(([a], [b]) => a - b);
   const kept = sorted.filter(([reps, load]) => !sorted.some(([other, otherLoad]) => other > reps && otherLoad >= load));
   return {
     repMaxes: kept.map(([reps, loadKg]) => ({ reps, loadKg })),
-    bestAmount: maxOf(own.map(amountOf).filter((value) => value > 0)),
+    bestAmount: maxOf(own.filter((row) => !banded(row)).map(amountOf).filter((value) => value > 0)),
     bestE1rm: maxOf(own.map(oneRepMax).filter((value): value is number => value !== null)),
     bestVolume: maxOf([...volumes.values()].filter((value) => value > 0)),
   };

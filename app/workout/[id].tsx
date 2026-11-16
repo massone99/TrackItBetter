@@ -204,7 +204,7 @@ export default function WorkoutScreen() {
   const [emomAdded, setEmomAdded] = useState<{ setId: string; message: string } | null>(null);
   // PRs set so far in this workout: record kinds per set, and exercises with a volume mini PR.
   const recordCount = useRef<number | null>(null);
-  const [records, setRecords] = useState<{ sets: Map<string, RecordKind[]>; volume: Set<string>; sameLoad: Map<string, { loadKg: number; sets: number; gain: number }> }>(() => ({ sets: new Map(), volume: new Set(), sameLoad: new Map() }));
+  const [records, setRecords] = useState<{ sets: Map<string, RecordKind[]>; volume: Map<string, 'all' | 'sameBands'>; sameLoad: Map<string, { loadKg: number; sets: number; gain: number; sameBands: boolean }> }>(() => ({ sets: new Map(), volume: new Map(), sameLoad: new Map() }));
   // The exercise in hand and its live telemetry against comparable history.
   // The exercise whose set the user expanded last is the selected one: blue "Now" card, telemetry, main action and rails all follow it,
   // until it has no set left to do (then the automatic choice below takes over again). Selecting never moves anything: the card of
@@ -307,8 +307,11 @@ export default function WorkoutScreen() {
     // Celebrate a new record, but not the ones already there when the workout is reopened.
     if (recordCount.current !== null && count > recordCount.current) tapFeedback('success');
     recordCount.current = count;
-    const sameLoad = new Map(found.sameLoad.map((record) => [record.exerciseId, { loadKg: record.loadKg, sets: record.sets, gain: record.value - record.previous }] as const));
-    setRecords({ sets: bySet, volume: new Set(found.volume.map((record) => record.exerciseId)), sameLoad });
+    const sameLoad = new Map(found.sameLoad.map((record) => [record.exerciseId, { loadKg: record.loadKg, sets: record.sets, gain: record.value - record.previous, sameBands: !!record.sameBands }] as const));
+    // A volume record without bands outranks one made only among sets with the same bands.
+    const volume = new Map<string, 'all' | 'sameBands'>();
+    for (const record of found.volume) if (volume.get(record.exerciseId) !== 'all') volume.set(record.exerciseId, record.sameBands ? 'sameBands' : 'all');
+    setRecords({ sets: bySet, volume, sameLoad });
   }, []);
 
   useEffect(() => {
@@ -1022,7 +1025,7 @@ export default function WorkoutScreen() {
             onSetOptions={(set, view) => setSetSheet({ exercise, setId: set.id, view })}
             onToggleWarmup={(set) => void toggleWarmup(set)}
             setRecords={records.sets}
-            volumeRecord={records.volume.has(exercise.exerciseId)}
+            volumeRecord={records.volume.get(exercise.exerciseId) ?? false}
             sameLoadRecord={records.sameLoad.get(exercise.exerciseId) ?? null}
             emomLabel={exercise.entryId === emomEntryId && emom.phase ? emomBadge(emom.phase, emom.plan!, t) : null}
             supersetLabel={exercise.groupId ? t('superset.label', { letter: supersetLetters.get(exercise.groupId) ?? 'A' }) : null}

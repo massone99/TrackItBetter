@@ -76,9 +76,10 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
   onOptions: () => void;
   onToggleWarmup: (set: SessionSet) => void;
   setRecords?: ReadonlyMap<string, RecordKind[]>;
-  volumeRecord?: boolean;
+  /** Session volume record: 'sameBands' when it beats only sessions done with the same bands of unknown kg. */
+  volumeRecord?: false | 'all' | 'sameBands';
   /** Mini-PR: more total reps (or seconds) than ever at this load with the same number of sets. */
-  sameLoadRecord?: { loadKg: number; sets: number; gain: number } | null;
+  sameLoadRecord?: { loadKg: number; sets: number; gain: number; sameBands?: boolean } | null;
   supersetLabel?: string | null;
   emomLabel?: string | null;
   /** Rest the app applies to a working set without its own, for the rest comparison. */
@@ -309,15 +310,15 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
             {sameLoadRecord ? (
               <View style={[styles.recordChip, { backgroundColor: palette.recordSoft }]}>
                 <Icon name="trophy-outline" size={13} color={palette.record} />
-                <Text style={[styles.clipChipText, { color: palette.record }]}>
-                  {t(sameLoadRecord.loadKg === 0 ? 'records.sameLoadBody' : 'records.sameLoad', { sets: sameLoadRecord.sets, load: formatNumber(sameLoadRecord.loadKg), gain: formatNumber(sameLoadRecord.gain) })}
+                <Text style={[styles.clipChipText, styles.shrink, { color: palette.record }]}>
+                  {t(sameLoadRecord.sameBands ? 'records.sameLoadBands' : sameLoadRecord.loadKg === 0 ? 'records.sameLoadBody' : 'records.sameLoad', { sets: sameLoadRecord.sets, load: formatNumber(sameLoadRecord.loadKg), gain: formatNumber(sameLoadRecord.gain) })}
                 </Text>
               </View>
             ) : null}
             {volumeRecord ? (
               <View style={[styles.recordChip, { backgroundColor: palette.recordSoft }]}>
                 <Icon name="trophy-outline" size={13} color={palette.record} />
-                <Text style={[styles.clipChipText, { color: palette.record }]}>{t('records.kinds.volume')}</Text>
+                <Text style={[styles.clipChipText, styles.shrink, { color: palette.record }]}>{t(volumeRecord === 'sameBands' ? 'records.volumeSameBands' : 'records.kinds.volume')}</Text>
               </View>
             ) : null}
           </View>
@@ -1314,10 +1315,11 @@ const baseStyles = StyleSheet.create({
   tableSetRow: { paddingHorizontal: spacing.lg, paddingTop: spacing.sm, gap: spacing.xs },
   tile: { borderRadius: radii.control, paddingVertical: spacing.xs, marginHorizontal: spacing.sm },
   setRow: { flexDirection: 'row', alignItems: 'center', minHeight: 56, paddingTop: 4, paddingLeft: 2 },
-  recordChip: { flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-start', borderRadius: radii.control, paddingHorizontal: 8, paddingVertical: 3, marginTop: 4 },
+  recordChip: { flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-start', maxWidth: '100%', borderRadius: radii.control, paddingHorizontal: 8, paddingVertical: 3, marginTop: 4 },
   setMeta: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8, paddingLeft: 48, paddingRight: 12, paddingBottom: 8 }, // 48: under the values, after the set number
   clipChip: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, minHeight: 32, borderRadius: radii.pill },
   clipChipText: { fontFamily: fonts.semibold, fontSize: 12 },
+  shrink: { flexShrink: 1 },
   setMetaLarge: { paddingLeft: 0, paddingRight: 0, paddingBottom: 0 },
   valuePanelLarge: { marginLeft: 0, marginRight: 0, marginBottom: 0, padding: 0 },
   valuePanel: { marginLeft: 48, marginRight: 12, marginBottom: 12, borderRadius: radii.control, padding: 8 },
