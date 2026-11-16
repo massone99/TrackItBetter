@@ -12,6 +12,7 @@ import { KeyboardRoot } from "../src/shared/components/keyboard";
 import { ActionButton, Body, Card, Heading, Screen } from "../src/shared/components/ui";
 import { initializeDatabase } from "../src/db/client";
 import { sweepOrphanClipFiles } from "../src/features/media/formVideos";
+import { sweepTemporaryFiles } from "../src/shared/media/tempFiles";
 import { ThemeProvider, useTheme } from "../src/shared/theme/ThemeProvider";
 import { fontAssets } from "../src/shared/theme/typography";
 import { useTranslation } from "react-i18next";
@@ -29,12 +30,16 @@ if (hostPhoneFrame) void SplashScreen.hideAsync().catch(() => undefined);
 
 let clipSweepScheduled = false;
 
-/** Once per app start, after the first screen is up: deletes form-check clip files nothing refers to. */
+/**
+ * Once per app start, after the first screen is up: deletes form-check clip files nothing refers to
+ * and the temporary copies (picked media, exports, share cards) left in the cache.
+ */
 function scheduleClipSweep(): void {
   if (clipSweepScheduled || process.env.EXPO_OS === "web") return;
   clipSweepScheduled = true;
   setTimeout(() => {
     sweepOrphanClipFiles().catch((error: unknown) => console.warn("Clip sweep failed", error));
+    try { sweepTemporaryFiles(); } catch (error) { console.warn("Cache sweep failed", error); }
   }, 3000);
 }
 

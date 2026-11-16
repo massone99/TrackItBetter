@@ -2,6 +2,7 @@ import { asc, eq } from 'drizzle-orm';
 import * as Crypto from 'expo-crypto';
 import { Directory, File, Paths } from 'expo-file-system';
 import { db, initializeDatabase } from '../../db/client';
+import { discardTemporaryCopy } from '../../shared/media/tempFiles';
 import { exerciseImages } from '../../db/schema';
 import { downscale } from '../photos/repository';
 import { decodeBase64, fingerprint } from '../../shared/utils/base64';
@@ -55,6 +56,8 @@ export async function addExerciseImage(exerciseId: string, input: { sourceUri: s
     deleteFile(fileName);
     throw error;
   }
+  // The picker's own full-size copy in the cache is no longer needed once the shrunk one is stored.
+  if (image.uri !== input.sourceUri) discardTemporaryCopy(input.sourceUri);
 }
 
 export async function deleteExerciseImage(id: string): Promise<void> {
