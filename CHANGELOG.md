@@ -2,6 +2,12 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.69.2 - 2026-11-16
+
+- Records: a set with bands of unknown kg never beats the same work without bands (e.g. a 20 s banded advanced tuck front lever is no longer a record over 10 s without a band). Such sets are compared only with sets done with the same bands ("same bands" in mini-PRs and session volume), give no 1RM estimate and stay out of the best hold and best session; without bands always counts as less help.
+- Progressions: for now, sets helped by bands do not count towards a step.
+- Storage: the app no longer keeps temporary copies forever. Picked photos and videos are removed from the cache once stored (form-check clips are moved, not copied), and old exports, share cards and analysis frames are cleared at startup.
+
 ## 0.69.0 - 2026-11-12
 
 - Switch to: an exercise in a chain shows the whole chain as a ladder, so any step is one tap away (not only the nearest two). It marks where you are, the steps reached and the one your sets suggest; with several chains, a chip picks which one.
