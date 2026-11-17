@@ -67,6 +67,7 @@ import { DockRails, WorkoutDockPanel } from '../../src/features/session/DockRail
 import { useExerciseTelemetry } from '../../src/features/session/telemetry/useExerciseTelemetry';
 import { useEmom, type EmomAlertText } from '../../src/features/session/useEmom';
 import { discardActiveWorkout } from '../../src/features/session/discardWorkout';
+import { getExerciseGoals, type ExerciseGoalProgress } from '../../src/features/dailyGoals/repository';
 import { EmomSetupSheet, emomFieldFor } from '../../src/features/session/EmomSetupSheet';
 import { emomLabel, firstRoundStart, type EmomPhase, type EmomPlan } from '../../src/domain/emom';
 import { EmomMiniDock, EmomStage, type EmomView } from '../../src/features/session/EmomStage';
@@ -205,6 +206,7 @@ export default function WorkoutScreen() {
   const [emomAdded, setEmomAdded] = useState<{ setId: string; message: string } | null>(null);
   // PRs set so far in this workout: record kinds per set, and exercises with a volume mini PR.
   const recordCount = useRef<number | null>(null);
+  const [exerciseGoals, setExerciseGoals] = useState<Map<string, ExerciseGoalProgress>>(() => new Map());
   const [records, setRecords] = useState<{ sets: Map<string, RecordKind[]>; volume: Map<string, 'all' | 'sameBands'>; sameLoad: Map<string, { loadKg: number; sets: number; gain: number; sameBands: boolean }> }>(() => ({ sets: new Map(), volume: new Map(), sameLoad: new Map() }));
   // The exercise in hand and its live telemetry against comparable history.
   // The exercise whose set the user expanded last is the selected one: blue "Now" card, telemetry, main action and rails all follow it,
@@ -296,10 +298,13 @@ export default function WorkoutScreen() {
     // "Last time" only changes when the exercises change, so it is not re-read after every set.
     const exerciseKey = `${next.id}:${next.exercises.map((exercise) => `${exercise.exerciseId}@${exercise.apparatusId ?? ''}${exercise.compareWorkoutId ? `#${exercise.compareWorkoutId}` : ''}`).join(',')}`;
     const apparatusOf = new Map(next.exercises.map((exercise) => [exercise.exerciseId, exercise.apparatusId ?? null] as const));
-    const [previousPerformance, found] = await Promise.all([
+    const [previousPerformance, found, timeGoals] = await Promise.all([
       previousKey.current === exerciseKey ? null : getPreviousPerformance(next.exercises.map((exercise) => exercise.exerciseId), next.id, apparatusOf),
       getSessionRecords(next.id).catch(() => null),
+      // Time goals on these exercises move with every set done, so they are read each time.
+      getExerciseGoals(next.exercises.map((exercise) => exercise.exerciseId)).catch(() => new Map<string, ExerciseGoalProgress>()),
     ]);
+    setExerciseGoals(timeGoals);
     if (previousPerformance) { previousKey.current = exerciseKey; setPrevious(previousPerformance); }
     if (!found) return;
     const bySet = new Map<string, RecordKind[]>();
@@ -1029,6 +1034,7 @@ export default function WorkoutScreen() {
             volumeRecord={records.volume.get(exercise.exerciseId) ?? false}
             sameLoadRecord={records.sameLoad.get(exercise.exerciseId) ?? null}
             onEntryNote={(note) => void updateEntryNote(exercise.entryId, note).then(() => refresh(workout.id))}
+            timeGoals={exerciseGoals.get(exercise.exerciseId) ?? null}
             emomLabel={exercise.entryId === emomEntryId && emom.phase ? emomBadge(emom.phase, emom.plan!, t) : null}
             supersetLabel={exercise.groupId ? t('superset.label', { letter: supersetLetters.get(exercise.groupId) ?? 'A' }) : null}
             onUncomplete={(set) => void reopenSet(set)}

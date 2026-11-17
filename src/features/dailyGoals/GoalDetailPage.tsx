@@ -50,7 +50,7 @@ export function GoalDetailPage({ period }: { period: GoalPeriod }) {
       // Exercises used today for this goal first, then favourites, then the rest by name.
       const usedToday = new Set(found.contributions.map((item) => item.exerciseId));
       const matching = all.filter((exercise) => goalMatches(found.goal, {
-        categories: rowCategories(exercise), group: exercise.movementGroup, tags: exerciseMovementTags(exercise), mobilityMode: exercise.mobilityMode,
+        exerciseId: exercise.id, categories: rowCategories(exercise), group: exercise.movementGroup, tags: exerciseMovementTags(exercise), mobilityMode: exercise.mobilityMode,
       }));
       matching.sort((a, b) => Number(usedToday.has(b.id)) - Number(usedToday.has(a.id)) || Number(b.favourite) - Number(a.favourite) || a.name.localeCompare(b.name));
       setChoices(matching.map((exercise) => ({ id: exercise.id, name: exercise.name })));

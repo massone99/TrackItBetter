@@ -131,3 +131,33 @@ describe('weekly goals from the daily ones', () => {
     expect(deriveWeeklyGoals(daily, full, 7, id)).toMatchObject({ add: [], dropped: 2 });
   });
 });
+
+describe('goals on one exercise', () => {
+  const plank = (over: Partial<DaySet> = {}) => set({ exerciseId: 'plank', exerciseName: 'Plank', categories: ['core'], tags: [], ...over });
+
+  it('match that exercise by id, whatever its category, group or tags', () => {
+    expect(goalMatches({ scope: 'exercise', key: 'plank' }, plank())).toBe(true);
+    expect(goalMatches({ scope: 'exercise', key: 'plank' }, plank({ exerciseId: 'side-plank' }))).toBe(false);
+    expect(goalMatches({ scope: 'exercise', key: 'plank' }, set({}))).toBe(false);
+  });
+
+  it('are valid only as time goals', () => {
+    const stored = (over: object) => JSON.stringify([{ id: 'g', scope: 'exercise', key: 'plank', measure: 'minutes', target: 60, ...over }]);
+    expect(parseDailyGoals(stored({}))).toHaveLength(1);
+    expect(parseDailyGoals(stored({ measure: 'reps' }))).toEqual([]);
+    expect(parseDailyGoals(stored({ key: ' ' }))).toEqual([]);
+  });
+
+  it('count a one-sided hold once, as the mean of its sides', () => {
+    const progress = dailyGoalProgress(goal({ scope: 'exercise', key: 'plank' }), [
+      plank({ pairId: 'p', durationSec: 30 }), plank({ pairId: 'p', durationSec: 20, completedAt: new Date(2026, 9, 15, 8, 1) }),
+      plank({ durationSec: 15, completedAt: new Date(2026, 9, 15, 9) }),
+    ]);
+    expect(progress.done).toBe(40);
+  });
+
+  it('keep the name when weekly goals are derived from daily ones', () => {
+    const derived = deriveWeeklyGoals([goal({ id: 'a', scope: 'exercise', key: 'plank', label: 'Plank', target: 120 })], [], 5, () => 'w');
+    expect(derived.add).toEqual([expect.objectContaining({ scope: 'exercise', key: 'plank', label: 'Plank', target: 600 })]);
+  });
+});

@@ -13,6 +13,8 @@ import { readTrendChoice, writeTrendChoice } from '../analytics/trendChoice';
 const PROGRAMS_KEY = 'user_weekly_programs_v1';
 const ROUTINES_KEY = 'mobility_routines_v1';
 const GTG_KEY = 'gtg_last_exercise_id';
+/** Daily and weekly goals: a goal on one exercise names it by id. */
+const GOAL_KEYS = ['daily_goals', 'weekly_goals'];
 const REST_KINDS = ['working', 'warmup'] as const;
 const restKey = (exerciseId: string, kind: string) => `rest.exercise.${exerciseId}.${kind}`;
 
@@ -76,6 +78,8 @@ export async function transferExerciseHistory(fromId: string, toId: string, opti
     await tx.update(exerciseImages).set({ exerciseId: toId }).where(eq(exerciseImages.exerciseId, fromId));
     await rewriteSettingsJson(tx, (id) => (id === fromId ? toId : id));
     if (options.deleteSource) {
+      // Time goals on the deleted exercise follow its history to the target.
+      await rewriteExerciseGoals(tx, fromId, toId);
       // Its place in chains and relations goes to the target, unless the target is already there.
       await tx.run(sql`UPDATE OR IGNORE chain_step SET exercise_id = ${toId} WHERE exercise_id = ${fromId}`);
       await tx.run(sql`UPDATE OR IGNORE exercise_link SET from_id = ${toId} WHERE from_id = ${fromId}`);
@@ -116,6 +120,7 @@ export async function deleteExerciseWithHistory(exerciseId: string): Promise<voi
       if (empty.length) await tx.delete(workouts).where(and(inArray(workouts.id, empty), isNotNull(workouts.endedAt)));
     }
     await rewriteSettingsJson(tx, (id) => (id === exerciseId ? null : id));
+    await rewriteExerciseGoals(tx, exerciseId, null);
     await tx.delete(exerciseImages).where(eq(exerciseImages.exerciseId, exerciseId));
     await tx.run(sql`DELETE FROM chain_step WHERE exercise_id = ${exerciseId}`);
     await tx.run(sql`DELETE FROM exercise_link WHERE from_id = ${exerciseId} OR to_id = ${exerciseId}`);
@@ -166,6 +171,30 @@ async function rewriteSettingsJson(tx: Tx, map: (id: string) => string | null): 
     if (next === row.value) continue;
     if (next === null) await tx.delete(settings).where(eq(settings.key, row.key));
     else await tx.update(settings).set({ value: next }).where(and(eq(settings.key, row.key), ne(settings.value, next)));
+  }
+}
+
+/**
+ * Daily and weekly goals on one exercise: with a `toId` they move to that exercise (dropped when it
+ * already has one), without one they are removed.
+ */
+async function rewriteExerciseGoals(tx: Tx, fromId: string, toId: string | null): Promise<void> {
+  const rows = await tx.select().from(settings).where(inArray(settings.key, GOAL_KEYS));
+  const isOn = (item: unknown, id: string) => !!item && typeof item === 'object'
+    && (item as { scope?: unknown }).scope === 'exercise' && (item as { key?: unknown }).key === id;
+  for (const row of rows) {
+    try {
+      const parsed: unknown = JSON.parse(row.value);
+      if (!Array.isArray(parsed) || !parsed.some((item) => isOn(item, fromId))) continue;
+      const hasTarget = toId !== null && parsed.some((item) => isOn(item, toId));
+      const next = JSON.stringify(parsed.flatMap((item) => {
+        if (!isOn(item, fromId)) return [item];
+        return toId === null || hasTarget ? [] : [{ ...(item as object), key: toId }];
+      }));
+      await tx.update(settings).set({ value: next }).where(eq(settings.key, row.key));
+    } catch {
+      // Damaged goals are dropped when they are read; nothing to rewrite.
+    }
   }
 }
 
