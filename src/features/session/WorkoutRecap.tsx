@@ -16,6 +16,7 @@ import { aggregatePairs } from '../../domain/setPairs';
 import { describeSets } from '../exercises/describeSets';
 import { ActionButton, Body, FooterAction, Icon, IconButton, Label, ListGroup, ListRow, Numeral, Screen, SectionTitle, tapFeedback, Text, Title } from '../../shared/components/ui';
 import { LoadError } from '../../shared/components/LoadError';
+import { useStartGuard } from './useStartGuard';
 import { Arrive } from '../../shared/components/Arrive';
 import { useTheme } from '../../shared/theme/ThemeProvider';
 import { fonts } from '../../shared/theme/typography';
@@ -45,6 +46,7 @@ export function WorkoutRecap({ mode }: { mode: 'finish' | 'log' }) {
   const [previous, setPrevious] = useState<Map<string, PreviousPerformance>>(new Map());
   const [compareBands, setCompareBands] = useState<((a: readonly SetBand[], b: readonly SetBand[]) => -1 | 0 | 1 | null) | undefined>(undefined);
   const [notice, setNotice] = useState<string | null>(null);
+  const { block, sheet: inProgressSheet } = useStartGuard();
 
   useEffect(() => {
     let mounted = true;
@@ -79,7 +81,7 @@ export function WorkoutRecap({ mode }: { mode: 'finish' | 'log' }) {
   const repeat = () => void repeatWorkoutIfIdle(id)
     .then((result) => {
       if ('workoutId' in result) router.push({ pathname: '/workout/[id]', params: { id: result.workoutId } });
-      else setNotice(t('workout.inProgressBody', { name: result.active.name }));
+      else block(result.active, repeat);
     })
     .catch(() => setNotice(t('history.repeatError')));
 
@@ -293,6 +295,7 @@ export function WorkoutRecap({ mode }: { mode: 'finish' | 'log' }) {
           <ListRow icon="create-outline" title={t('summary.details')} onPress={edit} />
         </ListGroup>
       ) : null}
+      {inProgressSheet}
     </Screen>
   );
 }

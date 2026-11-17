@@ -2,7 +2,7 @@ import { router, useLocalSearchParams } from "expo-router";
 import { useState } from "react";
 import { ActivityIndicator, Alert, Pressable, StyleSheet, View } from "react-native";
 import { Text } from "../../src/shared/components/Text";
-import { WorkoutInProgressSheet } from "../../src/features/session/WorkoutInProgressSheet";
+import { useStartGuard } from "../../src/features/session/useStartGuard";
 import { getActiveWorkout } from "../../src/features/session/repository";
 import { prescriptionsFromTemplate } from "../../src/features/programs/templatePrescriptions";
 import { startPrescribedWorkout } from "../../src/features/programs/startUserSession";
@@ -18,7 +18,7 @@ export default function ProgramRoute() {
   const program = findProgram(id);
   const { palette } = useTheme();
   const [startingSession, setStartingSession] = useState<string | null>(null);
-  const [blockedBy, setBlockedBy] = useState<{ id: string; name: string } | null>(null);
+  const { block, sheet } = useStartGuard();
   // Every workout starts folded each time the program is entered.
   const [opened, setOpened] = useState<ReadonlySet<string>>(() => new Set());
   const toggle = (sessionId: string) => setOpened((current) => { const next = new Set(current); if (!next.delete(sessionId)) next.add(sessionId); return next; });
@@ -34,7 +34,7 @@ export default function ProgramRoute() {
     setStartingSession(sessionId);
     try {
       const open = await getActiveWorkout();
-      if (open) { setBlockedBy({ id: open.id, name: open.name }); return; }
+      if (open) { block({ id: open.id, name: open.name }, () => void startSession(sessionId, sessionName, exercises)); return; }
       // Shared with self-made programs: a failure part-way deletes the half-built workout.
       const workoutId = await startPrescribedWorkout(sessionName, prescriptionsFromTemplate(sessionId, exercises));
       router.replace({ pathname: "/workout/[id]", params: { id: workoutId } });
@@ -50,7 +50,7 @@ export default function ProgramRoute() {
 
   return (
     <Screen>
-      <WorkoutInProgressSheet active={blockedBy} onClose={() => setBlockedBy(null)} />
+      {sheet}
       <PageHeading title={program.name[language]} subtitle={program.frequency[language]} />
       <Card style={[styles.intro, { backgroundColor: palette.surfaceMuted, borderColor: palette.surfaceMuted }]}>
         <Label style={{ color: palette.accentStrong }}>{t("templateProgram.overview")}</Label>

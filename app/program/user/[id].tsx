@@ -18,7 +18,7 @@ import { ProgramMetaSheet } from '../../../src/features/programs/ProgramMetaShee
 import { programAuthors, programCategories, programClusters } from '../../../src/features/programs/list/derive';
 import { createProgramCluster, deleteUserProgram, duplicateUserProgram, getUserProgram, listProgramClusters, listUserPrograms, saveUserProgram, updateUserProgram } from '../../../src/features/programs/userPrograms';
 import { WorkoutDetailsSheet } from '../../../src/features/session/WorkoutDetailsSheet';
-import { WorkoutInProgressSheet } from '../../../src/features/session/WorkoutInProgressSheet';
+import { useStartGuard } from '../../../src/features/session/useStartGuard';
 import { getActiveWorkout, listRecentWorkoutNames } from '../../../src/features/session/repository';
 import { ReorderableList } from '../../../src/shared/components/ReorderableList';
 import { ActionButton, Body, Chip, FooterAction, EmptyState, IconButton, ListGroup, PageHeading, Screen, SectionTitle, SegmentedControl, Sheet, tapFeedback, Text, Toast } from '../../../src/shared/components/ui';
@@ -41,7 +41,7 @@ export default function UserProgramScreen() {
   const [error, setError] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [active, setActive] = useState<{ id: string; name: string } | null>(null);
-  const [blockedBy, setBlockedBy] = useState<{ id: string; name: string } | null>(null);
+  const { block, sheet: inProgressSheet } = useStartGuard();
   const [recentNames, setRecentNames] = useState<string[]>([]);
   const [editing, setEditing] = useState<UserProgramSession | null>(null);
   const [opened, setOpened] = useState<Set<string>>(() => new Set());  // every workout starts folded each time the program is entered, not persisted
@@ -96,9 +96,10 @@ export default function UserProgramScreen() {
   const nextId = nextSession?.id ?? null;
   const layout: ProgramLayout = program.layout ?? 'sequence';
 
-  const start = async (session: UserProgramSession) => {
+  // `force` skips the check of the open workout once the user has discarded it (`active` is only reloaded later).
+  const start = async (session: UserProgramSession, force = false) => {
     if (starting) return;
-    if (active) { setBlockedBy(active); return; }
+    if (active && !force) { block(active, () => void start(session, true)); return; }
     setStarting(session.id);
     setError(null);
     try {
@@ -391,7 +392,7 @@ export default function UserProgramScreen() {
         }}
       />
 
-      <WorkoutInProgressSheet active={blockedBy} onClose={() => setBlockedBy(null)} />
+      {inProgressSheet}
 
       <ActionButton icon="trash-outline" label={t('programBuilder.delete')} variant="danger" onPress={() => setConfirmDelete(true)} />
 

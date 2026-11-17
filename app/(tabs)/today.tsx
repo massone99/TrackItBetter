@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 import { Pressable, StyleSheet, View } from "react-native";
 import { getProgressSnapshot } from "../../src/features/analytics/repository";
 import { estimateSessionSeconds, programsByRecentUse, sessionSetCount, type UserProgram, type UserProgramSession } from "../../src/domain/userProgram";
-import { WorkoutInProgressSheet } from "../../src/features/session/WorkoutInProgressSheet";
+import { useStartGuard } from "../../src/features/session/useStartGuard";
 import { StartFromProgramSheet } from "../../src/features/programs/StartFromProgramSheet";
 import { startUserProgramSession } from "../../src/features/programs/startUserSession";
 import { listUserPrograms } from "../../src/features/programs/userPrograms";
@@ -14,7 +14,7 @@ import { getGoalSnapshot, GoalSnapshot } from "../../src/features/goals/reposito
 import { getDailyGoalsSnapshot, getWeeklyGoalsSnapshot } from "../../src/features/dailyGoals/repository";
 import { GoalsArea } from "../../src/features/dailyGoals/DailyGoalViews";
 import type { DailyGoalProgress } from "../../src/domain/dailyGoals";
-import { ActiveWorkout, getActiveWorkout, listRecentWorkoutNames, listRecentWorkouts, repeatWorkout, WorkoutHistoryItem } from "../../src/features/session/repository";
+import { ActiveWorkout, getActiveWorkout, listRecentWorkoutNames, listRecentWorkouts, repeatWorkoutIfIdle, WorkoutHistoryItem } from "../../src/features/session/repository";
 import { readDefaultRest } from "../../src/features/session/restDefaults";
 import { ActionButton, Card, EmptyState, Icon, Label, ListGroup, ListRow, Screen, SectionTitle, Text, Title, Toast } from "../../src/shared/components/ui";
 import { poseDetectionAvailable } from "../../src/features/pose/detectPose";
@@ -76,7 +76,7 @@ export default function TodayScreen() {
   const [starting, setStarting] = useState<string | null>(null);
   const [repeating, setRepeating] = useState(false);
   const [chooserOpen, setChooserOpen] = useState(false);
-  const [blockedBy, setBlockedBy] = useState<{ id: string; name: string } | null>(null);
+  const { block, sheet: inProgressSheet } = useStartGuard();
   const [notice, setNotice] = useState<{ message: string; programId?: string } | null>(null);
 
   // Refocusing keeps the previous data on screen while the new one loads, so nothing flashes.
@@ -97,10 +97,14 @@ export default function TodayScreen() {
   const dateText = now.toLocaleDateString(i18n.language, { weekday: "long", day: "numeric", month: "long" });
   const dateLabel = dateText.charAt(0).toUpperCase() + dateText.slice(1);
 
-  const startPlanned = async ({ program, session }: Planned) => {
+  const startPlanned = async (planned: Planned) => {
+    const { program, session } = planned;
     if (starting) return;
     setStarting(session.id);
     try {
+      // The hero shows Resume while a workout is open, but the data may be stale: ask the database.
+      const open = await getActiveWorkout();
+      if (open) { block({ id: open.id, name: open.name }, () => void startPlanned(planned)); return; }
       const workoutId = await startUserProgramSession(program, session);
       router.push({ pathname: "/workout/[id]", params: { id: workoutId } });
     } catch (reason) {
@@ -114,8 +118,9 @@ export default function TodayScreen() {
     if (repeating) return;
     setRepeating(true);
     try {
-      const workoutId = await repeatWorkout(sourceId);
-      router.push({ pathname: "/workout/[id]", params: { id: workoutId } });
+      const result = await repeatWorkoutIfIdle(sourceId);
+      if ("active" in result) { block(result.active, () => void repeatLast(sourceId)); return; }
+      router.push({ pathname: "/workout/[id]", params: { id: result.workoutId } });
     } catch {
       setNotice({ message: t("history.repeatError") });
     } finally {
@@ -233,12 +238,12 @@ export default function TodayScreen() {
 
       {data ? <GoalsArea daily={data.daily} weekly={data.weekly} /> : null}
 
-      <WorkoutInProgressSheet active={blockedBy} onClose={() => setBlockedBy(null)} />
+      {inProgressSheet}
       <StartFromProgramSheet
         visible={chooserOpen}
         onClose={() => setChooserOpen(false)}
         onStarted={(workoutId) => { setChooserOpen(false); router.push({ pathname: "/workout/[id]", params: { id: workoutId } }); }}
-        onBlocked={(open) => { setChooserOpen(false); setBlockedBy(open); }}
+        onBlocked={(open, retry) => { setChooserOpen(false); block(open, retry); }}
         onError={(message) => { setChooserOpen(false); setNotice({ message }); }}
       />
 

@@ -9,7 +9,7 @@ import { GOAL_PRESETS_MIN, readWeeklyGoalMin, writeWeeklyGoalMin } from '../../s
 import { deleteMobilityRoutine, duplicateMobilityRoutine, listMobilityRoutines, moveMobilityRoutine, setMobilityFavourite, type MobilityRoutine } from '../../src/features/mobility/routines';
 import { programTemplates } from '../../src/features/programs/catalog';
 import { startRoutineAsWorkout } from '../../src/features/mobility/startAsWorkout';
-import { WorkoutInProgressSheet } from '../../src/features/session/WorkoutInProgressSheet';
+import { useStartGuard } from '../../src/features/session/useStartGuard';
 import { listUserPrograms } from '../../src/features/programs/userPrograms';
 import { getMobilityCycles, getMobilityWeek } from '../../src/features/analytics/repository';
 import type { ExerciseCycle, MobilityWeek } from '../../src/features/analytics/mobility';
@@ -42,7 +42,7 @@ export default function MobilityHubScreen() {
   const [moveFor, setMoveFor] = useState<MobilityRoutine | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<MobilityRoutine | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
-  const [blockedBy, setBlockedBy] = useState<{ id: string; name: string } | null>(null);
+  const { block, sheet } = useStartGuard();
   const [failed, setFailed] = useState(false);
   const [goalMin, setGoalMin] = useState(readWeeklyGoalMin);
   const [goalOpen, setGoalOpen] = useState(false);
@@ -75,7 +75,7 @@ export default function MobilityHubScreen() {
     setFailed(false);
     try {
       const result = await startRoutineAsWorkout(routine.id);
-      if ('active' in result) setBlockedBy(result.active);
+      if ('active' in result) block(result.active, () => void startAsWorkout(routine));
       else router.push({ pathname: '/workout/[id]', params: { id: result.workoutId } });
     } catch {
       setFailed(true);
@@ -305,7 +305,7 @@ export default function MobilityHubScreen() {
       </ListGroup>
       <View style={styles.fabSpace} />
 
-      <WorkoutInProgressSheet active={blockedBy} onClose={() => setBlockedBy(null)} />
+      {sheet}
       <Sheet visible={goalOpen} onClose={() => setGoalOpen(false)} title={t('mobilityHub.goalTitle')} body={`${t('mobilityHub.goalSheetBody')} ${t('mobilityHub.goalHint')}`}>
         <View style={styles.chips}>
           {GOAL_PRESETS_MIN.map((minutes) => (

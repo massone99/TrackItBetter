@@ -28,7 +28,7 @@ import { WorkoutSummary } from '../src/features/programs/workout/WorkoutSummary'
 import { duplicateExercise, moveInBlock, normalizeBlocks, prescriptionLine, setBlock, workingSetCount } from '../src/features/programs/workout/workoutOps';
 import { getActiveWorkout } from '../src/features/session/repository';
 import { readDefaultRest } from '../src/features/session/restDefaults';
-import { WorkoutInProgressSheet } from '../src/features/session/WorkoutInProgressSheet';
+import { useStartGuard } from '../src/features/session/useStartGuard';
 import { TextInput } from '../src/shared/components/AppTextInput';
 import { ReorderableList } from '../src/shared/components/ReorderableList';
 import { ShowMore, usePaged } from '../src/shared/components/paging';
@@ -89,7 +89,7 @@ export default function ProgramWorkoutScreen() {
   const [selection, setSelection] = useState<Set<string> | null>(null);
   const [bulkOpen, setBulkOpen] = useState(false);
   const [groupSheet, setGroupSheet] = useState(false);
-  const [blockedBy, setBlockedBy] = useState<{ id: string; name: string } | null>(null);
+  const { block, sheet } = useStartGuard();
 
   const defaultRest = readDefaultRest('working');
   const dirty = status === 'ready' && draft !== null && JSON.stringify(draft) !== snapshot;
@@ -193,7 +193,7 @@ export default function ProgramWorkoutScreen() {
     setStartError(null);
     try {
       const active = await getActiveWorkout();
-      if (active) { setBlockedBy({ id: active.id, name: active.name }); return; }
+      if (active) { block({ id: active.id, name: active.name }, () => void startNow()); return; }
       const saved = dirty || isNew ? await persist() : program;
       if (!saved) return;
       const workoutId = await startUserProgramSession(saved, draft);
@@ -414,7 +414,7 @@ export default function ProgramWorkoutScreen() {
       </Sheet>
 
       <BulkEditSheet visible={bulkOpen} count={selection?.size ?? 0} onClose={() => setBulkOpen(false)} onApply={applyBulkChange} />
-      <WorkoutInProgressSheet active={blockedBy} onClose={() => setBlockedBy(null)} />
+      {sheet}
 
       <Sheet visible={leaveAction !== null} onClose={() => setLeaveAction(null)} title={t('userProgram.unsavedTitle')} body={t('userProgram.unsavedInvalidBody')}>
         <ActionButton icon="trash-outline" label={t('userProgram.discard')} variant="danger" onPress={() => {

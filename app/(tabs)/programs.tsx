@@ -4,7 +4,7 @@ import { useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
 import { getActiveWorkout, listRecentWorkoutNames } from '../../src/features/session/repository';
-import { WorkoutInProgressSheet } from '../../src/features/session/WorkoutInProgressSheet';
+import { useStartGuard } from '../../src/features/session/useStartGuard';
 import { disciplineCounts } from '../../src/features/programs/list/derive';
 import { ProgramsView as MyPrograms } from '../../src/features/programs/list/ProgramsView';
 import { startUserProgramSession } from '../../src/features/programs/startUserSession';
@@ -35,7 +35,7 @@ export default function ProgramsTab() {
   const [recentNames, setRecentNames] = useState<string[]>([]);
   const [undo, setUndo] = useState<{ message: string; previous: string[] | null } | null>(null);
   const [active, setActive] = useState<{ id: string; name: string } | null>(null);
-  const [blockedBy, setBlockedBy] = useState<{ id: string; name: string } | null>(null);
+  const { block, sheet } = useStartGuard();
   const [starting, setStarting] = useState(false);
   const [showTemplates, setShowTemplates] = useState(false);
   const hideUndo = useCallback(() => setUndo(null), []);
@@ -68,9 +68,10 @@ export default function ProgramsTab() {
     void setHiddenTemplates(next);
   };
 
-  const startHero = async (program: UserProgram, sessionId: string) => {
+  // `force` skips the check of the open workout once the user has discarded it (`active` is only reloaded later).
+  const startHero = async (program: UserProgram, sessionId: string, force = false) => {
     if (starting) return;
-    if (active) { setBlockedBy(active); return; }
+    if (active && !force) { block(active, () => void startHero(program, sessionId, true)); return; }
     const session = program.sessions.find((item) => item.id === sessionId);
     if (!session) return;
     setStarting(true);
@@ -211,7 +212,7 @@ export default function ProgramsTab() {
           ) : null}
         </>
       )}
-      <WorkoutInProgressSheet active={blockedBy} onClose={() => setBlockedBy(null)} />
+      {sheet}
     </Screen>
   );
 }

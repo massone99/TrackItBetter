@@ -31,7 +31,6 @@ import {
   copyValuesToSet,
   switchEntryExercise,
   undoSwitch,
-  deleteWorkout,
   finishWorkout,
   IncompletePairError,
   moveExerciseEntry,
@@ -66,7 +65,8 @@ import { incompletePairs, type IncompletePair } from '../../src/features/session
 import { ExerciseTelemetryDock, TelemetryPanel } from '../../src/features/session/telemetry/ExerciseTelemetryDock';
 import { DockRails, WorkoutDockPanel } from '../../src/features/session/DockRails';
 import { useExerciseTelemetry } from '../../src/features/session/telemetry/useExerciseTelemetry';
-import { clearEmomPlan, useEmom, type EmomAlertText } from '../../src/features/session/useEmom';
+import { useEmom, type EmomAlertText } from '../../src/features/session/useEmom';
+import { discardActiveWorkout } from '../../src/features/session/discardWorkout';
 import { EmomSetupSheet, emomFieldFor } from '../../src/features/session/EmomSetupSheet';
 import { emomLabel, firstRoundStart, type EmomPhase, type EmomPlan } from '../../src/domain/emom';
 import { EmomMiniDock, EmomStage, type EmomView } from '../../src/features/session/EmomStage';
@@ -767,9 +767,8 @@ export default function WorkoutScreen() {
     hold.stop();
     skipRest();
     void Speech.stop();
-    clearEmomPlan(workout.id);
     try {
-      await deleteWorkout(workout.id);
+      await discardActiveWorkout(workout.id);
     } catch {
       Alert.alert(t('history.deleteError'));
       return;

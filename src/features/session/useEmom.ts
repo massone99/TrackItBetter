@@ -1,25 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AppState } from 'react-native';
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
-import { EMOM_COUNTDOWN_SEC, emomCue, emomPhase, firstRoundStart, parseEmomPlan, roundEndsAt, roundsDue, type EmomPhase, type EmomPlan } from '../../domain/emom';
+import { EMOM_COUNTDOWN_SEC, emomCue, emomPhase, firstRoundStart, roundEndsAt, roundsDue, type EmomPhase, type EmomPlan } from '../../domain/emom';
 import { playBeep } from '../../shared/audio/beeps';
-import { readPreference, writePreference } from '../../shared/settings/preferences';
+import { writePreference } from '../../shared/settings/preferences';
 import { countEmomRounds, recordEmomRound } from './repository';
 import { cancelEmomNotifications, scheduleEmomNotifications } from './restNotifications';
+import { clearEmomPlan, emomPlanKey, readEmomPlan } from './emomPlan';
 
 const KEEP_AWAKE_TAG = 'emom';
-const keyFor = (workoutId: string) => `workout.emom.${workoutId}`;
-
-export function readEmomPlan(workoutId: string): EmomPlan | null {
-  const plan = parseEmomPlan(readPreference(keyFor(workoutId)));
-  return plan?.workoutId === workoutId ? plan : null;
-}
-
-/** Forgets the EMOM of a workout, e.g. when the workout is discarded. */
-export function clearEmomPlan(workoutId: string): void {
-  writePreference(keyFor(workoutId), '');
-  void cancelEmomNotifications().catch(() => undefined);
-}
+export { clearEmomPlan, readEmomPlan };
 
 export type EmomStart = Pick<EmomPlan, 'entryId' | 'intervalSec' | 'rounds' | 'target' | 'field'>;
 export interface EmomAlertText { round: (round: number, rounds: number) => { title: string; body: string }; done: { title: string; body: string } }
@@ -46,7 +36,7 @@ export function useEmom(workoutId: string | undefined, { onRecorded, onFinished,
     planRef.current = next;
     setPlan(next);
     if (!workoutId) return;
-    writePreference(keyFor(workoutId), next ? JSON.stringify(next) : '');
+    writePreference(emomPlanKey(workoutId), next ? JSON.stringify(next) : '');
   }, [workoutId]);
 
   /** Records every round whose time is over and not in the sets yet; safe to call any number of times. */
