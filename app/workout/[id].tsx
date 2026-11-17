@@ -106,6 +106,7 @@ import { PrescriptionSyncSheet } from '../../src/features/programs/PrescriptionS
 import { listUserPrograms } from '../../src/features/programs/userPrograms';
 import { findPrescribedWorkout, hasStructureChange, prescriptionChanges, trainedExercises, type PrescribedMatch } from '../../src/domain/prescriptionSync';
 import { SaveToProgramSheet } from '../../src/features/programs/SaveToProgramSheet';
+import { isPrescriptionHandled } from '../../src/features/programs/prescriptionHandled';
 import { ExerciseNoteField } from '../../src/features/session/ExerciseNoteField';
 import { WorkoutDetailsSheet } from '../../src/features/session/WorkoutDetailsSheet';
 import { apparatusName, bandComparer, bandsById, describeSetBands, useEquipment } from '../../src/features/equipment/useEquipment';
@@ -751,7 +752,8 @@ export default function WorkoutScreen() {
     // A workout from a program whose structure changed offers to update the prescribed workout; then the summary.
     const summary = () => router.replace({ pathname: '/workout/summary/[id]', params: { id: workout.id } });
     try {
-      const match = findPrescribedWorkout(await listUserPrograms(), workout.name);
+      // Saved as a program workout during the session (as new, or replacing the original): nothing left to offer.
+      const match = isPrescriptionHandled(workout.id) ? null : findPrescribedWorkout(await listUserPrograms(), workout.name);
       const trained = trainedExercises(workout.exercises);
       if (match && trained.length > 0 && hasStructureChange(prescriptionChanges(match.session, trained))) {
         setSyncOffer({ match, exercises: trained, workoutId: workout.id });
@@ -1147,6 +1149,7 @@ export default function WorkoutScreen() {
       <SaveToProgramSheet
         visible={saveOpen}
         defaultName={workout.name}
+        workoutId={workout.id}
         exercises={workout.exercises}
         onClose={() => setSaveOpen(false)}
         onSaved={(program) => { setSaveOpen(false); setSavedTo({ id: program.id, name: program.name }); }}

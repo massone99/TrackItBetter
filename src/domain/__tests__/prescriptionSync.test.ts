@@ -1,4 +1,4 @@
-import { applyWorkoutToPrescription, findPrescribedWorkout, hasStructureChange, prescriptionChanges, trainedExercises } from '../prescriptionSync';
+import { applyWorkoutToPrescription, findNameClash, findPrescribedWorkout, hasStructureChange, prescriptionChanges, trainedExercises, uniqueSessionName } from '../prescriptionSync';
 import type { UserProgram, UserProgramSession, WorkoutExerciseLike } from '../userProgram';
 
 const set = (reps: number, over = {}) => ({ id: `s${reps}`, kind: 'working', side: 'both', pairId: null, reps, durationSec: null, distanceM: null, addedLoadKg: 0, restSec: 90, completedAt: new Date(), ...over });
@@ -46,5 +46,31 @@ describe('prescription sync', () => {
   it('drops exercises with no completed set', () => {
     const skipped = ex('dip', [set(8, { completedAt: null })]);
     expect(trainedExercises([ex('pushup', [set(10)]), skipped]).map((e) => e.exerciseId)).toEqual(['pushup']);
+  });
+});
+
+describe('saving a workout under a name that already exists', () => {
+  const source = { program, session };
+  const other: UserProgram = { id: 'other', name: 'Legs', updatedAt: '2026-01-02', sessions: [{ id: 'l', name: 'Squat day', exercises: [{ id: 'l1', exerciseId: 'squat', sets: 3, target: 5 }] }] };
+
+  it('clashes with the workout it was started from when the name is the same, however it is written', () => {
+    const clash = (name: string) => findNameClash([program, other], { name, programId: null, source, workoutName: 'PPL · Push' });
+    expect(clash('PPL · Push')?.session.id).toBe('a');
+    expect(clash('push')?.session.id).toBe('a');
+    expect(clash(' PPL · push ')?.session.id).toBe('a');
+    expect(clash('Push B')).toBeNull();
+  });
+
+  it('clashes with a workout of that name in the program it goes into, and only there', () => {
+    expect(findNameClash([program, other], { name: 'Squat day', programId: 'other', source: null, workoutName: 'Workout' })?.session.id).toBe('l');
+    expect(findNameClash([program, other], { name: 'Squat day', programId: 'prog', source: null, workoutName: 'Workout' })).toBeNull();
+    expect(findNameClash([program, other], { name: 'Squat day', programId: null, source: null, workoutName: 'Workout' })).toBeNull();
+  });
+
+  it('gives a free name next to the original', () => {
+    expect(uniqueSessionName(['Push'], 'Push')).toBe('Push (2)');
+    expect(uniqueSessionName(['Push', 'Push (2)'], 'push')).toBe('push (3)');
+    expect(uniqueSessionName(['Pull'], 'Push')).toBe('Push');
+    expect(uniqueSessionName([], '  Push ')).toBe('Push');
   });
 });

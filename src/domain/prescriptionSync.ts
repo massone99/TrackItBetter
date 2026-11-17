@@ -23,6 +23,36 @@ export function findPrescribedWorkout(programs: readonly UserProgram[], workoutN
   return null;
 }
 
+const sameName = (a: string, b: string) => a.trim().toLocaleLowerCase() === b.trim().toLocaleLowerCase();
+
+/**
+ * The existing prescribed workout that saving a workout under `name` would clash with, if any: one
+ * with that name in the program it is saved into, or the one the workout was started from when
+ * `name` is that workout's name (as shown while training, or as named in its program). Saving as
+ * new never touches it; only an explicit "replace" does.
+ */
+export function findNameClash(
+  programs: readonly UserProgram[],
+  input: { name: string; programId: string | null; source: PrescribedMatch | null; workoutName: string },
+): PrescribedMatch | null {
+  const target = input.programId ? programs.find((program) => program.id === input.programId) : undefined;
+  const inTarget = target?.sessions.find((session) => sameName(session.name, input.name));
+  if (target && inTarget) return { program: target, session: inTarget };
+  const { source } = input;
+  if (source && (sameName(input.name, input.workoutName) || sameName(input.name, source.session.name) || sameName(input.name, programSessionWorkoutName(source.program, source.session)))) return source;
+  return null;
+}
+
+/** `name`, or "name (2)", "name (3)"… the first that is not in `taken`. */
+export function uniqueSessionName(taken: readonly string[], name: string): string {
+  const base = name.trim();
+  if (!taken.some((item) => sameName(item, base))) return base;
+  for (let n = 2; ; n += 1) {
+    const candidate = `${base} (${n})`;
+    if (!taken.some((item) => sameName(item, candidate))) return candidate;
+  }
+}
+
 /** Pairs each exercise with the n-th time it appears, so an exercise done twice matches in order. */
 function keyed<T extends { exerciseId: string }>(list: readonly T[]): Map<string, T> {
   const seen = new Map<string, number>();
