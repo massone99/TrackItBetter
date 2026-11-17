@@ -86,10 +86,10 @@ export function DailyGoalSheet({ period = 'day', visible, initial, goals = [], o
         <SegmentedControl
           value={scope}
           options={[
-            { value: 'category', label: t('dailyGoals.scope.category') },
-            { value: 'group', label: t('dailyGoals.scope.group') },
-            { value: 'tag', label: t('dailyGoals.scope.tag') },
-            { value: 'exercise', label: t('dailyGoals.scope.exercise') },
+            { value: 'category', label: t('dailyGoals.scopeShort.category') },
+            { value: 'group', label: t('dailyGoals.scopeShort.group') },
+            { value: 'tag', label: t('dailyGoals.scopeShort.tag') },
+            { value: 'exercise', label: t('dailyGoals.scopeShort.exercise') },
           ]}
           onChange={changeScope}
         />

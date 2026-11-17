@@ -166,8 +166,8 @@ function Option({ icon, title, body, selected, onPress }: { icon: 'add-circle' |
         <Icon name={icon} size={20} color={selected ? palette.accentText : palette.accentStrong} />
       </View>
       <View style={styles.optionText}>
-        <Text numberOfLines={1} style={[styles.optionTitle, { color: palette.text }]}>{title}</Text>
-        <Text numberOfLines={1} style={[styles.optionBody, { color: palette.textMuted }]}>{body}</Text>
+        <Text style={[styles.optionTitle, { color: palette.text }]}>{title}</Text>
+        <Text style={[styles.optionBody, { color: palette.textMuted }]}>{body}</Text>
       </View>
       {selected ? <Icon name="checkmark-circle" size={22} color={palette.accentStrong} /> : null}
     </Pressable>

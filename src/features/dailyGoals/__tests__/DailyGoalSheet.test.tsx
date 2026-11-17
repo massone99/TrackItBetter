@@ -50,7 +50,7 @@ describe('DailyGoalSheet, goals on one exercise', () => {
 
   it('picks an exercise measured in time, from the scope chip', () => {
     const onSave = renderSheet({ initial: null });
-    fireEvent.press(screen.getByRole('button', { name: t('dailyGoals.scope.exercise') }));
+    fireEvent.press(screen.getByRole('button', { name: t('dailyGoals.scopeShort.exercise') }));
     fireEvent.press(screen.getByRole('button', { name: t('dailyGoals.pickExercise') }));
     expect(screen.getByText('only time: true')).toBeTruthy();
     fireEvent.press(screen.getByRole('button', { name: 'pick-plank' }));

@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { StyleSheet, View } from 'react-native';
 import type { DailyGoal, DailyGoalProgress, GoalPeriod } from '../../domain/dailyGoals';
 import type { GoalChange } from '../../domain/tagGoals';
-import { Body, ListGroup, ListRow, ProgressMeter, SectionTitle } from '../../shared/components/ui';
+import { Body, ListGroup, ListRow, SectionTitle } from '../../shared/components/ui';
 import { spacing } from '../../shared/theme/tokens';
 import { useScaledStyles } from '../../shared/theme/useScaledStyles';
 import { DailyGoalSheet } from './DailyGoalSheet';
@@ -64,10 +64,6 @@ export function ExerciseGoalsSection({ exerciseId, exerciseName }: { exerciseId:
       <SectionTitle title={t('exerciseGoals.title')} />
       {failed ? <Body>{t('common.loadError')}</Body> : null}
       <ListGroup>{(['day', 'week'] as const).map(row)}</ListGroup>
-      {(['day', 'week'] as const).map((period) => {
-        const progress = loaded?.progress[period];
-        return progress ? <ProgressMeter key={period} value={progress.done} total={progress.goal.target} label={`${t(period === 'day' ? 'exerciseGoals.today' : 'exerciseGoals.week')}: ${goalAmount('minutes', progress.done)} / ${goalAmount('minutes', progress.goal.target)}`} tone={progress.reached ? 'success' : 'accent'} /> : null;
-      })}
       {editing ? (
         <DailyGoalSheet
           key={`${editing}-${loaded?.progress[editing]?.goal.id ?? 'new'}`}
