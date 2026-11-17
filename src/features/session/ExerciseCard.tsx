@@ -21,6 +21,7 @@ import { formatClock, formatNumber } from '../../shared/utils/format';
 import { Gauge, RegistrationMarks, Tag, useInk } from './instrument';
 import { readBooleanPreference, writePreference } from '../../shared/settings/preferences';
 import { ChipsFold } from './ChipsFold';
+import { ExerciseNoteBlock } from './ExerciseNoteBlock';
 import { LedgerActiveRow, LedgerDoneRow, LedgerHeader, LedgerUpcomingRow } from './LedgerSet';
 import { BandsStrip, DetailsToggle, MeasureBox, PreviousSetBox, RatingCells, WorkOutput, gaugeMax, type RatingCell } from './ActiveSetParts';
 import { FormRating, LastTimeStrip } from './LastTime';
@@ -48,7 +49,7 @@ const BANDS_FOLDED_KEY = 'workout.bandsFolded';
 const ADD_SLOP = { top: spacing.sm, bottom: spacing.sm, left: spacing.sm, right: 0 };
 const ADD_MORE_SLOP = { top: spacing.sm, bottom: spacing.sm, left: 0, right: spacing.md };
 
-export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, previous, hold = null, onChange, onSetValue, onComplete, onStartHold, onFinishHold, onAddSet, onAddWarmup, onCopyAllLast, onSetOptions, onUncomplete, onRemoveSet, onSwiped, showRpe, onRpe, onOptions, onToggleWarmup, setRecords = NO_RECORDS, volumeRecord = false, sameLoadRecord = null, supersetLabel = null, emomLabel: emomBadgeLabel, defaultRest = 0, onFormRating, onRomRating, onNote, focus = false, nowLabel = null, figure = null, editDone = false, typeDone = false, compare = true, apparatusLabel = null, firstTimeLabel, describeBands, compareBands, renderBandsEditor, fixedAction = false, onSetExpanded }: {
+export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, previous, hold = null, onChange, onSetValue, onComplete, onStartHold, onFinishHold, onAddSet, onAddWarmup, onCopyAllLast, onSetOptions, onUncomplete, onRemoveSet, onSwiped, showRpe, onRpe, onOptions, onToggleWarmup, setRecords = NO_RECORDS, volumeRecord = false, sameLoadRecord = null, onEntryNote, supersetLabel = null, emomLabel: emomBadgeLabel, defaultRest = 0, onFormRating, onRomRating, onNote, focus = false, nowLabel = null, figure = null, editDone = false, typeDone = false, compare = true, apparatusLabel = null, firstTimeLabel, describeBands, compareBands, renderBandsEditor, fixedAction = false, onSetExpanded }: {
   handle?: ReactNode;
   exercise: SessionExercise;
   collapsed: boolean;
@@ -80,6 +81,8 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
   volumeRecord?: false | 'all' | 'sameBands';
   /** Mini-PR: more total reps (or seconds) than ever at this load with the same number of sets. */
   sameLoadRecord?: { loadKg: number; sets: number; gain: number; sameBands?: boolean } | null;
+  /** Saves the exercise's note for this workout; without it the note is shown but not editable. */
+  onEntryNote?: (note: string) => void;
   supersetLabel?: string | null;
   emomLabel?: string | null;
   /** Rest the app applies to a working set without its own, for the rest comparison. */
@@ -336,7 +339,6 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
           ) : null}
           {collapsed && prNotes.length ? <Text numberOfLines={2} style={[styles.prNotes, { color: palette.success }]}>{prNotes.join(' · ')}</Text> : null}
           {collapsed || hasComparison || !compare ? null : <Label>{previousText ? t('logger.lastTime', { value: previousText }) : firstTimeLabel ?? t('logger.firstTime')}</Label>}
-          {exercise.notes ? <Text numberOfLines={3} style={[styles.exerciseNote, { color: palette.textMuted }]}>{exercise.notes}</Text> : null}
         </Pressable>
         {/* The collapse chevron sits with the buttons, so all three share one row and one centre line. */}
         <IconButton icon={collapsed ? 'chevron-down' : 'chevron-up'} label={t(collapsed ? 'logger.expand' : 'logger.collapse', { name: exercise.name })} tone="plain" onPress={onToggleCollapsed} />
@@ -346,6 +348,8 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
         <IconButton icon="ellipsis-vertical" label={t('logger.options')} tone="plain" onPress={onOptions} />
       </View>
       </Pressable>
+      {/* Outside the header tap area: the note has its own tap (edit in place), on open and folded cards. */}
+      <ExerciseNoteBlock note={exercise.notes} collapsed={collapsed} onSave={onEntryNote} />
       {goal ? (
         <View style={[styles.goalCard, { backgroundColor: goal.reached ? palette.successSoft : palette.surface, borderColor: goal.reached ? palette.success : palette.border }]}>
           <View style={styles.goalRow}>
@@ -1329,7 +1333,6 @@ const baseStyles = StyleSheet.create({
   valueChipText: { fontFamily: fonts.semibold, fontSize: 14, flexShrink: 1 },
   noteChip: { flexDirection: 'row', alignItems: 'center', gap: 6, flexShrink: 1, minHeight: 32 },
   setNote: { flex: 1, fontFamily: fonts.body, fontSize: 13, lineHeight: 18 },
-  exerciseNote: { fontFamily: fonts.body, fontSize: 13, lineHeight: 18, marginTop: 4 },
   setBadge: { width: 36, height: 36, borderRadius: radii.control, alignItems: 'center', justifyContent: 'center' },
   setBadgeText: { fontFamily: fonts.display, fontSize: 16 },
   setBadgeSide: { fontFamily: fonts.semibold, fontSize: 10, lineHeight: 11, marginTop: -2 },

@@ -12,6 +12,7 @@ import {
   addSetToCompletedWorkout,
   setSetFormRating,
   setSetRomRating,
+  updateEntryNote,
   updateSetNote,
   setSetKind,
   deleteWorkout,
@@ -371,6 +372,7 @@ export default function PastWorkoutScreen() {
             }}
             editDone
             compare={false}
+            onEntryNote={(note) => void edit(() => updateEntryNote(exercise.entryId, note))}
             showRpe={showRpe}
             onChange={async (set, field, delta) => step(set, field, delta)}
             onSetValue={(set, field, value) => void adjust(set.id, field, value)}

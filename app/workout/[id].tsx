@@ -1026,6 +1026,7 @@ export default function WorkoutScreen() {
             setRecords={records.sets}
             volumeRecord={records.volume.get(exercise.exerciseId) ?? false}
             sameLoadRecord={records.sameLoad.get(exercise.exerciseId) ?? null}
+            onEntryNote={(note) => void updateEntryNote(exercise.entryId, note).then(() => refresh(workout.id))}
             emomLabel={exercise.entryId === emomEntryId && emom.phase ? emomBadge(emom.phase, emom.plan!, t) : null}
             supersetLabel={exercise.groupId ? t('superset.label', { letter: supersetLetters.get(exercise.groupId) ?? 'A' }) : null}
             onUncomplete={(set) => void reopenSet(set)}
