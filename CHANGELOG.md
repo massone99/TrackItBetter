@@ -2,6 +2,13 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.70.0 - 2026-11-18
+
+- Workout in progress: starting another workout while one is open now offers "Discard and start new" (after a confirmation) next to Resume, from every start point. Today's repeat and planned start also check for an open workout.
+- Exercise note: always visible on the exercise card, one tap to edit in place, saved by itself; an "Add note" row when empty and a one-line preview on folded cards.
+- Save as program workout: it never overwrites its original unless asked. When the name matches an existing workout it offers "Save as new" (the default, under a free name) or "Replace the original"; after saving, finishing the workout no longer offers to update the original.
+- Time goals on one exercise, daily and weekly: set from the exercise page or the goal sheet (new "Exercise" scope, timed exercises only); they show in Today, the goal lists and history, and on the exercise card in the workout. Deleting an exercise removes its goals, moving its history moves them. Older app versions ignore them.
+
 ## 0.69.2 - 2026-11-16
 
 - Records: a set with bands of unknown kg never beats the same work without bands (e.g. a 20 s banded advanced tuck front lever is no longer a record over 10 s without a band). Such sets are compared only with sets done with the same bands ("same bands" in mini-PRs and session volume), give no 1RM estimate and stay out of the best hold and best session; without bands always counts as less help.
