@@ -1,10 +1,10 @@
-import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import { ExerciseSwipeArea } from '../../src/features/session/ExerciseSwipeArea';
 import { displayWorkoutName } from '../../src/features/session/workoutName';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import * as Speech from 'expo-speech';
 import { useTranslation } from 'react-i18next';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AccessibilityInfo, ActivityIndicator, Alert, Pressable, StyleSheet, View } from 'react-native';
+import { AccessibilityInfo, ActivityIndicator, Alert, BackHandler, Pressable, StyleSheet, View } from 'react-native';
 import { groupSets, completedSetCount } from '../../src/domain/setPairs';
 import { ExercisePicker, type ExerciseChoice } from '../../src/features/exercises/ExercisePicker';
 import { ReferenceLinkSheet } from '../../src/features/exercises/ReferenceLinkSheet';
@@ -509,18 +509,32 @@ export default function WorkoutScreen() {
   };
 
   const scrollRef = useRef<ScrollHandle>(null);
-  const showOverview = () => {
+  const showOverview = useCallback(() => {
     setOpenExerciseId(null);
     setDockPanel(null);
     selectedRef.current = null;
     setSelectedEntryId(null);
     scrollRef.current?.scrollTo({ y: 0, animated: false });
-  };
-  const openExercise = (exercise: SessionExercise) => {
-    setOpenExerciseId(exercise.entryId);
-    selectEntry(exercise.entryId);
+  }, []);
+  const openExerciseById = useCallback((entryId: string) => {
+    setOpenExerciseId(entryId);
+    selectEntry(entryId);
     scrollRef.current?.scrollTo({ y: 0, animated: false });
-  };
+  }, [selectEntry]);
+  const swipeToExercise = useCallback((entryId: string) => {
+    tapFeedback();
+    openExerciseById(entryId);
+  }, [openExerciseById]);
+  const openExercise = (exercise: SessionExercise) => openExerciseById(exercise.entryId);
+  const exerciseOpen = workout?.exercises.some((entry) => entry.entryId === openExerciseId) ?? false;
+  useFocusEffect(useCallback(() => {
+    if (!exerciseOpen || (emomStage && emom.plan)) return;
+    const back = BackHandler.addEventListener('hardwareBackPress', () => {
+      showOverview();
+      return true;
+    });
+    return () => back.remove();
+  }, [emom.plan, emomStage, exerciseOpen, showOverview]));
   const openExerciseNote = (exercise: SessionExercise) => setNoteTarget({
     kind: 'exerciseNote', id: exercise.entryId, context: t('liveWorkout.exerciseNoteContext', { name: exercise.name }), value: exercise.notes,
   });
@@ -775,17 +789,6 @@ export default function WorkoutScreen() {
   const exercisePosition = focused ? workout.exercises.indexOf(focused) + 1 : 0;
   const previousExercise = focused ? workout.exercises[exercisePosition - 2] : undefined;
   const followingExercise = focused ? workout.exercises[exercisePosition] : undefined;
-  const exerciseSwipe = () => Gesture.Pan()
-    .enabled(Boolean(previousExercise || followingExercise))
-    .maxPointers(1)
-    .activeOffsetX([-24, 24])
-    .failOffsetY([-16, 16])
-    .runOnJS(true)
-    .onEnd(({ translationX, translationY }, recognized) => {
-      if (!recognized || Math.abs(translationX) < 60 || Math.abs(translationX) <= Math.abs(translationY)) return;
-      const target = translationX < 0 ? followingExercise : previousExercise;
-      if (target) { tapFeedback(); openExercise(target); }
-    });
   const canFold = groups.length > 0;
   const allFoldKeys = groups.flatMap((group) => [`group:${group.id ?? 'loose'}`, ...(group.nested ?? []).map((item) => `superset:${item.id}`)]);
   const allCollapsed = allFoldKeys.length > 0 && allFoldKeys.every((key) => foldedGroups.has(key));
@@ -820,9 +823,9 @@ export default function WorkoutScreen() {
         focus
         liveLayout={focusMode ? 'standalone' : 'inline'}
         wrapSetEditor={(editor) => (
-          <GestureDetector gesture={exerciseSwipe()} touchAction="pan-y">
-            <View collapsable={false}>{editor}</View>
-          </GestureDetector>
+          <ExerciseSwipeArea previousId={previousExercise?.entryId} nextId={followingExercise?.entryId} onNavigate={swipeToExercise}>
+            {editor}
+          </ExerciseSwipeArea>
         )}
         exerciseNavigation={previousExercise || followingExercise ? (
           <View style={styles.exerciseNavigation}>
