@@ -479,4 +479,14 @@ export async function migrateDatabase(database: SQLiteDatabase): Promise<void> {
       await database.execAsync(progressionGraphSchema);
     });
   }
+
+  if (version < 24) {
+    await database.withTransactionAsync(async () => {
+      await database.execAsync(`
+        ALTER TABLE workout ADD COLUMN group_layout TEXT;
+        ALTER TABLE exercise_entry ADD COLUMN workout_group_id TEXT;
+        PRAGMA user_version = 24;
+      `);
+    });
+  }
 }

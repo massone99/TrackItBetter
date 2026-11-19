@@ -1,6 +1,11 @@
 import { migrateDatabase } from '../../../db/migrations';
 import { seedCatalogIfEmpty } from '../../../db/seed/import';
-import { addExerciseToWorkout, getActiveWorkout, linkWithNext, moveExerciseEntry, setEntryBlock, startWorkout } from '../repository';
+import { createBackup, importBackup } from '../../data/backup';
+import {
+  addExerciseToWorkout, changeWorkoutGroups, completeSet, finishWorkout, getActiveWorkout, getCompletedWorkout,
+  linkWithNext, moveExerciseEntry, repeatWorkout, setEntryBlock, setSupersetRest, startWorkout, updateEntryNote,
+  updateSetNote, updateWorkoutNote,
+} from '../repository';
 
 jest.mock('../../../db/client', () => {
   const { createRealDatabase } = jest.requireActual('../../../test/realDatabase');
@@ -61,6 +66,66 @@ describe('workout blocks', () => {
     await setEntryBlock(entries[1], 'mobility');
     const groups = (await getActiveWorkout(workoutId))!.exercises.map((exercise) => exercise.groupId);
     expect(groups.every((group) => group === null)).toBe(true);
+  });
+});
+
+describe('workout group editor', () => {
+  it('moves and deletes groups without touching the exercises, completed sets, or notes', async () => {
+    const { workoutId, entries: [first, second, third, fourth] } = await build();
+    await setEntryBlock(first, 'warmup');
+    const workout = (await getActiveWorkout(workoutId))!;
+    const setId = workout.exercises[0].sets[0].id;
+    await completeSet(setId);
+    await updateSetNote(setId, ' Set note ');
+    await updateEntryNote(first, ' Exercise note ');
+    await updateWorkoutNote(workoutId, ' Workout note ');
+
+    await changeWorkoutGroups(workoutId, { type: 'group', name: ' Skill ', entryIds: [third, first] });
+    const grouped = (await getActiveWorkout(workoutId))!;
+    const group = grouped.groupLayout!.groups.find((group) => group.name === 'Skill')!;
+    await changeWorkoutGroups(workoutId, { type: 'moveGroup', id: group.id, offset: -1 });
+    await changeWorkoutGroups(workoutId, { type: 'superset', parentId: group.id, name: 'Pair', entryIds: [first, third, second] });
+    const paired = (await getActiveWorkout(workoutId))!;
+    const pair = paired.groupLayout!.supersets[0];
+    expect(paired.exercises.map(({ entryId }) => entryId)).toEqual([first, third, second, fourth]);
+    expect(paired.exercises.slice(0, 3).every((entry) => entry.groupId === pair.id)).toBe(true);
+
+    await changeWorkoutGroups(workoutId, { type: 'superset', id: pair.id, parentId: group.id, name: 'Renamed', entryIds: [first, third] });
+    await changeWorkoutGroups(workoutId, { type: 'deleteSuperset', id: pair.id });
+    await changeWorkoutGroups(workoutId, { type: 'deleteGroup', id: group.id });
+    const result = (await getActiveWorkout(workoutId))!;
+    expect(result.groupLayout!.supersets).toEqual([]);
+    expect(result.groupLayout!.groups.some(({ id }) => id === group.id)).toBe(false);
+    expect(result.exercises.map(({ entryId }) => entryId).sort()).toEqual([first, second, third, fourth].sort());
+    expect(result.notes).toBe('Workout note');
+    const kept = result.exercises.find(({ entryId }) => entryId === first)!;
+    expect(kept.workoutGroupId).toBeNull();
+    expect(kept.notes).toBe('Exercise note');
+    expect(kept.sets[0]).toMatchObject({ id: setId, note: 'Set note', completedAt: expect.any(Date) });
+  });
+
+  it('keeps group layout on backup restore and gives repeated supersets independent settings', async () => {
+    const { workoutId, entries } = await build();
+    await changeWorkoutGroups(workoutId, { type: 'group', name: 'Pull', entryIds: entries.slice(0, 2) });
+    const group = (await getActiveWorkout(workoutId))!.groupLayout!.groups.at(-1)!;
+    await changeWorkoutGroups(workoutId, { type: 'superset', parentId: group.id, name: 'Pair', entryIds: entries.slice(0, 2) });
+    const source = (await getActiveWorkout(workoutId))!;
+    for (const entry of source.exercises) await completeSet(entry.sets[0].id);
+    await finishWorkout(workoutId);
+    const copy = (await getActiveWorkout(await repeatWorkout(workoutId)))!;
+    expect(copy.groupLayout!.groups).toEqual(source.groupLayout!.groups);
+    const originalPair = source.groupLayout!.supersets[0];
+    const copiedPair = copy.groupLayout!.supersets[0];
+    expect(copiedPair).toEqual({ id: expect.any(String), name: originalPair.name });
+    expect(copiedPair.id).not.toBe(originalPair.id);
+    await setSupersetRest(copiedPair.id, { mode: 'between', betweenSec: 30 });
+    expect((await getCompletedWorkout(workoutId))!.exercises.find((entry) => entry.groupId === originalPair.id)?.groupType).toBe('superset');
+
+    await importBackup(JSON.stringify(await createBackup()));
+    const restored = (await getActiveWorkout(copy.id))!;
+    expect(restored.groupLayout).toEqual(copy.groupLayout);
+    expect(restored.exercises.filter(({ groupId }) => groupId === copiedPair.id)).toHaveLength(2);
+    expect(restored.exercises.filter(({ workoutGroupId }) => workoutGroupId === group.id)).toHaveLength(2);
   });
 });
 

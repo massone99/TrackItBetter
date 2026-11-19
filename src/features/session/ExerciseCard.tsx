@@ -10,7 +10,7 @@ import type { RecordKind, SameLoadRecord, VolumeRecord } from '../analytics/reco
 import { openExercisePage } from '../exercises/openExercise';
 import { openReferenceVideo } from '../exercises/ReferenceLinkSheet';
 import { HoldDurationField } from '../../shared/components/DateTimePickers';
-import { Heading, Icon, IconButton, Label, NumberEdit, ProgressMeter, tapFeedback, Text, TextField, type NumberEditControl } from '../../shared/components/ui';
+import { ActionButton, Heading, Icon, IconButton, Label, NumberEdit, ProgressMeter, tapFeedback, Text, TextField, type NumberEditControl } from '../../shared/components/ui';
 import { totalProgress } from '../../domain/totalGoal';
 import { useAnimationSettings } from '../../shared/settings/AnimationProvider';
 import { useTheme } from '../../shared/theme/ThemeProvider';
@@ -21,6 +21,7 @@ import { formatClock, formatNumber } from '../../shared/utils/format';
 import { Gauge, RegistrationMarks, Tag, useInk } from './instrument';
 import { readBooleanPreference, writePreference } from '../../shared/settings/preferences';
 import { ChipsFold } from './ChipsFold';
+import { WorkoutNote } from './WorkoutNote';
 import { ExerciseNoteBlock } from './ExerciseNoteBlock';
 import { ExerciseTimeGoals } from './ExerciseTimeGoals';
 import type { ExerciseGoalProgress } from '../dailyGoals/repository';
@@ -51,8 +52,10 @@ const BANDS_FOLDED_KEY = 'workout.bandsFolded';
 const ADD_SLOP = { top: spacing.sm, bottom: spacing.sm, left: spacing.sm, right: 0 };
 const ADD_MORE_SLOP = { top: spacing.sm, bottom: spacing.sm, left: 0, right: spacing.md };
 
-export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, previous, hold = null, onChange, onSetValue, onComplete, onStartHold, onFinishHold, onAddSet, onAddWarmup, onCopyAllLast, onSetOptions, onUncomplete, onRemoveSet, onSwiped, showRpe, onRpe, onOptions, onToggleWarmup, setRecords = NO_RECORDS, volumeRecords = [], sameLoadRecords = [], onEntryNote, timeGoals = null, supersetLabel = null, emomLabel: emomBadgeLabel, defaultRest = 0, onFormRating, onRomRating, onNote, focus = false, nowLabel = null, figure = null, editDone = false, typeDone = false, compare = true, apparatusLabel = null, firstTimeLabel, describeBands, compareBands, renderBandsEditor, fixedAction = false, onSetExpanded }: {
+export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, previous, hold = null, onChange, onSetValue, onComplete, onStartHold, onFinishHold, onAddSet, onAddWarmup, onCopyAllLast, onSetOptions, onUncomplete, onRemoveSet, onSwiped, showRpe, onRpe, onOptions, onToggleWarmup, setRecords = NO_RECORDS, volumeRecords = [], sameLoadRecords = [], onEntryNote, timeGoals = null, supersetLabel = null, emomLabel: emomBadgeLabel, defaultRest = 0, onFormRating, onRomRating, onNote, focus = false, nowLabel = null, figure = null, editDone = false, typeDone = false, compare = true, apparatusLabel = null, firstTimeLabel, describeBands, compareBands, renderBandsEditor, fixedAction = false, onSetExpanded, liveLayout, onOpenExerciseNote }: {
   handle?: ReactNode;
+  liveLayout?: 'standalone' | 'inline';
+  onOpenExerciseNote?: () => void;
   exercise: SessionExercise;
   collapsed: boolean;
   onToggleCollapsed: () => void;
@@ -112,7 +115,7 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
   /** Replaces "first time logging this movement", e.g. "first time on the rings". */
   firstTimeLabel?: string;
   /** Swatches and text for a set's bands ("Blue · 2"), shown under the set. */
-  describeBands?: (set: SessionSet) => { colors: string[]; text: string } | null;
+  describeBands?: (set: SessionSet) => { colors: string[]; text: string; label?: string } | null;
   /** Called when the user expands a set of this exercise (a row, "open all", or a folded set in focus mode). */
   onSetExpanded?: () => void;
   /** Focus mode: the action of the next set is fixed above the screen footer, so the card leaves its own button out. */
@@ -270,6 +273,870 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
     return (timed ? match.durationSec : distance ? match.distanceM : match.reps) ?? null;
   };
 
+  const setInHand = (set: SessionSet) => set.id === focusedId && (!set.completedAt || picked?.id === set.id) && !folded.has(set.id);
+  const workingSets = groupSets(exercise.sets.filter((set) => set.kind === 'working')).length;
+  const liveSetBadge = (set: SessionSet, number: number) => {
+    const name = set.kind === 'warmup' ? t('ledger.warmup') : t('liveWorkout.setOf', { number, total: workingSets });
+    return set.side === 'left' || set.side === 'right' ? `${name} · ${set.side === 'left' ? t('logger.sideLeft') : t('logger.sideRight')}` : name;
+  };
+  const renderSet = (set: SessionSet, summaryOnly = false) => {
+    const done = Boolean(set.completedAt);
+    // In a running EMOM a recorded round stays editable in place and keeps its check, so the round count holds.
+    const emomLocked = done && Boolean(emomBadgeLabel);
+    // Very large text: the set in hand opens as a one-column block, the others fold to one line.
+    const open = (!largeText || set.id === focusedId) && !folded.has(set.id);
+    const editing = largeText && open;
+    // Done rows drop − and +: a running EMOM or a long workout would otherwise be a wall of buttons.
+    const showSteps = !done || editDone || editing;
+    const editableDone = editDone || typeDone || emomLocked || editing;
+    const workingNumber = groupSets(exercise.sets.filter((item) => item.kind === 'working' && item.index <= set.index)).length;
+    const sideLabel = set.side === 'left' ? t('logger.sideLeft') : set.side === 'right' ? t('logger.sideRight') : '';
+    const holding = hold?.setId === set.id;
+    const isOpen = openOf(set);
+    // A held press anywhere on the set opens the same menu as its three dots.
+    const openMenu = () => { tapFeedback(); onSetOptions(set); };
+    const stored = timed ? set.durationSec ?? 0 : distance ? set.distanceM ?? 0 : set.reps ?? 0;
+    const value = holding && hold ? holdDisplay(hold) : timed ? formatClock(stored) : distance ? formatNumber(stored) : String(stored);
+    const loadText = set.addedLoadKg === 0 ? '0' : formatLoad(set.addedLoadKg).replace(' kg', '');
+    // RPE for the set in hand and the done ones (all five whole values in one row); later sets wait.
+    // Every value of the set is one tap away: its chip opens the picker (or, for bands and note, the set's sheet).
+    // By default a done set keeps a picker open while it has no value or is the one just done; otherwise only its chip shows.
+    const working = set.kind === 'working' && !emomBadgeLabel;
+    const foldable = done && !editDone && set.id !== lastDoneId;
+    const isFolded = (value: number | null) => done && value !== null && (editDone || foldable);
+    const canRpe = showRpe && working;
+    const canForm = working;
+    const canRom = !!onRomRating && working;
+    // One value at a time: by default the first one still to fill (RPE, then form once done, then ROM) on the set in hand or just done.
+    const live = done || editing || set.id === nextSetId;
+    // With large text RPE is asked before completing; a done set opens form next, so the set in hand does not slide away.
+    // Ledger (focus): pickers open only from their chips, never by themselves.
+    const fallback = focus ? null : canRpe && live && !isFolded(set.rpe) && (set.rpe === null || !done) && !(largeText && done) ? 'rpe'
+      : canForm && done && !isFolded(set.formRating) && set.formRating === null ? 'form'
+        : canRom && live && !isFolded(set.romRating) && set.romRating === null ? 'rom'
+          : null;
+    const active = chosen.has(set.id) ? chosen.get(set.id)! : fallback;
+    const rpeRow = canRpe && active === 'rpe';
+    const formRow = canForm && active === 'form';
+    const romRow = canRom && active === 'rom';
+    const noteRow = !!onNote && active === 'note';
+    // The chip strip shows on done sets and the next one (every set in a finished workout); other sets show only what they carry.
+    const strip = done || editDone || set.id === nextSetId || isOpen || editing;
+    const title = `${set.kind === 'warmup' ? t('workout.blocks.warmup') : t('logger.setTitle', { number: workingNumber })}${set.side === 'left' ? ' · L' : set.side === 'right' ? ' · R' : ''}`;
+    const valueDown = showSteps ? <StepButton flat={focus && !textIsLarge} large={textIsLarge || bigButtons} icon="remove" label={t('logger.stepDown', { field: fieldLabel, number: workingNumber, side: sideLabel }).trim()} onPress={(multiplier) => step(set, field, (distance ? -0.5 : timed ? -5 : -1) * multiplier)} /> : null;
+    const valueUp = showSteps ? <StepButton flat={focus && !textIsLarge} large={textIsLarge || bigButtons} icon="add" label={t('logger.stepUp', { field: fieldLabel, number: workingNumber, side: sideLabel }).trim()} onPress={(multiplier) => step(set, field, (distance ? 0.5 : timed ? 5 : 1) * multiplier)} /> : null;
+    const valueField = (done && !editableDone) || holding ? (
+      <Text style={[styles.setValue, { color: holding ? palette.accentStrong : palette.text }]}>{value}</Text>
+    ) : timed ? (
+      <HoldDurationField compact flat={table || focus} value={stored} label={`${t('logger.holdCol')} · ${t('logger.editValue', { number: set.index })}`} onChange={(next) => onSetValue(set, 'durationSec', next)} />
+    ) : (
+      <NumberEdit
+        value={stored}
+        display={value}
+        label={`${fieldLabel} · ${t('logger.editValue', { number: set.index })} ${sideLabel}`}
+        integer={field === 'reps'}
+        onCommit={(next) => onSetValue(set, field, field === 'reps' ? Math.round(next) : next)}
+        onControl={(control) => { controls.current.set(`${set.id}:${field}`, control); }}
+        onLongPress={openMenu}
+        style={[styles.setValue, focus && styles.setValueLedger, liveLayout && styles.liveValueFigure, { color: palette.text }]}
+      />
+    );
+    const loadDown = showSteps ? <StepButton flat={focus && !textIsLarge} large={textIsLarge || bigButtons} icon="remove" label={t('logger.stepDown', { field: t('history.addedLoad'), number: workingNumber, side: sideLabel }).trim()} onPress={(multiplier) => step(set, 'addedLoadKg', -LOAD_STEP_KG * multiplier)} /> : null;
+    const loadUp = showSteps ? <StepButton flat={focus && !textIsLarge} large={textIsLarge || bigButtons} icon="add" label={t('logger.stepUp', { field: t('history.addedLoad'), number: workingNumber, side: sideLabel }).trim()} onPress={(multiplier) => step(set, 'addedLoadKg', LOAD_STEP_KG * multiplier)} /> : null;
+    const loadField = done && !editableDone ? (
+      <Text style={[styles.loadValue, liveLayout && styles.liveValueFigure, { color: set.addedLoadKg === 0 ? palette.textMuted : palette.text }]}>{loadText}</Text>
+    ) : (
+      <NumberEdit
+        value={set.addedLoadKg}
+        display={loadText}
+        allowNegative
+        label={`${t('history.addedLoad')} ${sideLabel}`}
+        onCommit={(next) => onSetValue(set, 'addedLoadKg', next)}
+        onControl={(control) => { controls.current.set(`${set.id}:addedLoadKg`, control); }}
+        onLongPress={openMenu}
+        style={[styles.loadValue, liveLayout && styles.liveValueFigure, { color: set.addedLoadKg === 0 ? palette.textMuted : palette.text }]}
+      />
+    );
+    const badge = (
+      <PopOnActivate active={done}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={set.kind === 'warmup' ? t('logger.warmupOn') : t('logger.warmupOff', { number: workingNumber })}
+          accessibilityHint={t('logger.warmupHint')}
+          hitSlop={8}
+          onPress={() => onToggleWarmup(set)}
+          onLongPress={openMenu}
+          delayLongPress={450}
+          style={[styles.setBadge, { backgroundColor: palette.surfaceMuted }, set.kind === 'warmup' && { borderWidth: 1, borderStyle: 'dashed', borderColor: palette.textMuted }]}
+        >
+          <Text style={[styles.setBadgeText, { color: set.kind === 'warmup' ? palette.textMuted : palette.text }]}>{set.kind === 'warmup' ? 'W' : workingNumber}</Text>
+          {set.side === 'left' || set.side === 'right' ? <Text style={[styles.setBadgeSide, { color: palette.textMuted }]}>{set.side === 'left' ? 'L' : 'R'}</Text> : null}
+        </Pressable>
+      </PopOnActivate>
+    );
+    const menu = (
+      // The touch area grows only towards the screen edge, never over the done button beside it.
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={t('logger.setOptions', { number: set.index })}
+        hitSlop={{ top: 0, bottom: 0, left: 0, right: 12 }}
+        onPress={() => { tapFeedback(); onSetOptions(set); }}
+        style={({ pressed }) => [styles.menuButton, pressed && { opacity: 0.6 }]}
+      >
+        <Icon name="ellipsis-vertical" size={18} color={palette.textMuted} />
+      </Pressable>
+    );
+    // Fold control: the chevron always sits at the right edge of the set's row, folded or open.
+    const foldButton = (isUp: boolean, onPress: () => void, color: string = palette.textMuted) => (
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`${title}, ${t(isUp ? 'logger.foldSet' : 'logger.unfoldSet')}`}
+        hitSlop={{ top: 0, bottom: 0, left: 6, right: 12 }}
+        onPress={() => { tapFeedback(); onPress(); }}
+        style={({ pressed }) => [styles.menuButton, pressed && { opacity: 0.6 }]}
+      >
+        <Icon name={isUp ? 'chevron-up' : 'chevron-down'} size={22} color={color} />
+      </Pressable>
+    );
+    // Title of the open set's strip, with its state under it; a tap folds the set.
+    const titleTap = (
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`${title}, ${t('logger.foldSet')}`}
+        onPress={() => { tapFeedback(); toggleFold(set.id); }}
+        hitSlop={spacing.sm}
+        style={[styles.largeTitleTap, textIsLarge && styles.largeTitleFull]}
+      >
+        {/* Title and state stacked: side by side they overlapped on a phone-width card. */}
+        <View style={styles.stripTitles}>
+          <Text style={[styles.largeStripText, { color: done ? palette.successText : palette.surface }]}>{focus ? `${title} / ${t(set.kind === 'warmup' ? 'activeSet.warmup' : 'activeSet.working')}` : title}</Text>
+          {focus && !textIsLarge ? <Text style={[styles.stripState, { color: done ? palette.successText : palette.surface }]}>{`● ${holding ? t('activeSet.hold') : done ? t('activeSet.logged') : t('activeSet.inProgress')}`.toUpperCase()}</Text> : null}
+        </View>
+      </Pressable>
+    );
+    const summary = [title, timed ? value : distance ? `${value} m` : `${value} ${t('history.units.reps')}`, withLoad ? `${loadText} kg` : null, done && set.rpe !== null ? t('logger.rpeTag', { value: formatRpe(set.rpe) }) : null].filter(Boolean).join(' · ');
+    const actionCol = (
+  <View style={[styles.colAction, { width: checkBtn }]}>
+    {done ? (
+      <Animated.View entering={checkEntering}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`${t('workout.setCompleted')} ${sideLabel}`}
+          accessibilityState={{ checked: true, disabled: emomLocked }}
+          accessibilityHint={emomLocked ? t('emom.editHint') : undefined}
+          disabled={emomLocked}
+          hitSlop={{ top: 4, bottom: 4, left: 4, right: 0 }}
+          onPress={() => uncomplete(set)}
+          onLongPress={openMenu}
+          delayLongPress={450}
+          style={({ pressed }) => [styles.checkButton, checkBox, { backgroundColor: palette.success }, pressed && styles.checkPressed]}
+        >
+          <Icon name="checkmark" size={20} color={palette.successText} />
+        </Pressable>
+      </Animated.View>
+    ) : timed && onStartHold ? (
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`${holding ? t('logger.doneHold') : t('logger.startHold')} ${sideLabel}`}
+        accessibilityHint={holding ? undefined : t('logger.holdLongPressHint')}
+        accessibilityActions={holding ? undefined : [{ name: 'longpress', label: t('logger.markDoneNoTimer') }]}
+        onAccessibilityAction={(event) => { if (event.nativeEvent.actionName === 'longpress') complete(set); }}
+        hitSlop={{ top: 4, bottom: 4, left: 4, right: 0 }}
+        onPress={() => holding ? onFinishHold?.() : onStartHold(set)}
+        onLongPress={holding ? undefined : () => { tapFeedback(); complete(set); }}
+        delayLongPress={400}
+        style={({ pressed }) => [styles.checkButton, checkBox, holding || set.id === nextSetId ? { backgroundColor: palette.accent } : { backgroundColor: palette.surfaceMuted }, pressed && styles.checkPressed]}
+      >
+        <Icon name={holding ? 'stop' : 'play'} size={18} color={holding || set.id === nextSetId ? palette.accentText : palette.text} />
+      </Pressable>
+    ) : (
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`${t('workout.completeSet')} ${sideLabel}`}
+        hitSlop={{ top: 4, bottom: 4, left: 4, right: 0 }}
+        onPress={() => complete(set)}
+        onLongPress={openMenu}
+        delayLongPress={450}
+        style={({ pressed }) => [styles.checkButton, checkBox, set.id === nextSetId ? { backgroundColor: palette.accent } : { backgroundColor: palette.surfaceMuted, borderColor: palette.border, borderWidth: 1 }, pressed && styles.checkPressed]}
+      >
+        <Icon name="checkmark" size={20} color={set.id === nextSetId ? palette.accentText : palette.textMuted} />
+      </Pressable>
+    )}
+  </View>
+    );
+    const compact = [timed ? value : distance ? `${value} m` : `${value} ${t('history.units.reps')}`, withLoad ? `${loadText} kg` : null, set.rpe !== null ? t('logger.rpeTag', { value: formatRpe(set.rpe) }) : null, set.formRating !== null ? `${t('lastTime.form')} ${formatNumber(set.formRating)}` : done && canForm ? `${t('lastTime.form')}?` : null].filter(Boolean).join(' · ');
+    // Large text: a folded set is always one quiet row, like the compact list; ratings are given from the open set.
+    const quiet = largeText && !editing;
+    const rowBody = (
+      <>
+        {!largeText ? (
+        /* Row 1: set, reps (or time, or distance), load, done, menu. */
+        <Pressable accessible={false} accessibilityRole="none" onLongPress={openMenu} onPress={table ? () => { tapFeedback(); setExpanded((current) => new Map(current).set(set.id, false)); } : undefined} delayLongPress={450} style={[styles.setRow, table && styles.tableSetRow]}>
+          {checkLeft ? actionCol : null}
+          {table && !isOpen ? null : <View style={table ? styles.tableBadgeCol : styles.colSet}>{badge}</View>}
+          <View style={[styles.colValue, styles.stepper, table && [styles.tile, { backgroundColor: palette.surface }]]}>
+            {valueDown}
+            <View style={styles.valueStack}>
+              {valueField}
+              <Text style={[styles.valueCaption, { color: palette.textMuted }]}>{fieldLabel}</Text>
+            </View>
+            {valueUp}
+          </View>
+          {!withLoad ? null : set.addedLoadKg !== 0 || loadShown.has(set.id) ? (
+            <View style={[styles.colLoad, styles.stepper, table && [styles.tile, { backgroundColor: palette.surface }]]}>
+              {loadDown}
+              <View style={styles.valueStack}>
+                {loadField}
+                <Text style={[styles.valueCaption, { color: palette.textMuted }]}>kg</Text>
+              </View>
+              {loadUp}
+            </View>
+          ) : done ? <View style={styles.colLoad} /> : (
+            <View style={[styles.colLoad, styles.stepper]}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={t('logger.addLoad')}
+                onPress={() => { tapFeedback(); setLoadShown((shown) => new Set(shown).add(set.id)); }}
+                style={({ pressed }) => [styles.addLoad, { borderColor: palette.border, opacity: pressed ? 0.6 : 1 }]}
+              >
+                <Text style={[styles.addLoadText, { color: palette.textMuted }]}>+ kg</Text>
+              </Pressable>
+            </View>
+          )}
+          {checkLeft ? null : actionCol}
+          <View style={styles.colMenu}>{table ? foldButton(true, () => setExpanded((current) => new Map(current).set(set.id, false))) : menu}</View>
+        </Pressable>
+        ) : open ? (
+        /* Large text, the set in hand: title, then each field on its own line with big − and +. */
+        <Pressable accessible={false} accessibilityRole="none" onLongPress={openMenu} delayLongPress={450} style={styles.largeFields}>
+          {/* The open set reads as a sheet: an ink strip names it and folds it, the fields below. */}
+          <View style={[styles.largeStrip, textIsLarge && styles.largeStripWrap, { backgroundColor: done ? palette.success : ink }]}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={set.kind === 'warmup' ? t('logger.warmupOn') : t('logger.warmupOff', { number: workingNumber })}
+              accessibilityHint={t('logger.warmupHint')}
+              hitSlop={8}
+              onPress={() => { tapFeedback(); onToggleWarmup(set); }}
+              onLongPress={openMenu}
+              delayLongPress={450}
+              style={[styles.stripBadge, { backgroundColor: palette.surfaceMuted }, set.kind === 'warmup' && { borderWidth: 1, borderStyle: 'dashed', borderColor: palette.textMuted }]}
+            >
+              <Text style={[styles.setBadgeText, { color: set.kind === 'warmup' ? palette.textMuted : palette.text }]}>{set.kind === 'warmup' ? 'W' : workingNumber}</Text>
+            </Pressable>
+            {textIsLarge ? <View style={styles.flex} /> : titleTap}
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={t('logger.setOptions', { number: set.index })}
+              onPress={() => { tapFeedback(); onSetOptions(set); }}
+              style={({ pressed }) => [styles.menuButton, pressed && { opacity: 0.6 }]}
+            >
+              <Icon name="ellipsis-vertical" size={18} color={done ? palette.successText : palette.surface} />
+            </Pressable>
+            {foldButton(true, () => toggleFold(set.id), done ? palette.successText : palette.surface)}
+            {/* Large text: the title takes a line of its own under the badge and buttons, so no word breaks. */}
+            {textIsLarge ? titleTap : null}
+          </View>
+          {focus ? (() => {
+            const match = previousMatchFor(set);
+            const previousValue = match ? describePreviousSet(match, exercise.metric) : t('activeSet.firstTime');
+            const reference = ghostFor(set);
+            const unitWord = timed ? 's' : distance ? 'm' : t('history.units.reps');
+            const max = gaugeMax(stored, reference);
+            return (
+              <>
+                {textIsLarge ? <Tag color={palette.accentStrong}>{`● ${holding ? t('activeSet.hold') : done ? t('activeSet.logged') : t('activeSet.inProgress')}`.toUpperCase()}</Tag> : null}
+                <PreviousSetBox label={t('activeSet.previousLabel')} value={previousValue} rpeLabel={t('lastTime.rpeChip')} rpeValue={match && match.rpe !== null ? formatRpe(match.rpe) : null} sideLabel={t('activeSet.lastSession')} />
+                <View style={styles.measureRow}>
+                  <MeasureBox stack={textIsLarge} label={fieldLabel.toUpperCase()}>
+                    <View style={styles.largeStepper}>{valueDown}<View style={styles.largeValue}>{valueField}</View>{valueUp}</View>
+                  </MeasureBox>
+                  {withLoad ? (
+                    <MeasureBox stack={textIsLarge} label={t('logger.loadCol').toUpperCase()}>
+                      <View style={styles.largeStepper}>{loadDown}<View style={styles.largeValue}>{loadField}</View>{loadUp}</View>
+                    </MeasureBox>
+                  ) : null}
+                </View>
+                <WorkOutput
+                  title={t('activeSet.workOutput').toUpperCase()}
+                  current={`${formatNumber(stored)} ${unitWord}`}
+                  reference={reference === null ? null : `${formatNumber(reference)} ${unitWord}`}
+                  referenceLabel={t('activeSet.ref').toUpperCase()}
+                  value={stored}
+                  ghost={reference}
+                  scale={t('activeSet.scaleOf', { value: `${formatNumber(max)} ${unitWord}` }).toUpperCase()}
+                  color={done ? palette.success : palette.accentStrong}
+                />
+              </>
+            );
+          })() : (
+            <>
+              <View style={styles.largeField}>
+                <Label>{fieldLabel}</Label>
+                <View style={styles.largeStepper}>{valueDown}<View style={styles.largeValue}>{valueField}</View>{valueUp}</View>
+              </View>
+              {withLoad ? (
+                <View style={styles.largeField}>
+                  <Label>{t('logger.loadCol')}</Label>
+                  <View style={styles.largeStepper}>{loadDown}<View style={styles.largeValue}>{loadField}</View>{loadUp}</View>
+                </View>
+              ) : null}
+            </>
+          )}
+        </Pressable>
+        ) : (
+        /* Large text, any other set: one line; a tap opens it. */
+        <View style={[styles.summaryLine, { borderBottomColor: palette.border }]}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`${summary}${done ? `, ${t('history.setCompleted')}` : ''}`}
+          accessibilityHint={t('logger.openSetHint')}
+          onPress={() => { unfold(set.id); setPicked({ id: set.id, done }); }}
+          onLongPress={openMenu}
+          delayLongPress={450}
+          style={styles.summaryRow}
+        >
+          <Text style={[styles.summaryNum, { color: palette.textMuted }]}>{`${set.kind === 'warmup' ? 'W' : String(workingNumber).padStart(2, '0')}${set.side === 'left' ? 'L' : set.side === 'right' ? 'R' : ''}`}</Text>
+          <Text style={[styles.summaryText, { color: palette.textMuted }]}>{compact}</Text>
+          {done
+            ? <View style={[styles.summaryBox, { backgroundColor: palette.success }]}><Icon name="checkmark" size={16} color={palette.successText} /></View>
+            : <View style={[styles.summaryBox, { borderColor: palette.textMuted, borderWidth: 1.5 }]} />}
+        </Pressable>
+        {foldButton(false, () => { unfold(set.id); setPicked({ id: set.id, done }); })}
+        </View>
+        )}
+      </>
+    );
+    const current = holding || set.id === nextSetId;
+    const rowUnit = timed ? '' : distance ? ' m' : ` ${t('history.units.reps')}`;
+    const rowSummary = done ? [
+      set.rpe !== null ? `RPE ${formatRpe(set.rpe)}` : null,
+      set.formRating !== null ? `F ${formatNumber(set.formRating)}` : null,
+      set.romRating !== null ? `ROM ${formatNumber(set.romRating)}` : null,
+    ].filter(Boolean).join(' · ') : '';
+    const stateColor = done ? palette.success : current ? palette.accentStrong : palette.textMuted;
+    const tableCheck = (
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={done ? t('workout.setCompleted') : t('workout.completeSet')}
+        accessibilityState={{ checked: done }}
+        hitSlop={spacing.xs}
+        onPress={() => {
+          tapFeedback();
+          if (done) uncomplete(set);
+          else if (timed && onStartHold) openOnly(set.id);
+          else complete(set);
+        }}
+        style={[styles.tableCheck, tableCheckBox, { borderColor: done ? palette.success : current ? palette.accentStrong : ink, borderWidth: current && !done ? 3 : 1.5 }, done && { backgroundColor: palette.success }]}
+      >
+        {done ? <Icon name="checkmark" size={22} color={palette.successText} /> : null}
+      </Pressable>
+    );
+    const tableRow = (
+      <View style={[styles.tableRow, { backgroundColor: current ? palette.accentSoft : palette.surface }]}>
+        {checkLeft ? tableCheck : null}
+        {/* The set number switches the set between working and warm-up; the rest of the row opens it. */}
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={set.kind === 'warmup' ? t('logger.warmupOn') : t('logger.warmupOff', { number: workingNumber })}
+          accessibilityHint={t('logger.warmupHint')}
+          hitSlop={spacing.sm}
+          onPress={() => { tapFeedback(); onToggleWarmup(set); }}
+          onLongPress={openMenu}
+          delayLongPress={450}
+          style={styles.tableBadgeCol}
+        >
+          <Text style={[styles.tableNumber, { color: stateColor }, set.kind === 'warmup' && styles.tableNumberWarmup]}>
+            {`${set.kind === 'warmup' ? 'W' : workingNumber}${set.side === 'left' ? 'L' : set.side === 'right' ? 'R' : ''}`}
+          </Text>
+        </Pressable>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`${summary}${done ? `, ${t('history.setCompleted')}` : ''}`}
+          accessibilityState={{ expanded: isOpen }}
+          accessibilityHint={t('logger.openSetHint')}
+          onPress={() => { tapFeedback(); if (isOpen) setExpanded((currentOpen) => new Map(currentOpen).set(set.id, false)); else openOnly(set.id); }}
+          onLongPress={openMenu}
+          delayLongPress={450}
+          style={({ pressed }) => [styles.tableRowMain, pressed && { opacity: 0.7 }]}
+        >
+          <View style={styles.tableFigures}>
+            <Text style={[styles.tableValue, { color: done || current ? palette.text : palette.textMuted }]}>
+              {value}
+              <Text style={[styles.tableUnit, { color: palette.textMuted }]}>{`${rowUnit}${withLoad && set.addedLoadKg !== 0 ? ` · ${loadText} kg` : ''}`}</Text>
+            </Text>
+            <View style={styles.tableNotes}>
+              {setRecords.has(set.id) ? <Icon name="trophy" size={14} color={palette.record} /> : null}
+              {set.note ? <Icon name="chatbubble-ellipses-outline" size={14} color={palette.textMuted} /> : null}
+              {set.clipCount > 0 ? <Icon name="videocam" size={14} color={palette.accentStrong} /> : null}
+              {rowSummary ? <Text numberOfLines={1} style={[styles.tableSummary, { color: palette.textMuted }]}>{rowSummary}</Text> : null}
+            </View>
+          </View>
+          <Gauge value={stored} ghost={ghostFor(set)} color={stateColor} delay={Math.min(set.index, 6) * 60} />
+        </Pressable>
+        {checkLeft ? null : tableCheck}
+        {foldButton(false, () => openOnly(set.id))}
+      </View>
+    );
+    // A planned set of a running EMOM is one quiet line: the clock fills it in, so steppers, check and ratings would only crowd the rounds.
+    if (emomBadgeLabel && !done) {
+      return (
+        <Pressable key={`${set.id}-u`} accessibilityRole="button" accessibilityLabel={`${summary}, ${t('logger.setOptions', { number: set.index })}`} onPress={openMenu} style={({ pressed }) => [styles.upcomingRow, pressed && { opacity: 0.6 }]}>
+          <Text style={[styles.upcomingText, { color: palette.textMuted }]}>{summary}</Text>
+        </Pressable>
+      );
+    }
+    const valuePanelNode = !quiet && (!table || isOpen) && (rpeRow || formRow || romRow || noteRow) ? (
+          <View style={[styles.valuePanel, editing && styles.valuePanelLarge, table && styles.tablePanel, { backgroundColor: editing ? undefined : done ? palette.background : palette.surface }]}>
+            {rpeRow ? <RpePicker compact grid={largeText} wrap sideLabel={sideLabel} value={set.rpe} target={set.targetRpe} onChange={(rpe) => onRpe(set, rpe)} /> : null}
+            {formRow ? <FormRating value={set.formRating} sideLabel={sideLabel} onChange={(rating) => onFormRating(set, rating)} /> : null}
+            {noteRow ? <NoteInput value={set.note ?? ''} label={t('logger.noteLabel')} placeholder={t('logger.notePlaceholder')} onSave={(note) => onNote!(set, note)} /> : null}
+            {romRow ? <FormRating rom value={set.romRating} sideLabel={sideLabel} onChange={(rating) => onRomRating!(set, rating)} /> : null}
+          </View>
+        ) : null;
+    // Ongoing workout (focus): every set is one ledger row; the set in hand edits in place with its chips.
+    if (focus) {
+      const side = set.side === 'left' ? 'L' as const : set.side === 'right' ? 'R' as const : null;
+      const label = set.kind === 'warmup' ? 'W' : String(workingNumber);
+      const described = set.bands.length > 0 ? describeBands?.(set) ?? null : null;
+      const assist = set.bands.length === 0 ? null : set.assistKg === null ? null : formatNumber(set.assistKg);
+      const bands = described ? { colors: described.colors, assist } : null;
+      const openSet = () => { tapFeedback(); unfold(set.id); setPicked({ id: set.id, done }); };
+      // A folded set in hand shows as a plain row; tapping it opens it again (unfold).
+      const inHand = !summaryOnly && setInHand(set);
+      // Every ledger row swipes: right completes (or reopens a done set), left removes it.
+      const swipe = (node: ReactNode, mode: string) => (
+        <SwipeableSetRow
+          key={`${set.id}-${mode}`}
+          done={done}
+          completeLabel={t('logger.swipeComplete')}
+          reopenLabel={t('logger.swipeReopen')}
+          removeLabel={t('logger.swipeRemove')}
+          onSwipeRight={() => { onSwiped?.(); if (done) uncomplete(set); else complete(set); }}
+          onSwipeLeft={() => { onSwiped?.(); onRemoveSet(set); }}
+        >
+          {node}
+        </SwipeableSetRow>
+      );
+      if (!inHand) {
+        const row = { label, side, warmup: set.kind === 'warmup', value: timed ? value : distance ? `${value} m` : value, load: withLoad ? loadText : null, bands, withLoad, onOpen: openSet, onMenu: openMenu,
+          live: Boolean(liveLayout), note: liveLayout ? set.note : null, active: Boolean(liveLayout && setInHand(set)), units: liveLayout && !timed && !distance ? t('history.units.reps') : undefined,
+          record: liveLayout && Boolean(setRecords.get(set.id)?.length) };
+
+        return done
+          ? swipe(<LedgerDoneRow {...row} rpe={set.rpe !== null ? formatRpe(set.rpe) : null} />, 'ld')
+          : swipe(<LedgerUpcomingRow {...row} next={set.id === nextSetId} />, 'lu');
+      }
+      const restSec = set.restSec ?? defaultRest;
+      if (liveLayout) {
+        const match = previousMatchFor(set);
+        const oldBands = match?.bands ?? [];
+        const sameAssistance = oldBands.length === 0 && set.bands.length === 0
+          || oldBands.length > 0 && set.bands.length > 0 && compareBands?.(oldBands, set.bands) === 0;
+        const comparable = match && match.addedLoadKg === set.addedLoadKg && sameAssistance
+          ? describePreviousSet(match, exercise.metric) : null;
+        const number = set.kind === 'warmup' ? set.index : workingNumber;
+        return <LedgerActiveRow
+          key={set.id}
+          label={label} side={side} warmup={set.kind === 'warmup'} withLoad={withLoad}
+          onComplete={() => complete(set)} onMenu={openMenu}
+          valueField={valueField} valueDown={valueDown} valueUp={valueUp}
+          loadField={loadField} loadDown={loadDown} loadUp={loadUp}
+          note={{ text: set.note, onPress: () => onSetOptions(set, 'note') }}
+          bands={{ colors: described?.colors ?? [], assist, onPress: () => onSetOptions(set, 'bands') }}
+          bandsInUse={bandsInUse}
+          live={{
+            fieldLabel: t(timed ? 'liveWorkout.hold' : distance ? 'liveWorkout.distance' : 'liveWorkout.reps'),
+            unit: distance ? 'm' : undefined,
+            comparable, bandsText: described?.label ?? described?.text, done, holding, disabled: emomLocked,
+            action: done ? t('logger.swipeReopen') : timed && onStartHold
+              ? holding ? t('logger.doneHold') : t('logger.startHold') : t('liveWorkout.registerSet', { number }),
+            onAction: done ? () => uncomplete(set) : timed && onStartHold
+              ? () => { if (holding) onFinishHold?.(); else onStartHold(set); } : () => complete(set),
+            onManual: !done && timed && !holding && onStartHold ? () => complete(set) : undefined,
+          }}
+        />;
+      }
+      const completeSlot = done ? (
+        <Pressable accessibilityRole="button" accessibilityState={{ checked: true }} accessibilityLabel={t('workout.setCompleted')} accessibilityHint={t('logger.swipeReopen')} hitSlop={6} onPress={() => uncomplete(set)} onLongPress={openMenu} delayLongPress={450} style={({ pressed }) => [styles.ledgerCheck, { backgroundColor: palette.success }, pressed && styles.checkPressed]}>
+          <Icon name="checkmark" size={22} color={palette.successText} />
+        </Pressable>
+      ) : timed && onStartHold ? (
+        <Pressable accessibilityRole="button" accessibilityLabel={holding ? t('logger.doneHold') : t('logger.startHold')} accessibilityHint={holding ? undefined : t('logger.holdLongPressHint')} onPress={() => (holding ? onFinishHold?.() : onStartHold(set))} onLongPress={holding ? undefined : () => { tapFeedback(); complete(set); }} delayLongPress={400} hitSlop={6} style={({ pressed }) => [styles.ledgerCheck, { backgroundColor: palette.accent }, pressed && styles.checkPressed]}>
+          <Icon name={holding ? 'stop' : 'play'} size={22} color={palette.accentText} />
+        </Pressable>
+      ) : undefined;
+      return swipe(
+        <LedgerActiveRow
+          label={label}
+          side={side}
+          warmup={set.kind === 'warmup'}
+          withLoad={withLoad}
+          onFold={() => toggleFold(set.id)}
+          onMenu={openMenu}
+          valueField={valueField}
+          valueDown={valueDown}
+          valueUp={valueUp}
+          loadField={loadField}
+          loadDown={loadDown}
+          loadUp={loadUp}
+          onComplete={() => complete(set)}
+          completeSlot={completeSlot}
+          rpe={canRpe ? { value: set.rpe !== null ? formatRpe(set.rpe) : null, target: set.targetRpe !== null ? formatRpe(set.targetRpe) : null, open: rpeRow, onPress: () => toggleOpen(set.id, 'rpe', rpeRow) } : null}
+          form={canForm ? { value: set.formRating !== null ? formatNumber(set.formRating) : null, open: formRow, onPress: () => toggleOpen(set.id, 'form', formRow) } : null}
+          rom={canRom ? { value: set.romRating !== null ? formatNumber(set.romRating) : null, open: romRow, onPress: () => toggleOpen(set.id, 'rom', romRow) } : null}
+          bands={{ colors: described?.colors ?? [], assist, onPress: () => { tapFeedback(); onSetOptions(set, 'bands'); } }}
+          rest={restSec > 0 ? { value: formatClock(restSec), filled: set.restSec !== null, onPress: () => { tapFeedback(); onSetOptions(set, 'rest'); } } : null}
+          note={{ text: set.note || null, open: noteRow, onPress: () => { if (onNote) toggleOpen(set.id, 'note', noteRow); else { tapFeedback(); onSetOptions(set, 'note'); } } }}
+          video={{ clips: set.clipCount, onPress: () => { tapFeedback(); if (set.clipCount > 0) onSetOptions(set); else router.push({ pathname: '/form-check/[setId]', params: { setId: set.id } }); } }}
+          panel={valuePanelNode}
+          tone={done ? 'edit' : 'next'}
+          bandsInUse={bandsInUse}
+        />,
+        done ? 'lad' : 'la',
+      );
+    }
+    return (
+      <Animated.View key={`${set.id}${largeText ? (editing ? "-e" : "-f") : table ? (isOpen ? "-o" : "-r") : ""}`} entering={largeText || table ? undefined : setEntering} style={[styles.setBlock, largeText && !editing && styles.setBlockLine, editing && [styles.largeBlock, { borderColor: done ? palette.success : palette.border, backgroundColor: done ? palette.successSoft : palette.background }], table && [styles.tableBlock, { borderTopColor: palette.border }, isOpen && { backgroundColor: palette.background, borderTopColor: ink, borderBottomWidth: 1, borderBottomColor: ink, borderLeftWidth: 4, borderLeftColor: palette.accentStrong }]]}>
+        {editing || table || largeText ? null : <DoneTint done={done} color={palette.accentSoft} />}
+        {/* The set in hand with very large text is not swiped: its steppers and buttons own the gestures. */}
+        {editing ? rowBody : (
+        <SwipeableSetRow
+          done={done}
+          onPage
+          completeLabel={t('logger.swipeComplete')}
+          reopenLabel={t('logger.swipeReopen')}
+          removeLabel={t('logger.swipeRemove')}
+          onSwipeRight={() => { onSwiped?.(); if (done) uncomplete(set); else complete(set); }}
+          onSwipeLeft={() => { onSwiped?.(); onRemoveSet(set); }}
+        >
+          {table && !isOpen ? tableRow : (
+            <>
+              {rowBody}
+              {table ? <View style={styles.openGauge}><Gauge value={stored} ghost={ghostFor(set)} color={stateColor} /></View> : null}
+            </>
+          )}
+        </SwipeableSetRow>
+        )}
+        {/* Row 2: how hard it was. */}
+        {/* Row 3, once the set is done: how clean the form was. The exercise folds only after the last rating. */}
+        {/* Only when there is something to show: PR, clips, note (and RPE when its row is hidden). */}
+        {focus && editing ? (() => {
+          const cells: RatingCell[] = [];
+          if (canRpe) cells.push({ id: 'rpe', label: t('lastTime.rpeChip').toUpperCase(), value: set.rpe !== null ? formatRpe(set.rpe) : null, hint: set.targetRpe !== null ? t('activeSet.target', { value: formatRpe(set.targetRpe) }).toUpperCase() : undefined, open: rpeRow, onPress: () => toggleOpen(set.id, 'rpe', rpeRow) });
+          if (canForm) cells.push({ id: 'form', label: t('lastTime.form').toUpperCase(), value: set.formRating !== null ? formatNumber(set.formRating) : null, hint: t('activeSet.scale', { range: '1–5' }).toUpperCase(), open: formRow, onPress: () => toggleOpen(set.id, 'form', formRow) });
+          if (canRom) cells.push({ id: 'rom', label: t('lastTime.rom').toUpperCase(), value: set.romRating !== null ? formatNumber(set.romRating) : null, hint: t('activeSet.scale', { range: '1–5' }).toUpperCase(), open: romRow, onPress: () => toggleOpen(set.id, 'rom', romRow) });
+          const described = set.bands.length > 0 ? describeBands?.(set) : null;
+          const bandsOpen = bandsEditing === set.id;
+          const recorded = [set.rpe, set.formRating, set.romRating].filter((value) => value !== null).length;
+          const detailsShown = detailsOpen.has(set.id);
+          const detailCount = [set.restSec !== null, set.side === 'left' || set.side === 'right', Boolean(set.note), set.clipCount > 0].filter(Boolean).length;
+          const unknownKg = set.bands.length > 0 && set.assistKg === null;
+          return (
+            <>
+              {bandsInUse ? (
+                <>
+                  <BandsStrip
+                    title={t('activeSet.bandsTitle').toUpperCase()}
+                    tag={t('activeSet.activeInput').toUpperCase()}
+                    assistLabel={t('activeSet.estimatedAssist').toUpperCase()}
+                    assistValue={set.bands.length === 0 ? '—' : unknownKg ? '?' : `−${formatNumber(set.assistKg ?? 0)}`}
+                    assistUnit={set.bands.length === 0 || unknownKg ? null : 'KG'}
+                    assistFoot={(unknownKg ? t('activeSet.assistFootUnknown') : t('activeSet.assistFoot')).toUpperCase()}
+                    text={described?.text ?? t('bands.chipEmpty')}
+                    colors={described?.colors ?? []}
+                    open={bandsOpen}
+                    folded={bandsFolded}
+                    foldLabel={t(bandsFolded ? 'activeSet.bandsUnfold' : 'activeSet.bandsFold')}
+                    onToggleFolded={toggleBandsFolded}
+                    actionLabel={t(bandsOpen ? 'activeSet.bandsClose' : 'activeSet.bandsEdit').toUpperCase()}
+                    onPress={() => { tapFeedback(); setBandsEditing(bandsOpen ? null : set.id); }}
+                  />
+                  {bandsOpen ? renderBandsEditor?.(set) ?? null : null}
+                </>
+              ) : null}
+              {cells.length > 0 ? (
+                <RatingCells
+                  title={t('activeSet.setTelemetry').toUpperCase()}
+                  counter={t('activeSet.recorded', { done: recorded, total: cells.length }).toUpperCase()}
+                  cells={cells}
+                  open={telemetryOpen.has(set.id)}
+                  onToggle={() => { tapFeedback(); setTelemetryOpen((current) => { const next = new Set(current); if (!next.delete(set.id)) next.add(set.id); return next; }); }}
+                />
+              ) : null}
+              {cells.length === 0 || telemetryOpen.has(set.id) ? valuePanelNode : null}
+              <DetailsToggle
+                label={t('activeSet.additional').toUpperCase()}
+                count={`${detailCount}/4`}
+                open={detailsShown}
+                actionLabel={t(detailsShown ? 'activeSet.closeWord' : 'activeSet.openWord').toUpperCase()}
+                onPress={() => { tapFeedback(); setDetailsOpen((current) => { const next = new Set(current); if (next.has(set.id)) next.delete(set.id); else next.add(set.id); return next; }); }}
+              />
+            </>
+          );
+        })() : null}
+        {!quiet && (!table || isOpen) && !(focus && editing && !detailsOpen.has(set.id)) && (strip || set.note || set.clipCount > 0 || (set.poseCount ?? 0) > 0 || set.rpe !== null || setRecords.has(set.id) || set.bands.length > 0) ? (() => {
+          // The chips fold behind one quiet line, folded by default; the open set of the ledger has its own "Additional" fold.
+          const folds = !(focus && editing);
+          const chipsShown = !folds || chipsOpen.has(set.id);
+          const described = set.bands.length > 0 ? describeBands?.(set) : null;
+          const summary = [
+            canRpe && set.rpe !== null ? t('logger.rpeTag', { value: formatRpe(set.rpe) }) : null,
+            canForm && set.formRating !== null ? `${t('lastTime.form')} ${formatNumber(set.formRating)}` : null,
+            canRom && set.romRating !== null ? `${t('lastTime.rom')} ${formatNumber(set.romRating)}` : null,
+            described ? described.text : null,
+            set.restSec !== null && set.restSec > 0 ? t('logger.restChip', { value: formatClock(set.restSec) }) : null,
+            set.note ? t('logger.noteChip') : null,
+            set.clipCount > 0 ? t('logger.clip', { count: set.clipCount }) : null,
+          ].filter(Boolean).join(' · ');
+          return (
+          <>
+          {folds ? (
+            <ChipsFold
+              label={t('logger.chipsFold').toUpperCase()}
+              summary={summary}
+              record={setRecords.has(set.id)}
+              open={chipsShown}
+              onPress={() => { tapFeedback(); setChipsOpen((current) => { const next = new Set(current); if (!next.delete(set.id)) next.add(set.id); return next; }); }}
+              trailing={table && isOpen ? menu : null}
+              style={[styles.chipsFold, editing && styles.chipsFoldLarge, table && styles.chipsFoldTable]}
+            />
+          ) : null}
+          {chipsShown ? (
+          <View style={[styles.setMeta, editing && styles.setMetaLarge, table && styles.tableChips, folds && table && styles.tableChipsFolded]}>
+            {canRpe && !(focus && editing) && (strip || set.rpe !== null) ? (
+              <ValueChip flat={table} label={set.rpe !== null ? t('logger.rpeTag', { value: formatRpe(set.rpe) }) : t('lastTime.rpeChip')} icon="speedometer-outline" filled={set.rpe !== null} open={rpeRow} onPress={() => toggleOpen(set.id, 'rpe', rpeRow)} />
+            ) : null}
+            {canForm && !(focus && editing) && (strip || set.formRating !== null) ? (
+              <ValueChip flat={table} label={set.formRating !== null ? `${t('lastTime.form')} ${formatNumber(set.formRating)}` : t('lastTime.form')} filled={set.formRating !== null} open={formRow} onPress={() => toggleOpen(set.id, 'form', formRow)} />
+            ) : null}
+            {canRom && !(focus && editing) && (strip || set.romRating !== null) ? (
+              <ValueChip flat={table} label={set.romRating !== null ? `${t('lastTime.rom')} ${formatNumber(set.romRating)}` : t('lastTime.rom')} filled={set.romRating !== null} open={romRow} onPress={() => toggleOpen(set.id, 'rom', romRow)} />
+            ) : null}
+            {(() => {
+              const described = set.bands.length > 0 ? describeBands?.(set) : null;
+              return strip || described ? (
+                <ValueChip
+                  flat={table}
+                  label={described ? described.text : t('bands.chipEmpty')}
+                  icon="git-commit-outline"
+                  filled={Boolean(described)}
+                  colors={described?.colors}
+                  onPress={() => { tapFeedback(); onSetOptions(set, 'bands'); }}
+                />
+              ) : null;
+            })()}
+            {table || editing ? (
+              <>
+                {(set.restSec ?? defaultRest) > 0 ? <ValueChip flat label={t('logger.restChip', { value: formatClock(set.restSec ?? defaultRest) })} filled={set.restSec !== null} onPress={() => { tapFeedback(); onSetOptions(set, 'rest'); }} /> : null}
+                {set.side === 'left' || set.side === 'right' ? <ValueChip flat label={sideLabel} filled onPress={() => { tapFeedback(); onSetOptions(set); }} /> : null}
+                {set.clipCount === 0 ? <ValueChip flat label={t('logger.videoChip')} icon="videocam" filled={false} onPress={() => { tapFeedback(); router.push({ pathname: '/form-check/[setId]', params: { setId: set.id } }); }} /> : null}
+              </>
+            ) : null}
+            {strip || set.note ? (
+              <ValueChip flat={table} label={set.note ? set.note : t('logger.noteChip')} icon="chatbubble-ellipses-outline" filled={Boolean(set.note)} grow lines={3} onPress={() => { if (onNote) toggleOpen(set.id, 'note', noteRow); else { tapFeedback(); onSetOptions(set, 'note'); } }} open={noteRow} />
+            ) : null}
+            {setRecords.has(set.id) ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={setRecords.get(set.id)!.map((kind) => t(`records.kinds.${kind}`)).join(', ')}
+                hitSlop={8}
+                onPress={() => onSetOptions(set)}
+                style={[styles.clipChip, { backgroundColor: palette.recordSoft }]}
+              >
+                <Icon name="trophy" size={13} color={palette.record} />
+                <Text style={[styles.clipChipText, { color: palette.record }]}>{t(set.bands.length ? 'records.prWithBands' : 'records.pr')}</Text>
+              </Pressable>
+            ) : null}
+            {set.clipCount > 0 ? (
+              <Pressable accessibilityRole="button" hitSlop={8} onPress={() => onSetOptions(set)} style={[styles.clipChip, { backgroundColor: palette.surface }]}>
+                <Icon name="videocam" size={13} color={palette.accentStrong} />
+                <Text style={[styles.clipChipText, { color: palette.accentStrong }]}>{t('logger.clip', { count: set.clipCount })}</Text>
+              </Pressable>
+            ) : null}
+            {table && isOpen && !folds ? menu : null}
+            {(set.poseCount ?? 0) > 0 ? (
+              <Pressable accessibilityRole="button" accessibilityLabel={t('poseLink.setActionCount', { count: set.poseCount })} hitSlop={8} onPress={() => onSetOptions(set)} style={[styles.clipChip, { backgroundColor: palette.surface }]}>
+                <Icon name="scan-outline" size={13} color={palette.accentStrong} />
+                <Text style={[styles.clipChipText, { color: palette.accentStrong }]}>{set.poseCount}</Text>
+              </Pressable>
+            ) : null}
+          </View>
+          ) : null}
+          </>
+          );
+        })() : null}
+        {focus && editing ? null : valuePanelNode}
+        {focus && editing && !done ? (() => {
+          const following = exercise.sets.find((item) => !item.completedAt && item.id !== set.id && item.index > set.index);
+          if (!following) return null;
+          const number = groupSets(exercise.sets.filter((item) => item.kind === 'working' && item.index <= following.index)).length;
+          const value = timed ? formatClock(following.durationSec ?? 0) : distance ? `${formatNumber(following.distanceM ?? 0)} m` : `${following.reps ?? 0} ${t('history.units.reps')}`;
+          const restSec = set.restSec ?? defaultRest;
+          return (
+            <View style={styles.queue}>
+              <Text style={[styles.queueText, { color: palette.textMuted }]}>{t('activeSet.next', { number, value }).toUpperCase()}</Text>
+              {restSec > 0 ? <Text style={[styles.queueText, { color: palette.textMuted }]}>{t('activeSet.rest', { value: formatClock(restSec) }).toUpperCase()}</Text> : null}
+            </View>
+          );
+        })() : null}
+        {/* Large text: one wide button finishes the set (or runs its hold). */}
+        {editing && !(fixedAction && !done && set.id === nextSetId) ? (
+          <View style={[styles.actionRow, textIsLarge && styles.actionRowWrap]}>
+          {done ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityState={{ checked: true, disabled: emomLocked }}
+              accessibilityHint={emomLocked ? t('emom.editHint') : t('logger.swipeReopen')}
+              disabled={emomLocked}
+              onPress={() => uncomplete(set)}
+              onLongPress={openMenu}
+              delayLongPress={450}
+              style={({ pressed }) => [styles.largeAction, { backgroundColor: palette.success }, pressed && styles.checkPressed]}
+            >
+              <Icon name="checkmark" size={22} color={palette.successText} />
+              <Text style={[styles.largeActionText, { color: palette.successText }]}>{t('workout.setCompleted')}</Text>
+            </Pressable>
+          ) : timed && onStartHold ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityHint={holding ? undefined : t('logger.holdLongPressHint')}
+              accessibilityActions={holding ? undefined : [{ name: 'longpress', label: t('logger.markDoneNoTimer') }]}
+              onAccessibilityAction={(event) => { if (event.nativeEvent.actionName === 'longpress') complete(set); }}
+              onPress={() => holding ? onFinishHold?.() : onStartHold(set)}
+              onLongPress={holding ? undefined : () => { tapFeedback(); complete(set); }}
+              delayLongPress={400}
+              style={({ pressed }) => [styles.largeAction, { backgroundColor: palette.accent }, pressed && styles.checkPressed]}
+            >
+              <Icon name={holding ? 'stop' : 'play'} size={22} color={palette.accentText} />
+              <Text style={[styles.largeActionText, { color: palette.accentText }]}>{holding ? t('logger.doneHold') : `${t('logger.startHold')} ${formatClock(stored)}`}</Text>
+            </Pressable>
+          ) : (
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => complete(set)}
+              onLongPress={openMenu}
+              delayLongPress={450}
+              style={({ pressed }) => [styles.largeAction, { backgroundColor: palette.accent }, pressed && styles.checkPressed]}
+            >
+              <Icon name="checkmark" size={22} color={palette.accentText} />
+              <Text style={[styles.largeActionText, { color: palette.accentText }]}>{focus ? t('activeSet.completeSet', { number: workingNumber }).toUpperCase() : t('workout.completeSet')}</Text>
+            </Pressable>
+          )}
+          {focus && !done ? (
+            // Beside Complete; at large text a full-width row under it, with its label.
+            <Pressable accessibilityRole="button" accessibilityLabel={t('activeSet.moreDetails')} onPress={() => { tapFeedback(); onSetOptions(set); }} style={({ pressed }) => [styles.detailsButton, textIsLarge && styles.detailsButtonWide, { borderColor: ink, backgroundColor: palette.surface }, pressed && { opacity: 0.6 }]}>
+              <Icon name="options-outline" size={22} color={palette.accentStrong} />
+              {textIsLarge ? <Text style={[styles.largeActionText, { color: palette.accentStrong }]}>{t('activeSet.moreDetails')}</Text> : null}
+            </Pressable>
+          ) : null}
+          </View>
+        ) : null}
+        {/* The fixed Complete button stands in for this one: its room stays, so selecting an exercise moves nothing. */}
+        {editing && fixedAction && !done && set.id === nextSetId ? <View pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={styles.fixedActionRoom} /> : null}
+      </Animated.View>
+    );
+  };
+  const recordBadges = (<>
+    {sameLoadRecords.map((record, index) => (
+      <View key={index} style={[styles.recordChip, { backgroundColor: palette.recordSoft }]}>
+        <Icon name="trophy-outline" size={13} color={palette.record} />
+        <Text style={[styles.clipChipText, { color: palette.record }]}>
+          {t(record.loadKg === 0 ? 'records.sameLoadBody' : 'records.sameLoad', {
+            sets: record.sets, load: formatNumber(record.loadKg),
+            gain: timed ? formatClock(record.value - record.previous) : t('records.reps', { count: record.value - record.previous }),
+          })} · {t(record.withBands ? 'records.withBands' : 'records.withoutBands')}
+        </Text>
+      </View>
+    ))}
+    {[...new Set(volumeRecords.map((record) => Boolean(record.withBands)))].map((assisted) => (
+      <View key={String(assisted)} style={[styles.recordChip, { backgroundColor: palette.recordSoft }]}>
+        <Icon name="trophy-outline" size={13} color={palette.record} />
+        <Text style={[styles.clipChipText, { color: palette.record }]}>{t('records.kinds.volume')} · {t(assisted ? 'records.withBands' : 'records.withoutBands')}</Text>
+      </View>
+    ))}
+  </>);
+  const exerciseDetails = (<>
+      {timeGoals && (timeGoals.day || timeGoals.week) ? <ExerciseTimeGoals goals={timeGoals} /> : null}
+      {goal ? (
+        <View style={[styles.goalCard, { backgroundColor: goal.reached ? palette.successSoft : palette.surface, borderColor: goal.reached ? palette.success : palette.border }]}>
+          <View style={styles.goalRow}>
+            {goal.reached ? <Icon name="checkmark-circle" size={20} color={palette.success} /> : null}
+            <Text style={[styles.goalDone, { color: palette.text }]}>{goalAmount(goal.done)}</Text>
+            <Text style={[styles.goalTarget, { color: palette.textMuted }]}>{`/ ${goalAmount(goal.target)}${goalUnit}`}</Text>
+            <View style={styles.flex} />
+            <Text style={[styles.goalState, { color: goal.reached ? palette.success : palette.accentStrong }]}>
+              {goal.reached ? (goal.over > 0 ? t('totalGoal.reachedOver', { over: goalAmount(goal.over) }) : t('totalGoal.reached')) : t('totalGoal.remaining', { value: goalAmount(goal.remaining) })}
+            </Text>
+          </View>
+          <ProgressMeter value={goal.done} total={goal.target} label={`${goalAmount(goal.done)} / ${goalAmount(goal.target)}${goalUnit}`} tone={goal.reached ? 'success' : 'accent'} />
+        </View>
+      ) : null}
+
+      {!collapsed && hasComparison && previous ? (
+        <LastTimeStrip
+          comparison={comparison}
+          metric={exercise.metric}
+          date={previous.workoutStartedAt.toLocaleDateString(i18n.language, { weekday: 'short', day: 'numeric', month: 'short' })}
+          detail={previousText ?? ''}
+        />
+      ) : null}
+
+      {!collapsed && onCopyAllLast ? (
+        // A quiet link, not a full-width button: it is used once per exercise at most.
+        <Pressable accessibilityRole="button" hitSlop={ADD_SLOP} onPress={() => { tapFeedback(); onCopyAllLast(); }} style={({ pressed }) => [styles.copyLink, pressed && { opacity: 0.6 }]}>
+          <Icon name="arrow-undo-outline" size={14} color={palette.accentStrong} />
+          <Text style={[styles.addSetText, { color: palette.accentStrong }]}>{t('logger.copyAllPrevious')}</Text>
+        </Pressable>
+      ) : null}
+
+
+  </>);
+  if (liveLayout) {
+    const editor = exercise.sets.find(setInHand);
+    const standalone = liveLayout === 'standalone';
+    const editorNumber = editor ? groupSets(exercise.sets.filter((item) => item.kind === 'working' && item.index <= editor.index)).length : 0;
+    const title = <View style={[styles.liveTitle, !standalone && styles.liveInlineTitle, textIsLarge && styles.liveTitleWrap]}>
+      <View style={[styles.flex, textIsLarge && styles.liveNameWide]}>
+        <Pressable accessibilityLabel={exercise.name} accessibilityRole="header" onLongPress={() => openExercisePage(exercise.exerciseId)}>
+          <Text style={styles.liveExerciseName}>{exercise.name}</Text>
+        </Pressable>
+        <Text style={{ color: palette.textMuted }}>{t('liveWorkout.completedCount', { done: doneSets, total: totalSets })}</Text>
+      </View>
+      {editor ? <Text style={[styles.liveBadge, { color: palette.accentStrong, backgroundColor: palette.accentSoft }]}>{liveSetBadge(editor, editorNumber)}</Text> : null}
+      {exercise.demoUrl ? <IconButton icon="play-circle-outline" label={t('logger.referenceOpen')} tone="plain" onPress={() => openReferenceVideo(exercise.demoUrl!)} /> : null}
+      <IconButton icon="ellipsis-horizontal" label={t('logger.options')} tone="plain" onPress={onOptions} />
+    </View>;
+    const note = onOpenExerciseNote ? <WorkoutNote kind="exerciseNote" value={exercise.notes} onPress={onOpenExerciseNote} inset /> : null;
+    const setTools = <View style={styles.liveLogTitle}>
+      {standalone ? <Text accessibilityRole="header" style={[styles.liveLogHeading, styles.flex]}>{t('liveWorkout.ledger')}</Text> : <View style={styles.flex} />}
+      <ActionButton compact variant="ghost" label={emomBadgeLabel ? t('emom.addRound') : t('liveWorkout.addSet')} onPress={onAddSet} />
+      {onAddWarmup ? <IconButton tone="plain" icon="chevron-down" label={t('logger.addMore')} onPress={() => setAddMenuOpen(!addMenuOpen)} /> : null}
+    </View>;
+    return <View style={styles.liveCard}>
+      {standalone ? (
+        <View style={[styles.liveFrame, { borderColor: palette.accentStrong, backgroundColor: palette.surface }]}>
+          {title}
+          {note}
+          {editor ? renderSet(editor) : null}
+        </View>
+      ) : title}
+      {standalone ? setTools : null}
+      {addMenuOpen && onAddWarmup ? <ActionButton compact secondary icon="flame-outline" label={t('logger.addWarmup')} onPress={() => { setAddMenuOpen(false); onAddWarmup(); }} /> : null}
+      {exercise.sets.length > 0 ? <View style={[styles.liveFrame, { borderColor: palette.border, backgroundColor: palette.surface }]}>
+        <LedgerHeader valueLabel={timed ? t('ledger.secCol') : distance ? t('ledger.metresCol') : t('liveWorkout.repsColumn')} withLoad={withLoad} live />
+        {exercise.sets.map((set) => (
+          <View key={set.id}>
+            {renderSet(set, true)}
+            {!standalone && editor?.id === set.id ? <>{note}{renderSet(editor)}</> : null}
+          </View>
+        ))}
+      </View> : null}
+      {!standalone ? <>{!editor ? note : null}{setTools}</> : null}
+      {recordBadges}
+      {exerciseDetails}
+    </View>;
+  }
+
   return (
     <View
       // Always an opaque card: the dot grid stays outside the exercises and their sets, at every text size.
@@ -313,23 +1180,7 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
             {apparatusLabel ? <Label>{`· ${apparatusLabel}`}</Label> : null}
             {supersetLabel ? <Label style={{ color: palette.accentStrong }}>{`· ${supersetLabel}`}</Label> : null}
             {emomBadgeLabel ? <Label accessibilityLiveRegion="polite" style={{ color: palette.accentStrong }}>{`· ${emomBadgeLabel}`}</Label> : null}
-            {sameLoadRecords.map((record, index) => (
-              <View key={index} style={[styles.recordChip, { backgroundColor: palette.recordSoft }]}>
-                <Icon name="trophy-outline" size={13} color={palette.record} />
-                <Text style={[styles.clipChipText, { color: palette.record }]}>
-                  {t(record.loadKg === 0 ? 'records.sameLoadBody' : 'records.sameLoad', {
-                    sets: record.sets, load: formatNumber(record.loadKg),
-                    gain: timed ? formatClock(record.value - record.previous) : t('records.reps', { count: record.value - record.previous }),
-                  })} · {t(record.withBands ? 'records.withBands' : 'records.withoutBands')}
-                </Text>
-              </View>
-            ))}
-            {[...new Set(volumeRecords.map((record) => Boolean(record.withBands)))].map((assisted) => (
-              <View key={String(assisted)} style={[styles.recordChip, { backgroundColor: palette.recordSoft }]}>
-                <Icon name="trophy-outline" size={13} color={palette.record} />
-                <Text style={[styles.clipChipText, { color: palette.record }]}>{t('records.kinds.volume')} · {t(assisted ? 'records.withBands' : 'records.withoutBands')}</Text>
-              </View>
-            ))}
+            {recordBadges}
           </View>
           {collapsed && results ? <Text numberOfLines={2} style={[styles.results, { color: palette.text }]}>{results}</Text> : null}
           {collapsed && comparisonFormNow !== null ? (
@@ -356,40 +1207,7 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
       </Pressable>
       {/* Outside the header tap area: the note has its own tap (edit in place), on open and folded cards. */}
       <ExerciseNoteBlock note={exercise.notes} collapsed={collapsed} onSave={onEntryNote} />
-      {timeGoals && (timeGoals.day || timeGoals.week) ? <ExerciseTimeGoals goals={timeGoals} /> : null}
-      {goal ? (
-        <View style={[styles.goalCard, { backgroundColor: goal.reached ? palette.successSoft : palette.surface, borderColor: goal.reached ? palette.success : palette.border }]}>
-          <View style={styles.goalRow}>
-            {goal.reached ? <Icon name="checkmark-circle" size={20} color={palette.success} /> : null}
-            <Text style={[styles.goalDone, { color: palette.text }]}>{goalAmount(goal.done)}</Text>
-            <Text style={[styles.goalTarget, { color: palette.textMuted }]}>{`/ ${goalAmount(goal.target)}${goalUnit}`}</Text>
-            <View style={styles.flex} />
-            <Text style={[styles.goalState, { color: goal.reached ? palette.success : palette.accentStrong }]}>
-              {goal.reached ? (goal.over > 0 ? t('totalGoal.reachedOver', { over: goalAmount(goal.over) }) : t('totalGoal.reached')) : t('totalGoal.remaining', { value: goalAmount(goal.remaining) })}
-            </Text>
-          </View>
-          <ProgressMeter value={goal.done} total={goal.target} label={`${goalAmount(goal.done)} / ${goalAmount(goal.target)}${goalUnit}`} tone={goal.reached ? 'success' : 'accent'} />
-        </View>
-      ) : null}
-
-      {!collapsed && hasComparison && previous ? (
-        <LastTimeStrip
-          comparison={comparison}
-          metric={exercise.metric}
-          date={previous.workoutStartedAt.toLocaleDateString(i18n.language, { weekday: 'short', day: 'numeric', month: 'short' })}
-          detail={previousText ?? ''}
-        />
-      ) : null}
-
-      {!collapsed && onCopyAllLast ? (
-        // A quiet link, not a full-width button: it is used once per exercise at most.
-        <Pressable accessibilityRole="button" hitSlop={ADD_SLOP} onPress={() => { tapFeedback(); onCopyAllLast(); }} style={({ pressed }) => [styles.copyLink, pressed && { opacity: 0.6 }]}>
-          <Icon name="arrow-undo-outline" size={14} color={palette.accentStrong} />
-          <Text style={[styles.addSetText, { color: palette.accentStrong }]}>{t('logger.copyAllPrevious')}</Text>
-        </Pressable>
-      ) : null}
-
-
+      {exerciseDetails}
       {!collapsed && table && exercise.sets.length > 1 ? (
         <Pressable
           accessibilityRole="button"
@@ -404,731 +1222,7 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
       ) : null}
       <View style={table ? styles.tableBleed : undefined}>
       {focus && !textIsLarge && !collapsed && exercise.sets.length > 0 ? <LedgerHeader valueLabel={(timed ? t('ledger.secCol') : distance ? t('ledger.metresCol') : t('ledger.repsCol'))} withLoad={withLoad} /> : null}
-      {(collapsed ? [] : exercise.sets).map((set) => {
-        const done = Boolean(set.completedAt);
-        // In a running EMOM a recorded round stays editable in place and keeps its check, so the round count holds.
-        const emomLocked = done && Boolean(emomBadgeLabel);
-        // Very large text: the set in hand opens as a one-column block, the others fold to one line.
-        const open = (!largeText || set.id === focusedId) && !folded.has(set.id);
-        const editing = largeText && open;
-        // Done rows drop − and +: a running EMOM or a long workout would otherwise be a wall of buttons.
-        const showSteps = !done || editDone || editing;
-        const editableDone = editDone || typeDone || emomLocked || editing;
-        const workingNumber = groupSets(exercise.sets.filter((item) => item.kind === 'working' && item.index <= set.index)).length;
-        const sideLabel = set.side === 'left' ? t('logger.sideLeft') : set.side === 'right' ? t('logger.sideRight') : '';
-        const holding = hold?.setId === set.id;
-        const isOpen = openOf(set);
-        // A held press anywhere on the set opens the same menu as its three dots.
-        const openMenu = () => { tapFeedback(); onSetOptions(set); };
-        const stored = timed ? set.durationSec ?? 0 : distance ? set.distanceM ?? 0 : set.reps ?? 0;
-        const value = holding && hold ? holdDisplay(hold) : timed ? formatClock(stored) : distance ? formatNumber(stored) : String(stored);
-        const loadText = set.addedLoadKg === 0 ? '0' : formatLoad(set.addedLoadKg).replace(' kg', '');
-        // RPE for the set in hand and the done ones (all five whole values in one row); later sets wait.
-        // Every value of the set is one tap away: its chip opens the picker (or, for bands and note, the set's sheet).
-        // By default a done set keeps a picker open while it has no value or is the one just done; otherwise only its chip shows.
-        const working = set.kind === 'working' && !emomBadgeLabel;
-        const foldable = done && !editDone && set.id !== lastDoneId;
-        const isFolded = (value: number | null) => done && value !== null && (editDone || foldable);
-        const canRpe = showRpe && working;
-        const canForm = working;
-        const canRom = !!onRomRating && working;
-        // One value at a time: by default the first one still to fill (RPE, then form once done, then ROM) on the set in hand or just done.
-        const live = done || editing || set.id === nextSetId;
-        // With large text RPE is asked before completing; a done set opens form next, so the set in hand does not slide away.
-        // Ledger (focus): pickers open only from their chips, never by themselves.
-        const fallback = focus ? null : canRpe && live && !isFolded(set.rpe) && (set.rpe === null || !done) && !(largeText && done) ? 'rpe'
-          : canForm && done && !isFolded(set.formRating) && set.formRating === null ? 'form'
-            : canRom && live && !isFolded(set.romRating) && set.romRating === null ? 'rom'
-              : null;
-        const active = chosen.has(set.id) ? chosen.get(set.id)! : fallback;
-        const rpeRow = canRpe && active === 'rpe';
-        const formRow = canForm && active === 'form';
-        const romRow = canRom && active === 'rom';
-        const noteRow = !!onNote && active === 'note';
-        // The chip strip shows on done sets and the next one (every set in a finished workout); other sets show only what they carry.
-        const strip = done || editDone || set.id === nextSetId || isOpen || editing;
-        const title = `${set.kind === 'warmup' ? t('workout.blocks.warmup') : t('logger.setTitle', { number: workingNumber })}${set.side === 'left' ? ' · L' : set.side === 'right' ? ' · R' : ''}`;
-        const valueDown = showSteps ? <StepButton flat={focus && !textIsLarge} large={textIsLarge || bigButtons} icon="remove" label={t('logger.stepDown', { field: fieldLabel, number: workingNumber, side: sideLabel }).trim()} onPress={(multiplier) => step(set, field, (distance ? -0.5 : timed ? -5 : -1) * multiplier)} /> : null;
-        const valueUp = showSteps ? <StepButton flat={focus && !textIsLarge} large={textIsLarge || bigButtons} icon="add" label={t('logger.stepUp', { field: fieldLabel, number: workingNumber, side: sideLabel }).trim()} onPress={(multiplier) => step(set, field, (distance ? 0.5 : timed ? 5 : 1) * multiplier)} /> : null;
-        const valueField = (done && !editableDone) || holding ? (
-          <Text style={[styles.setValue, { color: holding ? palette.accentStrong : palette.text }]}>{value}</Text>
-        ) : timed ? (
-          <HoldDurationField compact flat={table || focus} value={stored} label={`${t('logger.holdCol')} · ${t('logger.editValue', { number: set.index })}`} onChange={(next) => onSetValue(set, 'durationSec', next)} />
-        ) : (
-          <NumberEdit
-            value={stored}
-            display={value}
-            label={`${fieldLabel} · ${t('logger.editValue', { number: set.index })} ${sideLabel}`}
-            integer={field === 'reps'}
-            onCommit={(next) => onSetValue(set, field, field === 'reps' ? Math.round(next) : next)}
-            onControl={(control) => { controls.current.set(`${set.id}:${field}`, control); }}
-            onLongPress={openMenu}
-            style={[styles.setValue, focus && styles.setValueLedger, { color: palette.text }]}
-          />
-        );
-        const loadDown = showSteps ? <StepButton flat={focus && !textIsLarge} large={textIsLarge || bigButtons} icon="remove" label={t('logger.stepDown', { field: t('history.addedLoad'), number: workingNumber, side: sideLabel }).trim()} onPress={(multiplier) => step(set, 'addedLoadKg', -LOAD_STEP_KG * multiplier)} /> : null;
-        const loadUp = showSteps ? <StepButton flat={focus && !textIsLarge} large={textIsLarge || bigButtons} icon="add" label={t('logger.stepUp', { field: t('history.addedLoad'), number: workingNumber, side: sideLabel }).trim()} onPress={(multiplier) => step(set, 'addedLoadKg', LOAD_STEP_KG * multiplier)} /> : null;
-        const loadField = done && !editableDone ? (
-          <Text style={[styles.loadValue, { color: set.addedLoadKg === 0 ? palette.textMuted : palette.text }]}>{loadText}</Text>
-        ) : (
-          <NumberEdit
-            value={set.addedLoadKg}
-            display={loadText}
-            allowNegative
-            label={`${t('history.addedLoad')} ${sideLabel}`}
-            onCommit={(next) => onSetValue(set, 'addedLoadKg', next)}
-            onControl={(control) => { controls.current.set(`${set.id}:addedLoadKg`, control); }}
-            onLongPress={openMenu}
-            style={[styles.loadValue, { color: set.addedLoadKg === 0 ? palette.textMuted : palette.text }]}
-          />
-        );
-        const badge = (
-          <PopOnActivate active={done}>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={set.kind === 'warmup' ? t('logger.warmupOn') : t('logger.warmupOff', { number: workingNumber })}
-              accessibilityHint={t('logger.warmupHint')}
-              hitSlop={8}
-              onPress={() => onToggleWarmup(set)}
-              onLongPress={openMenu}
-              delayLongPress={450}
-              style={[styles.setBadge, { backgroundColor: palette.surfaceMuted }, set.kind === 'warmup' && { borderWidth: 1, borderStyle: 'dashed', borderColor: palette.textMuted }]}
-            >
-              <Text style={[styles.setBadgeText, { color: set.kind === 'warmup' ? palette.textMuted : palette.text }]}>{set.kind === 'warmup' ? 'W' : workingNumber}</Text>
-              {set.side === 'left' || set.side === 'right' ? <Text style={[styles.setBadgeSide, { color: palette.textMuted }]}>{set.side === 'left' ? 'L' : 'R'}</Text> : null}
-            </Pressable>
-          </PopOnActivate>
-        );
-        const menu = (
-          // The touch area grows only towards the screen edge, never over the done button beside it.
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={t('logger.setOptions', { number: set.index })}
-            hitSlop={{ top: 0, bottom: 0, left: 0, right: 12 }}
-            onPress={() => { tapFeedback(); onSetOptions(set); }}
-            style={({ pressed }) => [styles.menuButton, pressed && { opacity: 0.6 }]}
-          >
-            <Icon name="ellipsis-vertical" size={18} color={palette.textMuted} />
-          </Pressable>
-        );
-        // Fold control: the chevron always sits at the right edge of the set's row, folded or open.
-        const foldButton = (isUp: boolean, onPress: () => void, color: string = palette.textMuted) => (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={`${title}, ${t(isUp ? 'logger.foldSet' : 'logger.unfoldSet')}`}
-            hitSlop={{ top: 0, bottom: 0, left: 6, right: 12 }}
-            onPress={() => { tapFeedback(); onPress(); }}
-            style={({ pressed }) => [styles.menuButton, pressed && { opacity: 0.6 }]}
-          >
-            <Icon name={isUp ? 'chevron-up' : 'chevron-down'} size={22} color={color} />
-          </Pressable>
-        );
-        // Title of the open set's strip, with its state under it; a tap folds the set.
-        const titleTap = (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={`${title}, ${t('logger.foldSet')}`}
-            onPress={() => { tapFeedback(); toggleFold(set.id); }}
-            hitSlop={spacing.sm}
-            style={[styles.largeTitleTap, textIsLarge && styles.largeTitleFull]}
-          >
-            {/* Title and state stacked: side by side they overlapped on a phone-width card. */}
-            <View style={styles.stripTitles}>
-              <Text style={[styles.largeStripText, { color: done ? palette.successText : palette.surface }]}>{focus ? `${title} / ${t(set.kind === 'warmup' ? 'activeSet.warmup' : 'activeSet.working')}` : title}</Text>
-              {focus && !textIsLarge ? <Text style={[styles.stripState, { color: done ? palette.successText : palette.surface }]}>{`● ${holding ? t('activeSet.hold') : done ? t('activeSet.logged') : t('activeSet.inProgress')}`.toUpperCase()}</Text> : null}
-            </View>
-          </Pressable>
-        );
-        const summary = [title, timed ? value : distance ? `${value} m` : `${value} ${t('history.units.reps')}`, withLoad ? `${loadText} kg` : null, done && set.rpe !== null ? t('logger.rpeTag', { value: formatRpe(set.rpe) }) : null].filter(Boolean).join(' · ');
-        const actionCol = (
-      <View style={[styles.colAction, { width: checkBtn }]}>
-        {done ? (
-          <Animated.View entering={checkEntering}>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={`${t('workout.setCompleted')} ${sideLabel}`}
-              accessibilityState={{ checked: true, disabled: emomLocked }}
-              accessibilityHint={emomLocked ? t('emom.editHint') : undefined}
-              disabled={emomLocked}
-              hitSlop={{ top: 4, bottom: 4, left: 4, right: 0 }}
-              onPress={() => uncomplete(set)}
-              onLongPress={openMenu}
-              delayLongPress={450}
-              style={({ pressed }) => [styles.checkButton, checkBox, { backgroundColor: palette.success }, pressed && styles.checkPressed]}
-            >
-              <Icon name="checkmark" size={20} color={palette.successText} />
-            </Pressable>
-          </Animated.View>
-        ) : timed && onStartHold ? (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={`${holding ? t('logger.doneHold') : t('logger.startHold')} ${sideLabel}`}
-            accessibilityHint={holding ? undefined : t('logger.holdLongPressHint')}
-            accessibilityActions={holding ? undefined : [{ name: 'longpress', label: t('logger.markDoneNoTimer') }]}
-            onAccessibilityAction={(event) => { if (event.nativeEvent.actionName === 'longpress') complete(set); }}
-            hitSlop={{ top: 4, bottom: 4, left: 4, right: 0 }}
-            onPress={() => holding ? onFinishHold?.() : onStartHold(set)}
-            onLongPress={holding ? undefined : () => { tapFeedback(); complete(set); }}
-            delayLongPress={400}
-            style={({ pressed }) => [styles.checkButton, checkBox, holding || set.id === nextSetId ? { backgroundColor: palette.accent } : { backgroundColor: palette.surfaceMuted }, pressed && styles.checkPressed]}
-          >
-            <Icon name={holding ? 'stop' : 'play'} size={18} color={holding || set.id === nextSetId ? palette.accentText : palette.text} />
-          </Pressable>
-        ) : (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={`${t('workout.completeSet')} ${sideLabel}`}
-            hitSlop={{ top: 4, bottom: 4, left: 4, right: 0 }}
-            onPress={() => complete(set)}
-            onLongPress={openMenu}
-            delayLongPress={450}
-            style={({ pressed }) => [styles.checkButton, checkBox, set.id === nextSetId ? { backgroundColor: palette.accent } : { backgroundColor: palette.surfaceMuted, borderColor: palette.border, borderWidth: 1 }, pressed && styles.checkPressed]}
-          >
-            <Icon name="checkmark" size={20} color={set.id === nextSetId ? palette.accentText : palette.textMuted} />
-          </Pressable>
-        )}
-      </View>
-        );
-        const compact = [timed ? value : distance ? `${value} m` : `${value} ${t('history.units.reps')}`, withLoad ? `${loadText} kg` : null, set.rpe !== null ? t('logger.rpeTag', { value: formatRpe(set.rpe) }) : null, set.formRating !== null ? `${t('lastTime.form')} ${formatNumber(set.formRating)}` : done && canForm ? `${t('lastTime.form')}?` : null].filter(Boolean).join(' · ');
-        // Large text: a folded set is always one quiet row, like the compact list; ratings are given from the open set.
-        const quiet = largeText && !editing;
-        const rowBody = (
-          <>
-            {!largeText ? (
-            /* Row 1: set, reps (or time, or distance), load, done, menu. */
-            <Pressable accessible={false} accessibilityRole="none" onLongPress={openMenu} onPress={table ? () => { tapFeedback(); setExpanded((current) => new Map(current).set(set.id, false)); } : undefined} delayLongPress={450} style={[styles.setRow, table && styles.tableSetRow]}>
-              {checkLeft ? actionCol : null}
-              {table && !isOpen ? null : <View style={table ? styles.tableBadgeCol : styles.colSet}>{badge}</View>}
-              <View style={[styles.colValue, styles.stepper, table && [styles.tile, { backgroundColor: palette.surface }]]}>
-                {valueDown}
-                <View style={styles.valueStack}>
-                  {valueField}
-                  <Text style={[styles.valueCaption, { color: palette.textMuted }]}>{fieldLabel}</Text>
-                </View>
-                {valueUp}
-              </View>
-              {!withLoad ? null : set.addedLoadKg !== 0 || loadShown.has(set.id) ? (
-                <View style={[styles.colLoad, styles.stepper, table && [styles.tile, { backgroundColor: palette.surface }]]}>
-                  {loadDown}
-                  <View style={styles.valueStack}>
-                    {loadField}
-                    <Text style={[styles.valueCaption, { color: palette.textMuted }]}>kg</Text>
-                  </View>
-                  {loadUp}
-                </View>
-              ) : done ? <View style={styles.colLoad} /> : (
-                <View style={[styles.colLoad, styles.stepper]}>
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel={t('logger.addLoad')}
-                    onPress={() => { tapFeedback(); setLoadShown((shown) => new Set(shown).add(set.id)); }}
-                    style={({ pressed }) => [styles.addLoad, { borderColor: palette.border, opacity: pressed ? 0.6 : 1 }]}
-                  >
-                    <Text style={[styles.addLoadText, { color: palette.textMuted }]}>+ kg</Text>
-                  </Pressable>
-                </View>
-              )}
-              {checkLeft ? null : actionCol}
-              <View style={styles.colMenu}>{table ? foldButton(true, () => setExpanded((current) => new Map(current).set(set.id, false))) : menu}</View>
-            </Pressable>
-            ) : open ? (
-            /* Large text, the set in hand: title, then each field on its own line with big − and +. */
-            <Pressable accessible={false} accessibilityRole="none" onLongPress={openMenu} delayLongPress={450} style={styles.largeFields}>
-              {/* The open set reads as a sheet: an ink strip names it and folds it, the fields below. */}
-              <View style={[styles.largeStrip, textIsLarge && styles.largeStripWrap, { backgroundColor: done ? palette.success : ink }]}>
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel={set.kind === 'warmup' ? t('logger.warmupOn') : t('logger.warmupOff', { number: workingNumber })}
-                  accessibilityHint={t('logger.warmupHint')}
-                  hitSlop={8}
-                  onPress={() => { tapFeedback(); onToggleWarmup(set); }}
-                  onLongPress={openMenu}
-                  delayLongPress={450}
-                  style={[styles.stripBadge, { backgroundColor: palette.surfaceMuted }, set.kind === 'warmup' && { borderWidth: 1, borderStyle: 'dashed', borderColor: palette.textMuted }]}
-                >
-                  <Text style={[styles.setBadgeText, { color: set.kind === 'warmup' ? palette.textMuted : palette.text }]}>{set.kind === 'warmup' ? 'W' : workingNumber}</Text>
-                </Pressable>
-                {textIsLarge ? <View style={styles.flex} /> : titleTap}
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel={t('logger.setOptions', { number: set.index })}
-                  onPress={() => { tapFeedback(); onSetOptions(set); }}
-                  style={({ pressed }) => [styles.menuButton, pressed && { opacity: 0.6 }]}
-                >
-                  <Icon name="ellipsis-vertical" size={18} color={done ? palette.successText : palette.surface} />
-                </Pressable>
-                {foldButton(true, () => toggleFold(set.id), done ? palette.successText : palette.surface)}
-                {/* Large text: the title takes a line of its own under the badge and buttons, so no word breaks. */}
-                {textIsLarge ? titleTap : null}
-              </View>
-              {focus ? (() => {
-                const match = previousMatchFor(set);
-                const previousValue = match ? describePreviousSet(match, exercise.metric) : t('activeSet.firstTime');
-                const reference = ghostFor(set);
-                const unitWord = timed ? 's' : distance ? 'm' : t('history.units.reps');
-                const max = gaugeMax(stored, reference);
-                return (
-                  <>
-                    {textIsLarge ? <Tag color={palette.accentStrong}>{`● ${holding ? t('activeSet.hold') : done ? t('activeSet.logged') : t('activeSet.inProgress')}`.toUpperCase()}</Tag> : null}
-                    <PreviousSetBox label={t('activeSet.previousLabel')} value={previousValue} rpeLabel={t('lastTime.rpeChip')} rpeValue={match && match.rpe !== null ? formatRpe(match.rpe) : null} sideLabel={t('activeSet.lastSession')} />
-                    <View style={styles.measureRow}>
-                      <MeasureBox stack={textIsLarge} label={fieldLabel.toUpperCase()}>
-                        <View style={styles.largeStepper}>{valueDown}<View style={styles.largeValue}>{valueField}</View>{valueUp}</View>
-                      </MeasureBox>
-                      {withLoad ? (
-                        <MeasureBox stack={textIsLarge} label={t('logger.loadCol').toUpperCase()}>
-                          <View style={styles.largeStepper}>{loadDown}<View style={styles.largeValue}>{loadField}</View>{loadUp}</View>
-                        </MeasureBox>
-                      ) : null}
-                    </View>
-                    <WorkOutput
-                      title={t('activeSet.workOutput').toUpperCase()}
-                      current={`${formatNumber(stored)} ${unitWord}`}
-                      reference={reference === null ? null : `${formatNumber(reference)} ${unitWord}`}
-                      referenceLabel={t('activeSet.ref').toUpperCase()}
-                      value={stored}
-                      ghost={reference}
-                      scale={t('activeSet.scaleOf', { value: `${formatNumber(max)} ${unitWord}` }).toUpperCase()}
-                      color={done ? palette.success : palette.accentStrong}
-                    />
-                  </>
-                );
-              })() : (
-                <>
-                  <View style={styles.largeField}>
-                    <Label>{fieldLabel}</Label>
-                    <View style={styles.largeStepper}>{valueDown}<View style={styles.largeValue}>{valueField}</View>{valueUp}</View>
-                  </View>
-                  {withLoad ? (
-                    <View style={styles.largeField}>
-                      <Label>{t('logger.loadCol')}</Label>
-                      <View style={styles.largeStepper}>{loadDown}<View style={styles.largeValue}>{loadField}</View>{loadUp}</View>
-                    </View>
-                  ) : null}
-                </>
-              )}
-            </Pressable>
-            ) : (
-            /* Large text, any other set: one line; a tap opens it. */
-            <View style={[styles.summaryLine, { borderBottomColor: palette.border }]}>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={`${summary}${done ? `, ${t('history.setCompleted')}` : ''}`}
-              accessibilityHint={t('logger.openSetHint')}
-              onPress={() => { unfold(set.id); setPicked({ id: set.id, done }); }}
-              onLongPress={openMenu}
-              delayLongPress={450}
-              style={styles.summaryRow}
-            >
-              <Text style={[styles.summaryNum, { color: palette.textMuted }]}>{`${set.kind === 'warmup' ? 'W' : String(workingNumber).padStart(2, '0')}${set.side === 'left' ? 'L' : set.side === 'right' ? 'R' : ''}`}</Text>
-              <Text style={[styles.summaryText, { color: palette.textMuted }]}>{compact}</Text>
-              {done
-                ? <View style={[styles.summaryBox, { backgroundColor: palette.success }]}><Icon name="checkmark" size={16} color={palette.successText} /></View>
-                : <View style={[styles.summaryBox, { borderColor: palette.textMuted, borderWidth: 1.5 }]} />}
-            </Pressable>
-            {foldButton(false, () => { unfold(set.id); setPicked({ id: set.id, done }); })}
-            </View>
-            )}
-          </>
-        );
-        const current = holding || set.id === nextSetId;
-        const rowUnit = timed ? '' : distance ? ' m' : ` ${t('history.units.reps')}`;
-        const rowSummary = done ? [
-          set.rpe !== null ? `RPE ${formatRpe(set.rpe)}` : null,
-          set.formRating !== null ? `F ${formatNumber(set.formRating)}` : null,
-          set.romRating !== null ? `ROM ${formatNumber(set.romRating)}` : null,
-        ].filter(Boolean).join(' · ') : '';
-        const stateColor = done ? palette.success : current ? palette.accentStrong : palette.textMuted;
-        const tableCheck = (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={done ? t('workout.setCompleted') : t('workout.completeSet')}
-            accessibilityState={{ checked: done }}
-            hitSlop={spacing.xs}
-            onPress={() => {
-              tapFeedback();
-              if (done) uncomplete(set);
-              else if (timed && onStartHold) openOnly(set.id);
-              else complete(set);
-            }}
-            style={[styles.tableCheck, tableCheckBox, { borderColor: done ? palette.success : current ? palette.accentStrong : ink, borderWidth: current && !done ? 3 : 1.5 }, done && { backgroundColor: palette.success }]}
-          >
-            {done ? <Icon name="checkmark" size={22} color={palette.successText} /> : null}
-          </Pressable>
-        );
-        const tableRow = (
-          <View style={[styles.tableRow, { backgroundColor: current ? palette.accentSoft : palette.surface }]}>
-            {checkLeft ? tableCheck : null}
-            {/* The set number switches the set between working and warm-up; the rest of the row opens it. */}
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={set.kind === 'warmup' ? t('logger.warmupOn') : t('logger.warmupOff', { number: workingNumber })}
-              accessibilityHint={t('logger.warmupHint')}
-              hitSlop={spacing.sm}
-              onPress={() => { tapFeedback(); onToggleWarmup(set); }}
-              onLongPress={openMenu}
-              delayLongPress={450}
-              style={styles.tableBadgeCol}
-            >
-              <Text style={[styles.tableNumber, { color: stateColor }, set.kind === 'warmup' && styles.tableNumberWarmup]}>
-                {`${set.kind === 'warmup' ? 'W' : workingNumber}${set.side === 'left' ? 'L' : set.side === 'right' ? 'R' : ''}`}
-              </Text>
-            </Pressable>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={`${summary}${done ? `, ${t('history.setCompleted')}` : ''}`}
-              accessibilityState={{ expanded: isOpen }}
-              accessibilityHint={t('logger.openSetHint')}
-              onPress={() => { tapFeedback(); if (isOpen) setExpanded((currentOpen) => new Map(currentOpen).set(set.id, false)); else openOnly(set.id); }}
-              onLongPress={openMenu}
-              delayLongPress={450}
-              style={({ pressed }) => [styles.tableRowMain, pressed && { opacity: 0.7 }]}
-            >
-              <View style={styles.tableFigures}>
-                <Text style={[styles.tableValue, { color: done || current ? palette.text : palette.textMuted }]}>
-                  {value}
-                  <Text style={[styles.tableUnit, { color: palette.textMuted }]}>{`${rowUnit}${withLoad && set.addedLoadKg !== 0 ? ` · ${loadText} kg` : ''}`}</Text>
-                </Text>
-                <View style={styles.tableNotes}>
-                  {setRecords.has(set.id) ? <Icon name="trophy" size={14} color={palette.record} /> : null}
-                  {set.note ? <Icon name="chatbubble-ellipses-outline" size={14} color={palette.textMuted} /> : null}
-                  {set.clipCount > 0 ? <Icon name="videocam" size={14} color={palette.accentStrong} /> : null}
-                  {rowSummary ? <Text numberOfLines={1} style={[styles.tableSummary, { color: palette.textMuted }]}>{rowSummary}</Text> : null}
-                </View>
-              </View>
-              <Gauge value={stored} ghost={ghostFor(set)} color={stateColor} delay={Math.min(set.index, 6) * 60} />
-            </Pressable>
-            {checkLeft ? null : tableCheck}
-            {foldButton(false, () => openOnly(set.id))}
-          </View>
-        );
-        // A planned set of a running EMOM is one quiet line: the clock fills it in, so steppers, check and ratings would only crowd the rounds.
-        if (emomBadgeLabel && !done) {
-          return (
-            <Pressable key={`${set.id}-u`} accessibilityRole="button" accessibilityLabel={`${summary}, ${t('logger.setOptions', { number: set.index })}`} onPress={openMenu} style={({ pressed }) => [styles.upcomingRow, pressed && { opacity: 0.6 }]}>
-              <Text style={[styles.upcomingText, { color: palette.textMuted }]}>{summary}</Text>
-            </Pressable>
-          );
-        }
-        const valuePanelNode = !quiet && (!table || isOpen) && (rpeRow || formRow || romRow || noteRow) ? (
-              <View style={[styles.valuePanel, editing && styles.valuePanelLarge, table && styles.tablePanel, { backgroundColor: editing ? undefined : done ? palette.background : palette.surface }]}>
-                {rpeRow ? <RpePicker compact grid={largeText} wrap sideLabel={sideLabel} value={set.rpe} target={set.targetRpe} onChange={(rpe) => onRpe(set, rpe)} /> : null}
-                {formRow ? <FormRating value={set.formRating} sideLabel={sideLabel} onChange={(rating) => onFormRating(set, rating)} /> : null}
-                {noteRow ? <NoteInput value={set.note ?? ''} label={t('logger.noteLabel')} placeholder={t('logger.notePlaceholder')} onSave={(note) => onNote!(set, note)} /> : null}
-                {romRow ? <FormRating rom value={set.romRating} sideLabel={sideLabel} onChange={(rating) => onRomRating!(set, rating)} /> : null}
-              </View>
-            ) : null;
-        // Ongoing workout (focus): every set is one ledger row; the set in hand edits in place with its chips.
-        if (focus) {
-          const side = set.side === 'left' ? 'L' as const : set.side === 'right' ? 'R' as const : null;
-          const label = set.kind === 'warmup' ? 'W' : String(workingNumber);
-          const described = set.bands.length > 0 ? describeBands?.(set) ?? null : null;
-          const assist = set.bands.length === 0 ? null : set.assistKg === null ? null : formatNumber(set.assistKg);
-          const bands = described ? { colors: described.colors, assist } : null;
-          const openSet = () => { tapFeedback(); unfold(set.id); setPicked({ id: set.id, done }); };
-          // A folded set in hand shows as a plain row; tapping it opens it again (unfold).
-          const inHand = set.id === focusedId && (!done || picked?.id === set.id) && !folded.has(set.id);
-          // Every ledger row swipes: right completes (or reopens a done set), left removes it.
-          const swipe = (node: ReactNode, mode: string) => (
-            <SwipeableSetRow
-              key={`${set.id}-${mode}`}
-              done={done}
-              completeLabel={t('logger.swipeComplete')}
-              reopenLabel={t('logger.swipeReopen')}
-              removeLabel={t('logger.swipeRemove')}
-              onSwipeRight={() => { onSwiped?.(); if (done) uncomplete(set); else complete(set); }}
-              onSwipeLeft={() => { onSwiped?.(); onRemoveSet(set); }}
-            >
-              {node}
-            </SwipeableSetRow>
-          );
-          if (!inHand) {
-            const row = { label, side, warmup: set.kind === 'warmup', value: timed ? value : distance ? `${value} m` : value, load: withLoad ? loadText : null, bands, withLoad, onOpen: openSet, onMenu: openMenu };
-            return done
-              ? swipe(<LedgerDoneRow {...row} rpe={set.rpe !== null ? formatRpe(set.rpe) : null} />, 'ld')
-              : swipe(<LedgerUpcomingRow {...row} next={set.id === nextSetId} />, 'lu');
-          }
-          const restSec = set.restSec ?? defaultRest;
-          const completeSlot = done ? (
-            <Pressable accessibilityRole="button" accessibilityState={{ checked: true }} accessibilityLabel={t('workout.setCompleted')} accessibilityHint={t('logger.swipeReopen')} hitSlop={6} onPress={() => uncomplete(set)} onLongPress={openMenu} delayLongPress={450} style={({ pressed }) => [styles.ledgerCheck, { backgroundColor: palette.success }, pressed && styles.checkPressed]}>
-              <Icon name="checkmark" size={22} color={palette.successText} />
-            </Pressable>
-          ) : timed && onStartHold ? (
-            <Pressable accessibilityRole="button" accessibilityLabel={holding ? t('logger.doneHold') : t('logger.startHold')} accessibilityHint={holding ? undefined : t('logger.holdLongPressHint')} onPress={() => (holding ? onFinishHold?.() : onStartHold(set))} onLongPress={holding ? undefined : () => { tapFeedback(); complete(set); }} delayLongPress={400} hitSlop={6} style={({ pressed }) => [styles.ledgerCheck, { backgroundColor: palette.accent }, pressed && styles.checkPressed]}>
-              <Icon name={holding ? 'stop' : 'play'} size={22} color={palette.accentText} />
-            </Pressable>
-          ) : undefined;
-          return swipe(
-            <LedgerActiveRow
-              label={label}
-              side={side}
-              warmup={set.kind === 'warmup'}
-              withLoad={withLoad}
-              onFold={() => toggleFold(set.id)}
-              onMenu={openMenu}
-              valueField={valueField}
-              valueDown={valueDown}
-              valueUp={valueUp}
-              loadField={loadField}
-              loadDown={loadDown}
-              loadUp={loadUp}
-              onComplete={() => complete(set)}
-              completeSlot={completeSlot}
-              rpe={canRpe ? { value: set.rpe !== null ? formatRpe(set.rpe) : null, target: set.targetRpe !== null ? formatRpe(set.targetRpe) : null, open: rpeRow, onPress: () => toggleOpen(set.id, 'rpe', rpeRow) } : null}
-              form={canForm ? { value: set.formRating !== null ? formatNumber(set.formRating) : null, open: formRow, onPress: () => toggleOpen(set.id, 'form', formRow) } : null}
-              rom={canRom ? { value: set.romRating !== null ? formatNumber(set.romRating) : null, open: romRow, onPress: () => toggleOpen(set.id, 'rom', romRow) } : null}
-              bands={{ colors: described?.colors ?? [], assist, onPress: () => { tapFeedback(); onSetOptions(set, 'bands'); } }}
-              rest={restSec > 0 ? { value: formatClock(restSec), filled: set.restSec !== null, onPress: () => { tapFeedback(); onSetOptions(set, 'rest'); } } : null}
-              note={{ text: set.note || null, open: noteRow, onPress: () => { if (onNote) toggleOpen(set.id, 'note', noteRow); else { tapFeedback(); onSetOptions(set, 'note'); } } }}
-              video={{ clips: set.clipCount, onPress: () => { tapFeedback(); if (set.clipCount > 0) onSetOptions(set); else router.push({ pathname: '/form-check/[setId]', params: { setId: set.id } }); } }}
-              panel={valuePanelNode}
-              tone={done ? 'edit' : 'next'}
-              bandsInUse={bandsInUse}
-            />,
-            done ? 'lad' : 'la',
-          );
-        }
-        return (
-          <Animated.View key={`${set.id}${largeText ? (editing ? "-e" : "-f") : table ? (isOpen ? "-o" : "-r") : ""}`} entering={largeText || table ? undefined : setEntering} style={[styles.setBlock, largeText && !editing && styles.setBlockLine, editing && [styles.largeBlock, { borderColor: done ? palette.success : palette.border, backgroundColor: done ? palette.successSoft : palette.background }], table && [styles.tableBlock, { borderTopColor: palette.border }, isOpen && { backgroundColor: palette.background, borderTopColor: ink, borderBottomWidth: 1, borderBottomColor: ink, borderLeftWidth: 4, borderLeftColor: palette.accentStrong }]]}>
-            {editing || table || largeText ? null : <DoneTint done={done} color={palette.accentSoft} />}
-            {/* The set in hand with very large text is not swiped: its steppers and buttons own the gestures. */}
-            {editing ? rowBody : (
-            <SwipeableSetRow
-              done={done}
-              onPage
-              completeLabel={t('logger.swipeComplete')}
-              reopenLabel={t('logger.swipeReopen')}
-              removeLabel={t('logger.swipeRemove')}
-              onSwipeRight={() => { onSwiped?.(); if (done) uncomplete(set); else complete(set); }}
-              onSwipeLeft={() => { onSwiped?.(); onRemoveSet(set); }}
-            >
-              {table && !isOpen ? tableRow : (
-                <>
-                  {rowBody}
-                  {table ? <View style={styles.openGauge}><Gauge value={stored} ghost={ghostFor(set)} color={stateColor} /></View> : null}
-                </>
-              )}
-            </SwipeableSetRow>
-            )}
-            {/* Row 2: how hard it was. */}
-            {/* Row 3, once the set is done: how clean the form was. The exercise folds only after the last rating. */}
-            {/* Only when there is something to show: PR, clips, note (and RPE when its row is hidden). */}
-            {focus && editing ? (() => {
-              const cells: RatingCell[] = [];
-              if (canRpe) cells.push({ id: 'rpe', label: t('lastTime.rpeChip').toUpperCase(), value: set.rpe !== null ? formatRpe(set.rpe) : null, hint: set.targetRpe !== null ? t('activeSet.target', { value: formatRpe(set.targetRpe) }).toUpperCase() : undefined, open: rpeRow, onPress: () => toggleOpen(set.id, 'rpe', rpeRow) });
-              if (canForm) cells.push({ id: 'form', label: t('lastTime.form').toUpperCase(), value: set.formRating !== null ? formatNumber(set.formRating) : null, hint: t('activeSet.scale', { range: '1–5' }).toUpperCase(), open: formRow, onPress: () => toggleOpen(set.id, 'form', formRow) });
-              if (canRom) cells.push({ id: 'rom', label: t('lastTime.rom').toUpperCase(), value: set.romRating !== null ? formatNumber(set.romRating) : null, hint: t('activeSet.scale', { range: '1–5' }).toUpperCase(), open: romRow, onPress: () => toggleOpen(set.id, 'rom', romRow) });
-              const described = set.bands.length > 0 ? describeBands?.(set) : null;
-              const bandsOpen = bandsEditing === set.id;
-              const recorded = [set.rpe, set.formRating, set.romRating].filter((value) => value !== null).length;
-              const detailsShown = detailsOpen.has(set.id);
-              const detailCount = [set.restSec !== null, set.side === 'left' || set.side === 'right', Boolean(set.note), set.clipCount > 0].filter(Boolean).length;
-              const unknownKg = set.bands.length > 0 && set.assistKg === null;
-              return (
-                <>
-                  {bandsInUse ? (
-                    <>
-                      <BandsStrip
-                        title={t('activeSet.bandsTitle').toUpperCase()}
-                        tag={t('activeSet.activeInput').toUpperCase()}
-                        assistLabel={t('activeSet.estimatedAssist').toUpperCase()}
-                        assistValue={set.bands.length === 0 ? '—' : unknownKg ? '?' : `−${formatNumber(set.assistKg ?? 0)}`}
-                        assistUnit={set.bands.length === 0 || unknownKg ? null : 'KG'}
-                        assistFoot={(unknownKg ? t('activeSet.assistFootUnknown') : t('activeSet.assistFoot')).toUpperCase()}
-                        text={described?.text ?? t('bands.chipEmpty')}
-                        colors={described?.colors ?? []}
-                        open={bandsOpen}
-                        folded={bandsFolded}
-                        foldLabel={t(bandsFolded ? 'activeSet.bandsUnfold' : 'activeSet.bandsFold')}
-                        onToggleFolded={toggleBandsFolded}
-                        actionLabel={t(bandsOpen ? 'activeSet.bandsClose' : 'activeSet.bandsEdit').toUpperCase()}
-                        onPress={() => { tapFeedback(); setBandsEditing(bandsOpen ? null : set.id); }}
-                      />
-                      {bandsOpen ? renderBandsEditor?.(set) ?? null : null}
-                    </>
-                  ) : null}
-                  {cells.length > 0 ? (
-                    <RatingCells
-                      title={t('activeSet.setTelemetry').toUpperCase()}
-                      counter={t('activeSet.recorded', { done: recorded, total: cells.length }).toUpperCase()}
-                      cells={cells}
-                      open={telemetryOpen.has(set.id)}
-                      onToggle={() => { tapFeedback(); setTelemetryOpen((current) => { const next = new Set(current); if (!next.delete(set.id)) next.add(set.id); return next; }); }}
-                    />
-                  ) : null}
-                  {cells.length === 0 || telemetryOpen.has(set.id) ? valuePanelNode : null}
-                  <DetailsToggle
-                    label={t('activeSet.additional').toUpperCase()}
-                    count={`${detailCount}/4`}
-                    open={detailsShown}
-                    actionLabel={t(detailsShown ? 'activeSet.closeWord' : 'activeSet.openWord').toUpperCase()}
-                    onPress={() => { tapFeedback(); setDetailsOpen((current) => { const next = new Set(current); if (next.has(set.id)) next.delete(set.id); else next.add(set.id); return next; }); }}
-                  />
-                </>
-              );
-            })() : null}
-            {!quiet && (!table || isOpen) && !(focus && editing && !detailsOpen.has(set.id)) && (strip || set.note || set.clipCount > 0 || (set.poseCount ?? 0) > 0 || set.rpe !== null || setRecords.has(set.id) || set.bands.length > 0) ? (() => {
-              // The chips fold behind one quiet line, folded by default; the open set of the ledger has its own "Additional" fold.
-              const folds = !(focus && editing);
-              const chipsShown = !folds || chipsOpen.has(set.id);
-              const described = set.bands.length > 0 ? describeBands?.(set) : null;
-              const summary = [
-                canRpe && set.rpe !== null ? t('logger.rpeTag', { value: formatRpe(set.rpe) }) : null,
-                canForm && set.formRating !== null ? `${t('lastTime.form')} ${formatNumber(set.formRating)}` : null,
-                canRom && set.romRating !== null ? `${t('lastTime.rom')} ${formatNumber(set.romRating)}` : null,
-                described ? described.text : null,
-                set.restSec !== null && set.restSec > 0 ? t('logger.restChip', { value: formatClock(set.restSec) }) : null,
-                set.note ? t('logger.noteChip') : null,
-                set.clipCount > 0 ? t('logger.clip', { count: set.clipCount }) : null,
-              ].filter(Boolean).join(' · ');
-              return (
-              <>
-              {folds ? (
-                <ChipsFold
-                  label={t('logger.chipsFold').toUpperCase()}
-                  summary={summary}
-                  record={setRecords.has(set.id)}
-                  open={chipsShown}
-                  onPress={() => { tapFeedback(); setChipsOpen((current) => { const next = new Set(current); if (!next.delete(set.id)) next.add(set.id); return next; }); }}
-                  trailing={table && isOpen ? menu : null}
-                  style={[styles.chipsFold, editing && styles.chipsFoldLarge, table && styles.chipsFoldTable]}
-                />
-              ) : null}
-              {chipsShown ? (
-              <View style={[styles.setMeta, editing && styles.setMetaLarge, table && styles.tableChips, folds && table && styles.tableChipsFolded]}>
-                {canRpe && !(focus && editing) && (strip || set.rpe !== null) ? (
-                  <ValueChip flat={table} label={set.rpe !== null ? t('logger.rpeTag', { value: formatRpe(set.rpe) }) : t('lastTime.rpeChip')} icon="speedometer-outline" filled={set.rpe !== null} open={rpeRow} onPress={() => toggleOpen(set.id, 'rpe', rpeRow)} />
-                ) : null}
-                {canForm && !(focus && editing) && (strip || set.formRating !== null) ? (
-                  <ValueChip flat={table} label={set.formRating !== null ? `${t('lastTime.form')} ${formatNumber(set.formRating)}` : t('lastTime.form')} filled={set.formRating !== null} open={formRow} onPress={() => toggleOpen(set.id, 'form', formRow)} />
-                ) : null}
-                {canRom && !(focus && editing) && (strip || set.romRating !== null) ? (
-                  <ValueChip flat={table} label={set.romRating !== null ? `${t('lastTime.rom')} ${formatNumber(set.romRating)}` : t('lastTime.rom')} filled={set.romRating !== null} open={romRow} onPress={() => toggleOpen(set.id, 'rom', romRow)} />
-                ) : null}
-                {(() => {
-                  const described = set.bands.length > 0 ? describeBands?.(set) : null;
-                  return strip || described ? (
-                    <ValueChip
-                      flat={table}
-                      label={described ? described.text : t('bands.chipEmpty')}
-                      icon="git-commit-outline"
-                      filled={Boolean(described)}
-                      colors={described?.colors}
-                      onPress={() => { tapFeedback(); onSetOptions(set, 'bands'); }}
-                    />
-                  ) : null;
-                })()}
-                {table || editing ? (
-                  <>
-                    {(set.restSec ?? defaultRest) > 0 ? <ValueChip flat label={t('logger.restChip', { value: formatClock(set.restSec ?? defaultRest) })} filled={set.restSec !== null} onPress={() => { tapFeedback(); onSetOptions(set, 'rest'); }} /> : null}
-                    {set.side === 'left' || set.side === 'right' ? <ValueChip flat label={sideLabel} filled onPress={() => { tapFeedback(); onSetOptions(set); }} /> : null}
-                    {set.clipCount === 0 ? <ValueChip flat label={t('logger.videoChip')} icon="videocam" filled={false} onPress={() => { tapFeedback(); router.push({ pathname: '/form-check/[setId]', params: { setId: set.id } }); }} /> : null}
-                  </>
-                ) : null}
-                {strip || set.note ? (
-                  <ValueChip flat={table} label={set.note ? set.note : t('logger.noteChip')} icon="chatbubble-ellipses-outline" filled={Boolean(set.note)} grow lines={3} onPress={() => { if (onNote) toggleOpen(set.id, 'note', noteRow); else { tapFeedback(); onSetOptions(set, 'note'); } }} open={noteRow} />
-                ) : null}
-                {setRecords.has(set.id) ? (
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel={setRecords.get(set.id)!.map((kind) => t(`records.kinds.${kind}`)).join(', ')}
-                    hitSlop={8}
-                    onPress={() => onSetOptions(set)}
-                    style={[styles.clipChip, { backgroundColor: palette.recordSoft }]}
-                  >
-                    <Icon name="trophy" size={13} color={palette.record} />
-                    <Text style={[styles.clipChipText, { color: palette.record }]}>{t(set.bands.length ? 'records.prWithBands' : 'records.pr')}</Text>
-                  </Pressable>
-                ) : null}
-                {set.clipCount > 0 ? (
-                  <Pressable accessibilityRole="button" hitSlop={8} onPress={() => onSetOptions(set)} style={[styles.clipChip, { backgroundColor: palette.surface }]}>
-                    <Icon name="videocam" size={13} color={palette.accentStrong} />
-                    <Text style={[styles.clipChipText, { color: palette.accentStrong }]}>{t('logger.clip', { count: set.clipCount })}</Text>
-                  </Pressable>
-                ) : null}
-                {table && isOpen && !folds ? menu : null}
-                {(set.poseCount ?? 0) > 0 ? (
-                  <Pressable accessibilityRole="button" accessibilityLabel={t('poseLink.setActionCount', { count: set.poseCount })} hitSlop={8} onPress={() => onSetOptions(set)} style={[styles.clipChip, { backgroundColor: palette.surface }]}>
-                    <Icon name="scan-outline" size={13} color={palette.accentStrong} />
-                    <Text style={[styles.clipChipText, { color: palette.accentStrong }]}>{set.poseCount}</Text>
-                  </Pressable>
-                ) : null}
-              </View>
-              ) : null}
-              </>
-              );
-            })() : null}
-            {focus && editing ? null : valuePanelNode}
-            {focus && editing && !done ? (() => {
-              const following = exercise.sets.find((item) => !item.completedAt && item.id !== set.id && item.index > set.index);
-              if (!following) return null;
-              const number = groupSets(exercise.sets.filter((item) => item.kind === 'working' && item.index <= following.index)).length;
-              const value = timed ? formatClock(following.durationSec ?? 0) : distance ? `${formatNumber(following.distanceM ?? 0)} m` : `${following.reps ?? 0} ${t('history.units.reps')}`;
-              const restSec = set.restSec ?? defaultRest;
-              return (
-                <View style={styles.queue}>
-                  <Text style={[styles.queueText, { color: palette.textMuted }]}>{t('activeSet.next', { number, value }).toUpperCase()}</Text>
-                  {restSec > 0 ? <Text style={[styles.queueText, { color: palette.textMuted }]}>{t('activeSet.rest', { value: formatClock(restSec) }).toUpperCase()}</Text> : null}
-                </View>
-              );
-            })() : null}
-            {/* Large text: one wide button finishes the set (or runs its hold). */}
-            {editing && !(fixedAction && !done && set.id === nextSetId) ? (
-              <View style={[styles.actionRow, textIsLarge && styles.actionRowWrap]}>
-              {done ? (
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityState={{ checked: true, disabled: emomLocked }}
-                  accessibilityHint={emomLocked ? t('emom.editHint') : t('logger.swipeReopen')}
-                  disabled={emomLocked}
-                  onPress={() => uncomplete(set)}
-                  onLongPress={openMenu}
-                  delayLongPress={450}
-                  style={({ pressed }) => [styles.largeAction, { backgroundColor: palette.success }, pressed && styles.checkPressed]}
-                >
-                  <Icon name="checkmark" size={22} color={palette.successText} />
-                  <Text style={[styles.largeActionText, { color: palette.successText }]}>{t('workout.setCompleted')}</Text>
-                </Pressable>
-              ) : timed && onStartHold ? (
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityHint={holding ? undefined : t('logger.holdLongPressHint')}
-                  accessibilityActions={holding ? undefined : [{ name: 'longpress', label: t('logger.markDoneNoTimer') }]}
-                  onAccessibilityAction={(event) => { if (event.nativeEvent.actionName === 'longpress') complete(set); }}
-                  onPress={() => holding ? onFinishHold?.() : onStartHold(set)}
-                  onLongPress={holding ? undefined : () => { tapFeedback(); complete(set); }}
-                  delayLongPress={400}
-                  style={({ pressed }) => [styles.largeAction, { backgroundColor: palette.accent }, pressed && styles.checkPressed]}
-                >
-                  <Icon name={holding ? 'stop' : 'play'} size={22} color={palette.accentText} />
-                  <Text style={[styles.largeActionText, { color: palette.accentText }]}>{holding ? t('logger.doneHold') : `${t('logger.startHold')} ${formatClock(stored)}`}</Text>
-                </Pressable>
-              ) : (
-                <Pressable
-                  accessibilityRole="button"
-                  onPress={() => complete(set)}
-                  onLongPress={openMenu}
-                  delayLongPress={450}
-                  style={({ pressed }) => [styles.largeAction, { backgroundColor: palette.accent }, pressed && styles.checkPressed]}
-                >
-                  <Icon name="checkmark" size={22} color={palette.accentText} />
-                  <Text style={[styles.largeActionText, { color: palette.accentText }]}>{focus ? t('activeSet.completeSet', { number: workingNumber }).toUpperCase() : t('workout.completeSet')}</Text>
-                </Pressable>
-              )}
-              {focus && !done ? (
-                // Beside Complete; at large text a full-width row under it, with its label.
-                <Pressable accessibilityRole="button" accessibilityLabel={t('activeSet.moreDetails')} onPress={() => { tapFeedback(); onSetOptions(set); }} style={({ pressed }) => [styles.detailsButton, textIsLarge && styles.detailsButtonWide, { borderColor: ink, backgroundColor: palette.surface }, pressed && { opacity: 0.6 }]}>
-                  <Icon name="options-outline" size={22} color={palette.accentStrong} />
-                  {textIsLarge ? <Text style={[styles.largeActionText, { color: palette.accentStrong }]}>{t('activeSet.moreDetails')}</Text> : null}
-                </Pressable>
-              ) : null}
-              </View>
-            ) : null}
-            {/* The fixed Complete button stands in for this one: its room stays, so selecting an exercise moves nothing. */}
-            {editing && fixedAction && !done && set.id === nextSetId ? <View pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={styles.fixedActionRoom} /> : null}
-          </Animated.View>
-        );
-      })}
+      {collapsed ? null : exercise.sets.map((set) => renderSet(set))}
       </View>
 
       {/* One compact split button under the sets: "+ Add set", and a chevron that unfolds the other ways to add (warm-up) below it. */}
@@ -1233,6 +1327,17 @@ function ValueChip({ label, icon, filled, open = false, grow = false, lines = 1,
 }
 
 const baseStyles = StyleSheet.create({
+  liveCard: { gap: 10 },
+  liveFrame: { overflow: 'hidden', borderWidth: 1, borderRadius: 5 },
+  liveTitle: { flexDirection: 'row', alignItems: 'flex-start', gap: 4, padding: 14, paddingBottom: 9 },
+  liveInlineTitle: { paddingHorizontal: 0, paddingVertical: 8 },
+  liveTitleWrap: { flexWrap: 'wrap' },
+  liveNameWide: { flexBasis: '100%' },
+  liveBadge: { fontFamily: fonts.monoSemibold, fontSize: 12, textTransform: "uppercase", borderRadius: 4, padding: 7, flexShrink: 1 },
+  liveValueFigure: { fontFamily: fonts.monoBold, fontSize: 21, lineHeight: 25 },
+  liveExerciseName: { fontFamily: fonts.display, fontSize: 30, lineHeight: 34 },
+  liveLogTitle: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  liveLogHeading: { fontFamily: fonts.display, fontSize: 21, lineHeight: 26 },
   bandDot: { width: 12, height: 12, borderRadius: radii.control, borderWidth: 1 },
   flex: { flex: 1 },
   // Exercises are flat sections divided by a hairline, not cards: more room for the sets.

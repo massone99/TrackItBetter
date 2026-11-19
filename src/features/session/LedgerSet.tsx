@@ -1,7 +1,8 @@
 import { useState, type ReactNode } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import { Icon, Text, tapFeedback } from '../../shared/components/ui';
+import { ActionButton, Icon, Text, tapFeedback } from '../../shared/components/ui';
+import { WorkoutNote } from './WorkoutNote';
 import { ChipsFold } from './ChipsFold';
 import { useInk } from '../../shared/theme/ink';
 import { useScaledStyles } from '../../shared/theme/useScaledStyles';
@@ -23,12 +24,18 @@ export interface LedgerCommon {
 export interface LedgerHeaderProps {
   /** REPS / SEC / M (use `t('ledger.repsCol')` etc.). */
   valueLabel: string;
+  live?: boolean;
   /** Hide the KG column when the exercise has no load. */
   withLoad?: boolean;
 }
 
 export interface LedgerRowProps extends LedgerCommon {
   value: string;
+  live?: boolean;
+  note?: string | null;
+  active?: boolean;
+  record?: boolean;
+  units?: string;
   rpe?: string | null;
   /** Load in kg, already formatted; null hides it. */
   load?: string | null;
@@ -70,6 +77,18 @@ export interface LedgerActiveRowProps extends LedgerCommon {
   tone?: 'next' | 'edit';
   /** The exercise uses bands: the band line shows on the set in hand even when it has none yet. */
   bandsInUse?: boolean;
+  live?: {
+    fieldLabel: string;
+    unit?: string;
+    comparable: string | null;
+    bandsText?: string;
+    action: string;
+    done: boolean;
+    holding?: boolean;
+    disabled?: boolean;
+    onAction: () => void;
+    onManual?: () => void;
+  };
 }
 
 function setText(label: string, side: 'L' | 'R' | null | undefined) {
@@ -82,18 +101,18 @@ function useSetName({ label, side, warmup }: LedgerCommon) {
 }
 
 /** Column header of a ledger: SET | value | KG | DONE. */
-export function LedgerHeader({ valueLabel, withLoad = true }: LedgerHeaderProps) {
+export function LedgerHeader({ valueLabel, withLoad = true, live = false }: LedgerHeaderProps) {
   const { t } = useTranslation();
   const styles = useScaledStyles(baseStyles);
   const { palette } = useTheme();
   const ink = useInk();
   const cell = [styles.headText, { color: palette.textMuted }];
   return (
-    <View style={[styles.header, { borderBottomColor: ink }]} accessibilityRole="header">
-      <Text style={[styles.colSet, ...cell]}>{t('ledger.setCol')}</Text>
+    <View style={[styles.header, { borderBottomColor: ink }, live && { backgroundColor: palette.surfaceMuted }]} accessibilityRole="header">
+      <Text style={[live ? styles.liveRowNumber : styles.colSet, ...cell]}>{live ? t('liveWorkout.setColumn') : t('ledger.setCol')}</Text>
       <Text style={[styles.colField, ...cell]}>{valueLabel}</Text>
-      {withLoad ? <Text style={[styles.colField, ...cell]}>{t('ledger.kgCol')}</Text> : null}
-      <Text style={[styles.colDone, ...cell]}>{t('ledger.doneCol')}</Text>
+      {withLoad ? <Text style={[styles.colField, ...cell]}>{t(live ? 'liveWorkout.loadColumn' : 'ledger.kgCol')}</Text> : null}
+      {live ? <View style={styles.colDone} /> : <Text style={[styles.colDone, ...cell]}>{t('ledger.doneCol')}</Text>}
     </View>
   );
 }
@@ -124,9 +143,10 @@ function LoadCell({ load, bands, muted }: { load?: string | null; bands?: Ledger
 }
 
 function summary(t: (key: string, options?: Record<string, unknown>) => string, props: LedgerRowProps, key: 'rowDone' | 'rowUpcoming', name: string) {
-  const parts = [props.value];
+  const parts = [props.units ? `${props.value} ${props.units}` : props.value];
+  if (props.live && props.note) parts.push(t('liveWorkout.setNote'));
   if (props.bands && props.bands.colors.length > 0) parts.push(props.bands.assist ? t('ledger.withAssist', { value: props.bands.assist }) : t('bands.unknown'));
-  else if (props.withLoad !== false && props.load) parts.push(t('ledger.withLoad', { value: props.load }));
+  if ((props.live || !props.bands?.colors.length) && props.withLoad !== false && props.load) parts.push(t('ledger.withLoad', { value: props.load }));
   if (props.rpe) parts.push(t('ledger.withRpe', { value: props.rpe }));
   return t(`ledger.${key}`, { set: name, value: parts.join(', ') });
 }
@@ -151,6 +171,27 @@ function StaticRow(props: LedgerRowProps & { done: boolean }) {
   const next = !done && props.next;
   const muted = !done && !next;
   const color = muted ? palette.textMuted : palette.text;
+  if (props.live) return (
+    <Pressable accessibilityRole="button" accessibilityLabel={summary(t, props, done ? 'rowDone' : 'rowUpcoming', name)}
+      onPress={() => { tapFeedback(); props.onOpen(); }} onLongPress={props.onMenu}
+      style={[styles.row, styles.liveRow, { borderBottomColor: palette.border, backgroundColor: props.active ? palette.accentSoft : palette.surface }]}>
+      <View style={styles.liveRowNumber}>
+        <Text style={[styles.figure, { color: props.active ? palette.accentStrong : color }]}>{setText(props.label, props.side).padStart(2, '0')}</Text>
+        {props.note ? <Icon name="document-text-outline" size={13} color={palette.accentStrong} /> : null}
+        {props.record ? <Icon name="trophy-outline" size={13} color={palette.record} /> : null}
+      </View>
+      <Text style={[styles.figure, styles.colField, { color }]}>{[props.value, props.units].filter(Boolean).join(' ')}</Text>
+      {withLoad ? <View style={styles.colField}>
+        <Text style={[styles.figure, { color }]}>{props.load ? `${props.load} kg` : '—'}</Text>
+        {props.bands?.colors.length ? <View style={styles.bandsCell}>
+          <Swatches colors={props.bands.colors} />
+          <Text style={[styles.small, { color: palette.textMuted }]}>{props.bands.assist ? `−${props.bands.assist} kg` : '?'}</Text>
+        </View> : null}
+      </View> : null}
+      <View style={styles.colDone}><Icon name={done && !props.active ? 'checkmark' : props.active ? 'chevron-down' : 'chevron-forward'}
+        size={17} color={done && !props.active ? palette.success : props.active ? palette.accentStrong : palette.textMuted} /></View>
+    </Pressable>
+  );
   return (
     <Pressable
       accessibilityRole="button"
@@ -226,6 +267,69 @@ function Field({ children, down, up, stacked }: { children: ReactNode; down?: Re
 
 /** The set in hand: value and load fields, the complete button, then the chips and an optional open picker. */
 export function LedgerActiveRow(props: LedgerActiveRowProps) {
+  return props.live ? <LiveSetEditor {...props} live={props.live} /> : <ClassicLedgerActiveRow {...props} />;
+}
+
+function LiveSetEditor({ live, note, bands, bandsInUse, valueField, valueDown, valueUp, loadField, loadDown, loadUp, withLoad, onMenu }: LedgerActiveRowProps & { live: NonNullable<LedgerActiveRowProps['live']> }) {
+  const { t } = useTranslation();
+  const styles = useScaledStyles(baseStyles);
+  const { palette, mode, largeText } = useTheme();
+  const { width } = useWindowDimensions();
+  const fieldsStack = largeText || width < 340;
+  return <View>
+    <View style={[styles.liveMeasurements, { backgroundColor: mode === 'light' ? '#e8ebfb' : palette.accentSoft, borderColor: palette.border }]}>
+      <View style={[styles.liveFields, fieldsStack && styles.liveFieldsStack]}>
+        <LiveField stacked={fieldsStack} label={live.fieldLabel} unit={live.unit} down={valueDown} up={valueUp}>{valueField}</LiveField>
+        {withLoad ? <LiveField stacked={fieldsStack} label={t('liveWorkout.addedLoad')} unit="kg" down={loadDown} up={loadUp}>{loadField}</LiveField> : null}
+      </View>
+      {live.comparable ? <Text style={[styles.comparable, { color: palette.textMuted }]}>{t('liveWorkout.comparable', { value: live.comparable })}</Text> : null}
+    </View>
+    {bands && (bandsInUse || bands.colors.length > 0) ? (
+      <Pressable accessibilityRole="button" accessibilityLabel={t('liveWorkout.bandHelp')}
+        onPress={() => { tapFeedback(); bands.onPress(); }}
+        style={[styles.liveBands, { backgroundColor: palette.surfaceMuted, borderColor: palette.border }]}>
+        <Swatches colors={bands.colors} />
+        <View style={styles.colField}>
+          <Text style={styles.fieldLabel}>{t('liveWorkout.bandHelp')}</Text>
+          <Text style={[styles.comparable, { color: palette.textMuted }]}>{live.bandsText ?? t('ledger.noBands')}</Text>
+        </View>
+        {bands.colors.length > 0 ? <Text style={[styles.small, { color: palette.textMuted }]}>{bands.assist ? `−${bands.assist} kg` : t('bands.unknown')}</Text> : null}
+        <Icon name="chevron-forward" size={16} color={palette.accentStrong} />
+      </Pressable>
+    ) : null}
+    {note ? <WorkoutNote inset kind="setNote" value={note.text} onPress={note.onPress} /> : null}
+    <View style={[styles.liveActions, largeText && styles.liveFieldsStack]}>
+      <Pressable accessibilityRole="button" accessibilityLabel={live.action} disabled={live.disabled}
+        accessibilityState={{ disabled: live.disabled }}
+        accessibilityActions={live.onManual ? [{ name: 'longpress', label: t('logger.markDoneNoTimer') }] : undefined}
+        onAccessibilityAction={(event) => { if (event.nativeEvent.actionName === 'longpress') live.onManual?.(); }}
+        onPress={() => { tapFeedback(); live.onAction(); }} onLongPress={live.onManual}
+        style={({ pressed }) => [styles.liveComplete, { backgroundColor: palette.accent, opacity: live.disabled || pressed ? 0.65 : 1 }]}>
+        <Icon name={live.done ? 'arrow-undo' : live.holding ? 'stop' : live.onManual ? 'play' : 'checkmark'} size={20} color={palette.accentText} />
+        <Text style={[styles.liveCompleteText, { color: palette.accentText }]}>{live.action}</Text>
+      </Pressable>
+      <ActionButton compact secondary label={t('liveWorkout.details')} onPress={onMenu} />
+    </View>
+  </View>;
+}
+
+function LiveField({ stacked, label, unit, down, up, children }: { stacked: boolean; label: string; unit?: string; down?: ReactNode; up?: ReactNode; children: ReactNode }) {
+  const { palette } = useTheme();
+  const styles = useScaledStyles(baseStyles);
+  return <View style={[styles.liveField, !stacked && styles.liveFieldInline]}>
+    <Text style={styles.fieldLabel}>{label}</Text>
+    <View style={[styles.liveStepper, { backgroundColor: palette.surface, borderColor: palette.border }]}>
+      {down ? <View style={[styles.stepSeparator, { borderRightWidth: 1, borderColor: palette.border }]}>{down}</View> : null}
+      <View style={styles.liveValue}>
+        {children}
+        {unit ? <Text style={[styles.unit, { color: palette.text }]}>{unit}</Text> : null}
+      </View>
+      {up ? <View style={[styles.stepSeparator, { borderLeftWidth: 1, borderColor: palette.border }]}>{up}</View> : null}
+    </View>
+  </View>;
+}
+
+function ClassicLedgerActiveRow(props: LedgerActiveRowProps) {
   const { t } = useTranslation();
   const styles = useScaledStyles(baseStyles);
   const { palette, largeText } = useTheme();
@@ -344,6 +448,23 @@ export function LedgerActiveRow(props: LedgerActiveRowProps) {
 }
 
 const baseStyles = StyleSheet.create({
+  liveRow: { paddingLeft: 10 },
+  liveRowNumber: { width: 42, flexDirection: 'row', flexWrap: 'wrap', gap: 3, alignItems: 'center' },
+  liveMeasurements: { borderTopWidth: 1, borderBottomWidth: 1, paddingHorizontal: 13, paddingVertical: 12, gap: 10 },
+  liveFields: { flexDirection: 'row', gap: 9 },
+  liveFieldsStack: { flexDirection: 'column' },
+  liveField: { gap: 5, minWidth: 0 },
+  liveFieldInline: { flex: 1 },
+  fieldLabel: { fontFamily: fonts.semibold, fontSize: 13 },
+  liveStepper: { minHeight: 50, flexDirection: 'row', alignItems: 'stretch', borderWidth: 1, borderRadius: 4 },
+  stepSeparator: { justifyContent: 'center', alignItems: 'center', width: 42 },
+  liveValue: { flex: 1, minWidth: 0, flexWrap: 'wrap', flexDirection: 'row', alignItems: 'center', alignContent: 'center', justifyContent: 'center', gap: 3 },
+  unit: { fontFamily: fonts.monoSemibold, fontSize: 11 },
+  comparable: { fontSize: 12 },
+  liveBands: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 7, padding: 12, minHeight: 44, borderBottomWidth: 1 },
+  liveActions: { flexDirection: 'row', alignItems: 'stretch', gap: 8, padding: 12 },
+  liveComplete: { flexGrow: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, padding: 8, minHeight: 48, borderRadius: 4 },
+  liveCompleteText: { fontFamily: fonts.semibold, fontSize: 16, flexShrink: 1 },
   // Every row starts 8 dp in, so the set number does not touch the card's edge.
   header: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: 32, paddingLeft: spacing.sm, borderBottomWidth: StyleSheet.hairlineWidth },
   headText: { fontFamily: fonts.mono, fontSize: 12, lineHeight: 16 },

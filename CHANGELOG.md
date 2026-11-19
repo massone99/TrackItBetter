@@ -2,6 +2,13 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.72.0 - 2026-11-19
+
+- Workout in progress: see session progress, the next exercise and a fixed rest timer from the overview.
+- Create, rename and remove groups and supersets. Collapse or expand them individually or all at once. Removing a group keeps its exercises, sets and notes.
+- Choose a focused set editor or a compact log. Repetitions, added load and band assistance are clearly labelled, including at large text sizes.
+- Edit workout, exercise and set notes from their own sheets and see previews as you train.
+
 ## 0.71.0 - 2026-11-19
 
 - Workout: copied prescriptions stay separate, finishing opens the summary, and workout notes can be edited from the workout menu or history.

@@ -11,6 +11,7 @@ import { formatRpe } from '../../domain/rpe';
 import { ScaleRow } from './ScaleRow';
 import { describePreviousSet } from './ExerciseCard';
 import { removeSetWithUndo, setSetFormRating, setSetRomRating, updateSetNote, updateSetRpe, type PreviousSetValues, type RemovedRows, type SessionExercise, type SessionSet } from './repository';
+import { WorkoutNote } from './WorkoutNote';
 import { SetBandsField } from '../equipment/SetBandsField';
 import { bandsById, describeSetBands, useEquipment } from '../equipment/useEquipment';
 
@@ -19,7 +20,7 @@ import { bandsById, describeSetBands, useEquipment } from '../equipment/useEquip
  * note, video, pose analysis, L/R pair and removal. The live-only parts (hold timer mode, done
  * without the timer, copy last time) show when their handlers are given.
  */
-export function SetSheet({ initialView, exercise, set, holdMode, onHoldMode, onClose, onChanged, onRemoved, onCompleteManually, lastTime, onCopyLast, onPair }: {
+export function SetSheet({ initialView, exercise, set, holdMode, onHoldMode, onClose, onChanged, onRemoved, onCompleteManually, lastTime, onCopyLast, onPair, onOpenNote, onToggleWarmup }: {
   /** Opens straight on the set's bands or its note. */
   initialView?: 'bands' | 'note' | 'rest';
   exercise: SessionExercise;
@@ -28,6 +29,8 @@ export function SetSheet({ initialView, exercise, set, holdMode, onHoldMode, onC
   onHoldMode?: (mode: HoldMode) => void;
   onClose: () => void;
   onChanged: () => Promise<void>;
+  onOpenNote?: () => void;
+  onToggleWarmup?: () => void;
   /** Called with what was removed when the removal can be undone. */
   onRemoved: (removed: RemovedRows | null) => void;
   /** Completes a hold with its entered time, skipping the timer. */
@@ -106,6 +109,7 @@ export function SetSheet({ initialView, exercise, set, holdMode, onHoldMode, onC
           {moreOpen ? (
             <MenuList>
               {lastTime && onCopyLast && !set.completedAt ? <MenuRow icon="arrow-undo-outline" label={t('logger.copyPrevious', { value: describePreviousSet(lastTime, exercise.metric) })} onPress={() => { setMoreOpen(false); onCopyLast(lastTime); }} /> : null}
+              {onToggleWarmup ? <MenuRow icon="flame-outline" label={t(set.kind === 'warmup' ? 'liveWorkout.markWorking' : 'liveWorkout.markWarmup')} onPress={() => { void saveNote().then(onToggleWarmup); }} /> : null}
               {onPair ? <MenuRow icon="git-compare-outline" label={set.pairId ? t('history.editPair') : t('history.convertPair')} onPress={() => { close(); onPair(); }} /> : null}
               {(set.poseCount ?? 0) > 0 ? <MenuRow icon="scan-outline" label={t('poseLink.setActionCount', { count: set.poseCount })} onPress={() => { close(); router.push({ pathname: '/pose/[positionId]', params: { positionId: 'free', setId: set.id } }); }} /> : null}
               {poseDetectionAvailable ? <MenuRow icon="body-outline" label={t('poseLink.setAction')} onPress={() => { close(); router.push({ pathname: '/pose/new', params: { positionId: 'free', setId: set.id } }); }} /> : null}
@@ -167,7 +171,7 @@ export function SetSheet({ initialView, exercise, set, holdMode, onHoldMode, onC
               onChange={(next) => { setRom(next); void setSetRomRating(set.id, next).then(onChanged); }}
             />
           ) : null}
-          <TextField
+          {onOpenNote ? <WorkoutNote kind="setNote" value={set.note} onPress={onOpenNote} /> : <TextField
             label={t('logger.noteLabel')}
             value={note}
             onChangeText={setNote}
@@ -175,7 +179,7 @@ export function SetSheet({ initialView, exercise, set, holdMode, onHoldMode, onC
             multiline
             autoFocus={initialView === 'note'}
             maxLength={500}
-          />
+          />}
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
             <Chip icon="git-commit-outline" label={bandsText ?? t('bands.chipEmpty')} selected={Boolean(bandsText)} onPress={() => setBandsOpen(true)} />
             <Chip icon="timer-outline" label={set.restSec !== null ? t('logger.restChip', { value: formatClock(set.restSec) }) : t('logger.restGroup')} selected={set.restSec !== null} onPress={() => setRestOpen(true)} />

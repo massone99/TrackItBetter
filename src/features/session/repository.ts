@@ -13,6 +13,7 @@ import { isLoadMetric, measureOf } from '../../domain/userProgram';
 import type { SetKind } from './restDefaults';
 import { formatSupersetType, type SupersetRest } from './superset';
 import { groupSets, completedSetCount, validatePairs } from '../../domain/setPairs';
+import { legacyWorkoutGroups, parseWorkoutGroupLayout, type WorkoutGroupLayout } from './workoutGroups';
 import { blockAfterMove, blockOf, sortByBlock, type Block } from '../../domain/blocks';
 import { effectiveApparatus, parseIdList, parseSetBands, setAssistKg, type Band, type SetBand } from '../../domain/equipment';
 
@@ -64,6 +65,7 @@ export interface SessionExercise {
   unilateralRestOverride?: 'side' | 'pair' | null;
   /** Part of the workout this exercise belongs to. */
   block: Block;
+  workoutGroupId?: string | null;
   entryId: string;
   exerciseId: string;
   name: string;
@@ -85,6 +87,7 @@ export interface ActiveWorkout {
   name: string;
   /** Free-text note for the whole workout; starts as the prescribed workout's note. */
   notes: string | null;
+  groupLayout?: WorkoutGroupLayout | null;
   startedAt: Date;
   sleep: number | null;
   energy: number | null;
@@ -250,6 +253,12 @@ export async function updateWorkoutDetails(workoutId: string, details: { name: s
   await bumpIfFinished({ workoutId });
 }
 
+export async function updateWorkoutNote(workoutId: string, note: string): Promise<void> {
+  await initializeDatabase();
+  await db.update(workouts).set({ notes: note.trim().slice(0, 1000) || null }).where(eq(workouts.id, workoutId));
+  await bumpIfFinished({ workoutId });
+}
+
 export async function getActiveWorkout(id?: string): Promise<ActiveWorkout | null> {
   await initializeDatabase();
   const [workout] = await db
@@ -266,6 +275,7 @@ export async function getActiveWorkout(id?: string): Promise<ActiveWorkout | nul
     id: workout.id,
     name: workout.name,
     notes: workout.notes,
+    groupLayout: parseWorkoutGroupLayout(workout.groupLayout),
     startedAt: workout.startedAt,
     sleep: workout.sleep,
     energy: workout.energy,
@@ -328,6 +338,7 @@ async function loadSessionExercises(workoutId: string): Promise<SessionExercise[
       apparatusAffectsDifficulty: exercise.apparatusAffectsDifficulty,
       notes: entry.notes,
       block: blockOf(entry.block),
+      workoutGroupId: entry.workoutGroupId,
       groupId: entry.groupId,
       groupType: entry.groupType,
       totalTarget: entry.totalTarget ?? null,
@@ -370,6 +381,7 @@ export async function getCompletedWorkout(workoutId: string): Promise<CompletedW
     id: workout.id,
     name: workout.name,
     notes: workout.notes,
+    groupLayout: parseWorkoutGroupLayout(workout.groupLayout),
     startedAt: workout.startedAt,
     endedAt: workout.endedAt,
     sleep: workout.sleep,
@@ -467,6 +479,8 @@ async function prefillFromLastTime(entryId: string, workoutId: string, exerciseI
 
 /** Renumbers a workout's exercises so every block is contiguous (warm-up, main work, mobility). */
 async function normalizeBlockOrder(workoutId: string): Promise<void> {
+  const [workout] = await db.select({ layout: workouts.groupLayout }).from(workouts).where(eq(workouts.id, workoutId));
+  if (parseWorkoutGroupLayout(workout?.layout ?? null)) return;
   const entries = await db.select().from(exerciseEntries).where(eq(exerciseEntries.workoutId, workoutId)).orderBy(asc(exerciseEntries.order));
   const sorted = sortByBlock(entries);
   await db.transaction(async (tx) => {
@@ -1202,20 +1216,26 @@ export async function repeatWorkoutIfIdle(sourceId: string): Promise<{ workoutId
  */
 export async function repeatWorkout(sourceId: string): Promise<string> {
   await initializeDatabase();
-  const [source] = await db.select({ name: workouts.name }).from(workouts).where(eq(workouts.id, sourceId)).limit(1);
+  const [source] = await db.select({ name: workouts.name, groupLayout: workouts.groupLayout }).from(workouts).where(eq(workouts.id, sourceId)).limit(1);
   if (!source) throw new Error('Workout not found');
   const entries = await db.select().from(exerciseEntries).where(eq(exerciseEntries.workoutId, sourceId)).orderBy(asc(exerciseEntries.order));
   const sourceSets = entries.length === 0 ? [] : await db.select().from(trainingSets)
     .where(and(inArray(trainingSets.entryId, entries.map((entry) => entry.id)), isNotNull(trainingSets.completedAt))).orderBy(asc(trainingSets.index));
   const workoutId = id();
   const newEntries: (typeof exerciseEntries.$inferInsert)[] = [];
+  const supersetIds = new Map(entries.flatMap((entry) => entry.groupId ? [entry.groupId] : []).map((groupId) => [groupId, id()]));
+  const layout = parseWorkoutGroupLayout(source.groupLayout);
+  if (layout) layout.supersets = layout.supersets.flatMap((group) => {
+    const newId = supersetIds.get(group.id);
+    return newId ? [{ ...group, id: newId }] : [];
+  });
   const newSets: (typeof trainingSets.$inferInsert)[] = [];
   for (const entry of entries) {
     const sets = sourceSets.filter((set) => set.entryId === entry.id);
     if (sets.length === 0) continue;
     validatePairs(sets, true);
     const entryId = id();
-    newEntries.push({ id: entryId, workoutId, exerciseId: entry.exerciseId, order: newEntries.length + 1, notes: entry.notes, groupId: entry.groupId, groupType: entry.groupType, unilateralRestMode: entry.unilateralRestMode, block: entry.block, apparatusId: entry.apparatusId, totalTarget: entry.totalTarget });
+    newEntries.push({ id: entryId, workoutId, exerciseId: entry.exerciseId, order: newEntries.length + 1, notes: entry.notes, groupId: entry.groupId ? supersetIds.get(entry.groupId) : null, groupType: entry.groupType, workoutGroupId: entry.workoutGroupId, unilateralRestMode: entry.unilateralRestMode, block: entry.block, apparatusId: entry.apparatusId, totalTarget: entry.totalTarget });
     const pairIds = new Map(sets.filter((s) => s.pairId).map((s) => [s.pairId, id()]));
     newSets.push(...sets.map((set) => ({
       // How hard and how clean it was belong to that day: the copy starts without them.
@@ -1225,7 +1245,7 @@ export async function repeatWorkout(sourceId: string): Promise<string> {
   const bodyweightKg = await latestBodyweightKg();
   // One transaction: a failure part-way leaves no half-copied workout open.
   await db.transaction(async (tx) => {
-    await tx.insert(workouts).values({ id: workoutId, name: source.name, startedAt: new Date(), bodyweightKg });
+    await tx.insert(workouts).values({ id: workoutId, name: source.name, groupLayout: layout ? JSON.stringify(layout) : null, startedAt: new Date(), bodyweightKg });
     if (newEntries.length > 0) await tx.insert(exerciseEntries).values(newEntries);
     for (let start = 0; start < newSets.length; start += INSERT_CHUNK) await tx.insert(trainingSets).values(newSets.slice(start, start + INSERT_CHUNK));
   });
@@ -1619,6 +1639,9 @@ export async function linkWithNext(entryId: string): Promise<void> {
     .where(and(eq(exerciseEntries.workoutId, current.workoutId), gt(exerciseEntries.order, current.order)))
     .orderBy(asc(exerciseEntries.order)).limit(1);
   if (!next) return;
+  const [workout] = await db.select({ layout: workouts.groupLayout }).from(workouts).where(eq(workouts.id, current.workoutId));
+  const layout = parseWorkoutGroupLayout(workout?.layout ?? null);
+  if (layout ? current.workoutGroupId !== next.workoutGroupId : blockOf(current.block) !== blockOf(next.block)) return;
   const groupId = current.groupId ?? next.groupId ?? id();
   const groupType = current.groupType ?? next.groupType ?? formatSupersetType({ mode: 'round', betweenSec: 0 });
   const oldGroups = [current.groupId, next.groupId].filter((value): value is string => value !== null);
@@ -1676,4 +1699,113 @@ export async function moveExerciseEntry(workoutId: string, entryId: string, toIn
     if (rest.length === 1) await tx.update(exerciseEntries).set({ groupId: null, groupType: null }).where(eq(exerciseEntries.id, rest[0].id));
   });
   await bumpIfFinished({ workoutId });
+}
+
+export type WorkoutGroupChange =
+  | { type: 'group'; id?: string; name: string; entryIds: string[] }
+  | { type: 'superset'; id?: string; parentId: string | null; name: string; entryIds: string[] }
+  | { type: 'deleteGroup' | 'deleteSuperset'; id: string }
+  | { type: 'moveGroup'; id: string; offset: -1 | 1 }
+  | { type: 'moveExercise'; id: string; offset: -1 | 1 };
+
+/** Update visual grouping and real exercise order together. Sets and notes keep their original ids. */
+export async function changeWorkoutGroups(workoutId: string, change: WorkoutGroupChange): Promise<void> {
+  await initializeDatabase();
+  await db.transaction(async (tx) => {
+    const [workout] = await tx.select({ layout: workouts.groupLayout }).from(workouts)
+      .where(and(eq(workouts.id, workoutId), isNull(workouts.endedAt)));
+    if (!workout) throw new Error('Active workout not found');
+    const before = await tx.select().from(exerciseEntries).where(eq(exerciseEntries.workoutId, workoutId))
+      .orderBy(asc(exerciseEntries.order));
+    const saved = parseWorkoutGroupLayout(workout.layout);
+    const layout = saved ?? { groups: legacyWorkoutGroups(before), supersets: [] };
+    const entries = before.map((entry) => ({ ...entry, workoutGroupId: saved ? saved.groups.find((group) => group.id === entry.workoutGroupId)?.id ?? null : blockOf(entry.block) }));
+    const detach = (entry: (typeof entries)[number]) => { entry.groupId = null; entry.groupType = null; };
+
+    if (change.type === 'group' || change.type === 'superset') {
+      const name = change.name.trim().slice(0, 80);
+      if (!name) throw new Error('Group name is required');
+      const groupId = change.id ?? id();
+      const selected = new Set(change.entryIds);
+      if (change.type === 'group') {
+        const existing = layout.groups.find((group) => group.id === groupId);
+        if (change.id && !existing) throw new Error('Group not found');
+        if (existing) existing.name = name;
+        else layout.groups.push({ id: groupId, name });
+        for (const entry of entries) {
+          if (selected.has(entry.id)) entry.workoutGroupId = groupId;
+          else if (entry.workoutGroupId === groupId) entry.workoutGroupId = null;
+        }
+      } else {
+        if (change.parentId !== null && !layout.groups.some((group) => group.id === change.parentId)) throw new Error('Group not found');
+        const members = entries.filter((entry) => selected.has(entry.id));
+        if (members.length < 2) throw new Error('A superset needs at least two exercises');
+        const rest = entries.find((entry) => entry.groupId === groupId)?.groupType ?? formatSupersetType({ mode: 'round', betweenSec: 0 });
+        layout.supersets = [...layout.supersets.filter((group) => group.id !== groupId), { id: groupId, name }];
+        for (const entry of entries) {
+          if (members.includes(entry)) {
+            entry.workoutGroupId = change.parentId;
+            entry.groupId = groupId;
+            entry.groupType = rest;
+          } else if (entry.groupId === groupId) detach(entry);
+        }
+      }
+    } else if (change.type === 'deleteGroup') {
+      layout.groups = layout.groups.filter((group) => group.id !== change.id);
+      for (const entry of entries) {
+        if (entry.workoutGroupId !== change.id) continue;
+        entry.workoutGroupId = null;
+        detach(entry);
+      }
+    } else if (change.type === 'deleteSuperset') {
+      for (const entry of entries) if (entry.groupId === change.id) detach(entry);
+    } else if (change.type === 'moveGroup') {
+      const from = layout.groups.findIndex((group) => group.id === change.id);
+      const to = from + change.offset;
+      if (from >= 0 && to >= 0 && to < layout.groups.length) {
+        [layout.groups[from], layout.groups[to]] = [layout.groups[to], layout.groups[from]];
+      }
+    } else if (change.type === 'moveExercise') {
+      const from = entries.findIndex((entry) => entry.id === change.id);
+      const to = from + change.offset;
+      if (entries[from] && entries[to] && entries[from].workoutGroupId === entries[to].workoutGroupId
+        && entries[from].groupId === entries[to].groupId) {
+        [entries[from], entries[to]] = [entries[to], entries[from]];
+      }
+    }
+
+    // Keep any superset that moves together. If split, keep the members that stay in its original
+    // group, when at least two remain there.
+    const supersetIds = new Set(entries.flatMap((entry) => entry.groupId ? [entry.groupId] : []));
+    for (const groupId of supersetIds) {
+      const members = entries.filter((entry) => entry.groupId === groupId);
+      if (members.length >= 2 && members.every((entry) => entry.workoutGroupId === members[0].workoutGroupId)) continue;
+      const original = before.find((entry) => entry.groupId === groupId);
+      const parent = saved ? original?.workoutGroupId : blockOf(original?.block);
+      const remaining = members.filter((entry) => entry.workoutGroupId === parent);
+      for (const entry of members) if (remaining.length < 2 || !remaining.includes(entry)) detach(entry);
+    }
+    layout.supersets = layout.supersets.filter(({ id }) => entries.some((entry) => entry.groupId === id));
+
+    const ordered = [...layout.groups.map((group) => group.id), null].flatMap((groupId) => {
+      const group = entries.filter((entry) => entry.workoutGroupId === groupId);
+      const seen = new Set<string>();
+      return group.flatMap((entry) => {
+        if (!entry.groupId) return [entry];
+        if (seen.has(entry.groupId)) return [];
+        seen.add(entry.groupId);
+        return group.filter((member) => member.groupId === entry.groupId);
+      });
+    });
+    await tx.update(workouts).set({ groupLayout: JSON.stringify(layout) }).where(eq(workouts.id, workoutId));
+    const originalById = new Map(before.map((entry) => [entry.id, entry]));
+    for (const [position, entry] of ordered.entries()) {
+      const original = originalById.get(entry.id);
+      if (original?.order === position + 1 && original.workoutGroupId === entry.workoutGroupId
+        && original.groupId === entry.groupId && original.groupType === entry.groupType) continue;
+      await tx.update(exerciseEntries).set({
+        order: position + 1, workoutGroupId: entry.workoutGroupId, groupId: entry.groupId, groupType: entry.groupType,
+      }).where(eq(exerciseEntries.id, entry.id));
+    }
+  });
 }

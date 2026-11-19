@@ -105,6 +105,7 @@ export const workouts = sqliteTable(
     startedAt: integer('started_at', { mode: 'timestamp_ms' }).notNull(),
     endedAt: integer('ended_at', { mode: 'timestamp_ms' }),
     notes: text('notes'),
+    groupLayout: text('group_layout'),
     sleep: integer('sleep'),
     energy: integer('energy'),
     soreness: integer('soreness'),
@@ -127,6 +128,7 @@ export const exerciseEntries = sqliteTable(
     order: integer('order').notNull(),
     groupId: text('group_id'),
     groupType: text('group_type'),
+    workoutGroupId: text('workout_group_id'),
     unilateralRestMode: text('unilateral_rest_mode', { enum: ['side', 'pair'] }),
     /** Part of the workout (warm-up, main work, mobility); null is the main work. */
     block: text('block', { enum: ['warmup', 'main', 'mobility'] }),
