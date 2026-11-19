@@ -52,10 +52,12 @@ const BANDS_FOLDED_KEY = 'workout.bandsFolded';
 const ADD_SLOP = { top: spacing.sm, bottom: spacing.sm, left: spacing.sm, right: 0 };
 const ADD_MORE_SLOP = { top: spacing.sm, bottom: spacing.sm, left: 0, right: spacing.md };
 
-export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, previous, hold = null, onChange, onSetValue, onComplete, onStartHold, onFinishHold, onAddSet, onAddWarmup, onCopyAllLast, onSetOptions, onUncomplete, onRemoveSet, onSwiped, showRpe, onRpe, onOptions, onToggleWarmup, setRecords = NO_RECORDS, volumeRecords = [], sameLoadRecords = [], onEntryNote, timeGoals = null, supersetLabel = null, emomLabel: emomBadgeLabel, defaultRest = 0, onFormRating, onRomRating, onNote, focus = false, nowLabel = null, figure = null, editDone = false, typeDone = false, compare = true, apparatusLabel = null, firstTimeLabel, describeBands, compareBands, renderBandsEditor, fixedAction = false, onSetExpanded, liveLayout, onOpenExerciseNote }: {
+export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, previous, hold = null, onChange, onSetValue, onComplete, onStartHold, onFinishHold, onAddSet, onAddWarmup, onCopyAllLast, onSetOptions, onUncomplete, onRemoveSet, onSwiped, showRpe, onRpe, onOptions, onToggleWarmup, setRecords = NO_RECORDS, volumeRecords = [], sameLoadRecords = [], onEntryNote, timeGoals = null, supersetLabel = null, emomLabel: emomBadgeLabel, defaultRest = 0, onFormRating, onRomRating, onNote, focus = false, nowLabel = null, figure = null, editDone = false, typeDone = false, compare = true, apparatusLabel = null, firstTimeLabel, describeBands, compareBands, renderBandsEditor, fixedAction = false, onSetExpanded, liveLayout, onOpenExerciseNote, wrapSetEditor, exerciseNavigation }: {
   handle?: ReactNode;
   liveLayout?: 'standalone' | 'inline';
   onOpenExerciseNote?: () => void;
+  wrapSetEditor?: (editor: ReactNode) => ReactNode;
+  exerciseNavigation?: ReactNode;
   exercise: SessionExercise;
   collapsed: boolean;
   onToggleCollapsed: () => void;
@@ -1112,14 +1114,16 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
       <ActionButton compact variant="ghost" label={emomBadgeLabel ? t('emom.addRound') : t('liveWorkout.addSet')} onPress={onAddSet} />
       {onAddWarmup ? <IconButton tone="plain" icon="chevron-down" label={t('logger.addMore')} onPress={() => setAddMenuOpen(!addMenuOpen)} /> : null}
     </View>;
+    const wrap = (node: ReactNode) => wrapSetEditor ? wrapSetEditor(node) : node;
     return <View style={styles.liveCard}>
-      {standalone ? (
+      {exerciseNavigation}
+      {wrap(standalone ? (
         <View style={[styles.liveFrame, { borderColor: palette.accentStrong, backgroundColor: palette.surface }]}>
           {title}
           {note}
           {editor ? renderSet(editor) : null}
         </View>
-      ) : title}
+      ) : title)}
       {standalone ? setTools : null}
       {addMenuOpen && onAddWarmup ? <ActionButton compact secondary icon="flame-outline" label={t('logger.addWarmup')} onPress={() => { setAddMenuOpen(false); onAddWarmup(); }} /> : null}
       {exercise.sets.length > 0 ? <View style={[styles.liveFrame, { borderColor: palette.border, backgroundColor: palette.surface }]}>
@@ -1127,7 +1131,7 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
         {exercise.sets.map((set) => (
           <View key={set.id}>
             {renderSet(set, true)}
-            {!standalone && editor?.id === set.id ? <>{note}{renderSet(editor)}</> : null}
+            {!standalone && editor?.id === set.id ? wrap(<>{note}{renderSet(editor)}</>) : null}
           </View>
         ))}
       </View> : null}

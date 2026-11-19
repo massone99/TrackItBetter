@@ -1,3 +1,4 @@
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { displayWorkoutName } from '../../src/features/session/workoutName';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import * as Speech from 'expo-speech';
@@ -772,6 +773,19 @@ export default function WorkoutScreen() {
     ? groupSets(focused.sets.filter((set) => set.kind === scheduledSet.kind && set.index <= scheduledSet.index)).length
     : 0;
   const exercisePosition = focused ? workout.exercises.indexOf(focused) + 1 : 0;
+  const previousExercise = focused ? workout.exercises[exercisePosition - 2] : undefined;
+  const followingExercise = focused ? workout.exercises[exercisePosition] : undefined;
+  const exerciseSwipe = () => Gesture.Pan()
+    .enabled(Boolean(previousExercise || followingExercise))
+    .maxPointers(1)
+    .activeOffsetX([-24, 24])
+    .failOffsetY([-16, 16])
+    .runOnJS(true)
+    .onEnd(({ translationX, translationY }, recognized) => {
+      if (!recognized || Math.abs(translationX) < 60 || Math.abs(translationX) <= Math.abs(translationY)) return;
+      const target = translationX < 0 ? followingExercise : previousExercise;
+      if (target) { tapFeedback(); openExercise(target); }
+    });
   const canFold = groups.length > 0;
   const allFoldKeys = groups.flatMap((group) => [`group:${group.id ?? 'loose'}`, ...(group.nested ?? []).map((item) => `superset:${item.id}`)]);
   const allCollapsed = allFoldKeys.length > 0 && allFoldKeys.every((key) => foldedGroups.has(key));
@@ -805,6 +819,19 @@ export default function WorkoutScreen() {
         key={exercise.entryId}
         focus
         liveLayout={focusMode ? 'standalone' : 'inline'}
+        wrapSetEditor={(editor) => (
+          <GestureDetector gesture={exerciseSwipe()} touchAction="pan-y">
+            <View collapsable={false}>{editor}</View>
+          </GestureDetector>
+        )}
+        exerciseNavigation={previousExercise || followingExercise ? (
+          <View style={styles.exerciseNavigation}>
+            <IconButton icon="chevron-back" tone="plain" label={t('liveWorkout.previousMovement')} disabled={!previousExercise}
+              onPress={() => { if (previousExercise) openExercise(previousExercise); }} />
+            <IconButton icon="chevron-forward" tone="plain" label={t('liveWorkout.nextMovement')} disabled={!followingExercise}
+              onPress={() => { if (followingExercise) openExercise(followingExercise); }} />
+          </View>
+        ) : null}
         onOpenExerciseNote={() => openExerciseNote(exercise)}
         onSetExpanded={() => selectEntry(exercise.entryId)}
         exercise={exercise}
@@ -1455,6 +1482,7 @@ const baseStyles = StyleSheet.create({
   plannedRest: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 10, minHeight: 64, borderWidth: 1, borderRadius: 4 },
   plannedLabel: { fontSize: 12 },
   plannedValue: { fontFamily: fonts.monoBold, fontSize: 27, lineHeight: 31 },
+  exerciseNavigation: { flexDirection: 'row', justifyContent: 'space-between' },
   railsRow: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', gap: 8 },
   rail: { flexShrink: 1, flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 44, paddingHorizontal: 4 },
   railLabel: { fontFamily: fonts.semibold, fontSize: 13, flexShrink: 1 },

@@ -2,6 +2,10 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.72.1 - 2026-11-19
+
+- Swipe the exercise card or use the arrows to move between exercises in an ongoing workout. Rest keeps counting while you switch, and set rows keep their own swipe actions.
+
 ## 0.72.0 - 2026-11-19
 
 - Workout in progress: see session progress, the next exercise and a fixed rest timer from the overview.
