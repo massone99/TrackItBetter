@@ -105,7 +105,6 @@ import { WorkoutMenuSheet } from '../../src/features/session/WorkoutMenuSheet';
 import { TotalGoalSheet } from '../../src/features/session/TotalGoalSheet';
 import { nextSetValue, totalProgress } from '../../src/domain/totalGoal';
 import { SaveToProgramSheet } from '../../src/features/programs/SaveToProgramSheet';
-import { isPrescriptionHandled } from '../../src/features/programs/prescriptionHandled';
 import { ExerciseNoteField } from '../../src/features/session/ExerciseNoteField';
 import { WorkoutDetailsSheet } from '../../src/features/session/WorkoutDetailsSheet';
 import { apparatusName, bandComparer, bandsById, describeSetBands, useEquipment } from '../../src/features/equipment/useEquipment';

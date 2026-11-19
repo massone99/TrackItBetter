@@ -2,6 +2,13 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.71.0 - 2026-11-19
+
+- Workout: copied prescriptions stay separate, finishing opens the summary, and workout notes can be edited from the workout menu or history.
+- Bands: reorder resistance within a band set, archive and restore individual bands, and see separate assisted and unassisted records.
+- Workout and goals: keep load and repetitions labelled and give goal totals and workout actions more space at large text sizes.
+- JSON import: preview additions, reused items and partial updates by name. An interrupted import reports what was saved.
+
 ## 0.70.0 - 2026-11-18
 
 - Workout in progress: starting another workout while one is open now offers "Discard and start new" (after a confirmation) next to Resume, from every start point. Today's repeat and planned start also check for an open workout.
