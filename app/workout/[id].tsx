@@ -809,9 +809,17 @@ export default function WorkoutScreen() {
   } : null;
   const lowReadiness = (workout.sleep !== null && workout.sleep <= 2) || (workout.energy !== null && workout.energy <= 2) || (workout.soreness !== null && workout.soreness >= 4);
   const toastOffset = footerHeight + 8;
+  const resumeExercise = next?.sets.some((set) => !set.completedAt) ? next : autoHandExercise;
+  function canMove(exercise: SessionExercise, offset: -1 | 1) {
+    const entries = workout?.exercises ?? [];
+    const candidate = entries[entries.findIndex((entry) => entry.entryId === exercise.entryId) + offset];
+    return Boolean(candidate && candidate.groupId === exercise.groupId &&
+      (workout?.groupLayout ? candidate.workoutGroupId === exercise.workoutGroupId : candidate.block === exercise.block));
+  }
+  const addExerciseAction = <OverviewButton label={t('workout.addExercise')} icon="add" accent grow onPress={() => setPickerOpen(true)} />;
   const actions = (
     <View style={[styles.footerRow, largeText && styles.footerStacked]}>
-      <OverviewButton label={t('workout.addExercise')} icon="add" accent grow onPress={() => setPickerOpen(true)} />
+      {resumeExercise ? <OverviewButton label={t(completedCount === 0 ? 'liveWorkout.startExercise' : 'liveWorkout.resumeExercise', { name: resumeExercise.name })} icon="play" accent grow onPress={() => openExercise(resumeExercise)} /> : addExerciseAction}
       <OverviewButton label={t('liveWorkout.finish')} grow={largeText} onPress={() => setFinishOpen(true)} />
     </View>
   );
@@ -926,11 +934,12 @@ export default function WorkoutScreen() {
                   <Icon name="speedometer-outline" size={18} color={palette.textMuted} />
                   <Text style={styles.railLabel}>{t('dock.telemetry')}</Text>
                 </Pressable> : null}
-                <Pressable accessibilityRole="button" accessibilityState={{ expanded: dockPanel === 'workout' }} style={styles.rail}
-                  onPress={() => { tapFeedback(); setDockPanel(dockPanel === 'workout' ? null : 'workout'); }}>
+                <Pressable accessibilityRole="button" style={styles.rail} onPress={showOverview}>
                   <Icon name="list-outline" size={18} color={palette.textMuted} />
                   <Text style={styles.railLabel}>{t('liveWorkout.workoutRail', { current: exercisePosition, total: workout.exercises.length })}</Text>
                 </Pressable>
+                <IconButton icon="ellipsis-horizontal" tone="plain" label={t('dock.workoutPanel', { current: exercisePosition, total: workout.exercises.length })}
+                  onPress={() => setDockPanel(dockPanel === 'workout' ? null : 'workout')} />
               </View>
             </>
           ) : actions}
@@ -971,7 +980,12 @@ export default function WorkoutScreen() {
             <WorkoutExerciseRow exercise={nextOther} next={nextOther.entryId === next?.entryId} onPress={() => openExercise(nextOther)} />
           </View> : null}
         </> : <>
-          <WorkoutOverview groups={groups} folded={foldedGroups} nextId={next?.entryId ?? null}
+          {resumeExercise ? addExerciseAction : null}
+          {totalSets > 0 && completedCount === totalSets ? <Body>{t('liveWorkout.readyToFinish')}</Body> : null}
+          <WorkoutOverview canMove={canMove} onMove={async (exercise, offset) => {
+            await changeWorkoutGroups(workout.id, { type: 'moveExercise', id: exercise.entryId, offset });
+            await refresh(workout.id);
+          }} groups={groups} folded={foldedGroups} nextId={next?.entryId ?? null}
             onFold={(key) => setFoldedGroups((current) => {
               const updated = new Set(current);
               if (updated.has(key)) updated.delete(key); else updated.add(key);
@@ -1187,9 +1201,7 @@ export default function WorkoutScreen() {
                 onChanged={() => { setOptionsFor(null); void refresh(workout.id); }}
               />
               {([-1, 1] as const).map((offset) => {
-                const candidate = workout.exercises[workout.exercises.findIndex((item) => item.entryId === optionsFor.entryId) + offset];
-                const sameGroup = candidate && (workout.groupLayout ? candidate.workoutGroupId === optionsFor.workoutGroupId : candidate.block === optionsFor.block);
-                if (!sameGroup || candidate.groupId !== optionsFor.groupId) return null;
+                if (!canMove(optionsFor, offset)) return null;
                 return <MenuTile key={offset} icon={offset < 0 ? 'arrow-up' : 'arrow-down'} label={t(offset < 0 ? 'liveWorkout.moveUp' : 'liveWorkout.moveDown')}
                   onPress={() => { setOptionsFor(null); void changeWorkoutGroups(workout.id, { type: 'moveExercise', id: optionsFor.entryId, offset }).then(() => refresh(workout.id)); }} />;
               })}

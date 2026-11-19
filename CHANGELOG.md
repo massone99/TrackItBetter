@@ -2,6 +2,11 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.72.3 - 2026-11-19
+
+- Reorder neighbouring exercises from the ongoing workout overview, including exercises within a superset.
+- Start or continue the suggested exercise from the overview, return with the workout button, and see when all sets are logged.
+
 ## 0.72.2 - 2026-11-19
 
 - Improve touch recognition when swiping between exercises during a workout.

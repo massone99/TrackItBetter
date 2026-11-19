@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react';
+import { useRef, useState, type ReactNode } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { completedSetCount, groupSets } from '../../domain/setPairs';
@@ -103,13 +103,13 @@ export function WorkoutExerciseRow({ exercise, next, marker, expanded, onPress }
   );
 }
 
-export function OverviewButton({ label, icon, onPress, accent, disabled, grow }: {
-  label: string; icon?: IconName; onPress: () => void; accent?: boolean; disabled?: boolean; grow?: boolean;
+export function OverviewButton({ label, accessibilityLabel, icon, onPress, accent, disabled, grow }: {
+  label: string; accessibilityLabel?: string; icon?: IconName; onPress: () => void; accent?: boolean; disabled?: boolean; grow?: boolean;
 }) {
   const { palette } = useTheme();
   const styles = useScaledStyles(baseStyles);
   const color = disabled ? palette.textMuted : accent ? palette.accentStrong : palette.text;
-  return <Pressable accessibilityRole="button" accessibilityState={{ disabled }} disabled={disabled}
+  return <Pressable accessibilityRole="button" accessibilityLabel={accessibilityLabel} accessibilityState={{ disabled }} disabled={disabled}
     onPress={() => { tapFeedback(); onPress(); }}
     style={({ pressed }) => [styles.button, grow && styles.grow, {
       borderColor: accent ? palette.accentStrong : palette.border,
@@ -121,14 +121,29 @@ export function OverviewButton({ label, icon, onPress, accent, disabled, grow }:
   </Pressable>;
 }
 
-export function WorkoutOverview({ groups, folded, nextId, onFold, onFoldAll, onGroupSheet, renderExercise }: {
+export function WorkoutOverview({ groups, folded, nextId, onFold, onFoldAll, onGroupSheet, renderExercise, canMove, onMove }: {
   groups: OverviewGroup[]; folded: ReadonlySet<string>; nextId: string | null;
   onFold: (key: string) => void; onFoldAll: (keys: string[]) => void; onGroupSheet: (sheet: GroupSheet) => void;
+  canMove: (exercise: SessionExercise, offset: -1 | 1) => boolean;
+  onMove: (exercise: SessionExercise, offset: -1 | 1) => Promise<void>;
   renderExercise: (exercise: SessionExercise, marker?: string) => ReactNode;
 }) {
   const { t } = useTranslation();
   const { palette } = useTheme();
   const styles = useScaledStyles(baseStyles);
+  const [ordering, setOrdering] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [failed, setFailed] = useState(false);
+  const pending = useRef(false);
+  async function move(exercise: SessionExercise, offset: -1 | 1) {
+    if (pending.current) return;
+    pending.current = true;
+    setSaving(true);
+    setFailed(false);
+    try { await onMove(exercise, offset); }
+    catch { setFailed(true); }
+    finally { pending.current = false; setSaving(false); }
+  }
   const keys = groups.flatMap((group) => [groupKey(group), ...(group.nested ?? []).map(groupKey)]);
   const section = (group: OverviewGroup) => {
     const key = groupKey(group);
@@ -162,6 +177,13 @@ export function WorkoutOverview({ groups, folded, nextId, onFold, onFoldAll, onG
         {closed ? null : group.exercises.map((exercise, index) => {
           const child = group.nested?.find((item) => item.id === exercise.groupId);
           if (child) return child.exercises[0].entryId === exercise.entryId ? section(child) : null;
+          if (ordering) return <View key={exercise.entryId} style={styles.orderRow}>
+            <Text style={styles.flex}>{exercise.name}</Text>
+            {([-1, 1] as const).map((offset) => <OverviewButton key={offset}
+              label={t(offset < 0 ? 'liveWorkout.moveUp' : 'liveWorkout.moveDown')}
+              accessibilityLabel={t(offset < 0 ? 'liveWorkout.orderUp' : 'liveWorkout.orderDown', { name: exercise.name })}
+              disabled={saving || !canMove(exercise, offset)} onPress={() => void move(exercise, offset)} />)}
+          </View>;
           return <View key={exercise.entryId}>{renderExercise(exercise, nested ? `${group.marker ?? ''}${index + 1}` : undefined)}</View>;
         })}
       </View>
@@ -176,6 +198,11 @@ export function WorkoutOverview({ groups, folded, nextId, onFold, onFoldAll, onG
           <OverviewButton label={t('liveWorkout.group')} accent onPress={() => onGroupSheet({ view: 'create' })} />
         </View>
       </View>
+      {groups.some((group) => group.exercises.some((exercise) => canMove(exercise, 1))) ? (
+        <OverviewButton label={t(ordering ? 'liveWorkout.orderDone' : 'liveWorkout.reorder')} disabled={saving}
+          onPress={() => { if (!ordering) onFoldAll([]); setFailed(false); setOrdering(!ordering); }} />
+      ) : null}
+      {failed ? <Text accessibilityRole="alert">{t('liveWorkout.saveFailed')}</Text> : null}
       {groups.map(section)}
     </View>
   );
@@ -269,10 +296,11 @@ export function WorkoutGroupSheet({ sheet, groups, exercises, onClose, onChange,
 
 const baseStyles = StyleSheet.create({
   overview: { gap: 8 },
+  orderRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   toolbar: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 6, paddingBottom: 8, borderBottomWidth: 1 },
   newGroup: { marginLeft: 'auto' },
   button: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, minHeight: 44, borderWidth: 1, borderRadius: 4, paddingHorizontal: 8, paddingVertical: 6 },
-  grow: { flexGrow: 1 },
+  grow: { flexGrow: 1, flexShrink: 1 },
   buttonText: { fontFamily: fonts.semibold, fontSize: 11, flexShrink: 1 },
   footerButtonText: { fontSize: 14 },
   group: { gap: 4 },
