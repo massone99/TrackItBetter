@@ -2,6 +2,69 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.70.0 - 2026-11-18
+
+- Workout in progress: starting another workout while one is open now offers "Discard and start new" (after a confirmation) next to Resume, from every start point. Today's repeat and planned start also check for an open workout.
+- Exercise note: always visible on the exercise card, one tap to edit in place, saved by itself; an "Add note" row when empty and a one-line preview on folded cards.
+- Save as program workout: it never overwrites its original unless asked. When the name matches an existing workout it offers "Save as new" (the default, under a free name) or "Replace the original"; after saving, finishing the workout no longer offers to update the original.
+- Time goals on one exercise, daily and weekly: set from the exercise page or the goal sheet (new "Exercise" scope, timed exercises only); they show in Today, the goal lists and history, and on the exercise card in the workout. Deleting an exercise removes its goals, moving its history moves them. Older app versions ignore them.
+
+## 0.69.2 - 2026-11-16
+
+- Records: a set with bands of unknown kg never beats the same work without bands (e.g. a 20 s banded advanced tuck front lever is no longer a record over 10 s without a band). Such sets are compared only with sets done with the same bands ("same bands" in mini-PRs and session volume), give no 1RM estimate and stay out of the best hold and best session; without bands always counts as less help.
+- Progressions: for now, sets helped by bands do not count towards a step.
+- Storage: the app no longer keeps temporary copies forever. Picked photos and videos are removed from the cache once stored (form-check clips are moved, not copied), and old exports, share cards and analysis frames are cleared at startup.
+
+## 0.69.0 - 2026-11-12
+
+- Switch to: an exercise in a chain shows the whole chain as a ladder, so any step is one tap away (not only the nearest two). It marks where you are, the steps reached and the one your sets suggest; with several chains, a chip picks which one.
+- Compact layout: tighter page margins and spacing, smaller titles, a lower tab bar, and the back arrow sits on the title row.
+- Very large text: the footer actions stack one per line (no more "Repeat workout" running off screen), the recap "better than last time" badge wraps, and tab labels keep their base size.
+
+## 0.68.0 - 2026-11-12
+
+- Workout: more compact everywhere. The open set is shorter (36 dp fields, same 48 dp touch areas), the rest bar fits on one line, "Copy last time" is a small link, and the card, last-time strip and dock take less room.
+- Workout: set states are clear at a glance. A done set being edited is green, the next set to fill is blue (rail, number tag, NEXT); done rows are neutral grey.
+- Workout: the set's chips (RPE, form, ROM, bands, rest, note, video) sit under a "Details" fold, closed by default, with a one-line summary.
+- Workout: when an exercise uses bands, the open set shows its bands and assistance on one line, one tap to change them (colours only when the kg are unknown).
+- Workout: "Add set" is a compact split button; the chevron holds "Add warm-up".
+- Set details sheet: RPE, form and ROM are one-tap segmented rows (with a +½ toggle), then note and chips for bands, rest and video; rare actions and Remove set move to the ⋮ menu.
+- Bands: one list of your bands; a tap picks or drops a band, its tension 1·2·3 sits on the same row, a held press renames it; the assistance shows on top.
+
+## 0.67.1 - 2026-11-10
+
+- Workout: after "Remove all sets" (or when no exercise has sets left) the dock keeps all its options: Telemetry and Workout with Add exercise, Finish and Discard. Telemetry without sets says to add one.
+
+## 0.67.0 - 2026-11-08
+
+- Programs: many programs stay manageable. The program in progress sits on top with its next workout and a Start button; search (from 6 programs), Active / Paused / Archived filters, sort by last use or name, dense rows with progress, and a menu to pause, archive, duplicate or delete. Ready-made templates move to the end.
+- Programs: workouts can be organised as a sequence, by weeks or phases, or in groups. A "pick 1 of N" group holds alternatives (the least recent is suggested), extras stay outside the rotation, groups nest one level. Several groups can be selected and removed at once, keeping or deleting their workouts, with undo.
+- Builder: generate the next weeks with a progression (reps per week, load, cap and reset, deload week), duplicate a week or group, edit several exercises together, add exercises by typing "curl 3x10 @7 r90", and see sets per category with low ones flagged.
+- Workouts of a program have their own builder screen: name, notes, group, live summary, exercises by block, quick add, Start now.
+- Narrated mode works in every workout, not only mobility ones.
+- Workout: tapping empty space in an exercise's header folds or opens it. Every foldable list opens folded each time.
+
+## 0.66.0 - 2026-11-08
+
+- Workout: a new compact "ledger" layout. Every set is one row (number, reps or time, kg, done); the set in hand edits in place with − and + and completes from its own row, with its optional data as small chips under it (RPE, form, ROM, bands with their assistance, rest, note, video). Tapping a chip opens exactly that setting. Complete set is no longer in the footer.
+- Workout: every set can be folded, the one in hand too (tap its number or any empty space in it); a folded set opens with a tap. Swipe right completes or reopens a set, swipe left removes it.
+- Workout: the header is one line (name, time, sets, volume); exercises start folded except the one in hand; long names wrap by word.
+- Workout: the set telemetry folds from its header and starts folded.
+- Foldable sections start folded: program days, builder days with exercises, pose groups.
+- Denser UI everywhere: buttons and inputs 48, list rows 56, tighter cards and spacing, smaller titles and tab bar; touch targets stay 48 dp.
+
+## 0.65.0 - 2026-11-07
+
+- EMOM: a running EMOM takes the whole screen, readable from the floor: huge round and clock, one cell per round with the reps it saved, this round's reps, +1 round and hold to stop. Workout (or back) returns to the workout and the EMOM keeps running in a one-line mini dock at the bottom; tap it to open the full screen again. Complete set is hidden for the EMOM's exercise.
+- EMOM: +1 round (or Add round on the card) adds a round at the end with the same reps, with Undo while that round has not started.
+- Workout: a more compact logger: the workout name shares the top row, Complete set has a details button beside it, the set in hand is slimmer; the set title no longer overlaps its state and no word breaks in the middle at large text.
+- Toasts can always be swiped away sideways, also on screens with a running clock, and hide on time there.
+
+## 0.64.0 - 2026-11-06
+
+- Exercises: an exercise's link can be a StretchStrong exercise (`stretchstrong://exercise/<id>`, or just its id). Tapping the reference opens it in the StretchStrong app: first the link, then, on Android, the OPEN_EXERCISE action with the id.
+- Import: a movement whose id is a StretchStrong id opens in StretchStrong when it has no link of its own (new movements, and existing ones without a link).
+
 ## 0.63.1 - 2026-11-06
 
 - Workout: trying to finish with a left / right set that has only one side done now opens a sheet listing every such set (exercise, set, missing side, L / R badges) with a button that takes you to it, instead of a system alert about the first one.

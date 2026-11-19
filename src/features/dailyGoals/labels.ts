@@ -4,8 +4,9 @@ import { movementTagLabel } from '../exercises/ClassificationChoices';
 import { formatClock } from '../../shared/utils/format';
 
 /** What a goal counts, in words: "Push", "Vertical pull", "Hip flexion". */
-export function goalKeyLabel(goal: Pick<DailyGoal, 'scope' | 'key' | 'mobilityMode' | 'exerciseName'>, t: TFunction): string {
-  if (goal.scope === 'exercise') return goal.exerciseName ?? t('dailyGoals.exerciseUnavailable');
+export function goalKeyLabel(goal: Pick<DailyGoal, 'scope' | 'key'> & { mobilityMode?: DailyGoal['mobilityMode']; label?: string }, t: TFunction): string {
+  // An exercise goal carries the exercise's name; without one the exercise is gone.
+  if (goal.scope === 'exercise') return goal.label ?? t('dailyGoals.exerciseGone');
   if (goal.scope === 'category') return t(`library.category.${goal.key}`, { defaultValue: goal.key });
   if (goal.scope === 'group') return t(`movement.groups.${goal.key}`, { defaultValue: goal.key });
   const tag = movementTagLabel(goal.key, (key, options) => t(key, options));

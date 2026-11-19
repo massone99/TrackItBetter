@@ -3,6 +3,7 @@ import * as Crypto from 'expo-crypto';
 import { Directory, File, Paths } from 'expo-file-system';
 import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
 import { db, initializeDatabase } from '../../db/client';
+import { discardTemporaryCopy } from '../../shared/media/tempFiles';
 import { progressPhotos } from '../../db/schema';
 
 export type ProgressPhoto = typeof progressPhotos.$inferSelect & { uri: string };
@@ -75,6 +76,8 @@ export async function addProgressPhoto(input: {
     fileFor(fileName).delete();
     throw error;
   }
+  // The picker's own full-size copy in the cache is no longer needed once the shrunk one is stored.
+  if (image.uri !== input.sourceUri) discardTemporaryCopy(input.sourceUri);
 }
 
 export async function listProgressPhotos(): Promise<ProgressPhoto[]> {

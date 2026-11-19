@@ -31,7 +31,6 @@ import {
   copyValuesToSet,
   switchEntryExercise,
   undoSwitch,
-  deleteWorkout,
   finishWorkout,
   IncompletePairError,
   moveExerciseEntry,
@@ -52,6 +51,7 @@ import {
   updateWorkoutReadiness,
   updateSet,
   setEntryTotalTarget,
+  removeSet,
 } from '../../src/features/session/repository';
 import type { ActiveWorkout, PreviousPerformance, PreviousSetValues, RemovedRows, SessionExercise, SessionSet, SwitchSnapshot } from '../../src/features/session/repository';
 import { defaultHoldMode, rememberHoldMode, useHoldTimer, type ActiveHold } from '../../src/features/session/useHoldTimer';
@@ -62,13 +62,15 @@ import { blockOf, usesBlocks, type Block } from '../../src/domain/blocks';
 import { SetBandsField } from '../../src/features/equipment/SetBandsField';
 import { IncompletePairsSheet } from '../../src/features/session/IncompletePairsSheet';
 import { incompletePairs, type IncompletePair } from '../../src/features/session/incompletePairs';
-import { PrimaryActionBar } from '../../src/features/session/PrimaryActionBar';
 import { ExerciseTelemetryDock, TelemetryPanel } from '../../src/features/session/telemetry/ExerciseTelemetryDock';
 import { DockRails, WorkoutDockPanel } from '../../src/features/session/DockRails';
 import { useExerciseTelemetry } from '../../src/features/session/telemetry/useExerciseTelemetry';
-import { clearEmomPlan, useEmom, type EmomAlertText } from '../../src/features/session/useEmom';
+import { useEmom, type EmomAlertText } from '../../src/features/session/useEmom';
+import { discardActiveWorkout } from '../../src/features/session/discardWorkout';
+import { getExerciseGoals, type ExerciseGoalProgress } from '../../src/features/dailyGoals/repository';
 import { EmomSetupSheet, emomFieldFor } from '../../src/features/session/EmomSetupSheet';
-import { emomLabel, type EmomPhase, type EmomPlan } from '../../src/domain/emom';
+import { emomLabel, firstRoundStart, type EmomPhase, type EmomPlan } from '../../src/domain/emom';
+import { EmomMiniDock, EmomStage, type EmomView } from '../../src/features/session/EmomStage';
 import type { HoldMode } from '../../src/domain/holdTimer';
 import { playBeep } from '../../src/shared/audio/beeps';
 import {
@@ -103,6 +105,7 @@ import { WorkoutMenuSheet } from '../../src/features/session/WorkoutMenuSheet';
 import { TotalGoalSheet } from '../../src/features/session/TotalGoalSheet';
 import { nextSetValue, totalProgress } from '../../src/domain/totalGoal';
 import { SaveToProgramSheet } from '../../src/features/programs/SaveToProgramSheet';
+import { isPrescriptionHandled } from '../../src/features/programs/prescriptionHandled';
 import { ExerciseNoteField } from '../../src/features/session/ExerciseNoteField';
 import { WorkoutDetailsSheet } from '../../src/features/session/WorkoutDetailsSheet';
 import { apparatusName, bandComparer, bandsById, describeSetBands, useEquipment } from '../../src/features/equipment/useEquipment';
@@ -195,8 +198,13 @@ export default function WorkoutScreen() {
   const [clearAllOpen, setClearAllOpen] = useState(false);
   const [emomSetupFor, setEmomSetupFor] = useState<SessionExercise | null>(null);
   const [emomNotice, setEmomNotice] = useState<string | null>(null);
+  // The running EMOM shows full screen; "Workout" closes it to a mini dock at the bottom and the EMOM keeps running.
+  const [emomStage, setEmomStage] = useState(true);
+  // The round just added, offered for undo: the set added with it and the toast's text.
+  const [emomAdded, setEmomAdded] = useState<{ setId: string; message: string } | null>(null);
   // PRs set so far in this workout: record kinds per set, and exercises with a volume mini PR.
   const recordCount = useRef<number | null>(null);
+  const [exerciseGoals, setExerciseGoals] = useState<Map<string, ExerciseGoalProgress>>(() => new Map());
   const [records, setRecords] = useState<{ sets: Map<string, RecordKind[]>; volume: VolumeRecord[]; sameLoad: SameLoadRecord[] }>(() => ({ sets: new Map(), volume: [], sameLoad: [] }));
   // The exercise in hand and its live telemetry against comparable history.
   // The exercise whose set the user expanded last is the selected one: blue "Now" card, telemetry, main action and rails all follow it,
@@ -214,17 +222,32 @@ export default function WorkoutScreen() {
     () => workout?.exercises.find((exercise) => exercise.entryId === selectedEntryId && exercise.sets.some((set) => !set.completedAt)) ?? null,
     [workout, selectedEntryId],
   );
-  const autoHandExercise = useMemo(() => workout?.exercises.find((exercise) => exercise.sets.length > 0 && !exerciseFinished(exercise.sets)) ?? null, [workout]);
-  const handExercise = selectedExercise ?? autoHandExercise;
-  // Telemetry follows the last set completed (its exercise stays analysed until its last set is done, then the next exercise with sets to do); before any set, the exercise in hand.
-  const telemetryExercise = useMemo(() => {
-    if (selectedExercise) return selectedExercise;
+  // The exercise of the last working set completed, and in a superset the exercise to do next (the next of the round, else the
+  // first of the superset with sets left): after a set, the next one to do is shown, not the exercise that was just done.
+  const lastDoneExercise = useMemo(() => {
     let latest: { exercise: SessionExercise; at: number } | null = null;
     for (const exercise of workout?.exercises ?? []) {
       for (const set of exercise.sets) {
         if (set.kind === 'working' && set.completedAt && (latest === null || set.completedAt.getTime() >= latest.at)) latest = { exercise, at: set.completedAt.getTime() };
       }
     }
+    return latest?.exercise ?? null;
+  }, [workout]);
+  const supersetNextExercise = useMemo(() => {
+    if (!workout || !lastDoneExercise?.groupId) return null;
+    const next = supersetStep(workout.exercises, lastDoneExercise.entryId)?.nextEntryId;
+    return workout.exercises.find((exercise) => exercise.entryId === next) ?? null;
+  }, [workout, lastDoneExercise]);
+  const autoHandExercise = useMemo(
+    () => supersetNextExercise ?? workout?.exercises.find((exercise) => exercise.sets.length > 0 && !exerciseFinished(exercise.sets)) ?? null,
+    [workout, supersetNextExercise],
+  );
+  const handExercise = selectedExercise ?? autoHandExercise;
+  // Telemetry follows the last set completed (its exercise stays analysed until its last set is done, then the next exercise with sets to do); before any set, the exercise in hand.
+  const telemetryExercise = useMemo(() => {
+    if (selectedExercise) return selectedExercise;
+    if (supersetNextExercise) return supersetNextExercise;
+    const latest = lastDoneExercise ? { exercise: lastDoneExercise } : null;
     // Once the last set of that exercise is done, the analysis moves on to the next exercise with sets still to do.
     if (latest && latest.exercise.sets.every((set) => set.completedAt)) {
       const entryId = latest.exercise.entryId;
@@ -235,7 +258,7 @@ export default function WorkoutScreen() {
       return later ?? latest.exercise;
     }
     return latest?.exercise ?? handExercise;
-  }, [workout, handExercise, selectedExercise]);
+  }, [workout, handExercise, selectedExercise, supersetNextExercise, lastDoneExercise]);
   const telemetry = useExerciseTelemetry(telemetryExercise, records.sets);
   const [referenceFor, setReferenceFor] = useState<SessionExercise | null>(null);
   const [removeExerciseFor, setRemoveExerciseFor] = useState<SessionExercise | null>(null);
@@ -273,10 +296,13 @@ export default function WorkoutScreen() {
     // "Last time" only changes when the exercises change, so it is not re-read after every set.
     const exerciseKey = `${next.id}:${next.exercises.map((exercise) => `${exercise.exerciseId}@${exercise.apparatusId ?? ''}${exercise.compareWorkoutId ? `#${exercise.compareWorkoutId}` : ''}`).join(',')}`;
     const apparatusOf = new Map(next.exercises.map((exercise) => [exercise.exerciseId, exercise.apparatusId ?? null] as const));
-    const [previousPerformance, found] = await Promise.all([
+    const [previousPerformance, found, timeGoals] = await Promise.all([
       previousKey.current === exerciseKey ? null : getPreviousPerformance(next.exercises.map((exercise) => exercise.exerciseId), next.id, apparatusOf),
       getSessionRecords(next.id).catch(() => null),
+      // Time goals on these exercises move with every set done, so they are read each time.
+      getExerciseGoals(next.exercises.map((exercise) => exercise.exerciseId)).catch(() => new Map<string, ExerciseGoalProgress>()),
     ]);
+    setExerciseGoals(timeGoals);
     if (previousPerformance) { previousKey.current = exerciseKey; setPrevious(previousPerformance); }
     if (!found) return;
     const bySet = new Map<string, RecordKind[]>();
@@ -327,6 +353,33 @@ export default function WorkoutScreen() {
     },
   });
   const emomEntryId = emom.plan?.entryId ?? null;
+  const closeEmomStage = useCallback(() => setEmomStage(false), []);
+  // Stable: the toast restarts its timer when onHide changes, and the EMOM clock re-renders the screen four times a second.
+  const hideEmomAdded = useCallback(() => setEmomAdded(null), []);
+  /** One more round at the end of the running EMOM, with the set that will hold it; offered for undo. */
+  const addEmomRound = async () => {
+    const plan = emom.plan;
+    if (!plan || !id) return;
+    const setId = await addSet(plan.entryId);
+    if (emom.addRound()) {
+      const value = plan.field === 'durationSec' ? formatClock(plan.value) : t('emom.reps', { count: plan.value });
+      setEmomAdded({ setId, message: t('emom.roundAdded', { round: plan.rounds + 1, value }) });
+    } else {
+      // The last round is over: the set stays as an ordinary one.
+      setEmomAdded(null);
+    }
+    await refresh(id);
+  };
+  const undoEmomRound = async () => {
+    const added = emomAdded;
+    setEmomAdded(null);
+    if (!added || !id) return;
+    emom.removeRound();
+    // A round may already have saved into the new set (fewer planned sets than rounds): then the set stays.
+    const set = workoutRef.current?.exercises.flatMap((exercise) => exercise.sets).find((item) => item.id === added.setId);
+    if (set && !set.completedAt) await removeSet(added.setId);
+    await refresh(id);
+  };
 
   // Returning from the form-check or new-exercise screens brings back clips and exercises added there.
   // The first focus is the mount, which the effect above already loads.
@@ -574,6 +627,11 @@ export default function WorkoutScreen() {
 
   const completeRegularSet = (set: SessionSet) => settle(set.id, async () => {
     tapFeedback('success');
+    // In a superset the next set to do is the one the round says, not the exercise that was expanded: the choice is released.
+    if (workout?.exercises.some((exercise) => exercise.groupId && exercise.sets.some((item) => item.id === set.id))) {
+      selectedRef.current = null;
+      setSelectedEntryId(null);
+    }
     patchSet(set.id, { completedAt: new Date() });
     await completeSet(set.id);
     await afterSetDone(set.id);
@@ -698,9 +756,8 @@ export default function WorkoutScreen() {
     hold.stop();
     skipRest();
     void Speech.stop();
-    clearEmomPlan(workout.id);
     try {
-      await deleteWorkout(workout.id);
+      await discardActiveWorkout(workout.id);
     } catch {
       Alert.alert(t('history.deleteError'));
       return;
@@ -754,10 +811,10 @@ export default function WorkoutScreen() {
   if (!workout) return <Screen><PageHeading title={t('workout.unavailable')} subtitle={t('workout.finished')} /><ActionButton label={t('workout.backToToday')} onPress={() => router.replace('/(tabs)/today')} /></Screen>;
 
   const allSets = workout.exercises.flatMap((exercise) => exercise.sets);
-  // Narration needs open sets, and only fits a workout of mobility exercises.
+  // Narration needs open sets; it works for any exercise (timed or rep-based).
   const openExercises = workout.exercises.filter((exercise) => exercise.sets.some((set) => !set.completedAt));
-  const narratable = openExercises.length > 0 && openExercises.every((exercise) => exercise.mobility);
-  const allCollapsed = workout.exercises.every((exercise) => collapsedEntries.get(exercise.entryId) ?? exerciseFinished(exercise.sets));
+  const narratable = openExercises.length > 0;
+  const allCollapsed = workout.exercises.every((exercise) => collapsedEntries.get(exercise.entryId) ?? exercise.entryId !== currentEntryId);
   const totalSets = groupSets(allSets).length;
   const showBlocks = usesBlocks(workout.exercises);
   const volumeKg = allSets.reduce((sum, set) => (set.completedAt && set.kind === 'working' && set.reps && set.addedLoadKg > 0 ? sum + set.reps * set.addedLoadKg : sum), 0);
@@ -766,29 +823,15 @@ export default function WorkoutScreen() {
   const currentEntryId = workout.exercises.find((exercise) => exercise.sets.length > 0 && !exerciseFinished(exercise.sets))?.entryId ?? null;
   // Live feedback of the exercise in hand; one line while a timer runs, at large text and on short screens, so it never crowds the footer.
   const telemetryCompact = largeText || windowHeight < 700 || hold.active !== null || restEndsAt !== null || Boolean(emom.plan);
-  // Focus mode: the action of the set in hand is fixed above the footer (the exercise card leaves its own button out for that set).
-  const fixedSet = focusMode && handExercise ? handExercise.sets.find((set) => !set.completedAt) ?? null : null;
-  const fixedTimed = handExercise?.metric === 'time' || handExercise?.metric === 'time_load';
-  const fixedHolding = fixedSet !== null && hold.active?.setId === fixedSet.id;
-  const fixedNumber = fixedSet && handExercise ? groupSets(handExercise.sets.filter((set) => set.kind === 'working' && set.index <= fixedSet.index)).length : 0;
-  const primaryBar = fixedSet && handExercise ? (
-    <PrimaryActionBar
-      label={(fixedTimed ? (fixedHolding ? t('logger.doneHold') : `${t('logger.startHold')} ${formatClock(fixedSet.durationSec ?? 0)}`) : t('activeSet.completeSet', { number: fixedNumber })).toUpperCase()}
-      icon={fixedTimed ? (fixedHolding ? 'stop' : 'play') : 'checkmark'}
-      caption={largeText ? null : t('activeSet.optional')}
-      linkLabel={t('activeSet.moreDetails')}
-      onPress={() => { if (!fixedTimed) void completeHoldManually(fixedSet); else if (fixedHolding) void finishCurrentHold(); else startHoldFor(fixedSet); }}
-      onLongPress={fixedTimed && !fixedHolding ? () => void completeHoldManually(fixedSet) : undefined}
-      onLink={() => setSetSheet({ exercise: handExercise, setId: fixedSet.id })}
-    />
-  ) : null;
+  // Ledger: each set completes from its own row, so the footer carries no Complete button.
   // Focus mode: Add and Finish live in a Workout rail next to a Telemetry rail, under the fixed main action; one panel open at a time.
-  const railsMode = focusMode && handExercise !== null;
+  // Rails stay while the workout has exercises, even when none has sets left (all removed or all done): Discard lives there.
+  const railsMode = focusMode && workout.exercises.length > 0;
   const telemetryInline = windowHeight >= 880 && !largeText;
-  const exercisePosition = handExercise ? workout.exercises.findIndex((exercise) => exercise.entryId === handExercise.entryId) + 1 : 0;
+  const exercisePosition = handExercise ? workout.exercises.findIndex((exercise) => exercise.entryId === handExercise.entryId) + 1 : 1;
   const railsTop = railsMode ? (
     <>
-      {dockPanel === 'telemetry' && telemetryInline && telemetry ? <TelemetryPanel view={telemetry} /> : null}
+      {dockPanel === 'telemetry' && telemetryInline ? (telemetry ? <TelemetryPanel view={telemetry} /> : <Card><Body>{t('telemetry.empty')}</Body></Card>) : null}
       {dockPanel === 'workout' ? (
         <WorkoutDockPanel
           title={t('dock.workoutPanel', { current: exercisePosition, total: workout.exercises.length })}
@@ -799,7 +842,6 @@ export default function WorkoutScreen() {
           ]}
         />
       ) : null}
-      {primaryBar}
       <DockRails rails={[
         ...(telemetryOn ? [{
           id: 'telemetry' as const,
@@ -823,6 +865,17 @@ export default function WorkoutScreen() {
   const nowEntryId = selectedExercise?.entryId ?? (telemetryOn ? telemetryExercise?.entryId : null) ?? currentEntryId;
   const nowIndex = workout.exercises.findIndex((exercise) => exercise.entryId === nowEntryId);
   const timerRunning = hold.active !== null || restEndsAt !== null || Boolean(emom.plan && emom.phase);
+  const emomExercise = emom.plan ? workout.exercises.find((item) => item.entryId === emom.plan?.entryId) ?? null : null;
+  const emomView: EmomView | null = emom.plan && emom.phase ? {
+    exercise: emomExercise?.name ?? '',
+    intervalSec: emom.plan.intervalSec,
+    rounds: emom.plan.rounds,
+    phase: emom.phase,
+    done: emomDoneValues(emomExercise, emom.plan),
+    value: emom.plan.value,
+    field: emom.plan.field,
+    canAddRound: emom.phase.phase !== 'done' && !(emom.phase.phase === 'running' && emom.phase.round >= emom.plan.rounds),
+  } : null;
   const lowReadiness = (workout.sleep !== null && workout.sleep <= 2) || (workout.energy !== null && workout.energy <= 2) || (workout.soreness !== null && workout.soreness >= 4);
 
   return (
@@ -830,23 +883,14 @@ export default function WorkoutScreen() {
       <Screen
         scrollRef={scrollRef}
         // The running clock sits right above Add and Finish, so both stay in reach during rest.
-        footerAccessory={<View style={styles.dockStack}>{railsMode ? railsTop : <>{telemetryDock}{primaryBar}</>}{!dockOpen && (!railsMode || timerRunning) ? (
+        footerAccessory={<View style={styles.dockStack}>{railsMode ? railsTop : telemetryDock}{emomView ? (
+          <EmomMiniDock view={emomView} label={emomBadge(emomView.phase, emom.plan!, t)} onOpen={() => setEmomStage(true)} />
+        ) : !dockOpen && (!railsMode || timerRunning) ? (
           <CollapsedDock restEndsAt={timerRunning ? restEndsAt : null} voiceCues={voiceCues} onRestEnd={endRest} onOpen={() => setDockOpen(true)} />
         ) : !timerRunning && freeRest ? (
           <FreeRestBar since={freeRest.since} restSec={freeRest.restSec} onStartRest={() => startRestTimer(freeRest.restSec)} onClose={() => setFreeRest(null)} />
         ) : timerRunning ? (
           <TimerBar
-            emom={emom.plan && emom.phase ? {
-              label: emomBarLabel(emom.phase, emom.plan, t),
-              exercise: workout.exercises.find((item) => item.entryId === emom.plan?.entryId)?.name ?? '',
-              progress: emom.phase.phase === 'running' ? (emom.phase.round - 1) / emom.plan.rounds : emom.phase.phase === 'done' ? 1 : 0,
-              timeLabel: emom.phase.phase === 'countdown' ? t('emom.startsIn') : t('emom.timeLeft'),
-              display: emom.phase.phase === 'done' ? '0:00' : emom.phase.phase === 'countdown' ? String(emom.phase.secondsLeft) : formatClock(emom.phase.secondsLeft),
-              value: emom.plan.field === 'durationSec' ? formatClock(emom.plan.value) : t('emom.reps', { count: emom.plan.value }),
-              valueLabel: t('emom.thisRound'),
-              onChange: (delta: number) => emom.setValue((emom.plan?.value ?? 0) + delta * (emom.plan?.field === 'durationSec' ? 5 : 1)),
-              onStop: () => void emom.stop(),
-            } : null}
             hold={hold.active}
             restEndsAt={restEndsAt}
             voiceCues={voiceCues}
@@ -959,12 +1003,11 @@ export default function WorkoutScreen() {
           ) : null}
           <ExerciseCard
             focus={focusMode}
-            fixedAction={primaryBar !== null && exercise.entryId === handExercise?.entryId}
             onSetExpanded={() => selectEntry(exercise.entryId)}
             figure={index + 1}
             nowLabel={exercise.entryId === nowEntryId ? t('workout.now', { position: nowIndex + 1, total: workout.exercises.length }) : null}
             exercise={exercise}
-            collapsed={collapsedEntries.get(exercise.entryId) ?? false}
+            collapsed={collapsedEntries.get(exercise.entryId) ?? exercise.entryId !== currentEntryId}
             onToggleCollapsed={() => setCollapsedEntries((current) => new Map(current).set(exercise.entryId, !(current.get(exercise.entryId) ?? false)))}
             handle={workout.exercises.length > 1 ? row.handle : undefined}
             previous={previous.get(exercise.exerciseId)}
@@ -974,7 +1017,7 @@ export default function WorkoutScreen() {
             onComplete={(set) => void completeHoldManually(set)}
             onStartHold={startHoldFor}
             onFinishHold={() => void finishCurrentHold()}
-            onAddSet={() => void addSet(exercise.entryId).then(() => refresh(workout.id))}
+            onAddSet={() => void (exercise.entryId === emomEntryId ? addEmomRound() : addSet(exercise.entryId).then(() => refresh(workout.id)))}
             onAddWarmup={() => void addWarmupSet(exercise.entryId).then(() => refresh(workout.id))}
             onCopyAllLast={copyable.length > 0 || missingWarmups(exercise, previous.get(exercise.exerciseId)) > 0 ? () => void Promise.all(copyable.map(({ set, values }) => copyValuesToSet(set.id, values)))
               .then(() => addWarmupsFromLastTime(exercise.entryId, previous.get(exercise.exerciseId)?.warmups ?? []))
@@ -984,6 +1027,8 @@ export default function WorkoutScreen() {
             setRecords={records.sets}
             volumeRecords={records.volume.filter((record) => record.exerciseId === exercise.exerciseId)}
             sameLoadRecords={records.sameLoad.filter((record) => record.exerciseId === exercise.exerciseId)}
+            onEntryNote={(note) => void updateEntryNote(exercise.entryId, note).then(() => refresh(workout.id))}
+            timeGoals={exerciseGoals.get(exercise.exerciseId) ?? null}
             emomLabel={exercise.entryId === emomEntryId && emom.phase ? emomBadge(emom.phase, emom.plan!, t) : null}
             supersetLabel={exercise.groupId ? t('superset.label', { letter: supersetLetters.get(exercise.groupId) ?? 'A' }) : null}
             onUncomplete={(set) => void reopenSet(set)}
@@ -1045,8 +1090,8 @@ export default function WorkoutScreen() {
           if (top !== undefined) scrollRef.current?.scrollTo({ y: Math.max(0, top - 16), animated: true });
         }}
       />
-      <Sheet visible={telemetrySheet && telemetry !== null} onClose={() => setTelemetrySheet(false)} title={t('telemetry.title')}>
-        {telemetry ? <TelemetryPanel view={telemetry} bordered={false} /> : null}
+      <Sheet visible={telemetrySheet} onClose={() => setTelemetrySheet(false)} title={t('telemetry.title')}>
+        {telemetry ? <TelemetryPanel view={telemetry} bordered={false} /> : <Body>{t('telemetry.empty')}</Body>}
       </Sheet>
       <Toast
         message={undo?.message ?? null}
@@ -1059,6 +1104,25 @@ export default function WorkoutScreen() {
         onHide={hideUndo}
         bottomOffset={emom.plan ? 180 : hold.active || restEndsAt !== null ? 110 : 0}
       />
+      {emomView && emomStage ? (
+        <EmomStage
+          view={emomView}
+          onChange={(delta) => emom.setValue((emom.plan?.value ?? 0) + delta * (emom.plan?.field === 'durationSec' ? 5 : 1))}
+          onAddRound={() => void addEmomRound()}
+          onStop={() => void emom.stop()}
+          onClose={closeEmomStage}
+        />
+      ) : null}
+      {/* Above the EMOM screen (which sits on its own layer), touches pass through around the toast. */}
+      <View pointerEvents="box-none" style={[StyleSheet.absoluteFill, styles.overStage]}>
+        <Toast
+          message={emomAdded?.message ?? null}
+          actionLabel={t('emom.undo')}
+          onAction={() => void undoEmomRound()}
+          onHide={hideEmomAdded}
+          bottomOffset={emomView && emomStage ? 160 : 72}
+        />
+      </View>
       <Toast message={emomNotice} onHide={() => setEmomNotice(null)} />
       <Toast message={loadNotice} onHide={() => setLoadNotice(null)} />
 
@@ -1071,6 +1135,7 @@ export default function WorkoutScreen() {
           setCollapsedEntries((current) => new Map(current).set(config.entryId, false));
           hold.stop();
           skipRest();
+          setEmomStage(true);
           if (emom.plan) void emom.stop().then(() => emom.start(config));
           else emom.start(config);
         }}
@@ -1078,6 +1143,7 @@ export default function WorkoutScreen() {
       <SaveToProgramSheet
         visible={saveOpen}
         defaultName={workout.name}
+        workoutId={workout.id}
         exercises={workout.exercises}
         onClose={() => setSaveOpen(false)}
         onSaved={(program) => { setSaveOpen(false); setSavedTo({ id: program.id, name: program.name }); }}
@@ -1305,20 +1371,14 @@ function copyableSets(exercise: SessionExercise, previous: PreviousPerformance |
   });
 }
 
-interface EmomBar {
-  /** "Round 3 / 10", "Get ready" or "Done". */
-  label: string;
-  /** Exercise the EMOM runs on. */
-  exercise: string;
-  /** Rounds already behind, 0–1. */
-  progress: number;
-  /** What the clock counts: the countdown before round 1, or what is left of this round. */
-  timeLabel: string;
-  display: string;
-  value: string;
-  valueLabel: string;
-  onChange: (delta: number) => void;
-  onStop: () => void;
+/** What each round of the running EMOM saved, in order: its exercise's working sets completed since round 1 began. */
+function emomDoneValues(exercise: SessionExercise | null, plan: EmomPlan): number[] {
+  if (!exercise) return [];
+  const since = firstRoundStart(plan);
+  return groupSets(exercise.sets)
+    .filter((group) => group[0].kind === 'working' && group[0].completedAt && new Date(group[0].completedAt).getTime() >= since)
+    .sort((a, b) => new Date(a[0].completedAt!).getTime() - new Date(b[0].completedAt!).getTime())
+    .map((group) => (plan.field === 'durationSec' ? group[0].durationSec : group[0].reps) ?? 0);
 }
 
 /** "Round 3 / 10" on the card while an EMOM runs. */
@@ -1327,14 +1387,7 @@ function emomBadge(phase: EmomPhase, plan: EmomPlan, t: (key: string, options?: 
   return t('emom.badgeReady', { rounds: plan.rounds });
 }
 
-function emomBarLabel(phase: EmomPhase, plan: EmomPlan, t: (key: string, options?: Record<string, unknown>) => string): string {
-  if (phase.phase === 'countdown') return t('emom.getReady');
-  if (phase.phase === 'running') return t('emom.round', { round: phase.round, rounds: plan.rounds });
-  return t('emom.notifyDone');
-}
-
-function TimerBar({ emom, hold, restEndsAt, voiceCues, onRestEnd, onFinishHold, onExtend, onReduce, onSkip, onCollapse }: {
-  emom: EmomBar | null;
+function TimerBar({ hold, restEndsAt, voiceCues, onRestEnd, onFinishHold, onExtend, onReduce, onSkip, onCollapse }: {
   hold: ActiveHold | null;
   /** When the running rest ends; the bar counts it down and calls onRestEnd at zero. */
   restEndsAt: number | null;
@@ -1348,34 +1401,8 @@ function TimerBar({ emom, hold, restEndsAt, voiceCues, onRestEnd, onFinishHold, 
 }) {
   const styles = useScaledStyles(baseStyles);
   const { t } = useTranslation();
-  const { palette } = useTheme();
-  if (hold === null && restEndsAt === null && emom === null) return null;
-  if (emom) {
-    return (
-      <View style={[styles.timerBar, { backgroundColor: palette.hero }]}>
-        <View style={[styles.timerInner, styles.emomInner]}>
-          {/* Round and exercise on top, the clock large beside Stop: the clock never shares a flexible box that could squeeze it. */}
-          <View style={styles.emomRow}>
-            <View style={styles.emomHead}>
-              <Text style={[styles.emomRound, { color: palette.heroText }]}>{emom.label}</Text>
-              {emom.exercise ? <Text numberOfLines={1} style={[styles.timerLabel, { color: palette.heroText }]}>{emom.exercise}</Text> : null}
-            </View>
-            <Text accessibilityRole="timer" accessibilityLabel={`${emom.timeLabel} ${emom.display}`} style={[styles.emomClock, { color: palette.heroText }]}>{emom.display}</Text>
-            <TimerAction label={t('emom.stopShort')} filled onPress={emom.onStop} />
-          </View>
-          <View accessible={false} style={[styles.emomTrack, { backgroundColor: palette.heroOverlay }]}>
-            <View style={[styles.emomFill, { backgroundColor: palette.heroText, width: `${Math.round(Math.min(1, Math.max(0, emom.progress)) * 100)}%` }]} />
-          </View>
-          <View style={styles.emomRow}>
-            <Text numberOfLines={1} style={[styles.timerLabel, styles.emomValueLabel, { color: palette.heroText }]}>{emom.valueLabel}</Text>
-            <TimerAction label="−" accessibilityLabel={`${emom.valueLabel} −`} onPress={() => emom.onChange(-1)} />
-            <Text accessibilityLiveRegion="polite" style={[styles.emomValueText, { color: palette.heroText }]}>{emom.value}</Text>
-            <TimerAction label="+" accessibilityLabel={`${emom.valueLabel} +`} onPress={() => emom.onChange(1)} />
-          </View>
-        </View>
-      </View>
-    );
-  }
+  const { palette, largeText } = useTheme();
+  if (hold === null && restEndsAt === null) return null;
   const holding = hold !== null;
   const countingDown = hold?.phase.phase === 'countdown';
   const label = !hold
@@ -1387,8 +1414,8 @@ function TimerBar({ emom, hold, restEndsAt, voiceCues, onRestEnd, onFinishHold, 
         : t('logger.holding');
   return (
     <View style={[styles.timerBar, { backgroundColor: palette.hero }]}>
-      <View style={styles.timerInner}>
-      <IconButton icon="chevron-down" label={t('workout.collapseDock')} tone="plain" size={48} color={palette.heroText} onPress={onCollapse} />
+      <View style={[styles.timerInner, !largeText && styles.timerInnerLine]}>
+      <IconButton icon="chevron-down" label={t('workout.collapseDock')} tone="plain" size={40} color={palette.heroText} onPress={onCollapse} />
       <View style={styles.timerReadout}>
         <Text style={[styles.timerLabel, { color: palette.heroText }]}>{label}</Text>
         {hold || restEndsAt === null
@@ -1461,6 +1488,7 @@ function TimerAction({ label, filled = false, accessibilityLabel, onPress }: { l
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel}
+      hitSlop={4}
       onPress={() => { tapFeedback(); onPress(); }}
       style={({ pressed }) => [styles.timerAction, { backgroundColor: filled ? palette.heroText : palette.heroOverlay, opacity: pressed ? 0.8 : 1 }]}
     >
@@ -1496,6 +1524,7 @@ function ReadinessRow({ label, value, onChange }: { label: string; value: number
 
 const baseStyles = StyleSheet.create({
   // The blocks of the lower dock (panel, main action, rails, timer) never touch: one step of the spacing scale between them.
+  overStage: { zIndex: 30, elevation: 30 },
   dockStack: { gap: spacing.md },
   // Its own row under check-in and fold all: the chips sit side by side, left-aligned.
   headingActions: { width: '100%', flexDirection: 'row', flexWrap: 'wrap', gap: 8, justifyContent: 'flex-start' },
@@ -1526,24 +1555,17 @@ const baseStyles = StyleSheet.create({
   swipeHint: { flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: radii.control, paddingHorizontal: 14, paddingVertical: 10 },
   swipeHintText: { flex: 1, fontFamily: fonts.medium, fontSize: 14 },
   footerActions: { gap: 10, marginTop: 4 },
-  timerBar: { borderRadius: instrument.radius, paddingHorizontal: 16, paddingVertical: 12 },
+  timerBar: { borderRadius: instrument.radius, paddingHorizontal: 8, paddingVertical: 6 },
   collapsed: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderRadius: instrument.radius, paddingLeft: 16, paddingRight: 4, minHeight: 48 },
-  timerInner: { width: '100%', maxWidth: 640, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
-  timerLabel: { fontFamily: fonts.medium, fontSize: 14, opacity: 0.85 },
-  timerValue: { fontFamily: fonts.monoBold, fontSize: 32, lineHeight: 40, fontVariant: ['tabular-nums'] },
-  timerReadout: { flexGrow: 1, minWidth: 110 },
-  timerActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  timerInner: { width: '100%', maxWidth: 640, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
+  timerLabel: { fontFamily: fonts.medium, fontSize: 12, lineHeight: 14, opacity: 0.85 },
+  timerValue: { fontFamily: fonts.monoBold, fontSize: 24, lineHeight: 28, fontVariant: ['tabular-nums'] },
+  // Normal text: chevron, clock and the three actions on one line.
+  timerInnerLine: { flexWrap: 'nowrap' },
+  timerReadout: { flexGrow: 1, flexShrink: 0 },
+  timerActions: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   // No wrapping here: a wrapping column lays the two rows side by side and squeezes the labels to nothing.
-  emomInner: { flexDirection: 'column', flexWrap: 'nowrap', alignItems: 'stretch', justifyContent: 'flex-start', gap: 8 },
-  emomRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  emomHead: { flexGrow: 1, flexShrink: 1, minWidth: 120, gap: 2 },
-  emomRound: { fontFamily: fonts.semibold, fontSize: 17, lineHeight: 22 },
-  emomClock: { fontFamily: fonts.display, fontSize: 40, lineHeight: 44, minWidth: 84, textAlign: 'right', fontVariant: ['tabular-nums'] },
-  emomTrack: { height: 6, borderRadius: 3, overflow: 'hidden' },
-  emomFill: { height: 6, borderRadius: 3 },
-  emomValueLabel: { flexGrow: 1, flexShrink: 1, minWidth: 80 },
-  emomValueText: { fontFamily: fonts.display, fontSize: 26, lineHeight: 30, minWidth: 72, textAlign: 'center', fontVariant: ['tabular-nums'] },
-  timerAction: { minWidth: 56, minHeight: 48, borderRadius: instrument.radius, paddingHorizontal: 14, paddingVertical: 10, alignItems: 'center', justifyContent: 'center' },
+  timerAction: { minWidth: 44, minHeight: 40, borderRadius: instrument.radius, paddingHorizontal: 8, paddingVertical: 6, alignItems: 'center', justifyContent: 'center' },
   timerActionText: { fontFamily: fonts.semibold, fontSize: 15 },
   timerActionSymbol: { fontSize: 26, lineHeight: 30 },
   // The surrounding box carries the border, so the browser focus outline is replaced by it.

@@ -4,14 +4,14 @@ import { StyleSheet, View } from 'react-native';
 import { TextInput } from '../../shared/components/AppTextInput';
 import { targetMax, type DailyGoal, type DailyGoalMeasure, type DailyGoalScope, type GoalPeriod } from '../../domain/dailyGoals';
 import { TAG_ROWS, tagRowsFor, tagRowsToChange, type GoalChange, type GoalDraft, type TagRow, type TagRowKey, type TagRows } from '../../domain/tagGoals';
-import { isTimedMetric } from '../../domain/userProgram';
-import { ExercisePicker } from '../exercises/ExercisePicker';
 import { useGoalT } from './period';
+import { isTimedMetric } from '../../domain/userProgram';
 import { ActionButton, Body, Chip, Label, SegmentedControl, Sheet, Stepper, SwitchRow } from '../../shared/components/ui';
 import { useTheme } from '../../shared/theme/ThemeProvider';
 import { useScaledStyles } from '../../shared/theme/useScaledStyles';
 import { MAX_FONT_SCALE } from '../../shared/theme/scale';
 import { EXERCISE_CATEGORIES } from '../exercises/categories';
+import { ExercisePicker } from '../exercises/ExercisePicker';
 import { movementTagLabel } from '../exercises/ClassificationChoices';
 import { MOVEMENT_GROUPS, MOVEMENT_TAG_SECTIONS } from '../exercises/movementCatalog';
 import { goalAmount, goalKeyLabel } from './labels';
@@ -29,8 +29,8 @@ const STEPS: Record<DailyGoalMeasure, number> = GOAL_STEPS;
 const TAG_RESULTS = 12;
 
 /**
- * Adds or edits goals: what they count (category, movement group or tag), in minutes or reps, and the
- * total. A movement tag carries up to three goals at once (total, active, passive mobility), each with
+ * Adds or edits goals: what they count (category, movement group, tag or one exercise), in minutes or
+ * reps (an exercise: minutes), and the total. A movement tag carries up to three goals at once (total, active, passive mobility), each with
  * its own measure and target. The sheet is keyed by the goal it edits, so it starts from that goal each time.
  */
 export function DailyGoalSheet({ period = 'day', visible, initial, goals = [], onSave, onRemove, onClose }: {
@@ -48,25 +48,25 @@ export function DailyGoalSheet({ period = 'day', visible, initial, goals = [], o
   const tg = useGoalT(period);
   const { palette } = useTheme();
   const [scope, setScope] = useState<DailyGoalScope>(initial?.scope ?? 'tag');
-  const [exercisePicker, setExercisePicker] = useState(false);
-  const [exerciseName, setExerciseName] = useState(initial?.exerciseName);
   const [key, setKey] = useState<string | null>(initial?.key ?? null);
-  const [chosenMeasure, setMeasure] = useState<DailyGoalMeasure>(initial?.measure ?? 'minutes');
-  const measure = scope === 'exercise' ? 'minutes' : chosenMeasure;
+  const [measure, setMeasure] = useState<DailyGoalMeasure>(initial?.measure ?? 'minutes');
   const [target, setTarget] = useState(initial?.target ?? DEFAULTS[period].minutes);
   const [rows, setRows] = useState<TagRows>(() => tagRowsFor(goals, initial?.scope === 'tag' ? initial.key : '', DEFAULTS[period]));
   // The tag the sheet opened on: choosing another one moves its goals there.
   const [from] = useState(initial?.scope === 'tag' ? initial.key : undefined);
   const [query, setQuery] = useState('');
   const [section, setSection] = useState<string | null>(null);
+  // Exercise goals: the chosen exercise's name (a goal being edited carries it) and the picker.
+  const [exerciseName, setExerciseName] = useState<string | null>(initial?.scope === 'exercise' ? initial.label ?? null : null);
+  const [picking, setPicking] = useState(false);
 
   const changeScope = (next: DailyGoalScope) => {
-    if (scope === next) return;
     setScope(next);
     setKey(null);
     setQuery('');
-    if (next === 'exercise') setTarget(DEFAULTS[period].minutes);
-    else if (scope === 'exercise') setTarget(DEFAULTS[period][chosenMeasure]);
+    setExerciseName(null);
+    // A goal on one exercise is a time goal.
+    if (next === 'exercise' && measure !== 'minutes') changeMeasure('minutes');
   };
   const changeMeasure = (next: DailyGoalMeasure) => { setMeasure(next); setTarget(DEFAULTS[period][next]); };
   const pickTag = (tag: string) => { setKey(tag); setRows(tagRowsFor(goals, tag, DEFAULTS[period])); };
@@ -79,20 +79,6 @@ export function DailyGoalSheet({ period = 'day', visible, initial, goals = [], o
   const openId = section ?? MOVEMENT_TAG_SECTIONS.find((item) => key !== null && (item.tags as readonly string[]).includes(key))?.id ?? MOVEMENT_TAG_SECTIONS[0].id;
   const open = MOVEMENT_TAG_SECTIONS.find((item) => item.id === openId) ?? MOVEMENT_TAG_SECTIONS[0];
 
-  const label = key === null ? '' : goalKeyLabel({ scope, key, exerciseName }, t);
-
-  if (exercisePicker) {
-    return (
-      <ExercisePicker
-        visible={visible}
-        title={t('dailyGoals.timedExercises')}
-        include={(choice) => isTimedMetric(choice.metric)}
-        onChoose={(choice) => { setKey(choice.id); setExerciseName(choice.name); setExercisePicker(false); }}
-        onClose={() => setExercisePicker(false)}
-      />
-    );
-  }
-
   return (
     <Sheet visible={visible} onClose={onClose} title={t(initial?.id ? 'dailyGoals.editTitle' : 'dailyGoals.newTitle')}>
       <View style={styles.field}>
@@ -100,22 +86,17 @@ export function DailyGoalSheet({ period = 'day', visible, initial, goals = [], o
         <SegmentedControl
           value={scope}
           options={[
-            { value: 'category', label: t('dailyGoals.scope.category') },
-            { value: 'group', label: t('dailyGoals.scope.group') },
-            { value: 'tag', label: t('dailyGoals.scope.tag') },
-            { value: 'exercise', label: t('dailyGoals.scope.exercise') },
+            { value: 'category', label: t('dailyGoals.scopeShort.category') },
+            { value: 'group', label: t('dailyGoals.scopeShort.group') },
+            { value: 'tag', label: t('dailyGoals.scopeShort.tag') },
+            { value: 'exercise', label: t('dailyGoals.scopeShort.exercise') },
           ]}
           onChange={changeScope}
         />
       </View>
       <View style={styles.field}>
         <Label>{t(`dailyGoals.scope.${scope}`)}</Label>
-        {scope === 'exercise' ? (
-          <>
-            {key ? <Body>{label}</Body> : null}
-            <ActionButton icon="search" label={t('dailyGoals.pickExercise')} secondary onPress={() => setExercisePicker(true)} />
-          </>
-        ) : scope === 'category' ? (
+        {scope === 'category' ? (
           <View style={styles.chips}>
             {EXERCISE_CATEGORIES.map((id) => <Chip key={id} label={t(`library.category.${id}`)} selected={key === id} onPress={() => setKey(id)} />)}
           </View>
@@ -123,6 +104,12 @@ export function DailyGoalSheet({ period = 'day', visible, initial, goals = [], o
           <View style={styles.chips}>
             {MOVEMENT_GROUPS.map(({ id }) => <Chip key={id} label={t(`movement.groups.${id}`)} selected={key === id} onPress={() => setKey(id)} />)}
           </View>
+        ) : scope === 'exercise' ? (
+          <>
+            {key ? <View style={styles.chips}><Chip label={goalKeyLabel({ scope, key, label: exerciseName ?? undefined }, t)} selected icon="checkmark" /></View> : null}
+            <ActionButton icon="search" secondary label={t(key ? 'dailyGoals.changeExercise' : 'dailyGoals.pickExercise')} onPress={() => setPicking(true)} />
+            <Body>{t('dailyGoals.exerciseHint')}</Body>
+          </>
         ) : (
           <>
             {key ? <View style={styles.chips}><Chip label={movementTagLabel(key, t)} selected icon="checkmark" /></View> : null}
@@ -161,26 +148,24 @@ export function DailyGoalSheet({ period = 'day', visible, initial, goals = [], o
         </View>
       ) : (
         <>
-          <View style={styles.field}>
-            {scope !== 'exercise' ? (
-              <>
-                <Label>{t('dailyGoals.measureTitle')}</Label>
-                <SegmentedControl
-                  value={measure}
-                  options={[{ value: 'minutes', label: t('dailyGoals.measure.minutes') }, { value: 'reps', label: t('dailyGoals.measure.reps') }]}
-                  onChange={changeMeasure}
-                />
-              </>
-            ) : null}
-            <Body>{t(measure === 'minutes' ? 'dailyGoals.minutesHint' : 'dailyGoals.repsHint')}</Body>
-          </View>
+          {scope === 'exercise' ? null : (
+            <View style={styles.field}>
+              <Label>{t('dailyGoals.measureTitle')}</Label>
+              <SegmentedControl
+                value={measure}
+                options={[{ value: 'minutes', label: t('dailyGoals.measure.minutes') }, { value: 'reps', label: t('dailyGoals.measure.reps') }]}
+                onChange={changeMeasure}
+              />
+              <Body>{t(measure === 'minutes' ? 'dailyGoals.minutesHint' : 'dailyGoals.repsHint')}</Body>
+            </View>
+          )}
           <Stepper
             label={tg('totalTitle')}
             layout="row"
             value={target}
             display={goalAmount(measure, target)}
             step={STEPS[measure]}
-            min={scope === 'exercise' ? 1 : STEPS[measure]}
+            min={STEPS[measure]}
             max={targetMax(period, measure)}
             editable
             clock={measure === 'minutes'}
@@ -193,14 +178,26 @@ export function DailyGoalSheet({ period = 'day', visible, initial, goals = [], o
       <ActionButton
         icon="checkmark"
         label={key === null ? t('dailyGoals.pickFirst')
-          : scope === 'tag' ? (rowsOn === 0 ? t('dailyGoals.pickRows') : t('dailyGoals.saveTag', { name: label, count: rowsOn }))
-            : t(initial?.id ? 'dailyGoals.saveSummary' : 'dailyGoals.addSummary', { name: label, amount: `${goalAmount(measure, target)}${measure === 'reps' ? ` ${t('dailyGoals.repsUnit')}` : ''}` })}
+          : scope === 'tag' ? (rowsOn === 0 ? t('dailyGoals.pickRows') : t('dailyGoals.saveTag', { name: goalKeyLabel({ scope, key }, t), count: rowsOn }))
+            : t(initial?.id ? 'dailyGoals.saveSummary' : 'dailyGoals.addSummary', { name: goalKeyLabel({ scope, key, label: exerciseName ?? undefined }, t), amount: `${goalAmount(measure, target)}${measure === 'reps' ? ` ${t('dailyGoals.repsUnit')}` : ''}` })}
         disabled={key === null || (scope === 'tag' && rowsOn === 0)}
         onPress={() => {
           if (key === null) return;
           if (scope === 'tag') onSave(tagRowsToChange(key, rows, goals, from));
-          else onSave({ drafts: [{ id: initial?.id, scope, key, measure, target }], removeIds: [] });
+          else {
+            // One goal per exercise: choosing an exercise that already has one edits that goal instead of doubling it.
+            const same = scope === 'exercise' ? goals.find((goal) => goal.scope === 'exercise' && goal.key === key && goal.id !== initial?.id) : undefined;
+            onSave({ drafts: [{ id: same?.id ?? initial?.id, scope, key, measure, target }], removeIds: same && initial?.id ? [initial.id] : [] });
+          }
         }}
+      />
+      <ExercisePicker
+        visible={picking}
+        title={t('dailyGoals.exercisePickerTitle')}
+        subtitle={t('dailyGoals.exercisePickerBody')}
+        include={(choice) => isTimedMetric(choice.metric)}
+        onChoose={(choice) => { setKey(choice.id); setExerciseName(choice.name); setPicking(false); }}
+        onClose={() => setPicking(false)}
       />
       {onRemove ? <ActionButton icon="trash-outline" variant="danger" label={t('dailyGoals.remove')} onPress={onRemove} /> : null}
     </Sheet>

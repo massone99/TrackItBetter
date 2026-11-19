@@ -3,9 +3,9 @@ import { exerciseFinished, nextFolded } from '../folding';
 const map = (entries: [string, boolean][]) => new Map(entries);
 
 describe('nextFolded', () => {
-  it('folds every exercise when the workout is first opened', () => {
-    const folded = nextFolded(map([['a', false], ['b', false], ['c', true]]), map([]), map([]), true);
-    expect([...folded]).toEqual([['a', true], ['b', true], ['c', true]]);
+  it('on first opening folds every exercise except the one in hand (the first not finished)', () => {
+    const folded = nextFolded(map([['done', true], ['a', false], ['b', false]]), map([]), map([]), true);
+    expect([...folded]).toEqual([['done', true], ['a', false], ['b', true]]);
   });
 
   it('opens an exercise added later and keeps what was folded by hand', () => {

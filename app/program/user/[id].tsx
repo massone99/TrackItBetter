@@ -2,38 +2,32 @@ import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
-import { estimateSessionSeconds, moveItem, nextSessionInRotation, sessionSetCount, type UserProgram, type UserProgramSession } from '../../../src/domain/userProgram';
+import * as Crypto from 'expo-crypto';
+import { duplicateGroup, type GroupKind, type ProgramLayout } from '../../../src/domain/programStructure';
+import { disciplineOf, moveItem, nextSessionInRotation, type UserProgram, type UserProgramSession } from '../../../src/domain/userProgram';
 import { listExercises } from '../../../src/features/exercises/repository';
-import { openExercisePage } from '../../../src/features/exercises/openExercise';
-import { describePrescription } from '../../../src/features/programs/describe';
+import { addGroup, buildSections, doneSessionIds, editGroup, moveSessionToGroup, removeGroups, setGroupParent, withFirstGroup, type SectionNode } from '../../../src/features/programs/detail/groupEdits';
+import { GroupSheets, RemoveGroupsSheet, type DetailSheet } from '../../../src/features/programs/detail/GroupSheets';
+import { GroupsView } from '../../../src/features/programs/detail/GroupsView';
+import { BareboneSessionRow, CompactSession, SessionCard, type ExerciseInfo, type SessionViewProps } from '../../../src/features/programs/detail/SessionCard';
 import { defaultPastStart } from '../../../src/features/session/pastStart';
 import { logPastUserProgramSession, startUserProgramSession } from '../../../src/features/programs/startUserSession';
-import { deleteUserProgram, duplicateUserProgram, getUserProgram, saveUserProgram } from '../../../src/features/programs/userPrograms';
-import { readDefaultRest } from '../../../src/features/session/restDefaults';
+import { ProgramClustersSheet } from '../../../src/features/programs/ProgramClustersSheet';
+import { type ProgramMetaKind } from '../../../src/features/programs/ProgramMetaField';
+import { ProgramMetaSheet } from '../../../src/features/programs/ProgramMetaSheet';
+import { programAuthors, programCategories, programClusters } from '../../../src/features/programs/list/derive';
+import { createProgramCluster, deleteUserProgram, duplicateUserProgram, getUserProgram, listProgramClusters, listUserPrograms, saveUserProgram, updateUserProgram } from '../../../src/features/programs/userPrograms';
 import { WorkoutDetailsSheet } from '../../../src/features/session/WorkoutDetailsSheet';
-import { WorkoutInProgressSheet } from '../../../src/features/session/WorkoutInProgressSheet';
+import { useStartGuard } from '../../../src/features/session/useStartGuard';
 import { getActiveWorkout, listRecentWorkoutNames } from '../../../src/features/session/repository';
 import { ReorderableList } from '../../../src/shared/components/ReorderableList';
-import { ActionButton, Body, FooterAction, Card, EmptyState, Icon, IconButton, Label, PageHeading, Screen, SectionTitle, Sheet, tapFeedback, Text } from '../../../src/shared/components/ui';
-import { readPreference, writePreference } from '../../../src/shared/settings/preferences';
+import { ActionButton, Body, Chip, FooterAction, EmptyState, IconButton, ListGroup, PageHeading, Screen, SectionTitle, SegmentedControl, Sheet, tapFeedback, Text, Toast } from '../../../src/shared/components/ui';
+import { PROGRAM_WORKOUTS_BAREBONE_KEY } from '../../../src/shared/settings/preferences';
+import { useBooleanPreference } from '../../../src/shared/settings/useBooleanPreference';
 import { goBack } from '../../../src/shared/navigation/goBack';
 import { useTheme } from '../../../src/shared/theme/ThemeProvider';
 import { fonts } from '../../../src/shared/theme/typography';
 import { useScaledStyles } from '../../../src/shared/theme/useScaledStyles';
-import { formatMinutes } from '../../../src/shared/utils/format';
-
-type ExerciseInfo = { name: string; metric: string };
-
-/** Workouts the person collapsed in a program, remembered per program. */
-const collapsedKey = (programId: string) => `program.${programId}.collapsed`;
-function readCollapsed(programId: string): Set<string> {
-  try {
-    const stored: unknown = JSON.parse(readPreference(collapsedKey(programId)) ?? '[]');
-    return new Set(Array.isArray(stored) ? stored.filter((item): item is string => typeof item === 'string') : []);
-  } catch {
-    return new Set();
-  }
-}
 
 export default function UserProgramScreen() {
   const styles = useScaledStyles(baseStyles);
@@ -47,17 +41,39 @@ export default function UserProgramScreen() {
   const [error, setError] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [active, setActive] = useState<{ id: string; name: string } | null>(null);
-  const [blockedBy, setBlockedBy] = useState<{ id: string; name: string } | null>(null);
+  const { block, sheet: inProgressSheet } = useStartGuard();
   const [recentNames, setRecentNames] = useState<string[]>([]);
   const [editing, setEditing] = useState<UserProgramSession | null>(null);
-  const [collapsed, setCollapsed] = useState<Set<string>>(() => readCollapsed(id));
+  const [opened, setOpened] = useState<Set<string>>(() => new Set());  // every workout starts folded each time the program is entered, not persisted
+  const [groupOpen, setGroupOpen] = useState<Record<string, boolean>>({});  // sections opened or folded by hand, per visit
+  const [sheet, setSheet] = useState<DetailSheet | null>(null);
+  // Select-groups mode, the groups waiting for the removal confirmation, and the program before the last removal.
+  const [selection, setSelection] = useState<Set<string> | null>(null);
+  const [removal, setRemoval] = useState<string[] | null>(null);
+  const [undo, setUndo] = useState<{ message: string; previous: UserProgram } | null>(null);
+  const [existingCategories, setExistingCategories] = useState<string[]>([]);
+  const [existingAuthors, setExistingAuthors] = useState<string[]>([]);
+  const [existingClusters, setExistingClusters] = useState<string[]>([]);
+  const [metaSheet, setMetaSheet] = useState<ProgramMetaKind | null>(null);
+  const [clustersOpen, setClustersOpen] = useState(false);
+  const [barebone, toggleBarebone] = useBooleanPreference(PROGRAM_WORKOUTS_BAREBONE_KEY, false);
 
   useFocusEffect(useCallback(() => {
     let mounted = true;
-    void Promise.all([getUserProgram(id), listExercises(), getActiveWorkout(), listRecentWorkoutNames()]).then(([found, exercises, activeWorkout, names]) => {
+    void Promise.all([
+      getUserProgram(id),
+      listExercises(),
+      getActiveWorkout(),
+      listRecentWorkoutNames(),
+      typeof listUserPrograms === 'function' ? listUserPrograms() : Promise.resolve([]),
+      typeof listProgramClusters === 'function' ? listProgramClusters() : Promise.resolve([]),
+    ]).then(([found, exercises, activeWorkout, names, allPrograms, savedClusters]) => {
       if (!mounted) return;
       setRecentNames(names);
       setProgram(found);
+      setExistingCategories(programCategories(allPrograms));
+      setExistingAuthors(programAuthors(allPrograms));
+      setExistingClusters(programClusters(allPrograms, savedClusters));
       setInfo(new Map(exercises.map((exercise) => [exercise.id, { name: exercise.name, metric: exercise.metric }])));
       setActive(activeWorkout ? { id: activeWorkout.id, name: activeWorkout.name } : null);
       setLoading(false);
@@ -76,11 +92,14 @@ export default function UserProgramScreen() {
   }
 
   const metricById = new Map([...info].map(([exerciseId, item]) => [exerciseId, item.metric]));
-  const nextId = nextSessionInRotation(program, recentNames)?.id ?? null;
+  const nextSession = nextSessionInRotation(program, recentNames);
+  const nextId = nextSession?.id ?? null;
+  const layout: ProgramLayout = program.layout ?? 'sequence';
 
-  const start = async (session: UserProgramSession) => {
+  // `force` skips the check of the open workout once the user has discarded it (`active` is only reloaded later).
+  const start = async (session: UserProgramSession, force = false) => {
     if (starting) return;
-    if (active) { setBlockedBy(active); return; }
+    if (active && !force) { block(active, () => void start(session, true)); return; }
     setStarting(session.id);
     setError(null);
     try {
@@ -108,17 +127,18 @@ export default function UserProgramScreen() {
     }
   };
 
-  const saveCollapsed = (next: Set<string>) => {
+  const saveOpened = (next: Set<string>) => {
     tapFeedback();
-    setCollapsed(next);
-    writePreference(collapsedKey(program.id), JSON.stringify([...next]));
+    setOpened(next);
   };
   const toggle = (sessionId: string) => {
-    const next = new Set(collapsed);
+    const next = new Set(opened);
     if (!next.delete(sessionId)) next.add(sessionId);
-    saveCollapsed(next);
+    saveOpened(next);
   };
-  const allCollapsed = program.sessions.length > 0 && program.sessions.every((session) => collapsed.has(session.id));
+  const allCollapsed = program.sessions.length > 0 && program.sessions.every((session) => !opened.has(session.id));
+
+  const fail = (reason: unknown) => setError(`${t('programBuilder.startError')} (${reason instanceof Error ? reason.message : String(reason)})`);
 
   const reorder = async (from: number, to: number) => {
     const previous = program;
@@ -128,7 +148,7 @@ export default function UserProgramScreen() {
       setProgram(await saveUserProgram(next));
     } catch (reason) {
       setProgram(previous);
-      setError(`${t('programBuilder.startError')} (${reason instanceof Error ? reason.message : String(reason)})`);
+      fail(reason);
     }
   };
 
@@ -137,12 +157,67 @@ export default function UserProgramScreen() {
     if (copy) router.replace({ pathname: '/program/user/[id]', params: { id: copy.id } });
   };
 
-  const nextSession = program.sessions.find((session) => session.id === nextId) ?? null;
+  /** Applies a structural change on the stored program (fresh read), then shows the result. */
+  const change = async (fn: (current: UserProgram) => Partial<UserProgram>) => {
+    setError(null);
+    try {
+      const saved = await updateUserProgram(program.id, fn);
+      if (saved) setProgram(saved);
+    } catch (reason) {
+      fail(reason);
+    }
+  };
+
+  const setLayout = (next: ProgramLayout) => {
+    if (next === layout) return;
+    // Weeks and Groups need a group: a program without any gets one holding every workout, so nothing disappears.
+    void change((current) => ({
+      layout: next,
+      ...(next === 'sequence' ? {} : withFirstGroup(current, t(next === 'weeks' ? 'programDetail.weekName' : 'programDetail.groupName', { number: 1 }), Crypto.randomUUID)),
+    }));
+  };
+
+  const editWorkout = (session: UserProgramSession) => router.push({ pathname: '/program-workout', params: { programId: program.id, sessionId: session.id } });
+
+  const openMenu = (session: UserProgramSession) => {
+    if (layout === 'sequence') editWorkout(session);
+    else setSheet({ type: 'session', sessionId: session.id });
+  };
+
+  const viewProps = (session: UserProgramSession, number: number): SessionViewProps => ({
+    session,
+    number,
+    isNext: session.id === nextId,
+    open: opened.has(session.id),
+    starting,
+    info,
+    metricById,
+    onToggle: () => toggle(session.id),
+    onMenu: () => openMenu(session),
+    onStart: () => void start(session),
+    onLogPast: () => void logPast(session),
+  });
+
+  const sections = layout === 'sequence' ? [] : buildSections(program, doneSessionIds(program, recentNames), nextId);
+  const renderSession = (section: SectionNode, index: number, mode: 'card' | 'compact') => {
+    const session = section.sessions[index];
+    const props = viewProps(session, index + 1);
+    if (barebone && !props.open) return <BareboneSessionRow {...props} />;
+    return mode === 'compact' && !props.open ? <CompactSession {...props} /> : <SessionCard {...props} />;
+  };
+
+  const layoutLabels: Record<ProgramLayout, string> = { sequence: t('programDetail.layoutSequence'), weeks: t('programDetail.layoutWeeks'), groups: t('programDetail.layoutGroups') };
 
   return (
     <Screen
       // The next workout in the rotation starts from the bottom of the screen, wherever the list is scrolled.
-      footer={nextSession ? (
+      overlay={<Toast message={undo?.message ?? null} actionLabel={t('userProgram.undo')} onAction={() => { if (undo) { const { previous } = undo; void change(() => ({ groups: previous.groups ?? [], sessions: previous.sessions })); } }} onHide={() => setUndo(null)} />}
+      footer={selection !== null ? (
+        <>
+          <FooterAction icon="trash-outline" label={t('programDetail.removeGroupsAction', { count: selection.size })} disabled={selection.size === 0} onPress={() => setRemoval([...selection])} />
+          <FooterAction secondary label={t('programDetail.selectCancel')} onPress={() => setSelection(null)} />
+        </>
+      ) : nextSession ? (
         <FooterAction
           icon="play"
           label={starting === nextSession.id ? t('programBuilder.starting') : `${t('userProgram.start')} · ${nextSession.name}`}
@@ -161,106 +236,130 @@ export default function UserProgramScreen() {
           </View>
         }
       />
+      <View style={styles.categoryRow}>
+        <Chip
+          icon={disciplineOf(program) === 'mobility' ? 'body-outline' : 'barbell-outline'}
+          label={t(`programDiscipline.${disciplineOf(program)}`)}
+          selected
+          onPress={() => {
+            const next = disciplineOf(program) === 'mobility' ? 'strength' : 'mobility';
+            void change(() => ({ discipline: next }));
+          }}
+        />
+        <Chip
+          icon="pricetag-outline"
+          label={program.category ?? t('programCategory.add')}
+          selected={Boolean(program.category)}
+          onPress={() => setMetaSheet('category')}
+        />
+        <Chip
+          icon="person-outline"
+          label={program.author ?? t('programAuthor.add')}
+          selected={Boolean(program.author)}
+          onPress={() => setMetaSheet('author')}
+        />
+        {(program.clusters ?? []).map((cluster) => (
+          <Chip
+            key={cluster}
+            icon="folder-outline"
+            label={cluster}
+            selected
+            onPress={() => setClustersOpen(true)}
+          />
+        ))}
+        <Chip
+          icon="folder-outline"
+          label={t('programCluster.add')}
+          onPress={() => setClustersOpen(true)}
+        />
+      </View>
 
       {active ? <Body>{t('userProgram.activeWorkout', { name: active.name })}</Body> : null}
       {error ? <Text style={[styles.error, { color: palette.warning }]}>{error}</Text> : null}
 
-      {program.sessions.length > 0 ? <Body>{t('userProgram.rotationHelp')}</Body> : null}
-      <SectionTitle
-        title={t('userProgram.daysTitle')}
-        action={program.sessions.length > 1 ? (
-          <Pressable accessibilityRole="button" hitSlop={8} onPress={() => saveCollapsed(allCollapsed ? new Set() : new Set(program.sessions.map((session) => session.id)))}>
-            <Text style={[styles.toggleAll, { color: palette.accentStrong }]}>{allCollapsed ? t('userProgram.expandAll') : t('userProgram.collapseAll')}</Text>
-          </Pressable>
-        ) : undefined}
-      />
+      <SegmentedControl value={layout} options={(['sequence', 'weeks', 'groups'] as const).map((value) => ({ value, label: layoutLabels[value] }))} onChange={setLayout} />
+
+      {program.sessions.length > 0 ? (
+        <View style={styles.categoryRow}>
+          <Chip icon="list-outline" label={t('programsList.barebone')} selected={barebone} onPress={() => toggleBarebone()} />
+        </View>
+      ) : null}
+
+      {layout === 'sequence' && program.sessions.length > 0 && !barebone ? <Body>{t('userProgram.rotationHelp')}</Body> : null}
+      {layout === 'sequence' ? (
+        <SectionTitle
+          title={t('userProgram.daysTitle')}
+          action={program.sessions.length > 1 ? (
+            <Pressable accessibilityRole="button" hitSlop={8} onPress={() => { tapFeedback(); setOpened(allCollapsed ? new Set(program.sessions.map((session) => session.id)) : new Set()); }}>
+              <Text style={[styles.toggleAll, { color: palette.accentStrong }]}>{allCollapsed ? t('userProgram.expandAll') : t('userProgram.collapseAll')}</Text>
+            </Pressable>
+          ) : undefined}
+        />
+      ) : null}
       {program.sessions.length === 0 ? (
         <EmptyState
           icon="albums-outline"
           title={t('userProgram.noWorkoutsYet')}
           body={t('userProgram.noWorkoutsBody')}
-          action={<View style={styles.emptyAction}><ActionButton icon="add" label={t('programBuilder.addDay')} onPress={() => router.push({ pathname: '/program-builder', params: { id: program.id } })} /></View>}
+          action={<View style={styles.emptyAction}><ActionButton icon="add" label={t('programBuilder.addDay')} onPress={() => router.push({ pathname: '/program-workout', params: { programId: program.id, sessionId: 'new' } })} /></View>}
         />
       ) : null}
-      <ReorderableList
-        items={program.sessions}
-        keyOf={(session) => session.id}
-        nameOf={(session) => session.name}
-        onMove={(from, to) => void reorder(from, to)}
-        renderRow={(session, index, row) => (
-        <Card style={[styles.session, session.id === nextId && { borderColor: palette.accentStrong }]}>
-          <View style={styles.sessionTop}>
-            {program.sessions.length > 1 ? row.handle : null}
-            <Pressable
-              accessibilityRole="button"
-              accessibilityState={{ expanded: !collapsed.has(session.id) }}
-              accessibilityLabel={collapsed.has(session.id) ? t('userProgram.expandDay', { name: session.name }) : t('userProgram.collapseDay', { name: session.name })}
-              onPress={() => toggle(session.id)}
-              onLongPress={() => setEditing(session)}
-              accessibilityHint={t('workoutDetails.editHint')}
-              accessibilityActions={[{ name: 'longpress', label: t('workoutDetails.editHint') }]}
-              onAccessibilityAction={(event) => { if (event.nativeEvent.actionName === 'longpress') setEditing(session); }}
-              style={styles.sessionHead}
-            >
-              <View style={styles.flex}>
-                <Label style={session.id === nextId ? { color: palette.accentStrong } : undefined}>
-                  {session.id === nextId ? `${t('userProgram.dayNumber', { number: index + 1 })} · ${t('userProgram.nextLabel')}` : t('userProgram.dayNumber', { number: index + 1 })}
-                </Label>
-                <Text style={styles.sessionName}>{session.name}</Text>
-              </View>
-              <View style={styles.headMeta}>
-                <Label>{t('userProgram.daySummary', { count: sessionSetCount(session), minutes: formatMinutes(estimateSessionSeconds(session, metricById, readDefaultRest('working'))) })}</Label>
-                <Icon name={collapsed.has(session.id) ? 'chevron-down' : 'chevron-up'} size={20} color={palette.textMuted} />
-              </View>
-            </Pressable>
-            {collapsed.has(session.id) ? (
-              <IconButton
-                icon="play"
-                tone={session.id === nextId ? 'accent' : 'muted'}
-                label={`${t('userProgram.start')} ${session.name}`}
-                disabled={starting !== null}
-                onPress={() => void start(session)}
-              />
-            ) : null}
-          </View>
-          {session.notes?.trim() ? <Text style={[styles.target, { color: palette.text }]}>{session.notes.trim()}</Text> : null}
-          {collapsed.has(session.id) ? (
-            <Text numberOfLines={2} style={[styles.target, { color: palette.textMuted }]}>
-              {session.exercises.map((prescription) => info.get(prescription.exerciseId)?.name ?? t('userProgram.exerciseMissing')).join(' · ')}
-            </Text>
-          ) : session.exercises.map((prescription) => (
-            <Pressable
-              key={prescription.id}
-              accessibilityRole="button"
-              accessibilityLabel={info.get(prescription.exerciseId)?.name ?? t('userProgram.exerciseMissing')}
-              accessibilityHint={t('logger.openExerciseHint')}
-              onLongPress={() => openExercisePage(prescription.exerciseId)}
-              accessibilityActions={[{ name: 'longpress', label: t('logger.openExercise') }]}
-              onAccessibilityAction={(event) => { if (event.nativeEvent.actionName === 'longpress') openExercisePage(prescription.exerciseId); }}
-              style={[styles.exerciseRow, { borderTopColor: palette.border }]}
-            >
-              <Text style={styles.exerciseName} numberOfLines={2}>{info.get(prescription.exerciseId)?.name ?? t('userProgram.exerciseMissing')}</Text>
-              <Text style={[styles.target, { color: palette.textMuted }]}>{describePrescription(prescription, metricById.get(prescription.exerciseId), t)}</Text>
-              {prescription.note?.trim() ? <Text style={[styles.target, { color: palette.text }]}>{prescription.note.trim()}</Text> : null}
-            </Pressable>
-          ))}
-          {collapsed.has(session.id) ? null : (
-            <>
-              {/* The next workout starts from the footer; the others from their own card. */}
-              {session.id === nextId ? null : (
-                <ActionButton
-                  icon="play"
-                  label={starting === session.id ? t('programBuilder.starting') : t('userProgram.start')}
-                  secondary
-                  disabled={starting !== null}
-                  onPress={() => void start(session)}
-                />
-              )}
-              <ActionButton icon="time-outline" label={t('userProgram.logPast')} variant="ghost" disabled={starting !== null} onPress={() => void logPast(session)} />
-            </>
-          )}
-        </Card>
-        )}
+      {layout === 'sequence' ? (
+        barebone ? (
+          program.sessions.length > 0 ? (
+            <ListGroup>
+              {program.sessions.map((session, index) => {
+                const props = viewProps(session, index + 1);
+                return props.open
+                  ? <SessionCard key={session.id} {...props} />
+                  : <BareboneSessionRow key={session.id} {...props} bordered={false} />;
+              })}
+            </ListGroup>
+          ) : null
+        ) : (
+          <ReorderableList
+            items={program.sessions}
+            keyOf={(session) => session.id}
+            nameOf={(session) => session.name}
+            onMove={(from, to) => void reorder(from, to)}
+            renderRow={(session, index, row) => <SessionCard {...viewProps(session, index + 1)} handle={program.sessions.length > 1 ? row.handle : null} />}
+          />
+        )
+      ) : (
+        <GroupsView
+          layout={layout}
+          sections={sections}
+          barebone={barebone}
+          openMap={groupOpen}
+          onSetOpen={(sectionId, open) => setGroupOpen((current) => ({ ...current, [sectionId]: open }))}
+          onMenu={(section) => section.group && setSheet({ type: 'group', groupId: section.group.id })}
+          onNewGroup={() => setSheet({ type: 'new' })}
+          selection={selection}
+          onToggle={(groupId) => setSelection((current) => { const next = new Set(current ?? []); if (!next.delete(groupId)) next.add(groupId); return next; })}
+          onSelectAll={() => setSelection((current) => {
+            const all = sections.flatMap((section) => (section.group ? [section.group.id, ...section.children.map((child) => child.id)] : []));
+            return current && all.every((groupId) => current.has(groupId)) ? new Set() : new Set(all);
+          })}
+          onStartSelect={() => setSelection(new Set())}
+          renderSession={renderSession}
+        />
+      )}
+
+      <GroupSheets
+        program={program}
+        sheet={sheet}
+        busy={starting !== null}
+        onSheet={setSheet}
+        onCreate={(name, kind: GroupKind) => { setSheet(null); void change((current) => addGroup(current, name, kind, Crypto.randomUUID)); }}
+        onEdit={(groupId, edit) => { setSheet(null); void change((current) => editGroup(current, groupId, edit)); }}
+        onParent={(groupId, parentId) => { setSheet(null); void change((current) => setGroupParent(current, groupId, parentId)); }}
+        onDuplicate={(groupId) => { setSheet(null); void change((current) => duplicateGroup(current, groupId, Crypto.randomUUID, t('programDetail.groupCopy', { name: current.groups?.find((group) => group.id === groupId)?.name ?? '' }))); }}
+        onRemove={(groupId) => { setSheet(null); setRemoval([groupId]); }}
+        onSelect={(groupId) => { setSheet(null); setSelection(new Set([groupId])); }}
+        onMove={(sessionId, groupId) => { setSheet(null); void change((current) => moveSessionToGroup(current, sessionId, groupId)); }}
+        onEditSession={(session) => { setSheet(null); editWorkout(session); }}
+        onStart={(session) => { setSheet(null); void start(session); }}
+        onLogPast={(session) => { setSheet(null); void logPast(session); }}
       />
 
       <WorkoutDetailsSheet
@@ -279,7 +378,21 @@ export default function UserProgramScreen() {
         }}
       />
 
-      <WorkoutInProgressSheet active={blockedBy} onClose={() => setBlockedBy(null)} />
+      <RemoveGroupsSheet
+        program={program}
+        ids={removal}
+        onClose={() => setRemoval(null)}
+        onConfirm={(deleteWorkouts) => {
+          const ids = new Set(removal ?? []);
+          const previous = program;
+          setRemoval(null);
+          setSelection(null);
+          setUndo({ message: t('programDetail.groupsRemoved', { count: ids.size }), previous });
+          void change((current) => removeGroups(current, ids, deleteWorkouts));
+        }}
+      />
+
+      {inProgressSheet}
 
       <ActionButton icon="trash-outline" label={t('programBuilder.delete')} variant="danger" onPress={() => setConfirmDelete(true)} />
 
@@ -290,22 +403,53 @@ export default function UserProgramScreen() {
         }} />
         <ActionButton label={t('common.cancel')} secondary onPress={() => setConfirmDelete(false)} />
       </Sheet>
+      {metaSheet ? (
+        <ProgramMetaSheet
+          key={`${program.id}-${metaSheet}-${(metaSheet === 'category' ? program.category : program.author) ?? ''}`}
+          kind={metaSheet}
+          visible
+          programName={program.name}
+          initialValue={metaSheet === 'category' ? program.category : program.author}
+          existing={metaSheet === 'category' ? existingCategories : existingAuthors}
+          onClose={() => setMetaSheet(null)}
+          onSave={(nextValue) => {
+            const kind = metaSheet;
+            setMetaSheet(null);
+            void change(() => (kind === 'category' ? { category: nextValue } : { author: nextValue }));
+            if (nextValue) {
+              const updater = (current: string[]) => (current.includes(nextValue) ? current : [...current, nextValue].sort((a, b) => a.localeCompare(b)));
+              if (kind === 'category') setExistingCategories(updater);
+              else setExistingAuthors(updater);
+            }
+          }}
+        />
+      ) : null}
+      {clustersOpen ? (
+        <ProgramClustersSheet
+          key={`${program.id}-clusters-${(program.clusters ?? []).join(',')}`}
+          visible
+          programName={program.name}
+          selectedClusters={program.clusters ?? []}
+          allClusters={existingClusters}
+          onClose={() => setClustersOpen(false)}
+          onCreateCluster={(clusterName) => {
+            void createProgramCluster(clusterName).then((updated) => setExistingClusters(updated));
+          }}
+          onSave={(nextClusters) => {
+            setClustersOpen(false);
+            void change(() => ({ clusters: nextClusters.length > 0 ? nextClusters : undefined }));
+            setExistingClusters((current) => programClusters([program], [...current, ...nextClusters]));
+          }}
+        />
+      ) : null}
     </Screen>
   );
 }
 
 const baseStyles = StyleSheet.create({
-  flex: { flex: 1, gap: 4 },
   actions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  categoryRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   emptyAction: { alignSelf: 'stretch', marginTop: 6 },
-  session: { gap: 12 },
-  sessionTop: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  sessionHead: { flex: 1, flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
-  headMeta: { alignItems: 'flex-end', gap: 4 },
   toggleAll: { fontFamily: fonts.semibold, fontSize: 14, paddingVertical: 12 },
-  sessionName: { fontFamily: fonts.display, fontSize: 26, lineHeight: 30 },
-  exerciseRow: { borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 12, gap: 5 },
-  exerciseName: { fontFamily: fonts.semibold, fontSize: 15 },
-  target: { fontFamily: fonts.medium, fontSize: 14 },
   error: { fontFamily: fonts.medium, fontSize: 14 },
 });

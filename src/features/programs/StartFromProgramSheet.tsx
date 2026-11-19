@@ -29,7 +29,8 @@ export function StartFromProgramSheet({ visible, onClose, onStarted, onBlocked, 
   onClose: () => void;
   onStarted: (workoutId: string) => void;
   /** Another workout is still open: only one can be in progress. */
-  onBlocked: (active: { id: string; name: string }) => void;
+  /** A workout is already open; `retry` starts the chosen workout again once it has been discarded. */
+  onBlocked: (active: { id: string; name: string }, retry: () => void) => void;
   onError: (message: string) => void;
 }) {
   const { t, i18n } = useTranslation();
@@ -74,7 +75,7 @@ export function StartFromProgramSheet({ visible, onClose, onStarted, onBlocked, 
     setStarting(session.id);
     try {
       const open = await getActiveWorkout();
-      if (open) { setPicked(null); onBlocked({ id: open.id, name: open.name }); return; }
+      if (open) { setPicked(null); onBlocked({ id: open.id, name: open.name }, () => void start(session)); return; }
       const workoutId = await session.start();
       setPicked(null);
       onStarted(workoutId);

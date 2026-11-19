@@ -29,7 +29,7 @@ import { fonts } from '../../../src/shared/theme/typography';
 import { useScaledStyles } from '../../../src/shared/theme/useScaledStyles';
 import { goBack } from '../../../src/shared/navigation/goBack';
 import { startRoutineAsWorkout } from '../../../src/features/mobility/startAsWorkout';
-import { WorkoutInProgressSheet } from '../../../src/features/session/WorkoutInProgressSheet';
+import { useStartGuard } from '../../../src/features/session/useStartGuard';
 import { useSaveOnLeave } from '../../../src/shared/forms/useSaveOnLeave';
 import { DurationField, HoldDurationField } from '../../../src/shared/components/DateTimePickers';
 import { formatClock } from '../../../src/shared/utils/format';
@@ -58,7 +58,7 @@ export default function RoutineBuilderScreen() {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // Set while leaving with an incomplete routine: confirming drops the edits and goes on.
-  const [blockedBy, setBlockedBy] = useState<{ id: string; name: string } | null>(null);
+  const { block, sheet } = useStartGuard();
   const [discardResume, setDiscardResume] = useState<(() => void) | null>(null);
   const [favourite, setFavourite] = useState(false);
   const [expanded, setExpanded] = useState<string | null>(null);
@@ -184,7 +184,7 @@ export default function RoutineBuilderScreen() {
     if (!(await persist()) || !idRef.current) { setError(steps.length === 0 ? t('mobilityHub.needsDrill') : t('mobilityHub.saveError')); return; }
     try {
       const result = await startRoutineAsWorkout(idRef.current);
-      if ('active' in result) setBlockedBy(result.active);
+      if ('active' in result) block(result.active, () => void startAsWorkout());
       else router.push({ pathname: '/workout/[id]', params: { id: result.workoutId } });
     } catch {
       setError(t('startFrom.error'));
@@ -299,7 +299,7 @@ export default function RoutineBuilderScreen() {
         onClose={() => setPickerOpen(false)}
       />
 
-      <WorkoutInProgressSheet active={blockedBy} onClose={() => setBlockedBy(null)} />
+      {sheet}
       <Sheet visible={discardResume !== null} onClose={() => setDiscardResume(null)} title={t('mobility.invalid')}>
         <ActionButton label={t('logger.keepGoing')} secondary onPress={() => setDiscardResume(null)} />
         <ActionButton label={t('mobility.endDiscard')} variant="danger" onPress={() => { const resume = discardResume; setDiscardResume(null); resume?.(); }} />

@@ -1,6 +1,7 @@
 import type { SetBand } from '../../domain/equipment';
 import { isLoadMetric, isTimedMetric, plannedLoads, programSessionWorkoutName, targetRpeFor, type UserProgram, type UserProgramSession } from '../../domain/userProgram';
 import { getExerciseById } from '../exercises/repository';
+import { updateUserProgram } from './userPrograms';
 import { addPlannedEntries, convertToPastWorkout, deleteWorkout, getLastSameWorkoutSets, getPreviousPerformance, startWorkout, type PlannedEntry, type PlannedSet } from '../session/repository';
 
 type PreviousProgramSet = {
@@ -63,7 +64,10 @@ export async function startPrescribedWorkout(name: string, prescriptions: readon
 
 /** Starts one day of a self-made program; see `startPrescribedWorkout`. */
 export async function startUserProgramSession(program: UserProgram, session: UserProgramSession): Promise<string> {
-  return startPrescribedWorkout(programSessionWorkoutName(program, session), session.exercises, session.notes);
+  const workoutId = await startPrescribedWorkout(programSessionWorkoutName(program, session), session.exercises, session.notes);
+  // The Programs list sorts and picks its "in progress" program by this; failing to note it must not undo the start.
+  await updateUserProgram(program.id, () => ({ lastUsedAt: new Date().toISOString() })).catch(() => undefined);
+  return workoutId;
 }
 
 /**

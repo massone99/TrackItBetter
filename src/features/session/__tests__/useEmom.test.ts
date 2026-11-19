@@ -83,4 +83,54 @@ describe('useEmom', () => {
     expect(mockRecorded.map((round) => round.value)).toEqual([4, 4, 3]);
     expect(result.current.plan?.value).toBe(3);
   });
+
+  it('a round added while running extends the EMOM past its original end and reschedules the alerts', async () => {
+    jest.setSystemTime(0);
+    const { scheduleEmomNotifications } = jest.requireMock('../restNotifications');
+    const onFinished = jest.fn();
+    const { result } = renderHook(() => useEmom('w', { onRecorded: jest.fn(), onFinished, alerts }));
+    act(() => { result.current.start({ entryId: 'e', field: 'reps', rounds: 2, intervalSec: 60, target: 5 }); });
+    jest.setSystemTime(100_000);
+
+    let added = false;
+    act(() => { added = result.current.addRound(); });
+    expect(added).toBe(true);
+    expect(result.current.plan?.rounds).toBe(3);
+    const lastCall = scheduleEmomNotifications.mock.calls.at(-1)[0];
+    expect(lastCall).toHaveLength(3);
+
+    jest.setSystemTime(10_000_000);
+    await act(async () => { await result.current.sync(); });
+    expect(mockRecorded).toHaveLength(3);
+    expect(onFinished).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not add a round once the last one is over', async () => {
+    jest.setSystemTime(10_000_000);
+    mockStore.set('workout.emom.w', JSON.stringify(plan({})));
+    const { result } = renderHook(() => useEmom('w', { onRecorded: jest.fn(), onFinished: jest.fn(), alerts }));
+    let added = true;
+    act(() => { added = result.current.addRound(); });
+    expect(added).toBe(false);
+    expect(result.current.plan?.rounds).toBe(4);
+  });
+
+  it('undoes an added round while it has not started, never the round running', () => {
+    jest.setSystemTime(0);
+    const { result } = renderHook(() => useEmom('w', { onRecorded: jest.fn(), onFinished: jest.fn(), alerts }));
+    act(() => { result.current.start({ entryId: 'e', field: 'reps', rounds: 2, intervalSec: 60, target: 5 }); });
+    jest.setSystemTime(30_000); // round 1 of 2 running
+    act(() => { result.current.addRound(); });
+    expect(result.current.plan?.rounds).toBe(3);
+
+    let removed = false;
+    act(() => { removed = result.current.removeRound(); });
+    expect(removed).toBe(true);
+    expect(result.current.plan?.rounds).toBe(2);
+
+    jest.setSystemTime(100_000); // round 2 of 2 running: it is the last one and cannot go
+    act(() => { removed = result.current.removeRound(); });
+    expect(removed).toBe(false);
+    expect(result.current.plan?.rounds).toBe(2);
+  });
 });

@@ -42,3 +42,19 @@ export function switchOptions(tree: ExerciseTree, signal: SwitchSignal): SwitchO
   const pick = wanted ? unique.find((option) => option.relation === wanted && option.depth === 1) : undefined;
   return pick ? [{ ...pick, suggested: true }, ...unique.filter((option) => option !== pick)] : unique;
 }
+
+export type LadderStepState = 'current' | 'reached' | 'suggested' | 'open';
+export type LadderStep = { id: string; position: number; state: LadderStepState };
+
+/**
+ * One chain as a ladder for "Switch to": every step in order, so any of them is one tap away, not only the
+ * neighbours. The exercise in hand is `current`, steps whose target is reached are `reached`, and the step the
+ * sets point to (from `switchOptions`) is `suggested`; the current state wins over the others.
+ */
+export function chainLadder(steps: readonly string[], currentId: string, reached: ReadonlySet<string>, suggestedId: string | null): LadderStep[] {
+  return steps.map((id, index) => ({
+    id,
+    position: index + 1,
+    state: id === currentId ? 'current' : id === suggestedId ? 'suggested' : reached.has(id) ? 'reached' : 'open',
+  }));
+}

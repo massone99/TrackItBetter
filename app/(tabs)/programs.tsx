@@ -2,14 +2,17 @@ import { LoadError } from '../../src/shared/components/LoadError';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ActivityIndicator, StyleSheet, View } from 'react-native';
-import { nextSessionInRotation } from '../../src/domain/userProgram';
-import { listRecentWorkoutNames } from '../../src/features/session/repository';
+import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
+import { getActiveWorkout, listRecentWorkoutNames } from '../../src/features/session/repository';
+import { useStartGuard } from '../../src/features/session/useStartGuard';
+import { disciplineCounts } from '../../src/features/programs/list/derive';
+import { ProgramsView as MyPrograms } from '../../src/features/programs/list/ProgramsView';
+import { startUserProgramSession } from '../../src/features/programs/startUserSession';
 import { LibraryView } from '../../src/features/exercises/LibraryView';
 import { programTemplates } from '../../src/features/programs/catalog';
 import { listHiddenTemplates, setHiddenTemplates } from '../../src/features/programs/hiddenTemplates';
-import { listUserPrograms, type UserProgram } from '../../src/features/programs/userPrograms';
-import { ActionButton, EmptyState, IconButton, ListGroup, ListRow, PageHeading, Screen, SectionTitle, SegmentedControl, Text, Toast } from '../../src/shared/components/ui';
+import { listProgramClusters, listUserPrograms, type UserProgram } from '../../src/features/programs/userPrograms';
+import { ActionButton, EmptyState, Icon, IconButton, ListGroup, ListRow, PageHeading, Screen, SectionTitle, SegmentedControl, Tag, Text, Toast, tapFeedback } from '../../src/shared/components/ui';
 import i18n from '../../src/shared/i18n';
 import { useTheme } from '../../src/shared/theme/ThemeProvider';
 import { fonts } from '../../src/shared/theme/typography';
@@ -26,17 +29,30 @@ export default function ProgramsTab() {
   // The view lives in the URL, so a link (e.g. back from an exercise) can open either one.
   const view: ProgramsView = params.view === 'exercises' ? 'exercises' : 'programs';
   const [mine, setMine] = useState<UserProgram[] | null>(null);
+  const [savedClusters, setSavedClusters] = useState<string[]>([]);
   const [loadFailed, setLoadFailed] = useState(false);
   const [hidden, setHidden] = useState<string[]>([]);
   const [recentNames, setRecentNames] = useState<string[]>([]);
-  const [undo, setUndo] = useState<{ message: string; previous: string[] } | null>(null);
+  const [undo, setUndo] = useState<{ message: string; previous: string[] | null } | null>(null);
+  const [active, setActive] = useState<{ id: string; name: string } | null>(null);
+  const { block, sheet } = useStartGuard();
+  const [starting, setStarting] = useState(false);
+  const [showTemplates, setShowTemplates] = useState(false);
   const hideUndo = useCallback(() => setUndo(null), []);
   const language = i18n.language.startsWith('it') ? 'it' : 'en';
 
   const load = useCallback(async () => {
     try {
-      const [programs, hiddenIds, names] = await Promise.all([listUserPrograms(), listHiddenTemplates(), listRecentWorkoutNames()]);
+      const [programs, clusters, hiddenIds, names, activeWorkout] = await Promise.all([
+        listUserPrograms(),
+        typeof listProgramClusters === 'function' ? listProgramClusters() : Promise.resolve([]),
+        listHiddenTemplates(),
+        listRecentWorkoutNames(),
+        getActiveWorkout(),
+      ]);
       setMine(programs);
+      setSavedClusters(clusters);
+      setActive(activeWorkout ? { id: activeWorkout.id, name: activeWorkout.name } : null);
       setRecentNames(names);
       setHidden(hiddenIds);
       setLoadFailed(false);
@@ -52,6 +68,23 @@ export default function ProgramsTab() {
     void setHiddenTemplates(next);
   };
 
+  // `force` skips the check of the open workout once the user has discarded it (`active` is only reloaded later).
+  const startHero = async (program: UserProgram, sessionId: string, force = false) => {
+    if (starting) return;
+    if (active && !force) { block(active, () => void startHero(program, sessionId, true)); return; }
+    const session = program.sessions.find((item) => item.id === sessionId);
+    if (!session) return;
+    setStarting(true);
+    try {
+      const workoutId = await startUserProgramSession(program, session);
+      router.push({ pathname: '/workout/[id]', params: { id: workoutId } });
+    } catch (reason) {
+      setUndo({ message: `${t('programBuilder.startError')} (${reason instanceof Error ? reason.message : String(reason)})`, previous: null });
+    } finally {
+      setStarting(false);
+    }
+  };
+
   const templates = programTemplates.filter((template) => !hidden.includes(template.id));
   const hiddenCount = programTemplates.length - templates.length;
 
@@ -60,8 +93,8 @@ export default function ProgramsTab() {
       overlay={(
         <Toast
           message={undo?.message ?? null}
-          actionLabel={t('userProgram.undo')}
-          onAction={() => { if (undo) updateHidden(undo.previous); }}
+          actionLabel={undo?.previous ? t('userProgram.undo') : undefined}
+          onAction={() => { if (undo?.previous) updateHidden(undo.previous); }}
           onHide={hideUndo}
         />
       )}
@@ -100,26 +133,51 @@ export default function ProgramsTab() {
             />
           ) : null}
           {mine && mine.length > 0 ? (
-            <ListGroup>
-              {mine.map((program) => {
-                const next = nextSessionInRotation(program, recentNames);
+            <>
+              {(() => {
+                const counts = disciplineCounts(mine);
                 return (
-                  <ListRow
-                    key={program.id}
-                    icon="calendar"
-                    title={program.name}
-                    subtitle={next ? `${t('userProgram.nextShort', { name: next.name })} · ${t('userProgram.daysPerWeek', { count: program.sessions.length })}` : t('userProgram.noWorkoutsYet')}
-                    onPress={() => router.push({ pathname: '/program/user/[id]', params: { id: program.id } })}
-                  />
+                  <ListGroup>
+                    <ListRow
+                      icon="barbell-outline"
+                      title={t('programDiscipline.strengthPage')}
+                      subtitle={t('programDiscipline.strengthPageBody', { count: counts.strength })}
+                      onPress={() => router.push('/programs/strength')}
+                    />
+                    <ListRow
+                      icon="body-outline"
+                      title={t('programDiscipline.mobilityPage')}
+                      subtitle={t('programDiscipline.mobilityPageBody', { count: counts.mobility })}
+                      onPress={() => router.push('/programs/mobility')}
+                    />
+                  </ListGroup>
                 );
-              })}
-            </ListGroup>
+              })()}
+              <MyPrograms
+                programs={mine}
+                savedClusters={savedClusters}
+                recentNames={recentNames}
+                starting={starting}
+                onStartHero={(program, sessionId) => void startHero(program, sessionId)}
+                onChanged={() => void load()}
+                onNotice={(message) => setUndo({ message, previous: null })}
+              />
+            </>
           ) : null}
 
           <ActionButton icon="document-outline" variant="ghost" label={t('importJson.programsAction')} onPress={() => router.push('/import-json')} />
 
-          <SectionTitle title={t('userProgram.templates')} />
-          {templates.length > 0 ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityState={{ expanded: showTemplates }}
+            accessibilityLabel={t('programsList.templates', { count: programTemplates.length })}
+            onPress={() => { tapFeedback(); setShowTemplates(!showTemplates); }}
+            style={[styles.templatesLink, { borderTopColor: palette.border }]}
+          >
+            <Tag color={palette.textMuted}>{t('programsList.templates', { count: programTemplates.length })}</Tag>
+            <Icon name={showTemplates ? 'chevron-down' : 'arrow-forward'} size={16} color={palette.textMuted} />
+          </Pressable>
+          {showTemplates && templates.length > 0 ? (
             <ListGroup>
               {templates.map((template) => (
                 <ListRow
@@ -141,10 +199,10 @@ export default function ProgramsTab() {
                 />
               ))}
             </ListGroup>
-          ) : (
+          ) : showTemplates ? (
             <Text style={[styles.muted, { color: palette.textMuted }]}>{t('programsTab.noTemplates')}</Text>
-          )}
-          {hiddenCount > 0 ? (
+          ) : null}
+          {showTemplates && hiddenCount > 0 ? (
             <ActionButton
               icon="refresh"
               variant="ghost"
@@ -154,11 +212,13 @@ export default function ProgramsTab() {
           ) : null}
         </>
       )}
+      {sheet}
     </Screen>
   );
 }
 
 const baseStyles = StyleSheet.create({
   emptyAction: { alignSelf: 'stretch', marginTop: 6 },
+  templatesLink: { minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, borderTopWidth: StyleSheet.hairlineWidth },
   muted: { fontFamily: fonts.body, fontSize: 14 },
 });

@@ -14,7 +14,7 @@ export interface Rail {
   onPress: () => void;
 }
 
-/** Two collapsible rails under the main action: each opens its panel above the action; one panel at a time. */
+/** Two collapsible rails under the main action: each opens its panel above the action; one panel at a time. At large text only the names show. */
 export function DockRails({ rails }: { rails: Rail[] }) {
   const styles = useScaledStyles(baseStyles);
   const { palette, largeText } = useTheme();
@@ -31,7 +31,7 @@ export function DockRails({ rails }: { rails: Rail[] }) {
         >
           <View style={styles.railText}>
             <Text style={[styles.railLabel, { color: palette.text }]}>{rail.label.toUpperCase()}</Text>
-            {rail.summary ? <Text style={[styles.railSummary, { color: rail.id === 'telemetry' ? palette.success : palette.textMuted }]}>{rail.summary}</Text> : null}
+            {rail.summary && !largeText ? <Text style={[styles.railSummary, { color: rail.id === 'telemetry' ? palette.success : palette.textMuted }]}>{rail.summary}</Text> : null}
           </View>
           <Icon name={rail.open ? 'chevron-down' : 'chevron-up'} size={18} color={palette.textMuted} />
         </Pressable>
@@ -100,7 +100,7 @@ export function WorkoutDockPanel({ title, options }: { title: string; options: D
 
 const baseStyles = StyleSheet.create({
   rails: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
-  rail: { flexGrow: 1, flexBasis: 140, minHeight: MIN_TOUCH_TARGET, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.sm, borderWidth: 1, borderRadius: instrument.radius, paddingHorizontal: spacing.md, paddingVertical: spacing.sm },
+  rail: { flexGrow: 1, flexBasis: 140, minHeight: MIN_TOUCH_TARGET, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.sm, borderWidth: 1, borderRadius: instrument.radius, paddingHorizontal: spacing.md, paddingVertical: spacing.xs },
   railStacked: { flexBasis: '100%' },
   railText: { flexShrink: 1, minWidth: 0, gap: 2 },
   railLabel: { fontSize: 12, fontWeight: '700', letterSpacing: 0.5 },

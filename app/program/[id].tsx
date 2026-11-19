@@ -1,13 +1,13 @@
 import { router, useLocalSearchParams } from "expo-router";
 import { useState } from "react";
-import { ActivityIndicator, Alert, StyleSheet, View } from "react-native";
+import { ActivityIndicator, Alert, Pressable, StyleSheet, View } from "react-native";
 import { Text } from "../../src/shared/components/Text";
-import { WorkoutInProgressSheet } from "../../src/features/session/WorkoutInProgressSheet";
+import { useStartGuard } from "../../src/features/session/useStartGuard";
 import { getActiveWorkout } from "../../src/features/session/repository";
 import { prescriptionsFromTemplate } from "../../src/features/programs/templatePrescriptions";
 import { startPrescribedWorkout } from "../../src/features/programs/startUserSession";
 import { findProgram, ProgramExercise } from "../../src/features/programs/catalog";
-import { ActionButton, Body, Card, Heading, Label, PageHeading, Screen, SectionTitle } from "../../src/shared/components/ui";
+import { ActionButton, Body, Card, Heading, Icon, Label, PageHeading, Screen, SectionTitle } from "../../src/shared/components/ui";
 import { useTranslation } from "react-i18next";
 import { useTheme } from "../../src/shared/theme/ThemeProvider";
 import { useScaledStyles } from "../../src/shared/theme/useScaledStyles";
@@ -18,7 +18,10 @@ export default function ProgramRoute() {
   const program = findProgram(id);
   const { palette } = useTheme();
   const [startingSession, setStartingSession] = useState<string | null>(null);
-  const [blockedBy, setBlockedBy] = useState<{ id: string; name: string } | null>(null);
+  const { block, sheet } = useStartGuard();
+  // Every workout starts folded each time the program is entered.
+  const [opened, setOpened] = useState<ReadonlySet<string>>(() => new Set());
+  const toggle = (sessionId: string) => setOpened((current) => { const next = new Set(current); if (!next.delete(sessionId)) next.add(sessionId); return next; });
   const { t, i18n } = useTranslation();
   const language = i18n.language.startsWith("it") ? "it" : "en";
 
@@ -31,7 +34,7 @@ export default function ProgramRoute() {
     setStartingSession(sessionId);
     try {
       const open = await getActiveWorkout();
-      if (open) { setBlockedBy({ id: open.id, name: open.name }); return; }
+      if (open) { block({ id: open.id, name: open.name }, () => void startSession(sessionId, sessionName, exercises)); return; }
       // Shared with self-made programs: a failure part-way deletes the half-built workout.
       const workoutId = await startPrescribedWorkout(sessionName, prescriptionsFromTemplate(sessionId, exercises));
       router.replace({ pathname: "/workout/[id]", params: { id: workoutId } });
@@ -47,7 +50,7 @@ export default function ProgramRoute() {
 
   return (
     <Screen>
-      <WorkoutInProgressSheet active={blockedBy} onClose={() => setBlockedBy(null)} />
+      {sheet}
       <PageHeading title={program.name[language]} subtitle={program.frequency[language]} />
       <Card style={[styles.intro, { backgroundColor: palette.surfaceMuted, borderColor: palette.surfaceMuted }]}>
         <Label style={{ color: palette.accentStrong }}>{t("templateProgram.overview")}</Label>
@@ -56,17 +59,28 @@ export default function ProgramRoute() {
       <SectionTitle title={t("templateProgram.week")} />
       {program.sessions.map((session) => (
         <Card key={session.id} style={styles.session}>
-          <View style={styles.sessionHead}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityState={{ expanded: opened.has(session.id) }}
+            accessibilityLabel={t(opened.has(session.id) ? "userProgram.collapseDay" : "userProgram.expandDay", { name: session.name[language] })}
+            onPress={() => toggle(session.id)}
+            style={styles.sessionHead}
+          >
             <View style={styles.sessionTitle}><Label>{session.day[language]}</Label><Heading>{session.name[language]}</Heading></View>
             <Label>{t("templateProgram.exercises", { count: session.exercises.length })}</Label>
-          </View>
-          {session.exercises.map((prescription) => {
+            <Icon name={opened.has(session.id) ? "chevron-up" : "chevron-down"} size={20} color={palette.textMuted} />
+          </Pressable>
+          {opened.has(session.id) ? session.exercises.map((prescription) => {
             const exercise = catalogExerciseName(prescription.exerciseId, language);
             const target = prescription.target.reps !== undefined
               ? `${prescription.sets} × ${prescription.target.reps}`
               : `${prescription.sets} × ${prescription.target.seconds}s`;
             return <View key={prescription.exerciseId} style={[styles.exerciseRow, { borderColor: palette.border }]}><Text style={[styles.exerciseName, { color: palette.text }]}>{exercise}</Text><Text style={[styles.target, { color: palette.textMuted }]}>{target}</Text></View>;
-          })}
+          }) : (
+            <Text numberOfLines={2} style={[styles.target, { color: palette.textMuted, textAlign: "left" }]}>
+              {session.exercises.map((prescription) => catalogExerciseName(prescription.exerciseId, language)).join(" · ")}
+            </Text>
+          )}
           <ActionButton
             label={startingSession === session.id
               ? t("templateProgram.preparing")

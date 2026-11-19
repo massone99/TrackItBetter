@@ -45,3 +45,9 @@ export function readAnimationPreference(): AnimationSpeed {
   const value = readPreference(ANIMATION_PREFERENCE_KEY);
   return value === "fast" || value === "off" ? value : "normal";
 }
+
+export const PROGRAMS_SORT_KEY = "programs.sort";
+export const PROGRAMS_BAREBONE_KEY = "programs.barebone";
+export const PROGRAM_WORKOUTS_BAREBONE_KEY = "programWorkouts.barebone";
+export const PROGRAM_BUILDER_BAREBONE_KEY = "programBuilder.barebone";
+export const LOG_BAREBONE_KEY = "log.barebone";

@@ -110,7 +110,7 @@ describe('detectSameLoadRecords', () => {
   it('compares unknown kg by identical bands and tension, separately from unassisted sets', () => {
     const unknown = { bands: [{ bandId: 'blue', tension: 2 as const }], assistKg: null };
     expect(detectSameLoadRecords([...sets('a', [5, 5], unknown), ...sets('new', [9, 9], unknown)], 'new'))
-      .toEqual([{ exerciseId: 'dip', loadKg: 20, sets: 2, value: 18, previous: 10, withBands: true }]);
+      .toEqual([{ exerciseId: 'dip', loadKg: 20, sets: 2, value: 18, previous: 10, withBands: true, sameBands: true }]);
     expect(detectSameLoadRecords([...sets('a', [5, 5]), ...sets('new', [9, 9], unknown)], 'new')).toEqual([]);
     expect(detectSameLoadRecords([
       ...sets('a', [5, 5], unknown),
@@ -244,5 +244,43 @@ describe('less help from bands', () => {
     expect(records.find((record) => record.kind === 'lessAssist')).toMatchObject({ value: -1 });
     // Without an order to tell, there is no record.
     expect(kinds(detectSetRecords([pullUp({ bands: band('blue', 1), assistKg: null }), today], 'new'), today.setId)).not.toContain('lessAssist');
+  });
+});
+
+describe('bands of unknown kg (advanced tuck front lever)', () => {
+  const red = [{ bandId: 'red', tension: 2 as const }];
+  const green = [{ bandId: 'green', tension: 2 as const }];
+  const hold = (overrides: Partial<RecordRow>) => row({ exerciseId: 'atfl', metric: 'time', reps: null, addedLoadKg: 0, effectiveLoadKg: null, ...overrides });
+
+  it('never beats a hold without bands, however long', () => {
+    const rows = [hold({ setId: 'free', durationSec: 10 }), hold({ setId: 'band', workoutId: 'new', durationSec: 20, bands: red, assistKg: null })];
+    expect(detectSetRecords(rows, 'new')).toEqual([]);
+    expect(detectVolumeRecords(rows, 'new')).toEqual([]);
+    expect(detectSameLoadRecords(rows, 'new')).toEqual([]);
+  });
+
+  it('can be a record against the same bands, flagged as such', () => {
+    const rows = [hold({ setId: 'free', durationSec: 30 }), hold({ setId: 'red1', durationSec: 10, bands: red, assistKg: null }), hold({ setId: 'green1', durationSec: 25, bands: green, assistKg: null }),
+      hold({ setId: 'red2', workoutId: 'new', durationSec: 15, bands: red, assistKg: null })];
+    const records = detectSetRecords(rows, 'new');
+    expect(records).toEqual([expect.objectContaining({ setId: 'red2', kind: 'holdAtLoad', value: 15, previous: 10 })]);
+    expect(detectVolumeRecords(rows, 'new')).toEqual([expect.objectContaining({ value: 15, previous: 10, sameBands: true })]);
+    expect(detectSameLoadRecords(rows, 'new')).toEqual([expect.objectContaining({ value: 15, previous: 10, sameBands: true })]);
+  });
+
+  it('a hold without bands that matches the banded work beats it with less help', () => {
+    const rows = [hold({ setId: 'band', durationSec: 12, bands: red, assistKg: null }), hold({ setId: 'free', workoutId: 'new', durationSec: 12 })];
+    expect(kinds(detectSetRecords(rows, 'new'), 'free')).toEqual(['lessAssist']);
+  });
+
+  it('leaves banded sets out of the best hold and best session', () => {
+    const summary = exerciseRecordSummary([hold({ durationSec: 8 }), hold({ workoutId: 'b', durationSec: 40, bands: red, assistKg: null })], 'atfl');
+    expect(summary.bestAmount).toBe(8);
+    expect(summary.bestVolume).toBe(8);
+  });
+
+  it('gives no 1RM estimate from a weighted set with bands of unknown kg', () => {
+    const rows = [row({ setId: 'a', reps: 5, addedLoadKg: 20, effectiveLoadKg: 100 }), row({ setId: 'b', workoutId: 'new', addedLoadKg: 20, effectiveLoadKg: 100, bands: red, assistKg: null, reps: 8 })];
+    expect(kinds(detectSetRecords(rows, 'new'), 'b')).toEqual([]);
   });
 });

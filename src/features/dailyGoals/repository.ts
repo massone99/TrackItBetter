@@ -1,4 +1,4 @@
-import { and, eq, gte, inArray, lt, ne } from 'drizzle-orm';
+import { and, eq, gte, inArray, ne } from 'drizzle-orm';
 import * as Crypto from 'expo-crypto';
 import { db, initializeDatabase } from '../../db/client';
 import { exerciseEntries, exercises, settings, trainingSets, workouts } from '../../db/schema';
@@ -7,6 +7,14 @@ import { applyGoalChange, type GoalChange } from '../../domain/tagGoals';
 import { rowCategories } from '../analytics/summary';
 import { exerciseMovementTags } from '../exercises/movementCatalog';
 
+/** Names of the exercises with these ids (an exercise that was deleted is simply missing). */
+async function exerciseNames(ids: readonly string[]): Promise<Map<string, string>> {
+  if (ids.length === 0) return new Map();
+  await initializeDatabase();
+  const rows = await db.select({ id: exercises.id, name: exercises.name }).from(exercises).where(inArray(exercises.id, [...ids]));
+  return new Map(rows.map((row) => [row.id, row.name]));
+}
+
 /** The goals of one period (a day or a week), kept as one JSON setting. */
 function goalStore(period: GoalPeriod) {
   const key = period === 'week' ? 'weekly_goals' : 'daily_goals';
@@ -14,17 +22,13 @@ function goalStore(period: GoalPeriod) {
   async function list(): Promise<DailyGoal[]> {
     await initializeDatabase();
     const row = await db.select({ value: settings.value }).from(settings).where(eq(settings.key, key)).get();
-    const goals = parseDailyGoals(row?.value, period);
-    const ids = goals.filter((goal) => goal.scope === 'exercise').map((goal) => goal.key);
-    if (ids.length === 0) return goals;
-    const names = new Map((await db.select({ id: exercises.id, name: exercises.name })
-      .from(exercises).where(inArray(exercises.id, ids))).map(({ id, name }) => [id, name]));
-    return goals.map((goal) => goal.scope === 'exercise' ? { ...goal, exerciseName: names.get(goal.key) } : goal);
+    return parseDailyGoals(row?.value, period);
   }
 
   async function save(goals: readonly DailyGoal[]): Promise<void> {
     if (goals.length > MAX_DAILY_GOALS || !goals.every((goal) => isValidDailyGoal(goal, period))) throw new RangeError('Invalid goals');
-    const value = JSON.stringify(goals.map(({ exerciseName: _exerciseName, ...goal }) => goal));
+    // The name of an exercise goal is looked up when goals are read, so renaming the exercise shows at once.
+    const value = JSON.stringify(goals.map(({ label: _label, ...goal }) => goal));
     await db.insert(settings).values({ key, value }).onConflictDoUpdate({ target: settings.key, set: { value } });
   }
 
@@ -87,11 +91,10 @@ function goalStore(period: GoalPeriod) {
   }
 
   async function snapshot(now = new Date()): Promise<DailyGoalsSnapshot> {
-    const start = period === 'week' ? startOfWeek(now) : startOfToday(now);
-    const end = new Date(start.getFullYear(), start.getMonth(), start.getDate() + (period === 'week' ? 7 : 1));
-    const [goals, sets] = await Promise.all([list(), listSetsSince(start, end)]);
+    const [goals, sets] = await Promise.all([list(), listSetsSince(period === 'week' ? startOfWeek(now) : startOfToday(now))]);
+    const names = await exerciseNames(goals.filter((goal) => goal.scope === 'exercise').map((goal) => goal.key));
     return {
-      progress: goals.map((goal) => dailyGoalProgress(goal, sets)),
+      progress: goals.map((goal) => dailyGoalProgress(goal.scope === 'exercise' && names.has(goal.key) ? { ...goal, label: names.get(goal.key) } : goal, sets)),
       sessions: new Set(sets.map((set) => set.workoutId)).size,
       seconds: sets.reduce((total, set) => total + (set.durationSec ?? 0), 0),
     };
@@ -114,7 +117,7 @@ export const duplicateDailyGoal = daily.duplicate;
 export const moveDailyGoal = daily.move;
 
 /** Working sets completed since `since`, in any workout (finished or still going). */
-export async function listSetsSince(since: Date, until?: Date): Promise<DaySet[]> {
+export async function listSetsSince(since: Date): Promise<DaySet[]> {
   await initializeDatabase();
   const rows = await db.select({
     workoutId: workouts.id,
@@ -136,7 +139,7 @@ export async function listSetsSince(since: Date, until?: Date): Promise<DaySet[]
     .innerJoin(exerciseEntries, eq(trainingSets.entryId, exerciseEntries.id))
     .innerJoin(workouts, eq(exerciseEntries.workoutId, workouts.id))
     .innerJoin(exercises, eq(exerciseEntries.exerciseId, exercises.id))
-    .where(and(gte(trainingSets.completedAt, since), until ? lt(trainingSets.completedAt, until) : undefined, ne(trainingSets.kind, 'warmup')));
+    .where(and(gte(trainingSets.completedAt, since), ne(trainingSets.kind, 'warmup')));
   return rows.map((row) => ({
     workoutId: row.workoutId,
     workoutName: row.workoutName,
@@ -160,6 +163,30 @@ export type DailyGoalsSnapshot = {
   /** Seconds of timed work today, across all exercises. */
   seconds: number;
 };
+
+/** The day and week goal of one exercise, with what has been done so far (null when it has none). */
+export type ExerciseGoalProgress = { day: DailyGoalProgress | null; week: DailyGoalProgress | null };
+
+/**
+ * The time goals of these exercises for today and this week, by exercise id; exercises without a goal
+ * are left out. Sets of a workout still going count, so the numbers move as the sets are done. Only
+ * reads the sets when some exercise has a goal.
+ */
+export async function getExerciseGoals(exerciseIds: readonly string[], now = new Date()): Promise<Map<string, ExerciseGoalProgress>> {
+  const result = new Map<string, ExerciseGoalProgress>();
+  if (exerciseIds.length === 0) return result;
+  const wanted = new Set(exerciseIds);
+  const [dayGoals, weekGoals] = (await Promise.all([daily.list(), weekly.list()]))
+    .map((goals) => goals.filter((goal) => goal.scope === 'exercise' && wanted.has(goal.key)));
+  if (dayGoals.length + weekGoals.length === 0) return result;
+  const [daySets, weekSets] = await Promise.all([
+    dayGoals.length ? listSetsSince(startOfToday(now)) : Promise.resolve([] as DaySet[]),
+    weekGoals.length ? listSetsSince(startOfWeek(now)) : Promise.resolve([] as DaySet[]),
+  ]);
+  for (const goal of dayGoals) result.set(goal.key, { day: dailyGoalProgress(goal, daySets), week: result.get(goal.key)?.week ?? null });
+  for (const goal of weekGoals) result.set(goal.key, { day: result.get(goal.key)?.day ?? null, week: dailyGoalProgress(goal, weekSets) });
+  return result;
+}
 
 export const getDailyGoalsSnapshot = daily.snapshot;
 export const getWeeklyGoalsSnapshot = weekly.snapshot;

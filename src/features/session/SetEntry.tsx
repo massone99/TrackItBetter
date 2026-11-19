@@ -20,7 +20,8 @@ export function loadCell(kg: number): string {
 }
 
 /** Tap to step once, hold to repeat (faster after a moment). */
-export function StepButton({ icon, label, onPress, large = false }: { icon: 'add' | 'remove'; label: string; onPress: (multiplier: number) => void; large?: boolean }) {
+/** `flat`: no tile behind the icon, for steppers drawn inside a bordered field (the workout ledger). */
+export function StepButton({ icon, label, onPress, large = false, flat = false }: { icon: 'add' | 'remove'; label: string; onPress: (multiplier: number) => void; large?: boolean; flat?: boolean }) {
   const styles = useScaledStyles(setEntryStyles);
   const { palette } = useTheme();
   const handlers = useRepeatPress(onPress);
@@ -31,9 +32,9 @@ export function StepButton({ icon, label, onPress, large = false }: { icon: 'add
       // 28 dp button + 10 dp on each side = the 48 dp touch target.
       hitSlop={large ? 0 : 10}
       {...handlers}
-      style={({ pressed }) => [styles.stepButton, large && styles.stepButtonLarge, { backgroundColor: palette.surfaceMuted, opacity: pressed ? 0.6 : 1 }]}
+      style={({ pressed }) => [styles.stepButton, large && styles.stepButtonLarge, { backgroundColor: flat ? 'transparent' : palette.surfaceMuted, opacity: pressed ? 0.6 : 1 }]}
     >
-      <Icon name={icon} size={large ? 24 : 16} color={palette.text} />
+      <Icon name={icon} size={large ? 24 : flat ? 18 : 16} color={palette.text} />
     </Pressable>
   );
 }

@@ -12,6 +12,7 @@ import {
   addSetToCompletedWorkout,
   setSetFormRating,
   setSetRomRating,
+  updateEntryNote,
   updateSetNote,
   setSetKind,
   deleteWorkout,
@@ -33,7 +34,7 @@ import { PrescriptionSyncSheet } from "../../../src/features/programs/Prescripti
 import { listUserPrograms } from "../../../src/features/programs/userPrograms";
 import { findPrescribedWorkout, trainedExercises, type PrescribedMatch } from "../../../src/domain/prescriptionSync";
 import { SaveToProgramSheet } from "../../../src/features/programs/SaveToProgramSheet";
-import { WorkoutInProgressSheet } from "../../../src/features/session/WorkoutInProgressSheet";
+import { useStartGuard } from "../../../src/features/session/useStartGuard";
 import type {
   CompletedWorkout,
   RemovedRows,
@@ -86,7 +87,7 @@ export default function PastWorkoutScreen() {
   const [loading, setLoading] = useState(true);
   const [mobilitySeconds, setMobilitySeconds] = useState(0);
   const [error, setError] = useState<string | null>(null);
-  const [blockedBy, setBlockedBy] = useState<{ id: string; name: string } | null>(null);
+  const { block, sheet } = useStartGuard();
   const [loadError, setLoadError] = useState(false);
   const [setFor, setSetFor] = useState<(SetTarget & { view?: 'bands' | 'note' | 'rest' | 'rest' }) | null>(null);
   const [pairFor, setPairFor] = useState<(SetTarget & { pairedSet: SessionSet | null }) | null>(
@@ -208,7 +209,7 @@ export default function PastWorkoutScreen() {
     void repeatWorkoutIfIdle(id)
       .then((result) => {
         if ("workoutId" in result) router.push({ pathname: "/workout/[id]", params: { id: result.workoutId } });
-        else setBlockedBy(result.active);
+        else block(result.active, repeat);
       })
       .catch(() => setError(t("history.repeatError")));
 
@@ -321,7 +322,7 @@ export default function PastWorkoutScreen() {
           </Text>
         </View>
       ) : null}
-      <WorkoutInProgressSheet active={blockedBy} onClose={() => setBlockedBy(null)} />
+      {sheet}
       {error ? (
         <Text accessibilityLiveRegion="polite" style={[styles.error, { color: palette.warning }]}>
           {error}
@@ -374,6 +375,7 @@ export default function PastWorkoutScreen() {
             }}
             editDone
             compare={false}
+            onEntryNote={(note) => void edit(() => updateEntryNote(exercise.entryId, note))}
             showRpe={showRpe}
             onChange={async (set, field, delta) => step(set, field, delta)}
             onSetValue={(set, field, value) => void adjust(set.id, field, value)}

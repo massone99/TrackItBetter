@@ -66,7 +66,7 @@ export default function ImportJsonScreen() {
 
   const { preview, plan } = review ?? {};
   const hasAdditions = Boolean(preview && plan && (
-    preview.exercises.some((exercise) => !exercise.reused || exercise.imagesAdded > 0) ||
+    preview.exercises.some((exercise) => !exercise.reused || exercise.imagesAdded > 0 || exercise.addsVideoLink) ||
     plan.file.mobilityRoutines.length > 0 || plan.file.programs.length > 0 ||
     preview.chains.some((chain) => chain.added.length > 0) || preview.links.some((link) => link.added)
   ));
@@ -82,6 +82,7 @@ export default function ImportJsonScreen() {
             {t(report.partial ? 'importJson.partialTitle' : 'importJson.completeTitle')}
           </Heading>
           <Body>{t('importJson.savedTotals', { ...report.result })}</Body>
+          {report.result.linksToVideosAdded ? <Body>{t('importJson.videoLinksAdded', { total: report.result.linksToVideosAdded })}</Body> : null}
           {report.partial ? <Body>{t('importJson.partialBody')}</Body> : null}
           {!review && report.result.programs > 0 ? <ActionButton icon="albums-outline" label={t('importJson.openPrograms')} secondary onPress={() => router.replace('/(tabs)/programs')} /> : null}
           {!review && report.result.routines > 0 ? <ActionButton icon="walk-outline" label={t('importJson.openMobility')} secondary onPress={() => router.replace('/mobility')} /> : null}
@@ -100,6 +101,7 @@ export default function ImportJsonScreen() {
               <Card key={exercise.key}>
                 <Label>{exercise.name}</Label>
                 <Body>{t(exercise.reused ? 'importJson.reuseExercise' : 'importJson.newExercise')}</Body>
+                {exercise.addsVideoLink ? <Body>{t('importJson.addVideoLink')}</Body> : null}
                 {exercise.imagesAdded + exercise.imagesSkipped > 0 ? (
                   <Body>{t('importJson.imageChanges', { added: exercise.imagesAdded, skipped: exercise.imagesSkipped })}</Body>
                 ) : null}

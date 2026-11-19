@@ -162,15 +162,15 @@ export function FormRating({ value, onChange, sideLabel = '', scroll = false, ro
 const FORM_STEP = 40 + 8;
 
 const baseStyles = StyleSheet.create({
-  wrap: { gap: 6, marginTop: 8 },
+  wrap: { gap: 4 },
   flex: { flex: 1, gap: 2 },
   compact: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8, borderWidth: 1, borderRadius: radii.control, paddingHorizontal: 10, paddingVertical: 8, minHeight: 48 },
   compactLine: { fontFamily: fonts.medium, fontSize: 13, lineHeight: 18, fontVariant: ['tabular-nums'] },
   titleRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
-  titleToggle: { flexGrow: 1, flexShrink: 1, flexBasis: 160, minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: 8 },
+  titleToggle: { flexGrow: 1, flexShrink: 1, flexBasis: 160, minHeight: 32, flexDirection: 'row', alignItems: 'center', gap: 8 },
   titleText: { flexShrink: 1 },
   title: { flexShrink: 1, fontFamily: fonts.semibold, fontSize: 13 },
-  toggle: { flexDirection: 'row', alignItems: 'center', gap: 2, minHeight: 48 },
+  toggle: { flexDirection: 'row', alignItems: 'center', gap: 2, minHeight: 32 },
   toggleText: { fontFamily: fonts.semibold, fontSize: 13 },
   // Cells wrap onto a second line at large font sizes instead of squeezing.
   cells: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },

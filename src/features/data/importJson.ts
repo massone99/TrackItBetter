@@ -6,9 +6,10 @@ import { createCustomExercise } from '../exercises/customRepository';
 import { addImportedExerciseImages, existingImportedImageKeys, importedImageKey } from '../exercises/images';
 import { addLink, addStep, createChain, loadGraph } from '../progressions/chains';
 import { chainEdges, findCycle, linkProblem, type GraphEdge } from '../../domain/progressionGraph';
-import { listExercises } from '../exercises/repository';
+import { listExercises, setExerciseDemoUrl } from '../exercises/repository';
 import { saveMobilityRoutine } from '../mobility/routines';
 import { saveUserProgram } from '../programs/userPrograms';
+import { stretchStrongLinkFor } from '../../shared/utils/url';
 
 /** A file with this format brings movements, mobility routines and programs into the app. */
 export const IMPORT_FORMAT = 'trackitbetter-import';
@@ -70,6 +71,10 @@ const prescriptionSchema = z.object({
 
 const programSchema = z.object({
   name: z.string().trim().min(1).max(80),
+  category: z.string().trim().max(40).nullable().optional().default(null),
+  author: z.string().trim().max(60).nullable().optional().default(null),
+  discipline: z.enum(['strength', 'mobility']).optional(),
+  clusters: z.array(z.string().trim().max(40)).optional().default([]),
   sessions: z.array(z.object({
     name: z.string().trim().min(1).max(80),
     notes: z.string().max(1000).nullable().default(null),
@@ -187,9 +192,13 @@ function planFile(file: ImportFile, known: readonly { id: string; name: string }
   return { file, create, existing, images: file.exercises.reduce((total, exercise) => total + exercise.images.length, 0) };
 }
 
-function toProgram(program: ImportFile['programs'][number], idOf: (reference: string) => string): Pick<UserProgram, 'name' | 'sessions'> {
+function toProgram(program: ImportFile['programs'][number], idOf: (reference: string) => string): Pick<UserProgram, 'name' | 'category' | 'author' | 'discipline' | 'clusters' | 'sessions'> {
   return {
     name: program.name,
+    category: program.category ?? null,
+    author: program.author ?? null,
+    discipline: program.discipline,
+    clusters: program.clusters.length > 0 ? program.clusters : undefined,
     sessions: program.sessions.map((session) => ({
       id: Crypto.randomUUID(),
       name: session.name,
@@ -202,7 +211,7 @@ function toProgram(program: ImportFile['programs'][number], idOf: (reference: st
   };
 }
 
-export interface ImportResult { exercisesCreated: number; routines: number; programs: number; imagesAdded: number; chainsCreated: number; stepsAdded: number; linksAdded: number }
+export interface ImportResult { exercisesCreated: number; routines: number; programs: number; imagesAdded: number; chainsCreated: number; stepsAdded: number; linksAdded: number; linksToVideosAdded?: number }
 
 export class ImportApplyError extends Error {
   constructor(readonly partial: ImportResult, cause: unknown) {
@@ -211,7 +220,7 @@ export class ImportApplyError extends Error {
 }
 
 export interface ImportPreview {
-  exercises: { key: string; name: string; reused: boolean; imagesAdded: number; imagesSkipped: number }[];
+  exercises: { key: string; name: string; reused: boolean; imagesAdded: number; imagesSkipped: number; addsVideoLink: boolean }[];
   chains: { name: string; exists: boolean; added: string[]; skipped: string[] }[];
   links: { from: string; to: string; kind: ImportFile['links'][number]['kind']; added: boolean }[];
 }
@@ -271,12 +280,13 @@ async function planGraph(plan: ImportPlan): Promise<GraphPlan> {
 }
 
 /** Names and counts for reviewing the import, including the parts it can add to existing data. */
-export async function previewImport(plan: ImportPlan, known: readonly { id: string; name: string }[]): Promise<ImportPreview> {
+export async function previewImport(plan: ImportPlan, known: readonly { id: string; name: string; demoUrl?: string | null }[]): Promise<ImportPreview> {
   const [graph, imageKeys] = await Promise.all([
     planGraph(plan),
     existingImportedImageKeys([...new Set(plan.existing.values())]),
   ]);
   const importedLinks = new Set(graph.links);
+  const linked = new Set(known.filter((item) => item.demoUrl).map((item) => item.id));
   const names = new Map(known.map(({ id, name }) => [id, name]));
   const nameOf = new Map(plan.file.exercises.map((exercise) => [exercise.key, names.get(plan.existing.get(exercise.key) ?? '') ?? exercise.name]));
   const label = (ref: string) => nameOf.get(ref) ?? names.get(ref) ?? ref;
@@ -292,7 +302,9 @@ export async function previewImport(plan: ImportPlan, known: readonly { id: stri
         keys.add(key);
         imagesAdded += 1;
       }
-      return { key: exercise.key, name: label(exercise.key), reused: existingId !== undefined, imagesAdded, imagesSkipped: exercise.images.length - imagesAdded };
+      const addsVideoLink = existingId !== undefined && !linked.has(existingId) && Boolean(exercise.demoUrl ?? stretchStrongLinkFor(exercise.id));
+      if (existingId && addsVideoLink) linked.add(existingId);
+      return { addsVideoLink, key: exercise.key, name: label(exercise.key), reused: existingId !== undefined, imagesAdded, imagesSkipped: exercise.images.length - imagesAdded };
     }),
     chains: graph.chains.map(({ chain, existingId, steps, skipped }) => ({
       name: chain.name, exists: existingId !== null, added: steps.map((step) => label(step.exercise)), skipped: skipped.map(label),
@@ -312,17 +324,24 @@ export async function applyImport(plan: ImportPlan): Promise<ImportResult> {
   const idOf = (reference: string) => ids.get(reference) ?? (byId.has(reference) ? reference : byName.get(norm(reference)) ?? reference);
   const result: ImportResult = { exercisesCreated: 0, routines: 0, programs: 0, imagesAdded: 0, chainsCreated: 0, stepsAdded: 0, linksAdded: 0 };
 
+  const linked = new Set(known.filter((item) => item.demoUrl).map((item) => item.id));
   try {
     for (const exercise of current.create) {
       const exerciseId = await createCustomExercise({
         name: exercise.name, metric: exercise.metric, category: exercise.category, extraCategories: exercise.extraCategories,
-        unilateral: exercise.unilateral, mobilityMode: exercise.mobilityMode, equipment: exercise.equipment, cues: exercise.cues, demoUrl: exercise.demoUrl,
+        unilateral: exercise.unilateral, mobilityMode: exercise.mobilityMode, equipment: exercise.equipment, cues: exercise.cues, demoUrl: exercise.demoUrl ?? stretchStrongLinkFor(exercise.id),
       });
       ids.set(exercise.key, exerciseId);
       result.exercisesCreated += 1;
     }
     for (const exercise of current.file.exercises) {
       const exerciseId = ids.get(exercise.key);
+      const link = exercise.demoUrl ?? stretchStrongLinkFor(exercise.id);
+      if (exerciseId && current.existing.has(exercise.key) && link && !linked.has(exerciseId)) {
+        await setExerciseDemoUrl(exerciseId, link);
+        linked.add(exerciseId);
+        result.linksToVideosAdded = (result.linksToVideosAdded ?? 0) + 1;
+      }
       if (exerciseId) await addImportedExerciseImages(exerciseId, exercise.images, () => { result.imagesAdded += 1; });
     }
     for (const routine of current.file.mobilityRoutines) {

@@ -10,7 +10,7 @@ import type { RecordKind, SameLoadRecord, VolumeRecord } from '../analytics/reco
 import { openExercisePage } from '../exercises/openExercise';
 import { openReferenceVideo } from '../exercises/ReferenceLinkSheet';
 import { HoldDurationField } from '../../shared/components/DateTimePickers';
-import { ActionButton, Heading, Icon, IconButton, Label, NumberEdit, ProgressMeter, tapFeedback, Text, TextField, type NumberEditControl } from '../../shared/components/ui';
+import { Heading, Icon, IconButton, Label, NumberEdit, ProgressMeter, tapFeedback, Text, TextField, type NumberEditControl } from '../../shared/components/ui';
 import { totalProgress } from '../../domain/totalGoal';
 import { useAnimationSettings } from '../../shared/settings/AnimationProvider';
 import { useTheme } from '../../shared/theme/ThemeProvider';
@@ -20,7 +20,12 @@ import { useScaledStyles } from '../../shared/theme/useScaledStyles';
 import { formatClock, formatNumber } from '../../shared/utils/format';
 import { Gauge, RegistrationMarks, Tag, useInk } from './instrument';
 import { readBooleanPreference, writePreference } from '../../shared/settings/preferences';
-import { BandsStrip, DetailsToggle, MeasureBox, PreviousSetBox, RatingCells, SetSegments, WorkOutput, gaugeMax, type RatingCell } from './ActiveSetParts';
+import { ChipsFold } from './ChipsFold';
+import { ExerciseNoteBlock } from './ExerciseNoteBlock';
+import { ExerciseTimeGoals } from './ExerciseTimeGoals';
+import type { ExerciseGoalProgress } from '../dailyGoals/repository';
+import { LedgerActiveRow, LedgerDoneRow, LedgerHeader, LedgerUpcomingRow } from './LedgerSet';
+import { BandsStrip, DetailsToggle, MeasureBox, PreviousSetBox, RatingCells, WorkOutput, gaugeMax, type RatingCell } from './ActiveSetParts';
 import { FormRating, LastTimeStrip } from './LastTime';
 import type { PreviousPerformance, SessionExercise, SessionSet } from './repository';
 import type { SetBand } from '../../domain/equipment';
@@ -42,7 +47,11 @@ const NO_RECORDS: ReadonlyMap<string, RecordKind[]> = new Map();
  */
 const BANDS_FOLDED_KEY = 'workout.bandsFolded';
 
-export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, previous, hold = null, onChange, onSetValue, onComplete, onStartHold, onFinishHold, onAddSet, onAddWarmup, onCopyAllLast, onSetOptions, onUncomplete, onRemoveSet, onSwiped, showRpe, onRpe, onOptions, onToggleWarmup, setRecords = NO_RECORDS, volumeRecords = [], sameLoadRecords = [], supersetLabel = null, emomLabel: emomBadgeLabel, defaultRest = 0, onFormRating, onRomRating, onNote, focus = false, nowLabel = null, figure = null, editDone = false, typeDone = false, compare = true, apparatusLabel = null, firstTimeLabel, describeBands, compareBands, renderBandsEditor, fixedAction = false, onSetExpanded }: {
+/** The Add set button draws 32 dp tall; these bring it and its chevron (36 dp wide) to a 48 dp touch area. */
+const ADD_SLOP = { top: spacing.sm, bottom: spacing.sm, left: spacing.sm, right: 0 };
+const ADD_MORE_SLOP = { top: spacing.sm, bottom: spacing.sm, left: 0, right: spacing.md };
+
+export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, previous, hold = null, onChange, onSetValue, onComplete, onStartHold, onFinishHold, onAddSet, onAddWarmup, onCopyAllLast, onSetOptions, onUncomplete, onRemoveSet, onSwiped, showRpe, onRpe, onOptions, onToggleWarmup, setRecords = NO_RECORDS, volumeRecords = [], sameLoadRecords = [], onEntryNote, timeGoals = null, supersetLabel = null, emomLabel: emomBadgeLabel, defaultRest = 0, onFormRating, onRomRating, onNote, focus = false, nowLabel = null, figure = null, editDone = false, typeDone = false, compare = true, apparatusLabel = null, firstTimeLabel, describeBands, compareBands, renderBandsEditor, fixedAction = false, onSetExpanded }: {
   handle?: ReactNode;
   exercise: SessionExercise;
   collapsed: boolean;
@@ -73,6 +82,10 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
   volumeRecords?: readonly VolumeRecord[];
   /** Mini-PR: more total reps (or seconds) than ever at this load with the same number of sets. */
   sameLoadRecords?: readonly SameLoadRecord[];
+  /** Saves the exercise's note for this workout; without it the note is shown but not editable. */
+  onEntryNote?: (note: string) => void;
+  /** Today's and this week's time goal of this exercise, with what is done so far (not the workout's own total goal). */
+  timeGoals?: ExerciseGoalProgress | null;
   supersetLabel?: string | null;
   emomLabel?: string | null;
   /** Rest the app applies to a working set without its own, for the rest comparison. */
@@ -216,6 +229,12 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
   const [bandsFolded, setBandsFolded] = useState(() => readBooleanPreference(BANDS_FOLDED_KEY, false));
   const toggleBandsFolded = () => { setBandsFolded(!bandsFolded); writePreference(BANDS_FOLDED_KEY, String(!bandsFolded)); };
   const [detailsOpen, setDetailsOpen] = useState<ReadonlySet<string>>(() => new Set());
+  // Sets whose chips are unfolded; folded by default so the sets read as values, not as rows of buttons.
+  const [chipsOpen, setChipsOpen] = useState<ReadonlySet<string>>(() => new Set());
+  // The "more ways to add" list under the Add set button (warm-up); closed by default and after each choice.
+  const [addMenuOpen, setAddMenuOpen] = useState(false);
+  // Sets whose telemetry (RPE, form, ROM and their pickers) is unfolded; folded by default.
+  const [telemetryOpen, setTelemetryOpen] = useState<ReadonlySet<string>>(() => new Set());
   // Bands belong in the set in hand when the exercise already uses them, now or last time.
   const bandsInUse = exercise.sets.some((item) => item.bands.length > 0) || Boolean(previous?.sets.some((item) => (item.bands?.length ?? 0) > 0));
   const lastDoneId = [...exercise.sets].reverse().find((set) => set.completedAt)?.id ?? null;
@@ -258,6 +277,13 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
     >
       <RegistrationMarks />
       {nowLabel ? <View pointerEvents="none" style={[styles.halo, { borderColor: palette.accentSoft }]} /> : null}
+      {/* Empty space in the header block (figure tag, name row, the card's top and right edge, and the bottom edge when folded) folds or unfolds the exercise; the chevron stays the labelled control. */}
+      <Pressable
+        accessible={false}
+        accessibilityRole="none"
+        onPress={onToggleCollapsed}
+        style={[styles.headerTap, collapsed && styles.headerTapFolded]}
+      >
       {(table || focus) && (figure !== null || nowLabel) ? (
         <Tag color={nowLabel ? palette.accentStrong : undefined} style={styles.nowRow}>{[figure !== null ? `Fig. ${String(figure).padStart(2, '0')}` : null, nowLabel].filter(Boolean).join(' · ')}</Tag>
       ) : nowLabel ? <Label style={[styles.nowRow, { color: palette.accentStrong }]}>{nowLabel}</Label> : null}
@@ -319,7 +345,6 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
           ) : null}
           {collapsed && prNotes.length ? <Text numberOfLines={2} style={[styles.prNotes, { color: palette.success }]}>{prNotes.join(' · ')}</Text> : null}
           {collapsed || hasComparison || !compare ? null : <Label>{previousText ? t('logger.lastTime', { value: previousText }) : firstTimeLabel ?? t('logger.firstTime')}</Label>}
-          {exercise.notes ? <Text numberOfLines={3} style={[styles.exerciseNote, { color: palette.textMuted }]}>{exercise.notes}</Text> : null}
         </Pressable>
         {/* The collapse chevron sits with the buttons, so all three share one row and one centre line. */}
         <IconButton icon={collapsed ? 'chevron-down' : 'chevron-up'} label={t(collapsed ? 'logger.expand' : 'logger.collapse', { name: exercise.name })} tone="plain" onPress={onToggleCollapsed} />
@@ -328,17 +353,10 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
         ) : null}
         <IconButton icon="ellipsis-vertical" label={t('logger.options')} tone="plain" onPress={onOptions} />
       </View>
-      {focus && !collapsed && exercise.sets.length > 0 ? (() => {
-        const groups = groupSets(exercise.sets);
-        const states = groups.map((group) => group.every((item) => item.completedAt) ? 'done' as const : group.some((item) => item.id === focusedId) ? 'current' as const : 'todo' as const);
-        const position = Math.max(1, states.findIndex((state) => state === 'current') + 1 || groups.length);
-        return (
-          <>
-            <Label>{t('activeSet.setOf', { number: position, total: groups.length })}</Label>
-            <SetSegments states={states} />
-          </>
-        );
-      })() : null}
+      </Pressable>
+      {/* Outside the header tap area: the note has its own tap (edit in place), on open and folded cards. */}
+      <ExerciseNoteBlock note={exercise.notes} collapsed={collapsed} onSave={onEntryNote} />
+      {timeGoals && (timeGoals.day || timeGoals.week) ? <ExerciseTimeGoals goals={timeGoals} /> : null}
       {goal ? (
         <View style={[styles.goalCard, { backgroundColor: goal.reached ? palette.successSoft : palette.surface, borderColor: goal.reached ? palette.success : palette.border }]}>
           <View style={styles.goalRow}>
@@ -364,7 +382,11 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
       ) : null}
 
       {!collapsed && onCopyAllLast ? (
-        <ActionButton icon="arrow-undo-outline" label={t('logger.copyAllPrevious')} secondary onPress={() => { tapFeedback(); onCopyAllLast(); }} />
+        // A quiet link, not a full-width button: it is used once per exercise at most.
+        <Pressable accessibilityRole="button" hitSlop={ADD_SLOP} onPress={() => { tapFeedback(); onCopyAllLast(); }} style={({ pressed }) => [styles.copyLink, pressed && { opacity: 0.6 }]}>
+          <Icon name="arrow-undo-outline" size={14} color={palette.accentStrong} />
+          <Text style={[styles.addSetText, { color: palette.accentStrong }]}>{t('logger.copyAllPrevious')}</Text>
+        </Pressable>
       ) : null}
 
 
@@ -381,6 +403,7 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
         </Pressable>
       ) : null}
       <View style={table ? styles.tableBleed : undefined}>
+      {focus && !textIsLarge && !collapsed && exercise.sets.length > 0 ? <LedgerHeader valueLabel={(timed ? t('ledger.secCol') : distance ? t('ledger.metresCol') : t('ledger.repsCol'))} withLoad={withLoad} /> : null}
       {(collapsed ? [] : exercise.sets).map((set) => {
         const done = Boolean(set.completedAt);
         // In a running EMOM a recorded round stays editable in place and keeps its check, so the round count holds.
@@ -412,7 +435,8 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
         // One value at a time: by default the first one still to fill (RPE, then form once done, then ROM) on the set in hand or just done.
         const live = done || editing || set.id === nextSetId;
         // With large text RPE is asked before completing; a done set opens form next, so the set in hand does not slide away.
-        const fallback = canRpe && live && !isFolded(set.rpe) && (set.rpe === null || !done) && !(largeText && done) ? 'rpe'
+        // Ledger (focus): pickers open only from their chips, never by themselves.
+        const fallback = focus ? null : canRpe && live && !isFolded(set.rpe) && (set.rpe === null || !done) && !(largeText && done) ? 'rpe'
           : canForm && done && !isFolded(set.formRating) && set.formRating === null ? 'form'
             : canRom && live && !isFolded(set.romRating) && set.romRating === null ? 'rom'
               : null;
@@ -424,12 +448,12 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
         // The chip strip shows on done sets and the next one (every set in a finished workout); other sets show only what they carry.
         const strip = done || editDone || set.id === nextSetId || isOpen || editing;
         const title = `${set.kind === 'warmup' ? t('workout.blocks.warmup') : t('logger.setTitle', { number: workingNumber })}${set.side === 'left' ? ' · L' : set.side === 'right' ? ' · R' : ''}`;
-        const valueDown = showSteps ? <StepButton large={textIsLarge || bigButtons} icon="remove" label={t('logger.stepDown', { field: fieldLabel, number: workingNumber, side: sideLabel }).trim()} onPress={(multiplier) => step(set, field, (distance ? -0.5 : timed ? -5 : -1) * multiplier)} /> : null;
-        const valueUp = showSteps ? <StepButton large={textIsLarge || bigButtons} icon="add" label={t('logger.stepUp', { field: fieldLabel, number: workingNumber, side: sideLabel }).trim()} onPress={(multiplier) => step(set, field, (distance ? 0.5 : timed ? 5 : 1) * multiplier)} /> : null;
+        const valueDown = showSteps ? <StepButton flat={focus && !textIsLarge} large={textIsLarge || bigButtons} icon="remove" label={t('logger.stepDown', { field: fieldLabel, number: workingNumber, side: sideLabel }).trim()} onPress={(multiplier) => step(set, field, (distance ? -0.5 : timed ? -5 : -1) * multiplier)} /> : null;
+        const valueUp = showSteps ? <StepButton flat={focus && !textIsLarge} large={textIsLarge || bigButtons} icon="add" label={t('logger.stepUp', { field: fieldLabel, number: workingNumber, side: sideLabel }).trim()} onPress={(multiplier) => step(set, field, (distance ? 0.5 : timed ? 5 : 1) * multiplier)} /> : null;
         const valueField = (done && !editableDone) || holding ? (
           <Text style={[styles.setValue, { color: holding ? palette.accentStrong : palette.text }]}>{value}</Text>
         ) : timed ? (
-          <HoldDurationField compact flat={table} value={stored} label={`${t('logger.holdCol')} · ${t('logger.editValue', { number: set.index })}`} onChange={(next) => onSetValue(set, 'durationSec', next)} />
+          <HoldDurationField compact flat={table || focus} value={stored} label={`${t('logger.holdCol')} · ${t('logger.editValue', { number: set.index })}`} onChange={(next) => onSetValue(set, 'durationSec', next)} />
         ) : (
           <NumberEdit
             value={stored}
@@ -439,11 +463,11 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
             onCommit={(next) => onSetValue(set, field, field === 'reps' ? Math.round(next) : next)}
             onControl={(control) => { controls.current.set(`${set.id}:${field}`, control); }}
             onLongPress={openMenu}
-            style={[styles.setValue, { color: palette.text }]}
+            style={[styles.setValue, focus && styles.setValueLedger, { color: palette.text }]}
           />
         );
-        const loadDown = showSteps ? <StepButton large={textIsLarge || bigButtons} icon="remove" label={t('logger.stepDown', { field: t('history.addedLoad'), number: workingNumber, side: sideLabel }).trim()} onPress={(multiplier) => step(set, 'addedLoadKg', -LOAD_STEP_KG * multiplier)} /> : null;
-        const loadUp = showSteps ? <StepButton large={textIsLarge || bigButtons} icon="add" label={t('logger.stepUp', { field: t('history.addedLoad'), number: workingNumber, side: sideLabel }).trim()} onPress={(multiplier) => step(set, 'addedLoadKg', LOAD_STEP_KG * multiplier)} /> : null;
+        const loadDown = showSteps ? <StepButton flat={focus && !textIsLarge} large={textIsLarge || bigButtons} icon="remove" label={t('logger.stepDown', { field: t('history.addedLoad'), number: workingNumber, side: sideLabel }).trim()} onPress={(multiplier) => step(set, 'addedLoadKg', -LOAD_STEP_KG * multiplier)} /> : null;
+        const loadUp = showSteps ? <StepButton flat={focus && !textIsLarge} large={textIsLarge || bigButtons} icon="add" label={t('logger.stepUp', { field: t('history.addedLoad'), number: workingNumber, side: sideLabel }).trim()} onPress={(multiplier) => step(set, 'addedLoadKg', LOAD_STEP_KG * multiplier)} /> : null;
         const loadField = done && !editableDone ? (
           <Text style={[styles.loadValue, { color: set.addedLoadKg === 0 ? palette.textMuted : palette.text }]}>{loadText}</Text>
         ) : (
@@ -497,6 +521,22 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
             style={({ pressed }) => [styles.menuButton, pressed && { opacity: 0.6 }]}
           >
             <Icon name={isUp ? 'chevron-up' : 'chevron-down'} size={22} color={color} />
+          </Pressable>
+        );
+        // Title of the open set's strip, with its state under it; a tap folds the set.
+        const titleTap = (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`${title}, ${t('logger.foldSet')}`}
+            onPress={() => { tapFeedback(); toggleFold(set.id); }}
+            hitSlop={spacing.sm}
+            style={[styles.largeTitleTap, textIsLarge && styles.largeTitleFull]}
+          >
+            {/* Title and state stacked: side by side they overlapped on a phone-width card. */}
+            <View style={styles.stripTitles}>
+              <Text style={[styles.largeStripText, { color: done ? palette.successText : palette.surface }]}>{focus ? `${title} / ${t(set.kind === 'warmup' ? 'activeSet.warmup' : 'activeSet.working')}` : title}</Text>
+              {focus && !textIsLarge ? <Text style={[styles.stripState, { color: done ? palette.successText : palette.surface }]}>{`● ${holding ? t('activeSet.hold') : done ? t('activeSet.logged') : t('activeSet.inProgress')}`.toUpperCase()}</Text> : null}
+            </View>
           </Pressable>
         );
         const summary = [title, timed ? value : distance ? `${value} m` : `${value} ${t('history.units.reps')}`, withLoad ? `${loadText} kg` : null, done && set.rpe !== null ? t('logger.rpeTag', { value: formatRpe(set.rpe) }) : null].filter(Boolean).join(' · ');
@@ -595,7 +635,7 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
             /* Large text, the set in hand: title, then each field on its own line with big − and +. */
             <Pressable accessible={false} accessibilityRole="none" onLongPress={openMenu} delayLongPress={450} style={styles.largeFields}>
               {/* The open set reads as a sheet: an ink strip names it and folds it, the fields below. */}
-              <View style={[styles.largeStrip, { backgroundColor: done ? palette.success : ink }]}>
+              <View style={[styles.largeStrip, textIsLarge && styles.largeStripWrap, { backgroundColor: done ? palette.success : ink }]}>
                 <Pressable
                   accessibilityRole="button"
                   accessibilityLabel={set.kind === 'warmup' ? t('logger.warmupOn') : t('logger.warmupOff', { number: workingNumber })}
@@ -608,16 +648,7 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
                 >
                   <Text style={[styles.setBadgeText, { color: set.kind === 'warmup' ? palette.textMuted : palette.text }]}>{set.kind === 'warmup' ? 'W' : workingNumber}</Text>
                 </Pressable>
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel={`${title}, ${t('logger.foldSet')}`}
-                  onPress={() => { tapFeedback(); toggleFold(set.id); }}
-                  hitSlop={spacing.sm}
-                  style={styles.largeTitleTap}
-                >
-                  <Text style={[styles.largeStripText, { color: done ? palette.successText : palette.surface }]}>{focus ? `${title} / ${t(set.kind === 'warmup' ? 'activeSet.warmup' : 'activeSet.working')}` : title}</Text>
-                </Pressable>
-                {focus && !textIsLarge ? <Text style={[styles.stripState, { color: done ? palette.successText : palette.surface }]}>{`● ${holding ? t('activeSet.hold') : done ? t('activeSet.logged') : t('activeSet.inProgress')}`.toUpperCase()}</Text> : null}
+                {textIsLarge ? <View style={styles.flex} /> : titleTap}
                 <Pressable
                   accessibilityRole="button"
                   accessibilityLabel={t('logger.setOptions', { number: set.index })}
@@ -627,11 +658,12 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
                   <Icon name="ellipsis-vertical" size={18} color={done ? palette.successText : palette.surface} />
                 </Pressable>
                 {foldButton(true, () => toggleFold(set.id), done ? palette.successText : palette.surface)}
+                {/* Large text: the title takes a line of its own under the badge and buttons, so no word breaks. */}
+                {textIsLarge ? titleTap : null}
               </View>
               {focus ? (() => {
                 const match = previousMatchFor(set);
                 const previousValue = match ? describePreviousSet(match, exercise.metric) : t('activeSet.firstTime');
-                const unit = timed ? t('activeSet.secondsCaption') : distance ? t('activeSet.metersCaption') : t('activeSet.repsCaption');
                 const reference = ghostFor(set);
                 const unitWord = timed ? 's' : distance ? 'm' : t('history.units.reps');
                 const max = gaugeMax(stored, reference);
@@ -640,11 +672,11 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
                     {textIsLarge ? <Tag color={palette.accentStrong}>{`● ${holding ? t('activeSet.hold') : done ? t('activeSet.logged') : t('activeSet.inProgress')}`.toUpperCase()}</Tag> : null}
                     <PreviousSetBox label={t('activeSet.previousLabel')} value={previousValue} rpeLabel={t('lastTime.rpeChip')} rpeValue={match && match.rpe !== null ? formatRpe(match.rpe) : null} sideLabel={t('activeSet.lastSession')} />
                     <View style={styles.measureRow}>
-                      <MeasureBox stack={textIsLarge} label={fieldLabel.toUpperCase()} caption={unit}>
+                      <MeasureBox stack={textIsLarge} label={fieldLabel.toUpperCase()}>
                         <View style={styles.largeStepper}>{valueDown}<View style={styles.largeValue}>{valueField}</View>{valueUp}</View>
                       </MeasureBox>
                       {withLoad ? (
-                        <MeasureBox stack={textIsLarge} label={t('logger.loadCol').toUpperCase()} caption={t('activeSet.loadCaption')}>
+                        <MeasureBox stack={textIsLarge} label={t('logger.loadCol').toUpperCase()}>
                           <View style={styles.largeStepper}>{loadDown}<View style={styles.largeValue}>{loadField}</View>{loadUp}</View>
                         </MeasureBox>
                       ) : null}
@@ -786,6 +818,76 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
                 {romRow ? <FormRating rom value={set.romRating} sideLabel={sideLabel} onChange={(rating) => onRomRating!(set, rating)} /> : null}
               </View>
             ) : null;
+        // Ongoing workout (focus): every set is one ledger row; the set in hand edits in place with its chips.
+        if (focus) {
+          const side = set.side === 'left' ? 'L' as const : set.side === 'right' ? 'R' as const : null;
+          const label = set.kind === 'warmup' ? 'W' : String(workingNumber);
+          const described = set.bands.length > 0 ? describeBands?.(set) ?? null : null;
+          const assist = set.bands.length === 0 ? null : set.assistKg === null ? null : formatNumber(set.assistKg);
+          const bands = described ? { colors: described.colors, assist } : null;
+          const openSet = () => { tapFeedback(); unfold(set.id); setPicked({ id: set.id, done }); };
+          // A folded set in hand shows as a plain row; tapping it opens it again (unfold).
+          const inHand = set.id === focusedId && (!done || picked?.id === set.id) && !folded.has(set.id);
+          // Every ledger row swipes: right completes (or reopens a done set), left removes it.
+          const swipe = (node: ReactNode, mode: string) => (
+            <SwipeableSetRow
+              key={`${set.id}-${mode}`}
+              done={done}
+              completeLabel={t('logger.swipeComplete')}
+              reopenLabel={t('logger.swipeReopen')}
+              removeLabel={t('logger.swipeRemove')}
+              onSwipeRight={() => { onSwiped?.(); if (done) uncomplete(set); else complete(set); }}
+              onSwipeLeft={() => { onSwiped?.(); onRemoveSet(set); }}
+            >
+              {node}
+            </SwipeableSetRow>
+          );
+          if (!inHand) {
+            const row = { label, side, warmup: set.kind === 'warmup', value: timed ? value : distance ? `${value} m` : value, load: withLoad ? loadText : null, bands, withLoad, onOpen: openSet, onMenu: openMenu };
+            return done
+              ? swipe(<LedgerDoneRow {...row} rpe={set.rpe !== null ? formatRpe(set.rpe) : null} />, 'ld')
+              : swipe(<LedgerUpcomingRow {...row} next={set.id === nextSetId} />, 'lu');
+          }
+          const restSec = set.restSec ?? defaultRest;
+          const completeSlot = done ? (
+            <Pressable accessibilityRole="button" accessibilityState={{ checked: true }} accessibilityLabel={t('workout.setCompleted')} accessibilityHint={t('logger.swipeReopen')} hitSlop={6} onPress={() => uncomplete(set)} onLongPress={openMenu} delayLongPress={450} style={({ pressed }) => [styles.ledgerCheck, { backgroundColor: palette.success }, pressed && styles.checkPressed]}>
+              <Icon name="checkmark" size={22} color={palette.successText} />
+            </Pressable>
+          ) : timed && onStartHold ? (
+            <Pressable accessibilityRole="button" accessibilityLabel={holding ? t('logger.doneHold') : t('logger.startHold')} accessibilityHint={holding ? undefined : t('logger.holdLongPressHint')} onPress={() => (holding ? onFinishHold?.() : onStartHold(set))} onLongPress={holding ? undefined : () => { tapFeedback(); complete(set); }} delayLongPress={400} hitSlop={6} style={({ pressed }) => [styles.ledgerCheck, { backgroundColor: palette.accent }, pressed && styles.checkPressed]}>
+              <Icon name={holding ? 'stop' : 'play'} size={22} color={palette.accentText} />
+            </Pressable>
+          ) : undefined;
+          return swipe(
+            <LedgerActiveRow
+              label={label}
+              side={side}
+              warmup={set.kind === 'warmup'}
+              withLoad={withLoad}
+              onFold={() => toggleFold(set.id)}
+              onMenu={openMenu}
+              valueField={valueField}
+              valueDown={valueDown}
+              valueUp={valueUp}
+              loadField={loadField}
+              loadDown={loadDown}
+              loadUp={loadUp}
+              onComplete={() => complete(set)}
+              completeSlot={completeSlot}
+              rpe={canRpe ? { value: set.rpe !== null ? formatRpe(set.rpe) : null, target: set.targetRpe !== null ? formatRpe(set.targetRpe) : null, open: rpeRow, onPress: () => toggleOpen(set.id, 'rpe', rpeRow) } : null}
+              form={canForm ? { value: set.formRating !== null ? formatNumber(set.formRating) : null, open: formRow, onPress: () => toggleOpen(set.id, 'form', formRow) } : null}
+              rom={canRom ? { value: set.romRating !== null ? formatNumber(set.romRating) : null, open: romRow, onPress: () => toggleOpen(set.id, 'rom', romRow) } : null}
+              bands={{ colors: described?.colors ?? [], assist, onPress: () => { tapFeedback(); onSetOptions(set, 'bands'); } }}
+              rest={restSec > 0 ? { value: formatClock(restSec), filled: set.restSec !== null, onPress: () => { tapFeedback(); onSetOptions(set, 'rest'); } } : null}
+              note={{ text: set.note || null, open: noteRow, onPress: () => { if (onNote) toggleOpen(set.id, 'note', noteRow); else { tapFeedback(); onSetOptions(set, 'note'); } } }}
+              video={{ clips: set.clipCount, onPress: () => { tapFeedback(); if (set.clipCount > 0) onSetOptions(set); else router.push({ pathname: '/form-check/[setId]', params: { setId: set.id } }); } }}
+              panel={valuePanelNode}
+              tone={done ? 'edit' : 'next'}
+              bandsInUse={bandsInUse}
+            />,
+            done ? 'lad' : 'la',
+          );
+        }
         return (
           <Animated.View key={`${set.id}${largeText ? (editing ? "-e" : "-f") : table ? (isOpen ? "-o" : "-r") : ""}`} entering={largeText || table ? undefined : setEntering} style={[styles.setBlock, largeText && !editing && styles.setBlockLine, editing && [styles.largeBlock, { borderColor: done ? palette.success : palette.border, backgroundColor: done ? palette.successSoft : palette.background }], table && [styles.tableBlock, { borderTopColor: palette.border }, isOpen && { backgroundColor: palette.background, borderTopColor: ink, borderBottomWidth: 1, borderBottomColor: ink, borderLeftWidth: 4, borderLeftColor: palette.accentStrong }]]}>
             {editing || table || largeText ? null : <DoneTint done={done} color={palette.accentSoft} />}
@@ -845,8 +947,16 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
                       {bandsOpen ? renderBandsEditor?.(set) ?? null : null}
                     </>
                   ) : null}
-                  {cells.length > 0 ? <RatingCells title={t('activeSet.setTelemetry').toUpperCase()} counter={t('activeSet.recorded', { done: recorded, total: cells.length }).toUpperCase()} cells={cells} /> : null}
-                  {valuePanelNode}
+                  {cells.length > 0 ? (
+                    <RatingCells
+                      title={t('activeSet.setTelemetry').toUpperCase()}
+                      counter={t('activeSet.recorded', { done: recorded, total: cells.length }).toUpperCase()}
+                      cells={cells}
+                      open={telemetryOpen.has(set.id)}
+                      onToggle={() => { tapFeedback(); setTelemetryOpen((current) => { const next = new Set(current); if (!next.delete(set.id)) next.add(set.id); return next; }); }}
+                    />
+                  ) : null}
+                  {cells.length === 0 || telemetryOpen.has(set.id) ? valuePanelNode : null}
                   <DetailsToggle
                     label={t('activeSet.additional').toUpperCase()}
                     count={`${detailCount}/4`}
@@ -857,8 +967,35 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
                 </>
               );
             })() : null}
-            {!quiet && (!table || isOpen) && !(focus && editing && !detailsOpen.has(set.id)) && (strip || set.note || set.clipCount > 0 || (set.poseCount ?? 0) > 0 || set.rpe !== null || setRecords.has(set.id) || set.bands.length > 0) ? (
-              <View style={[styles.setMeta, editing && styles.setMetaLarge, table && styles.tableChips]}>
+            {!quiet && (!table || isOpen) && !(focus && editing && !detailsOpen.has(set.id)) && (strip || set.note || set.clipCount > 0 || (set.poseCount ?? 0) > 0 || set.rpe !== null || setRecords.has(set.id) || set.bands.length > 0) ? (() => {
+              // The chips fold behind one quiet line, folded by default; the open set of the ledger has its own "Additional" fold.
+              const folds = !(focus && editing);
+              const chipsShown = !folds || chipsOpen.has(set.id);
+              const described = set.bands.length > 0 ? describeBands?.(set) : null;
+              const summary = [
+                canRpe && set.rpe !== null ? t('logger.rpeTag', { value: formatRpe(set.rpe) }) : null,
+                canForm && set.formRating !== null ? `${t('lastTime.form')} ${formatNumber(set.formRating)}` : null,
+                canRom && set.romRating !== null ? `${t('lastTime.rom')} ${formatNumber(set.romRating)}` : null,
+                described ? described.text : null,
+                set.restSec !== null && set.restSec > 0 ? t('logger.restChip', { value: formatClock(set.restSec) }) : null,
+                set.note ? t('logger.noteChip') : null,
+                set.clipCount > 0 ? t('logger.clip', { count: set.clipCount }) : null,
+              ].filter(Boolean).join(' · ');
+              return (
+              <>
+              {folds ? (
+                <ChipsFold
+                  label={t('logger.chipsFold').toUpperCase()}
+                  summary={summary}
+                  record={setRecords.has(set.id)}
+                  open={chipsShown}
+                  onPress={() => { tapFeedback(); setChipsOpen((current) => { const next = new Set(current); if (!next.delete(set.id)) next.add(set.id); return next; }); }}
+                  trailing={table && isOpen ? menu : null}
+                  style={[styles.chipsFold, editing && styles.chipsFoldLarge, table && styles.chipsFoldTable]}
+                />
+              ) : null}
+              {chipsShown ? (
+              <View style={[styles.setMeta, editing && styles.setMetaLarge, table && styles.tableChips, folds && table && styles.tableChipsFolded]}>
                 {canRpe && !(focus && editing) && (strip || set.rpe !== null) ? (
                   <ValueChip flat={table} label={set.rpe !== null ? t('logger.rpeTag', { value: formatRpe(set.rpe) }) : t('lastTime.rpeChip')} icon="speedometer-outline" filled={set.rpe !== null} open={rpeRow} onPress={() => toggleOpen(set.id, 'rpe', rpeRow)} />
                 ) : null}
@@ -909,7 +1046,7 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
                     <Text style={[styles.clipChipText, { color: palette.accentStrong }]}>{t('logger.clip', { count: set.clipCount })}</Text>
                   </Pressable>
                 ) : null}
-                {table && isOpen ? menu : null}
+                {table && isOpen && !folds ? menu : null}
                 {(set.poseCount ?? 0) > 0 ? (
                   <Pressable accessibilityRole="button" accessibilityLabel={t('poseLink.setActionCount', { count: set.poseCount })} hitSlop={8} onPress={() => onSetOptions(set)} style={[styles.clipChip, { backgroundColor: palette.surface }]}>
                     <Icon name="scan-outline" size={13} color={palette.accentStrong} />
@@ -917,7 +1054,10 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
                   </Pressable>
                 ) : null}
               </View>
-            ) : null}
+              ) : null}
+              </>
+              );
+            })() : null}
             {focus && editing ? null : valuePanelNode}
             {focus && editing && !done ? (() => {
               const following = exercise.sets.find((item) => !item.completedAt && item.id !== set.id && item.index > set.index);
@@ -934,7 +1074,8 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
             })() : null}
             {/* Large text: one wide button finishes the set (or runs its hold). */}
             {editing && !(fixedAction && !done && set.id === nextSetId) ? (
-              done ? (
+              <View style={[styles.actionRow, textIsLarge && styles.actionRowWrap]}>
+              {done ? (
                 <Pressable
                   accessibilityRole="button"
                   accessibilityState={{ checked: true, disabled: emomLocked }}
@@ -973,34 +1114,60 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
                   <Icon name="checkmark" size={22} color={palette.accentText} />
                   <Text style={[styles.largeActionText, { color: palette.accentText }]}>{focus ? t('activeSet.completeSet', { number: workingNumber }).toUpperCase() : t('workout.completeSet')}</Text>
                 </Pressable>
-              )
+              )}
+              {focus && !done ? (
+                // Beside Complete; at large text a full-width row under it, with its label.
+                <Pressable accessibilityRole="button" accessibilityLabel={t('activeSet.moreDetails')} onPress={() => { tapFeedback(); onSetOptions(set); }} style={({ pressed }) => [styles.detailsButton, textIsLarge && styles.detailsButtonWide, { borderColor: ink, backgroundColor: palette.surface }, pressed && { opacity: 0.6 }]}>
+                  <Icon name="options-outline" size={22} color={palette.accentStrong} />
+                  {textIsLarge ? <Text style={[styles.largeActionText, { color: palette.accentStrong }]}>{t('activeSet.moreDetails')}</Text> : null}
+                </Pressable>
+              ) : null}
+              </View>
             ) : null}
             {/* The fixed Complete button stands in for this one: its room stays, so selecting an exercise moves nothing. */}
             {editing && fixedAction && !done && set.id === nextSetId ? <View pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={styles.fixedActionRoom} /> : null}
-            {focus && editing && !done && !(fixedAction && set.id === nextSetId) ? (
-              <View style={styles.actionCaption}>
-                <Text style={[styles.queueText, styles.actionCaptionText, { color: palette.textMuted }]}>{t('activeSet.optional')}</Text>
-                <Pressable accessibilityRole="button" accessibilityLabel={t('activeSet.moreDetails')} hitSlop={spacing.sm} onPress={() => { tapFeedback(); onSetOptions(set); }} style={styles.actionLink}>
-                  <Text style={[styles.queueText, { color: palette.accentStrong }]}>{`${t('activeSet.moreDetails').toUpperCase()} ↑`}</Text>
-                </Pressable>
-              </View>
-            ) : null}
-            {focus && editing && !done && fixedAction && set.id === nextSetId ? <View pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={styles.fixedCaptionRoom} /> : null}
           </Animated.View>
         );
       })}
       </View>
 
-      {collapsed ? null : <View style={[styles.addRow, largeText && styles.addRowLarge, table && [styles.addRowTable, { borderTopColor: palette.border }]]}>
-        <Pressable accessibilityRole="button" onPress={() => { tapFeedback(); onAddSet(); }} style={({ pressed }) => [styles.addSet, largeText && [styles.addSetLarge, { borderColor: palette.border }], { opacity: pressed ? 0.6 : 1 }]}>
-          <Icon name="add" size={18} color={palette.accentStrong} />
-          <Text style={[styles.addSetText, table && styles.addSetMono, { color: palette.accentStrong }]}>{t('logger.addSet')}</Text>
-        </Pressable>
-        {onAddWarmup ? (
-          <Pressable accessibilityRole="button" accessibilityHint={t('logger.warmupHint')} onPress={() => { tapFeedback(); onAddWarmup(); }} style={({ pressed }) => [styles.addSet, largeText && [styles.addSetLarge, { borderColor: palette.border }], { opacity: pressed ? 0.6 : 1 }]}>
-            <Icon name="flame-outline" size={18} color={palette.textMuted} />
-            <Text style={[styles.addSetText, table && styles.addSetMono, { color: palette.textMuted }]}>{t('logger.addWarmup')}</Text>
+      {/* One compact split button under the sets: "+ Add set", and a chevron that unfolds the other ways to add (warm-up) below it. */}
+      {collapsed ? null : <View style={[styles.addRow, table && [styles.addRowTable, { borderTopColor: palette.border }]]}>
+        <View style={styles.addSplit}>
+          <Pressable
+            accessibilityRole="button"
+            hitSlop={ADD_SLOP}
+            onPress={() => { tapFeedback(); setAddMenuOpen(false); onAddSet(); }}
+            style={({ pressed }) => [styles.addSet, onAddWarmup ? styles.addSetJoined : null, { borderColor: ink, backgroundColor: palette.surface }, pressed && { backgroundColor: palette.accentSoft }]}
+          >
+            <Icon name="add" size={14} color={palette.accentStrong} />
+            <Text style={[styles.addSetText, { color: palette.accentStrong }]}>{emomBadgeLabel ? t('emom.addRound') : t('logger.addSet')}</Text>
           </Pressable>
+          {onAddWarmup ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={t('logger.addMore')}
+              accessibilityState={{ expanded: addMenuOpen }}
+              hitSlop={ADD_MORE_SLOP}
+              onPress={() => { tapFeedback(); setAddMenuOpen(!addMenuOpen); }}
+              style={({ pressed }) => [styles.addMore, { borderColor: ink, backgroundColor: addMenuOpen || pressed ? palette.accentSoft : palette.surface }]}
+            >
+              <Icon name={addMenuOpen ? 'chevron-up' : 'chevron-down'} size={14} color={palette.accentStrong} />
+            </Pressable>
+          ) : null}
+        </View>
+        {addMenuOpen && onAddWarmup ? (
+          <View style={[styles.addMenu, { borderColor: ink, backgroundColor: palette.surface }]}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityHint={t('logger.warmupHint')}
+              onPress={() => { tapFeedback(); setAddMenuOpen(false); onAddWarmup(); }}
+              style={({ pressed }) => [styles.addMenuItem, pressed && { backgroundColor: palette.accentSoft }]}
+            >
+              <Icon name="flame-outline" size={16} color={palette.textMuted} />
+              <Text style={[styles.addMenuText, { color: palette.text }]}>{t('logger.addWarmup')}</Text>
+            </Pressable>
+          </View>
         ) : null}
       </View>}
 
@@ -1077,7 +1244,7 @@ const baseStyles = StyleSheet.create({
   // As tall as the 48 dp buttons beside it, so the chevron and the buttons share one centre line.
   nameRow: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: MIN_TOUCH_TARGET },
   progressRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', columnGap: 5 },
-  exerciseName: { fontFamily: fonts.display, fontSize: 24, lineHeight: 28 },
+  exerciseName: { fontFamily: fonts.display, fontSize: 21, lineHeight: 25 },
   // Column labels only: the section's hairline above already separates it, a second line would be noise.
   columns: { flexDirection: 'row', alignItems: 'center', paddingLeft: 2 },
   colSet: { width: 40 },
@@ -1100,9 +1267,11 @@ const baseStyles = StyleSheet.create({
   // Large text: the open set is a card of one-column fields; the other sets are one line each.
   // Focus card: one 16 rhythm between header, fields, chips, scale and button.
   largeBlock: { borderRadius: radii.control, borderWidth: 2, padding: 16, gap: 16, marginVertical: 8, marginHorizontal: -spacing.sm },
-  largeStrip: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: 56, marginHorizontal: -16, marginTop: -16, paddingHorizontal: spacing.md },
-  largeStripText: { flex: 1, fontFamily: fonts.monoSemibold, fontSize: 14, lineHeight: 20, textTransform: 'uppercase', letterSpacing: 1 },
-  largeFields: { gap: 16 },
+  largeStripWrap: { flexWrap: 'wrap', paddingBottom: spacing.sm },
+  largeStrip: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: 56, marginHorizontal: -spacing.md, marginTop: -16, paddingHorizontal: spacing.md },
+  stripTitles: { flex: 1, minWidth: 0 },
+  largeStripText: { fontFamily: fonts.monoSemibold, fontSize: 13, lineHeight: 18, textTransform: 'uppercase', letterSpacing: 0.5 },
+  largeFields: { gap: spacing.md },
   setBlockLine: { marginBottom: 0 },
   upcomingRow: { minHeight: MIN_TOUCH_TARGET, justifyContent: 'center', paddingHorizontal: spacing.md },
   upcomingText: { fontSize: 14 },
@@ -1111,16 +1280,19 @@ const baseStyles = StyleSheet.create({
   largeField: { gap: 8 },
   largeStepper: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   largeValue: { flex: 1, alignItems: 'center' },
+  setOfRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', columnGap: spacing.md },
+  setOfBar: { flexGrow: 1, flexBasis: 120 },
   measureRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, paddingVertical: spacing.sm },
   stripState: { fontSize: 12, letterSpacing: 0.5 },
   queue: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', gap: spacing.xs, paddingVertical: spacing.sm },
   queueText: { fontSize: 12, letterSpacing: 0.5 },
   fixedActionRoom: { minHeight: 56 },
-  fixedCaptionRoom: { minHeight: MIN_TOUCH_TARGET + spacing.sm },
-  actionCaption: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: spacing.sm, paddingTop: spacing.sm },
-  actionCaptionText: { flexShrink: 1 },
-  actionLink: { minHeight: MIN_TOUCH_TARGET, justifyContent: 'center' },
-  largeAction: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, minHeight: 56, paddingHorizontal: 16, paddingVertical: 8, borderRadius: radii.control },
+  ledgerCheck: { minWidth: 40, minHeight: 36, borderRadius: radii.control, alignItems: 'center', justifyContent: 'center' },
+  actionRow: { flexDirection: 'row', alignItems: 'stretch', gap: spacing.sm },
+  actionRowWrap: { flexWrap: 'wrap' },
+  detailsButtonWide: { flexBasis: '100%', flexDirection: 'row', gap: spacing.sm, paddingHorizontal: spacing.lg },
+  detailsButton: { minWidth: 56, minHeight: 56, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderRadius: radii.control },
+  largeAction: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, minHeight: 56, paddingHorizontal: 16, paddingVertical: 8, borderRadius: radii.control },
   largeActionText: { flexShrink: 1, fontFamily: fonts.semibold, fontSize: 17, textAlign: 'center' },
   summaryLine: { flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1, borderStyle: 'dashed' },
   summaryRow: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 56, paddingVertical: 4, paddingLeft: 4 },
@@ -1128,13 +1300,15 @@ const baseStyles = StyleSheet.create({
   stripBadge: { minWidth: 40, minHeight: 40, paddingHorizontal: 6, borderRadius: radii.control, alignItems: 'center', justifyContent: 'center' },
   summaryBox: { width: 28, height: 28, borderRadius: radii.control, alignItems: 'center', justifyContent: 'center' },
   summaryText: { flex: 1, fontFamily: fonts.semibold, fontSize: 15 },
-  addRowLarge: { flexDirection: 'column', flexWrap: 'nowrap', alignItems: 'stretch', gap: 8, marginTop: 4 },
-  addSetLarge: { justifyContent: 'center', borderWidth: 1, borderRadius: radii.control, paddingHorizontal: 12 },
-  exerciseCard: { borderRadius: instrument.radius, borderWidth: instrument.line, padding: spacing.lg, gap: spacing.sm },
+  // 12 at the sides (not 16): the ledger's fields need the width more than the card needs the margin.
+  exerciseCard: { borderRadius: instrument.radius, borderWidth: instrument.line, paddingHorizontal: spacing.md, paddingVertical: spacing.md, gap: spacing.sm },
   halo: { position: 'absolute', top: -4, left: -4, right: -4, bottom: -4, borderWidth: 3, borderRadius: instrument.radius + 3 },
   nowRow: { paddingHorizontal: spacing.xs },
+  // Reaches the card's top and side edges (negative margins cancel the card padding) so the whole header block is a tap target.
+  headerTap: { marginHorizontal: -spacing.md, marginTop: -spacing.md, paddingHorizontal: spacing.md, paddingTop: spacing.md, gap: spacing.xs },
+  headerTapFolded: { marginBottom: -spacing.lg, paddingBottom: spacing.lg },
   exerciseNameCard: { fontSize: 30, lineHeight: 32, textTransform: 'uppercase' },
-  tableBleed: { marginHorizontal: -spacing.lg },
+  tableBleed: { marginHorizontal: -spacing.md },
   tableBadgeCol: { width: spacing.section * 2, minHeight: MIN_TOUCH_TARGET, alignItems: 'center', justifyContent: 'center' },
   tableNumber: { fontFamily: fonts.monoBold, fontSize: 16 },
   tableNumberWarmup: { textDecorationLine: 'underline', textDecorationStyle: 'dashed' },
@@ -1148,18 +1322,22 @@ const baseStyles = StyleSheet.create({
   tableCheck: { borderRadius: instrument.radius, alignItems: 'center', justifyContent: 'center' },
   openGauge: { paddingHorizontal: spacing.lg, paddingTop: spacing.md, paddingBottom: spacing.md },
   valueChipMono: { fontFamily: fonts.monoSemibold, fontSize: 12, textTransform: 'uppercase' },
-  addSetMono: { fontFamily: fonts.monoSemibold, fontSize: 12, textTransform: 'uppercase' },
   tableBlock: { borderRadius: 0, marginBottom: 0, borderTopWidth: 1 },
-  addRowTable: { borderTopWidth: 1, marginHorizontal: -spacing.lg, marginBottom: -spacing.lg, marginTop: 0, paddingHorizontal: spacing.lg, justifyContent: 'center' },
+  addRowTable: { borderTopWidth: 1, marginHorizontal: -spacing.md, marginBottom: -spacing.lg, marginTop: 0, paddingHorizontal: spacing.md, justifyContent: 'center' },
   tableChips: { paddingLeft: spacing.lg, paddingRight: spacing.lg, paddingTop: spacing.lg, paddingBottom: spacing.md },
+  tableChipsFolded: { paddingTop: spacing.xs },
+  chipsFold: { paddingLeft: 48, paddingRight: spacing.md }, // 48: under the values, after the set number
+  chipsFoldLarge: { paddingLeft: 0, paddingRight: 0 },
+  chipsFoldTable: { paddingLeft: spacing.lg, paddingRight: spacing.lg, paddingTop: spacing.xs },
   tablePanel: { marginLeft: spacing.lg, marginRight: spacing.lg },
   tableSetRow: { paddingHorizontal: spacing.lg, paddingTop: spacing.sm, gap: spacing.xs },
   tile: { borderRadius: radii.control, paddingVertical: spacing.xs, marginHorizontal: spacing.sm },
   setRow: { flexDirection: 'row', alignItems: 'center', minHeight: 56, paddingTop: 4, paddingLeft: 2 },
-  recordChip: { flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-start', borderRadius: radii.control, paddingHorizontal: 8, paddingVertical: 3, marginTop: 4 },
+  recordChip: { flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-start', maxWidth: '100%', borderRadius: radii.control, paddingHorizontal: 8, paddingVertical: 3, marginTop: 4 },
   setMeta: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8, paddingLeft: 48, paddingRight: 12, paddingBottom: 8 }, // 48: under the values, after the set number
   clipChip: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, minHeight: 32, borderRadius: radii.pill },
   clipChipText: { fontFamily: fonts.semibold, fontSize: 12 },
+  shrink: { flexShrink: 1 },
   setMetaLarge: { paddingLeft: 0, paddingRight: 0, paddingBottom: 0 },
   valuePanelLarge: { marginLeft: 0, marginRight: 0, marginBottom: 0, padding: 0 },
   valuePanel: { marginLeft: 48, marginRight: 12, marginBottom: 12, borderRadius: radii.control, padding: 8 },
@@ -1169,21 +1347,29 @@ const baseStyles = StyleSheet.create({
   valueChipText: { fontFamily: fonts.semibold, fontSize: 14, flexShrink: 1 },
   noteChip: { flexDirection: 'row', alignItems: 'center', gap: 6, flexShrink: 1, minHeight: 32 },
   setNote: { flex: 1, fontFamily: fonts.body, fontSize: 13, lineHeight: 18 },
-  exerciseNote: { fontFamily: fonts.body, fontSize: 13, lineHeight: 18, marginTop: 4 },
   setBadge: { width: 36, height: 36, borderRadius: radii.control, alignItems: 'center', justifyContent: 'center' },
   setBadgeText: { fontFamily: fonts.display, fontSize: 16 },
   setBadgeSide: { fontFamily: fonts.semibold, fontSize: 10, lineHeight: 11, marginTop: -2 },
   stepper: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4 },
+  setValueLedger: { fontSize: 20, lineHeight: 26 },
   setValue: { fontFamily: fonts.display, fontSize: 24, lineHeight: 30, minWidth: 34, textAlign: 'center', fontVariant: ['tabular-nums'] },
   loadValue: { fontFamily: fonts.display, fontSize: 20, lineHeight: 26, minWidth: 34, textAlign: 'center', fontVariant: ['tabular-nums'] },
   openAll: { alignSelf: 'flex-end', flexDirection: 'row', alignItems: 'center', gap: spacing.xs, minHeight: MIN_TOUCH_TARGET - spacing.sm, paddingHorizontal: spacing.xs },
   openAllText: { fontSize: 13, lineHeight: 18, fontWeight: '600' },
+  largeTitleFull: { flexBasis: '100%' },
   largeTitleTap: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: MIN_TOUCH_TARGET },
   checkButton: { borderRadius: radii.control, alignItems: 'center', justifyContent: 'center' },
   checkPressed: { opacity: 0.7, transform: [{ scale: 0.94 }] },
-  addSet: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 48, paddingHorizontal: 4 },
-  addRow: { flexDirection: 'row', flexWrap: 'wrap', columnGap: 20 },
-  addSetText: { fontFamily: fonts.semibold, fontSize: 15 },
+  addRow: { alignItems: 'flex-start', gap: spacing.xs, paddingVertical: spacing.sm },
+  copyLink: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', gap: spacing.xs, minHeight: MIN_TOUCH_TARGET - 2 * spacing.sm },
+  addSplit: { flexDirection: 'row', alignItems: 'stretch', maxWidth: '100%' },
+  addSet: { flexDirection: 'row', flexShrink: 1, alignItems: 'center', gap: spacing.xs, minHeight: MIN_TOUCH_TARGET - 2 * spacing.sm, paddingHorizontal: spacing.md, borderWidth: 1, borderRadius: radii.control },
+  addSetJoined: { borderTopRightRadius: 0, borderBottomRightRadius: 0 },
+  addSetText: { fontFamily: fonts.monoSemibold, fontSize: 12, letterSpacing: 1, textTransform: 'uppercase', flexShrink: 1 },
+  addMore: { minWidth: 36, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderLeftWidth: 0, borderTopRightRadius: radii.control, borderBottomRightRadius: radii.control },
+  addMenu: { minWidth: 200, maxWidth: '100%', borderWidth: 1, borderRadius: radii.control, overflow: 'hidden' },
+  addMenuItem: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: MIN_TOUCH_TARGET, paddingHorizontal: spacing.md },
+  addMenuText: { fontFamily: fonts.body, fontSize: 15, flexShrink: 1 },
 });
 
 /** The set's note typed in place: the keyboard opens at once, and the text is saved on blur or when the field closes. */

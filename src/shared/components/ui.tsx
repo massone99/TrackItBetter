@@ -69,7 +69,7 @@ export function Screen({ children, contentContainerStyle, overlay, footer, foote
         scrollEventThrottle={16}
         onScroll={(event) => { offset.current = event.nativeEvent.contentOffset.y; }}
         style={{ backgroundColor: backdrop === null ? palette.background : 'transparent' }}
-        contentContainerStyle={[styles.screen, { paddingTop: Math.max(insets.top, 14) + 10, paddingBottom: footer ? spacing.xl : insets.bottom + 36 }, contentContainerStyle]}
+        contentContainerStyle={[styles.screen, { paddingTop: Math.max(insets.top, 14) + 6, paddingBottom: footer ? spacing.xl : insets.bottom + 32 }, contentContainerStyle]}
         showsVerticalScrollIndicator={false}
       >
         <ScrollControlContext.Provider value={control}><View style={styles.column}>{children}</View></ScrollControlContext.Provider>
@@ -80,7 +80,8 @@ export function Screen({ children, contentContainerStyle, overlay, footer, foote
               half of it, and scrolls inside, so every action (e.g. Finish) stays reachable. */}
           <ScrollView style={styles.footerScroll} contentContainerStyle={styles.footerContent} showsVerticalScrollIndicator={largeText} bounces={false}>
             {/* Large text: the actions come first, so Finish shows even when a rest timer fills the rest. */}
-            {largeText && footer ? <View style={[styles.footerColumn, styles.footerColumnLarge, footerAccessory ? styles.footerColumnFirst : null]}>{footer}</View> : null}
+            {/* Large text: one action per line, a long label ("Repeat workout") no longer runs past the screen edge. */}
+            {largeText && footer ? <View style={[styles.footerColumn, styles.footerColumnStacked, footerAccessory ? styles.footerColumnFirst : null]}>{footer}</View> : null}
             {footerAccessory ? <View style={[styles.footerAccessory, largeText ? styles.footerAccessoryLast : null]}>{footerAccessory}</View> : null}
             {!largeText && footer ? <View style={styles.footerColumn}>{footer}</View> : null}
           </ScrollView>
@@ -99,7 +100,9 @@ const FOOTER_MAX_SHARE = 0.5;
 /** One action in a `Screen` footer; cells share the row equally. */
 export function FooterAction(props: Parameters<typeof ActionButton>[0]) {
   const styles = useScaledStyles(baseStyles);
-  return <View style={styles.footerCell}><ActionButton {...props} /></View>;
+  const { largeText } = useTheme();
+  // Stacked (large text) cells take their own height; flex: 1 would size them from zero in a column.
+  return <View style={largeText ? null : styles.footerCell}><ActionButton {...props} /></View>;
 }
 
 /** Small supporting label in sentence case. */
@@ -304,12 +307,12 @@ export function PageHeading({ title, subtitle, action, onTitleLongPress, titleLo
   const goBack = () => (router.canGoBack() ? router.back() : router.replace("/(tabs)/today"));
   return (
     <View style={styles.pageHeading}>
-      {showBack ? (
-        <View style={styles.pageTopBar}>
-          <IconButton icon="arrow-back" tone="plain" label={t("common.back")} onPress={goBack} />
-        </View>
-      ) : null}
       <View style={[styles.pageTitleRow, largeText && action ? styles.pageTitleStacked : null]}>
+        {showBack ? (
+          <View style={styles.pageBack}>
+            <IconButton icon="arrow-back" tone="plain" label={t("common.back")} onPress={goBack} />
+          </View>
+        ) : null}
         {onTitleLongPress ? (
           <Pressable
             accessibilityRole="button"
@@ -374,7 +377,7 @@ export function ListRow({ icon, title, subtitle, onPress, onLongPress, longPress
           onLongPress={onLongPress}
           accessibilityActions={onLongPress ? [{ name: "longpress", label: longPressLabel }] : undefined}
           onAccessibilityAction={onLongPress ? (event) => { if (event.nativeEvent.actionName === "longpress") onLongPress(); } : undefined}
-          style={({ pressed }) => [styles.listRow, { backgroundColor: pressed ? palette.surfaceMuted : "transparent" }]}
+          style={({ pressed }) => [styles.listRow, { minHeight: Math.max(MIN_TOUCH_TARGET, styles.listRow.minHeight), backgroundColor: pressed ? palette.surfaceMuted : "transparent" }]}
         >
           {content}
         </Pressable>
@@ -517,7 +520,7 @@ export function CheckRow({ icon, title, subtitle, checked, onChange, tint }: {
       accessibilityState={{ checked }}
       accessibilityLabel={subtitle ? `${title}, ${subtitle}` : title}
       onPress={() => { tapFeedback(); onChange(!checked); }}
-      style={({ pressed }) => [styles.listRow, { backgroundColor: pressed ? palette.surfaceMuted : "transparent" }]}
+      style={({ pressed }) => [styles.listRow, { minHeight: Math.max(MIN_TOUCH_TARGET, styles.listRow.minHeight), backgroundColor: pressed ? palette.surfaceMuted : "transparent" }]}
     >
       {icon ? (
         <View style={[styles.listIcon, { backgroundColor: tint ? `${tint}22` : palette.accentSoft }]}>
@@ -644,7 +647,7 @@ export function MenuRow({ icon, label, onPress, tone = "default" }: { icon: Icon
       accessibilityRole="button"
       accessibilityLabel={label}
       onPress={() => { tapFeedback(); onPress(); }}
-      style={({ pressed }) => [styles.menuRow, { backgroundColor: pressed ? palette.surfaceMuted : palette.surface }]}
+      style={({ pressed }) => [styles.menuRow, { minHeight: Math.max(MIN_TOUCH_TARGET, styles.menuRow.minHeight), backgroundColor: pressed ? palette.surfaceMuted : palette.surface }]}
     >
       <Icon name={icon} size={20} color={tone === "danger" ? palette.warning : palette.accentStrong} />
       <Text style={[styles.menuRowLabel, { color }]}>{label}</Text>
@@ -676,7 +679,7 @@ export function MenuTile({ icon, label, onPress }: { icon: IconName; label: stri
 }
 
 /** Bottom sheet for confirmations and short choices; works the same on web and native. */
-export function Sheet({ visible, onClose, title, body, children }: PropsWithChildren<{ visible: boolean; onClose: () => void; title: string; body?: string }>) {
+export function Sheet({ visible, onClose, title, subtitle, headerAction, body, children }: PropsWithChildren<{ visible: boolean; onClose: () => void; title: string; /** A quiet line under the title (mono, muted). */ subtitle?: string; /** One control beside the close button (e.g. a "more" menu). */ headerAction?: ReactNode; body?: string }>) {
   const styles = useScaledStyles(baseStyles);
   const { t } = useTranslation();
   const { palette } = useTheme();
@@ -694,7 +697,11 @@ export function Sheet({ visible, onClose, title, body, children }: PropsWithChil
             <View style={[styles.sheetHandle, { backgroundColor: palette.border }]} />
             <ScrollView bounces={false} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} contentContainerStyle={styles.sheetContent}>
               <View style={styles.sheetHeading}>
-                <Heading style={styles.sheetTitle}>{title}</Heading>
+                <View style={styles.sheetTitleBlock}>
+                  <Heading style={styles.sheetTitle}>{title}</Heading>
+                  {subtitle ? <Text style={[styles.sheetSubtitle, { color: palette.textMuted }]}>{subtitle}</Text> : null}
+                </View>
+                {headerAction}
                 <IconButton icon="close" label={t("common.close")} tone="plain" onPress={onClose} />
               </View>
               {body ? <Body>{body}</Body> : null}
@@ -838,8 +845,8 @@ export function NumberEdit({ value, display, label, onCommit, onLongPress, initi
 
 /**
  * Short message at the bottom of the screen with an optional action (e.g. "Restore"). It stays clear
- * of the navigation bar and of any bar the screen shows above it (`bottomOffset`), and hides itself
- * after a few seconds.
+ * of the navigation bar and of any bar the screen shows above it (`bottomOffset`), hides itself
+ * after a few seconds, and can always be swiped away sideways.
  */
 export function Toast({ message, actionLabel, onAction, onHide, bottomOffset = 0 }: {
   message: string | null;
@@ -851,33 +858,55 @@ export function Toast({ message, actionLabel, onAction, onHide, bottomOffset = 0
   const styles = useScaledStyles(baseStyles);
   const { palette } = useTheme();
   const insets = useAppInsets();
+  const { reducedMotion, speed } = useAnimationSettings();
+  const calm = reducedMotion || speed === "off";
+  // Dismissed (swiped, timed out or escaped) for the message on screen; a new message starts fresh. This is state,
+  // not a call to onHide: screens pass a new onHide on every render (a running clock renders four times a second),
+  // and depending on it would restart the timer and rebuild the swipe mid-drag.
+  const [shown, setShown] = useState(message);
+  const [gone, setGone] = useState(false);
+  if (message !== shown) { setShown(message); setGone(false); }
+  useEffect(() => { if (gone && message !== null) onHide(); }, [gone, message, onHide]);
   useEffect(() => {
     if (message === null) return;
-    const timer = setTimeout(onHide, 8000);
+    const timer = setTimeout(() => setGone(true), 8000);
     return () => clearTimeout(timer);
-  }, [message, onHide]);
-  // A sideways swipe (or a quick flick) sends the toast away; a short drag springs back.
+  }, [message]);
+  // Every toast can be swiped away sideways (or flicked); a short drag springs back. It takes a sideways move
+  // before the action button or a scrolling parent does, and keeps it until the finger lifts.
   const [drag] = useState(() => new Animated.Value(0));
   useEffect(() => { drag.setValue(0); }, [message, drag]);
-  const swipe = useMemo(() => PanResponder.create({
-    onMoveShouldSetPanResponder: (_, g) => Math.abs(g.dx) > 8 && Math.abs(g.dx) > Math.abs(g.dy),
-    onPanResponderMove: (_, g) => drag.setValue(g.dx),
-    onPanResponderRelease: (_, g) => {
-      if (Math.abs(g.dx) > 80 || Math.abs(g.vx) > 0.6) {
-        Animated.timing(drag, { toValue: Math.sign(g.dx || g.vx) * 500, duration: 150, useNativeDriver: Platform.OS !== "web" }).start(() => onHide());
-      } else {
-        Animated.spring(drag, { toValue: 0, useNativeDriver: Platform.OS !== "web" }).start();
-      }
-    },
-    onPanResponderTerminate: () => Animated.spring(drag, { toValue: 0, useNativeDriver: Platform.OS !== "web" }).start(),
-  }), [drag, onHide]);
+  const swipe = useMemo(() => {
+    const sideways = (g: { dx: number; dy: number }) => Math.abs(g.dx) > 8 && Math.abs(g.dx) > Math.abs(g.dy);
+    const native = Platform.OS !== "web";
+    return PanResponder.create({
+      // Claimed at the touch start too (the action button, deeper, still gets its own taps first): on web a drag
+      // that nobody claims at once becomes a text selection and never reaches the move handlers.
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: (_, g) => sideways(g),
+      onMoveShouldSetPanResponderCapture: (_, g) => sideways(g),
+      onPanResponderTerminationRequest: () => false,
+      onPanResponderMove: (_, g) => drag.setValue(g.dx),
+      onPanResponderRelease: (_, g) => {
+        if (Math.abs(g.dx) > 80 || Math.abs(g.vx) > 0.6) {
+          if (calm) { setGone(true); return; }
+          Animated.timing(drag, { toValue: Math.sign(g.dx || g.vx) * 500, duration: 150, useNativeDriver: native }).start(() => setGone(true));
+        } else if (calm) {
+          drag.setValue(0);
+        } else {
+          Animated.spring(drag, { toValue: 0, useNativeDriver: native }).start();
+        }
+      },
+      onPanResponderTerminate: () => (calm ? drag.setValue(0) : Animated.spring(drag, { toValue: 0, useNativeDriver: native }).start()),
+    });
+  }, [drag, calm]);
   if (message === null) return null;
   return (
     <Animated.View
       {...swipe.panHandlers}
       accessibilityLiveRegion="polite"
       accessibilityActions={[{ name: "escape", label: "dismiss" }]}
-      onAccessibilityEscape={onHide}
+      onAccessibilityEscape={() => setGone(true)}
       style={[styles.toast, { bottom: insets.bottom + 16 + bottomOffset, backgroundColor: palette.text, borderColor: palette.surface, transform: [{ translateX: drag }], opacity: drag.interpolate({ inputRange: [-300, 0, 300], outputRange: [0.2, 1, 0.2] }) }]}
     >
       <Text style={[styles.toastText, { color: palette.background }]}>{message}</Text>
@@ -921,7 +950,7 @@ export function TextField({ label, hint, error, style, multiline, onFocus, onBlu
 
 const baseStyles = StyleSheet.create({
   flexFill: { flex: 1 },
-  toast: { position: "absolute", left: 16, right: 16, minHeight: 52, borderRadius: radii.control, paddingHorizontal: 16, paddingVertical: 10, flexDirection: "row", alignItems: "center", gap: 12, borderWidth: 1 },
+  toast: { userSelect: "none", position: "absolute", left: 16, right: 16, minHeight: 48, borderRadius: radii.control, paddingHorizontal: 16, paddingVertical: 8, flexDirection: "row", alignItems: "center", gap: 12, borderWidth: 1 },
   toastText: { flex: 1, fontFamily: fonts.medium, fontSize: 15 },
   toastAction: { paddingHorizontal: 6, paddingVertical: 6 },
   toastActionText: { fontFamily: fonts.semibold, fontSize: 15 },
@@ -929,7 +958,7 @@ const baseStyles = StyleSheet.create({
   statusScrim: { position: "absolute", top: 0, left: 0, right: 0 },
   footer: { borderTopWidth: StyleSheet.hairlineWidth, paddingTop: spacing.md, paddingHorizontal: spacing.page, alignItems: "center" },
   footerColumn: { width: "100%", maxWidth: 640, flexDirection: "row", gap: spacing.md },
-  footerColumnLarge: { flexDirection: "column" },
+  footerColumnStacked: { flexDirection: "column" },
   footerCell: { flex: 1 },
   footerScroll: { width: "100%", flexGrow: 0 },
   footerColumnFirst: { marginBottom: spacing.md },
@@ -947,29 +976,31 @@ const baseStyles = StyleSheet.create({
   presetRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, paddingTop: 6, paddingBottom: 4 },
   stepperValue: { fontFamily: fonts.display, fontSize: 24, lineHeight: 30, minWidth: 52, textAlign: "center", fontVariant: ["tabular-nums"] },
   field: { gap: 6 },
-  input: { minHeight: 52, borderRadius: radii.control, borderWidth: 1.5, paddingHorizontal: 16, paddingVertical: 12, fontFamily: fonts.body, fontSize: 16, outlineWidth: 0 },
-  inputMultiline: { minHeight: 84, paddingTop: 12, paddingBottom: 12 },
+  input: { minHeight: 48, borderRadius: radii.control, borderWidth: 1.5, paddingHorizontal: 14, paddingVertical: 10, fontFamily: fonts.body, fontSize: 16, outlineWidth: 0 },
+  inputMultiline: { minHeight: 72, paddingTop: 10, paddingBottom: 10 },
   fieldNote: { fontFamily: fonts.body, fontSize: 13, lineHeight: 18 },
   sheetBackdrop: { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(10, 18, 26, 0.6)" },
   sheet: { borderTopLeftRadius: radii.sheet, borderTopRightRadius: radii.sheet, borderTopWidth: 1, paddingHorizontal: spacing.page, paddingTop: 12, gap: 10, width: "100%", maxWidth: 640, alignSelf: "center" },
   sheetHandle: { width: 40, height: 4, borderRadius: 2, alignSelf: "center", marginBottom: 8 },
   sheetHeading: { flexDirection: "row", alignItems: "center", gap: spacing.md },
-  sheetTitle: { flex: 1, fontFamily: fonts.display, fontSize: 28, lineHeight: 32 },
+  sheetTitleBlock: { flex: 1, minWidth: 0, gap: 2 },
+  sheetTitle: { fontFamily: fonts.display, fontSize: 24, lineHeight: 28 },
+  sheetSubtitle: { fontFamily: fonts.mono, fontSize: 12, lineHeight: 16, letterSpacing: 1, textTransform: "uppercase" },
   menuGroup: { borderRadius: radii.surface, borderWidth: StyleSheet.hairlineWidth, padding: spacing.md, gap: spacing.md },
   menuGroupTitle: { fontFamily: fonts.semibold, fontSize: 16, lineHeight: 22 },
   menuList: { borderRadius: radii.surface, borderWidth: StyleSheet.hairlineWidth, overflow: "hidden", gap: StyleSheet.hairlineWidth },
-  menuRow: { minHeight: MIN_TOUCH_TARGET + 4, flexDirection: "row", alignItems: "center", gap: spacing.md, paddingHorizontal: spacing.lg, paddingVertical: spacing.sm },
+  menuRow: { minHeight: MIN_TOUCH_TARGET, flexDirection: "row", alignItems: "center", gap: spacing.md, paddingHorizontal: spacing.lg, paddingVertical: spacing.sm },
   menuRowLabel: { flex: 1, fontFamily: fonts.medium, fontSize: 16, lineHeight: 22 },
   menuGrid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
-  menuTile: { flexGrow: 0, flexBasis: "31.5%", minHeight: 76, borderRadius: radii.surface, paddingHorizontal: spacing.sm, paddingVertical: spacing.md, alignItems: "center", justifyContent: "center", gap: spacing.xs },
+  menuTile: { flexGrow: 0, flexBasis: "31.5%", minHeight: 64, borderRadius: radii.surface, paddingHorizontal: spacing.sm, paddingVertical: spacing.sm, alignItems: "center", justifyContent: "center", gap: spacing.xs },
   menuTileLarge: { flexBasis: "48%" },
   menuTileLabel: { fontFamily: fonts.medium, fontSize: 13, lineHeight: 17, textAlign: "center" },
   sheetContent: { gap: 10 },
   sheetActions: { gap: 10, marginTop: 8 },
   screen: { paddingHorizontal: spacing.page, alignItems: "center" },
-  column: { width: "100%", maxWidth: 640, gap: spacing.xl },
+  column: { width: "100%", maxWidth: 640, gap: spacing.md },
   pageHeading: { gap: spacing.sm },
-  pageTopBar: { flexDirection: "row", alignItems: "center", marginLeft: -12, marginTop: -8 },
+  pageBack: { marginLeft: -12, marginRight: -4 },
   pageTitleRow: { flexDirection: "row", alignItems: "center", gap: spacing.md },
   pageTitle: { flex: 1 },
   // Large text: the heading's action moves under the title instead of squeezing it.
@@ -986,18 +1017,18 @@ const baseStyles = StyleSheet.create({
   progressTrack: { height: 12, borderRadius: radii.pill, borderWidth: 1, overflow: "hidden" },
   progressTick: { position: "absolute", top: 0, bottom: 0, width: StyleSheet.hairlineWidth },
   progressFill: { height: "100%", borderRadius: radii.pill },
-  card: { borderWidth: 1, borderRadius: radii.surface, padding: spacing.lg, gap: spacing.md },
-  sectionTitle: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: spacing.md, marginTop: spacing.sm, paddingBottom: spacing.xs, borderBottomWidth: 1 },
+  card: { borderWidth: 1, borderRadius: radii.surface, paddingHorizontal: spacing.lg, paddingVertical: spacing.sm, gap: spacing.sm },
+  sectionTitle: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: spacing.md, marginTop: spacing.xs, paddingBottom: spacing.xs, borderBottomWidth: 1 },
   sectionHeading: { flex: 1, fontFamily: fonts.monoSemibold, fontSize: 13, lineHeight: 20, letterSpacing: 1.4, textTransform: "uppercase" },
-  button: { minHeight: 54, borderRadius: radii.control, paddingHorizontal: 18, paddingVertical: 13, flexDirection: "row", justifyContent: "center", alignItems: "center", gap: 9 },
-  buttonText: { flexShrink: 1, textAlign: "center", fontFamily: fonts.display, fontSize: 18, lineHeight: 22, letterSpacing: 1.2, textTransform: "uppercase" },
+  button: { minHeight: 48, borderRadius: radii.control, paddingHorizontal: spacing.lg, paddingVertical: spacing.sm, flexDirection: "row", justifyContent: "center", alignItems: "center", gap: 9 },
+  buttonText: { flexShrink: 1, textAlign: "center", fontFamily: fonts.display, fontSize: 17, lineHeight: 20, letterSpacing: 1.2, textTransform: "uppercase" },
   iconButton: { alignItems: "center", justifyContent: "center" },
   listGroup: { borderRadius: radii.surface, borderWidth: 1 },
   listRowOuter: { flexDirection: "row", alignItems: "center" },
-  listRow: { flex: 1, minHeight: 68, paddingHorizontal: spacing.lg, paddingVertical: 14, flexDirection: "row", alignItems: "center", gap: spacing.md },
+  listRow: { flex: 1, minHeight: 52, paddingHorizontal: spacing.md, paddingVertical: spacing.sm, flexDirection: "row", alignItems: "center", gap: spacing.md },
   listTrailing: { flexShrink: 0, paddingRight: 10, paddingLeft: 4 },
-  listIcon: { width: 36, height: 36, borderWidth: 1, borderRadius: radii.control, alignItems: "center", justifyContent: "center" },
-  listCopy: { flex: 1, minWidth: 0, gap: 3 },
+  listIcon: { width: 32, height: 32, borderWidth: 1, borderRadius: radii.control, alignItems: "center", justifyContent: "center" },
+  listCopy: { flex: 1, minWidth: 0, gap: 2 },
   checkbox: { width: 26, height: 26, borderRadius: radii.control, borderWidth: 2, alignItems: "center", justifyContent: "center" },
   listTitle: { fontFamily: fonts.semibold, fontSize: 16, lineHeight: 22 },
   listTitleSelected: { fontFamily: fonts.semibold },
@@ -1005,8 +1036,8 @@ const baseStyles = StyleSheet.create({
   listSubtitle: { fontFamily: fonts.mono, fontSize: 12, lineHeight: 18 },
   chip: { minHeight: 44, paddingHorizontal: 14, paddingVertical: 10, borderRadius: radii.control, borderWidth: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6 },
   chipText: { flexShrink: 1, fontFamily: fonts.monoSemibold, fontSize: 12, lineHeight: 20, textTransform: "uppercase" },
-  empty: { borderWidth: 1, borderRadius: radii.surface, padding: spacing.section, alignItems: "center", gap: spacing.md },
-  emptyIcon: { width: 52, height: 52, borderWidth: 1, borderRadius: radii.control, alignItems: "center", justifyContent: "center", marginBottom: 4 },
+  empty: { borderWidth: 1, borderRadius: radii.surface, padding: spacing.lg, alignItems: "center", gap: spacing.md },
+  emptyIcon: { width: 44, height: 44, borderWidth: 1, borderRadius: radii.control, alignItems: "center", justifyContent: "center", marginBottom: 4 },
   center: { textAlign: "center" },
   segment: { flexDirection: "row", borderRadius: radii.surface, borderWidth: 1, padding: 4, gap: 4 },
   segmentOption: { flex: 1, minWidth: 0, minHeight: 44, paddingHorizontal: 6, paddingVertical: 10, alignItems: "center", justifyContent: "center", borderRadius: radii.control },

@@ -2,6 +2,7 @@ import { asc, desc, eq, inArray } from 'drizzle-orm';
 import * as Crypto from 'expo-crypto';
 import { Directory, File, Paths } from 'expo-file-system';
 import { db, initializeDatabase } from '../../db/client';
+import { isCacheFile } from '../../shared/media/tempFiles';
 import { exerciseEntries, exercises, formCheckVideos, trainingSets, workouts } from '../../db/schema';
 
 const MAX_VIDEO_BYTES = 100 * 1024 * 1024;
@@ -69,7 +70,9 @@ export async function addFormCheckVideo(input: {
   const id = Crypto.randomUUID();
   const fileName = `${id}.mp4`;
   const destination = fileFor(fileName);
-  await new File(input.sourceUri).copy(destination);
+  // The picker hands over a copy in the cache: moving it avoids keeping the clip twice.
+  if (isCacheFile(input.sourceUri)) await new File(input.sourceUri).move(destination);
+  else await new File(input.sourceUri).copy(destination);
   try {
     const info = await destination.info();
     const fileSize = info.size ?? input.fileSize ?? null;

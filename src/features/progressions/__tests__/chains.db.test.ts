@@ -137,4 +137,21 @@ describe('progression chains', () => {
       ['Ready', 'Parallel Bar Dip', 'Ring Dip', 'ready'],
     ]);
   });
+
+  it('does not count sets helped by bands towards a step', async () => {
+    const chain = await createChain({ name: 'Bands', description: '', family: '' }, ['ring-row', 'push-up']);
+    const step = (await getChain(chain))!.steps[0];
+    await updateStepCriteria(step.id, { sets: 1, reps: 5, requiredSessions: 1 });
+    const workoutId = await logCompletedWorkout({ name: 'Banded', startedAt: new Date(9000), endedAt: new Date(9500), entries: [
+      { exerciseId: step.exerciseId, sets: [{ reps: 10, completedAt: new Date(9200) }] },
+    ] });
+    const { trainingSets, exerciseEntries } = jest.requireActual('../../../db/schema');
+    const { eq, inArray } = jest.requireActual('drizzle-orm');
+    const entryIds = (await real.db.select().from(exerciseEntries).where(eq(exerciseEntries.workoutId, workoutId))).map((row: { id: string }) => row.id);
+    await real.db.update(trainingSets).set({ bands: JSON.stringify([{ bandId: 'red', tension: 2 }]) }).where(inArray(trainingSets.entryId, entryIds));
+    expect((await getChain(chain))!.steps[0]).toMatchObject({ reached: false, best: { reps: null } });
+    await real.db.update(trainingSets).set({ bands: null }).where(inArray(trainingSets.entryId, entryIds));
+    expect((await getChain(chain))!.steps[0]).toMatchObject({ reached: true, best: { reps: 10 } });
+    await deleteChain(chain);
+  });
 });

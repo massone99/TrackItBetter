@@ -1,4 +1,5 @@
 import type { Block } from './blocks';
+import { nextSession, type ProgramGroup, type ProgramLayout, type ProgramStatus } from './programStructure';
 
 import { ESTIMATED_SEC_PER_REP } from './mobilityPlan';
 import { isValidRpe } from './rpe';
@@ -42,6 +43,42 @@ export interface UserProgramSession {
   /** Free text for the whole prescribed workout (focus of the day, cues); copied to the workout's notes when it starts. */
   notes?: string | null;
   exercises: UserProgramExercise[];
+  /** Group (week, phase, alternatives) this workout belongs to; null or missing: ungrouped. */
+  groupId?: string | null;
+}
+
+export const CATEGORY_MAX = 40;
+export const AUTHOR_MAX = 60;
+export const CLUSTER_MAX = 40;
+
+export type ProgramDiscipline = 'strength' | 'mobility';
+export const PROGRAM_DISCIPLINES: readonly ProgramDiscipline[] = ['strength', 'mobility'];
+
+export function normalizeField(value: string | null | undefined, max: number): string | null {
+  const trimmed = value?.trim().slice(0, max);
+  return trimmed ? trimmed : null;
+}
+
+export const normalizeCategory = (value: string | null | undefined): string | null => normalizeField(value, CATEGORY_MAX);
+
+export const normalizeAuthor = (value: string | null | undefined): string | null => normalizeField(value, AUTHOR_MAX);
+
+export const normalizeClusterName = (value: string | null | undefined): string | null => normalizeField(value, CLUSTER_MAX);
+
+/** Trims, caps length, and deduplicates cluster names case-insensitively while preserving order. */
+export function normalizeClusters(values: readonly string[] | null | undefined): string[] {
+  if (!values || values.length === 0) return [];
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const raw of values) {
+    const clean = normalizeClusterName(raw);
+    if (!clean) continue;
+    const key = clean.toLocaleLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(clean);
+  }
+  return out;
 }
 
 export interface UserProgram {
@@ -49,6 +86,28 @@ export interface UserProgram {
   name: string;
   sessions: UserProgramSession[];
   updatedAt: string;
+  /** Optional user-defined category (e.g. "Strength", "Mobility"); null or missing means uncategorized. */
+  category?: string | null;
+  /** Optional author or coach name (e.g. "Tom Merrick", "Coach"); null or missing means unset. */
+  author?: string | null;
+  /** Program split: strength vs mobility. Missing defaults via `disciplineOf` (inferred from category or strength). */
+  discipline?: ProgramDiscipline;
+  /** Custom user-created cluster names (e.g. "bands programs"). */
+  clusters?: string[];
+  /** Missing means active. */
+  status?: ProgramStatus;
+  /** Missing means sequence. */
+  layout?: ProgramLayout;
+  groups?: ProgramGroup[];
+  /** Last time a workout of this program was started (ISO); for sorting the list. */
+  lastUsedAt?: string | null;
+}
+
+/** Resolves a program's discipline, defaulting to 'strength' unless explicitly 'mobility' or categorized as 'mobility'. */
+export function disciplineOf(program: Pick<UserProgram, 'discipline' | 'category'>): ProgramDiscipline {
+  if (program.discipline === 'mobility' || program.discipline === 'strength') return program.discipline;
+  if (program.category?.trim().toLocaleLowerCase() === 'mobility') return 'mobility';
+  return 'strength';
 }
 
 export type ProgramErrorCode = 'nameMissing' | 'sessionNameMissing' | 'sessionEmpty' | 'invalidValue';
@@ -158,12 +217,7 @@ export function programSessionWorkoutName(program: Pick<UserProgram, 'name'>, se
 
 /** The session after the latest one done (`recentWorkoutNames` newest first), wrapping; the first when none was done; null for a program without workouts. */
 export function nextSessionInRotation(program: UserProgram, recentWorkoutNames: readonly string[]): UserProgramSession | null {
-  if (program.sessions.length === 0) return null;
-  for (const name of recentWorkoutNames) {
-    const index = program.sessions.findIndex((session) => programSessionWorkoutName(program, session) === name);
-    if (index >= 0) return program.sessions[(index + 1) % program.sessions.length];
-  }
-  return program.sessions[0];
+  return nextSession(program, recentWorkoutNames);
 }
 
 /**
@@ -176,6 +230,7 @@ export function programsByRecentUse(programs: readonly UserProgram[], recentWork
     return index < 0 ? Number.POSITIVE_INFINITY : index;
   };
   return programs
+    .filter((program) => (program.status ?? 'active') === 'active')
     .flatMap((program) => { const session = nextSessionInRotation(program, recentWorkoutNames); return session ? [{ program, session, used: lastUse(program) }] : []; })
     .sort((a, b) => a.used - b.used)
     .map(({ program, session }) => ({ program, session }));

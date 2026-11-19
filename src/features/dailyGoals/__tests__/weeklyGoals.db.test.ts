@@ -81,7 +81,7 @@ describe('weekly goals', () => {
     update.run(now.getTime(), 45, entryId);
     update.run(now.getTime(), 90, otherId);
     expect((await day.snapshot(now)).progress.find(({ goal }) => goal.id === daily.id))
-      .toMatchObject({ done: 45, goal: { exerciseName: 'Tuck Planche' } });
+      .toMatchObject({ done: 45, goal: { label: 'Tuck Planche' } });
     update.run(new Date(2026, 10, 16, 15).getTime(), 45, entryId);
     expect((await day.snapshot(now)).progress.find(({ goal }) => goal.id === daily.id)?.done).toBe(0);
     expect((await week.snapshot(now)).progress.find(({ goal }) => goal.id === weekly.id)?.done).toBe(45);

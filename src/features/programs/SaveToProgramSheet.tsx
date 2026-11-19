@@ -3,11 +3,13 @@ import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { TextInput } from '../../shared/components/AppTextInput';
+import { findNameClash, findPrescribedWorkout, uniqueSessionName } from '../../domain/prescriptionSync';
 import { sessionSetCount, type UserProgram, type WorkoutExerciseLike } from '../../domain/userProgram';
 import { ActionButton, Body, Icon, Sheet, Text, TextField, tapFeedback } from '../../shared/components/ui';
 import { useTheme } from '../../shared/theme/ThemeProvider';
 import { fonts } from '../../shared/theme/typography';
 import { useScaledStyles } from '../../shared/theme/useScaledStyles';
+import { markPrescriptionHandled } from './prescriptionHandled';
 import { saveWorkoutToProgram } from './saveWorkout';
 import { listUserPrograms } from './userPrograms';
 import { MAX_FONT_SCALE } from '../../shared/theme/scale';
@@ -19,9 +21,11 @@ type Choice = 'new' | string;
  * "Save as program workout": name the workout and choose where it goes, a new program or one of
  * yours. Works for a finished workout and for one still being built.
  */
-export function SaveToProgramSheet({ visible, defaultName, exercises, onClose, onSaved }: {
+export function SaveToProgramSheet({ visible, defaultName, workoutId, exercises, onClose, onSaved }: {
   visible: boolean;
   defaultName: string;
+  /** The workout being saved, when it is one in progress: once saved, finishing it no longer offers to update its prescribed workout. */
+  workoutId?: string;
   exercises: readonly WorkoutExerciseLike[];
   onClose: () => void;
   onSaved: (program: UserProgram) => void;
@@ -32,6 +36,8 @@ export function SaveToProgramSheet({ visible, defaultName, exercises, onClose, o
   const [programs, setPrograms] = useState<UserProgram[]>([]);
   const [choice, setChoice] = useState<Choice>('new');
   const [workoutName, setWorkoutName] = useState(defaultName);
+  // What to do when the name is already a prescribed workout: keep it and save a new one (the safe default), or replace it.
+  const [onClash, setOnClash] = useState<'new' | 'replace'>('new');
   const [programName, setProgramName] = useState('');
   const [query, setQuery] = useState('');
   const [busy, setBusy] = useState(false);
@@ -43,6 +49,7 @@ export function SaveToProgramSheet({ visible, defaultName, exercises, onClose, o
     void listUserPrograms().then((found) => {
       if (!mounted) return;
       setQuery('');
+      setOnClash('new');
       setPrograms(found);
       // The program edited last is the most likely destination.
       const latest = [...found].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0];
@@ -57,6 +64,14 @@ export function SaveToProgramSheet({ visible, defaultName, exercises, onClose, o
   const empty = exercises.length === 0;
   const sets = exercises.reduce((sum, exercise) => sum + Math.max(1, groupSets(exercise.sets.filter((set) => set.kind !== 'warmup')).length || groupSets(exercise.sets).length), 0);
   const valid = !empty && workoutName.trim().length > 0 && (choice !== 'new' || programName.trim().length > 0);
+  // The prescribed workout this one was started from is found by its name, as when finishing.
+  const source = findPrescribedWorkout(programs, defaultName);
+  const clash = workoutName.trim() ? findNameClash(programs, { name: workoutName, programId: choice === 'new' ? null : choice, source, workoutName: defaultName }) : null;
+  const replacing = clash !== null && onClash === 'replace';
+  // Saved as new next to a workout of the same name: it gets a free name, so the two are never mixed up.
+  const newName = clash && !replacing
+    ? uniqueSessionName([...(choice === 'new' ? [] : programs.find((program) => program.id === choice)?.sessions.map((session) => session.name) ?? []), clash.session.name], workoutName)
+    : workoutName;
 
   const save = async () => {
     if (!valid || busy) return;
@@ -64,10 +79,12 @@ export function SaveToProgramSheet({ visible, defaultName, exercises, onClose, o
     setError(null);
     try {
       const program = await saveWorkoutToProgram({
-        target: choice === 'new' ? { kind: 'new', programName } : { kind: 'existing', programId: choice },
-        workoutName,
+        target: replacing && clash ? { kind: 'replace', programId: clash.program.id, sessionId: clash.session.id }
+          : choice === 'new' ? { kind: 'new', programName } : { kind: 'existing', programId: choice },
+        workoutName: newName,
         exercises,
       });
+      if (workoutId) markPrescriptionHandled(workoutId);
       onSaved(program);
     } catch {
       setError(t('saveToProgram.error'));
@@ -80,6 +97,14 @@ export function SaveToProgramSheet({ visible, defaultName, exercises, onClose, o
     <Sheet visible={visible} onClose={onClose} title={t('saveToProgram.title')} body={empty ? t('saveToProgram.empty') : `${t('saveToProgram.exercisesCount', { count: exercises.length })} · ${t('log.setCount', { count: sets })}. ${t('saveToProgram.comesWith')}`}>
       <Body>{t('saveToProgram.createsCopy')}</Body>
       <TextField label={t('saveToProgram.workoutName')} value={workoutName} onChangeText={setWorkoutName} maxLength={40} />
+      {clash ? (
+        <>
+          <Text style={[styles.heading, { color: palette.textMuted }]}>{t('saveToProgram.clash', { name: clash.session.name, program: clash.program.name })}</Text>
+          <Option icon="add-circle" title={t('saveToProgram.keepTitle')} body={t('saveToProgram.keepBody', { name: newName })} selected={!replacing} onPress={() => setOnClash('new')} />
+          <Option icon="refresh-circle" title={t('saveToProgram.replaceTitle')} body={t('saveToProgram.replaceBody', { name: clash.session.name, program: clash.program.name })} selected={replacing} onPress={() => setOnClash('replace')} />
+        </>
+      ) : null}
+      {replacing ? null : <>
       <Text style={[styles.heading, { color: palette.textMuted }]}>{t('saveToProgram.where')}</Text>
       <Option icon="add-circle" title={t('saveToProgram.newProgram')} body={t('saveToProgram.newProgramBody')} selected={choice === 'new'} onPress={() => setChoice('new')} />
       {choice === 'new' ? (
@@ -118,15 +143,16 @@ export function SaveToProgramSheet({ visible, defaultName, exercises, onClose, o
           onPress={() => setChoice(program.id)}
         />
       ))}
+      </>}
       {error ? <Body accessibilityLiveRegion="polite" style={{ color: palette.warning }}>{error}</Body> : null}
-      <ActionButton icon="bookmark" label={t('saveToProgram.save')} disabled={!valid || busy} onPress={() => void save()} />
+      <ActionButton icon="bookmark" label={t(replacing ? 'saveToProgram.replace' : 'saveToProgram.save')} disabled={!valid || busy} onPress={() => void save()} />
       <ActionButton label={t('common.cancel')} variant="ghost" onPress={onClose} />
     </Sheet>
   );
 }
 
 /** A selectable destination: the selected one is outlined and filled with the accent. */
-function Option({ icon, title, body, selected, onPress }: { icon: 'add-circle' | 'albums-outline'; title: string; body: string; selected: boolean; onPress: () => void }) {
+function Option({ icon, title, body, selected, onPress }: { icon: 'add-circle' | 'albums-outline' | 'refresh-circle'; title: string; body: string; selected: boolean; onPress: () => void }) {
   const styles = useScaledStyles(baseStyles);
   const { palette } = useTheme();
   return (
