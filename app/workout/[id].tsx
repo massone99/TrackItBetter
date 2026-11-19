@@ -994,7 +994,14 @@ export default function WorkoutScreen() {
             onFoldAll={(keys) => { setFoldedGroups(new Set(keys)); if (keys.length) showOverview(); }}
             onGroupSheet={setGroupSheet}
             renderExercise={(exercise, marker) => (
-              <WorkoutExerciseRow exercise={exercise} marker={marker} next={exercise.entryId === next?.entryId} onPress={() => openExercise(exercise)} />
+              <View style={styles.overviewExerciseRow}>
+                <View style={styles.flex}>
+                  <WorkoutExerciseRow exercise={exercise} marker={marker} next={exercise.entryId === next?.entryId} onPress={() => openExercise(exercise)} />
+                </View>
+                <IconButton icon="trash-outline" tone="plain" size={48}
+                  label={t('liveWorkout.removeNamedExercise', { name: exercise.name })}
+                  onPress={() => void removeExerciseOrConfirm(exercise)} />
+              </View>
             )}
           />
           {workout.exercises.length === 0 ? <EmptyState icon="barbell-outline" title={t('workout.addFirst')} body={t('workout.savedDescription')} /> : null}
@@ -1498,6 +1505,7 @@ const baseStyles = StyleSheet.create({
   plannedLabel: { fontSize: 12 },
   plannedValue: { fontFamily: fonts.monoBold, fontSize: 27, lineHeight: 31 },
   exerciseNavigation: { flexDirection: 'row', justifyContent: 'space-between' },
+  overviewExerciseRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   railsRow: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', gap: 8 },
   rail: { flexShrink: 1, flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 44, paddingHorizontal: 4 },
   railLabel: { fontFamily: fonts.semibold, fontSize: 13, flexShrink: 1 },
