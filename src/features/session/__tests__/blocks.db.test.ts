@@ -70,6 +70,18 @@ describe('workout blocks', () => {
 });
 
 describe('workout group editor', () => {
+  it('drops several positions in one move and keeps intervening supersets intact', async () => {
+    const { workoutId, entries: [a, b, c, d] } = await build();
+    const order = async () => (await getActiveWorkout(workoutId))!.exercises.map((entry) => entry.entryId);
+    await changeWorkoutGroups(workoutId, { type: 'dropExercise', id: a, targetId: d });
+    expect(await order()).toEqual([b, c, d, a]);
+    await linkWithNext(c);
+    await changeWorkoutGroups(workoutId, { type: 'dropExercise', id: a, targetId: b });
+    expect(await order()).toEqual([b, c, d, a]);
+    await changeWorkoutGroups(workoutId, { type: 'dropExercise', id: d, targetId: c });
+    expect(await order()).toEqual([b, d, c, a]);
+  });
+
   it('moves and deletes groups without touching the exercises, completed sets, or notes', async () => {
     const { workoutId, entries: [first, second, third, fourth] } = await build();
     await setEntryBlock(first, 'warmup');

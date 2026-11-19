@@ -2,6 +2,11 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.72.5 - 2026-11-19
+
+- Hold an exercise row and drag it to reorder within its group or superset. Neighbouring rows slide into place as you move.
+- Remove an exercise using the compact × beside its name.
+
 ## 0.72.4 - 2026-11-19
 
 - Remove exercises directly from the ongoing workout overview. Tap Restore to undo, or confirm removal when an exercise contains video clips.

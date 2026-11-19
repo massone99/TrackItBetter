@@ -1706,7 +1706,8 @@ export type WorkoutGroupChange =
   | { type: 'superset'; id?: string; parentId: string | null; name: string; entryIds: string[] }
   | { type: 'deleteGroup' | 'deleteSuperset'; id: string }
   | { type: 'moveGroup'; id: string; offset: -1 | 1 }
-  | { type: 'moveExercise'; id: string; offset: -1 | 1 };
+  | { type: 'moveExercise'; id: string; offset: -1 | 1 }
+  | { type: 'dropExercise'; id: string; targetId: string };
 
 /** Update visual grouping and real exercise order together. Sets and notes keep their original ids. */
 export async function changeWorkoutGroups(workoutId: string, change: WorkoutGroupChange): Promise<void> {
@@ -1765,12 +1766,13 @@ export async function changeWorkoutGroups(workoutId: string, change: WorkoutGrou
       if (from >= 0 && to >= 0 && to < layout.groups.length) {
         [layout.groups[from], layout.groups[to]] = [layout.groups[to], layout.groups[from]];
       }
-    } else if (change.type === 'moveExercise') {
+    } else if (change.type === 'moveExercise' || change.type === 'dropExercise') {
       const from = entries.findIndex((entry) => entry.id === change.id);
-      const to = from + change.offset;
-      if (entries[from] && entries[to] && entries[from].workoutGroupId === entries[to].workoutGroupId
-        && entries[from].groupId === entries[to].groupId) {
-        [entries[from], entries[to]] = [entries[to], entries[from]];
+      const to = change.type === 'dropExercise' ? entries.findIndex((entry) => entry.id === change.targetId) : from + change.offset;
+      if (entries[from] && entries[to] && entries.slice(Math.min(from, to), Math.max(from, to) + 1).every((entry) =>
+        entry.workoutGroupId === entries[from].workoutGroupId && entry.groupId === entries[from].groupId)) {
+        const [moved] = entries.splice(from, 1);
+        entries.splice(to, 0, moved);
       }
     }
 

@@ -982,8 +982,8 @@ export default function WorkoutScreen() {
         </> : <>
           {resumeExercise ? addExerciseAction : null}
           {totalSets > 0 && completedCount === totalSets ? <Body>{t('liveWorkout.readyToFinish')}</Body> : null}
-          <WorkoutOverview canMove={canMove} onMove={async (exercise, offset) => {
-            await changeWorkoutGroups(workout.id, { type: 'moveExercise', id: exercise.entryId, offset });
+          <WorkoutOverview canMove={canMove} onMove={async (exercise, target) => {
+            await changeWorkoutGroups(workout.id, { type: 'dropExercise', id: exercise.entryId, targetId: target.entryId });
             await refresh(workout.id);
           }} groups={groups} folded={foldedGroups} nextId={next?.entryId ?? null}
             onFold={(key) => setFoldedGroups((current) => {
@@ -993,12 +993,12 @@ export default function WorkoutScreen() {
             })}
             onFoldAll={(keys) => { setFoldedGroups(new Set(keys)); if (keys.length) showOverview(); }}
             onGroupSheet={setGroupSheet}
-            renderExercise={(exercise, marker) => (
+            renderExercise={(exercise, marker, wrapDrag = (content) => content) => (
               <View style={styles.overviewExerciseRow}>
-                <View style={styles.flex}>
+                {wrapDrag(<View collapsable={false} style={styles.flex}>
                   <WorkoutExerciseRow exercise={exercise} marker={marker} next={exercise.entryId === next?.entryId} onPress={() => openExercise(exercise)} />
-                </View>
-                <IconButton icon="trash-outline" tone="plain" size={48}
+                </View>)}
+                <IconButton icon="close" tone="plain" size={44} color={palette.textMuted}
                   label={t('liveWorkout.removeNamedExercise', { name: exercise.name })}
                   onPress={() => void removeExerciseOrConfirm(exercise)} />
               </View>

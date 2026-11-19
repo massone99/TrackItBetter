@@ -1,4 +1,5 @@
 import { useRef, useState, type ReactNode } from 'react';
+import { ReorderableList, type ReorderRow } from '../../shared/components/ReorderableList';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { completedSetCount, groupSets } from '../../domain/setPairs';
@@ -79,6 +80,8 @@ export function WorkoutExerciseRow({ exercise, next, marker, expanded, onPress }
     <Pressable accessibilityRole="button" accessibilityState={expanded === undefined ? undefined : { expanded }} aria-expanded={expanded}
       accessibilityLabel={exercise.name}
       accessibilityHint={[hint, exercise.notes, t('liveWorkout.count', { done, total: sets.length })].filter(Boolean).join(' · ')}
+      onLongPress={() => {}}
+      delayLongPress={350}
       onPress={() => { tapFeedback(); onPress(); }}
       style={({ pressed }) => [styles.exercise, { borderColor: palette.border, backgroundColor: next ? mode === 'light' ? '#e8ebfb' : palette.accentSoft : palette.surface }, pressed && { opacity: 0.72 }]}>
       {marker ? <Text style={[styles.smallMono, { color: palette.textMuted }]}>{marker}</Text> : null}
@@ -125,24 +128,21 @@ export function WorkoutOverview({ groups, folded, nextId, onFold, onFoldAll, onG
   groups: OverviewGroup[]; folded: ReadonlySet<string>; nextId: string | null;
   onFold: (key: string) => void; onFoldAll: (keys: string[]) => void; onGroupSheet: (sheet: GroupSheet) => void;
   canMove: (exercise: SessionExercise, offset: -1 | 1) => boolean;
-  onMove: (exercise: SessionExercise, offset: -1 | 1) => Promise<void>;
-  renderExercise: (exercise: SessionExercise, marker?: string) => ReactNode;
+  onMove: (exercise: SessionExercise, target: SessionExercise) => Promise<void>;
+  renderExercise: (exercise: SessionExercise, marker?: string, wrapDrag?: ReorderRow['wrapDrag']) => ReactNode;
 }) {
   const { t } = useTranslation();
   const { palette } = useTheme();
   const styles = useScaledStyles(baseStyles);
-  const [ordering, setOrdering] = useState(false);
-  const [saving, setSaving] = useState(false);
   const [failed, setFailed] = useState(false);
   const pending = useRef(false);
-  async function move(exercise: SessionExercise, offset: -1 | 1) {
+  async function move(exercise: SessionExercise, target: SessionExercise) {
     if (pending.current) return;
     pending.current = true;
-    setSaving(true);
     setFailed(false);
-    try { await onMove(exercise, offset); }
+    try { await onMove(exercise, target); }
     catch { setFailed(true); }
-    finally { pending.current = false; setSaving(false); }
+    finally { pending.current = false; }
   }
   const keys = groups.flatMap((group) => [groupKey(group), ...(group.nested ?? []).map(groupKey)]);
   const section = (group: OverviewGroup) => {
@@ -174,17 +174,18 @@ export function WorkoutOverview({ groups, folded, nextId, onFold, onFoldAll, onG
             </Pressable>
           ) : null}
         </View>
-        {closed ? null : group.exercises.map((exercise, index) => {
+        {closed ? null : group.exercises.map((exercise, index, entries) => {
           const child = group.nested?.find((item) => item.id === exercise.groupId);
           if (child) return child.exercises[0].entryId === exercise.entryId ? section(child) : null;
-          if (ordering) return <View key={exercise.entryId} style={styles.orderRow}>
-            <Text style={styles.flex}>{exercise.name}</Text>
-            {([-1, 1] as const).map((offset) => <OverviewButton key={offset}
-              label={t(offset < 0 ? 'liveWorkout.moveUp' : 'liveWorkout.moveDown')}
-              accessibilityLabel={t(offset < 0 ? 'liveWorkout.orderUp' : 'liveWorkout.orderDown', { name: exercise.name })}
-              disabled={saving || !canMove(exercise, offset)} onPress={() => void move(exercise, offset)} />)}
-          </View>;
-          return <View key={exercise.entryId}>{renderExercise(exercise, nested ? `${group.marker ?? ''}${index + 1}` : undefined)}</View>;
+          if (index > 0 && canMove(exercise, -1)) return null;
+          let end = index;
+          while (end + 1 < entries.length && canMove(entries[end], 1)) end++;
+          if (end === index) return <View key={exercise.entryId}>{renderExercise(exercise)}</View>;
+          const run = entries.slice(index, end + 1);
+          return <ReorderableList key={groupKey(group) + index} items={run} gap={nested ? 0 : 4}
+            keyOf={(item) => item.entryId} nameOf={(item) => item.name}
+            onMove={(from, to) => void move(run[from], run[to])}
+            renderRow={(item, position, row) => renderExercise(item, nested ? `${group.marker ?? ''}${index + position + 1}` : undefined, row.wrapDrag)} />;
         })}
       </View>
     );
@@ -199,8 +200,7 @@ export function WorkoutOverview({ groups, folded, nextId, onFold, onFoldAll, onG
         </View>
       </View>
       {groups.some((group) => group.exercises.some((exercise) => canMove(exercise, 1))) ? (
-        <OverviewButton label={t(ordering ? 'liveWorkout.orderDone' : 'liveWorkout.reorder')} disabled={saving}
-          onPress={() => { if (!ordering) onFoldAll([]); setFailed(false); setOrdering(!ordering); }} />
+        <Text style={[styles.hint, { color: palette.textMuted }]}>{t('liveWorkout.dragHint')}</Text>
       ) : null}
       {failed ? <Text accessibilityRole="alert">{t('liveWorkout.saveFailed')}</Text> : null}
       {groups.map(section)}
