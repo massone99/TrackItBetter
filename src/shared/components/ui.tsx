@@ -80,7 +80,7 @@ export function Screen({ children, contentContainerStyle, overlay, footer, foote
               half of it, and scrolls inside, so every action (e.g. Finish) stays reachable. */}
           <ScrollView style={styles.footerScroll} contentContainerStyle={styles.footerContent} showsVerticalScrollIndicator={largeText} bounces={false}>
             {/* Large text: the actions come first, so Finish shows even when a rest timer fills the rest. */}
-            {largeText && footer ? <View style={[styles.footerColumn, footerAccessory ? styles.footerColumnFirst : null]}>{footer}</View> : null}
+            {largeText && footer ? <View style={[styles.footerColumn, styles.footerColumnLarge, footerAccessory ? styles.footerColumnFirst : null]}>{footer}</View> : null}
             {footerAccessory ? <View style={[styles.footerAccessory, largeText ? styles.footerAccessoryLast : null]}>{footerAccessory}</View> : null}
             {!largeText && footer ? <View style={styles.footerColumn}>{footer}</View> : null}
           </ScrollView>
@@ -929,6 +929,7 @@ const baseStyles = StyleSheet.create({
   statusScrim: { position: "absolute", top: 0, left: 0, right: 0 },
   footer: { borderTopWidth: StyleSheet.hairlineWidth, paddingTop: spacing.md, paddingHorizontal: spacing.page, alignItems: "center" },
   footerColumn: { width: "100%", maxWidth: 640, flexDirection: "row", gap: spacing.md },
+  footerColumnLarge: { flexDirection: "column" },
   footerCell: { flex: 1 },
   footerScroll: { width: "100%", flexGrow: 0 },
   footerColumnFirst: { marginBottom: spacing.md },

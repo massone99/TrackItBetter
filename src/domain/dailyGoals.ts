@@ -1,17 +1,19 @@
 /**
  * Daily goals: totals to reach today, summed over every set done today (mini sessions included).
  * Weekly goals are the same thing over the week (Monday to Sunday). A goal counts sets of one main
- * category, one movement group or one movement tag, in minutes or reps.
+ * category, movement group or movement tag in minutes or reps, or one exercise in minutes.
  */
 export type GoalPeriod = 'day' | 'week';
-export type DailyGoalScope = 'category' | 'group' | 'tag';
+export type DailyGoalScope = 'category' | 'group' | 'tag' | 'exercise';
 export type DailyGoalMeasure = 'minutes' | 'reps';
 
 export type DailyGoal = {
   id: string;
   scope: DailyGoalScope;
-  /** Category id, movement group id or movement tag. */
+  /** Category, movement group, movement tag, or exercise ID. */
   key: string;
+  /** Display name resolved from the current exercise catalog. */
+  exerciseName?: string;
   measure: DailyGoalMeasure;
   /** Seconds for minutes goals, reps for reps goals. */
   target: number;
@@ -60,7 +62,7 @@ export type DailyGoalProgress = {
   contributions: GoalContribution[];
 };
 
-const SCOPES: readonly DailyGoalScope[] = ['category', 'group', 'tag'];
+const SCOPES: readonly DailyGoalScope[] = ['category', 'group', 'tag', 'exercise'];
 const MEASURES: readonly DailyGoalMeasure[] = ['minutes', 'reps'];
 export const MAX_DAILY_GOALS = 20;
 export const DAILY_TARGET_MAX = { minutes: 6 * 3600, reps: 5000 } as const;
@@ -78,6 +80,7 @@ export function isValidDailyGoal(value: unknown, period: GoalPeriod = 'day'): va
     && SCOPES.includes(goal.scope as DailyGoalScope)
     && typeof goal.key === 'string' && goal.key.trim().length > 0
     && MEASURES.includes(goal.measure as DailyGoalMeasure)
+    && (goal.scope !== 'exercise' || goal.measure === 'minutes')
     && typeof goal.target === 'number' && Number.isInteger(goal.target) && goal.target >= 1
     && goal.target <= targetMax(period, goal.measure as DailyGoalMeasure)
     && (goal.mobilityMode === undefined || (goal.scope === 'tag' && GOAL_MOBILITY_MODES.includes(goal.mobilityMode as GoalMobilityMode)));
@@ -100,7 +103,8 @@ export function sameGoalTarget(a: GoalTarget, b: GoalTarget): boolean {
   return a.scope === b.scope && a.key === b.key && a.measure === b.measure && (a.mobilityMode ?? null) === (b.mobilityMode ?? null);
 }
 
-export function goalMatches(goal: Pick<DailyGoal, 'scope' | 'key' | 'mobilityMode'>, item: Pick<DaySet, 'categories' | 'group' | 'tags' | 'mobilityMode'>): boolean {
+export function goalMatches(goal: Pick<DailyGoal, 'scope' | 'key' | 'mobilityMode'>, item: Pick<DaySet, 'categories' | 'group' | 'tags' | 'mobilityMode'> & { exerciseId?: string }): boolean {
+  if (goal.scope === 'exercise') return item.exerciseId === goal.key;
   if (goal.scope === 'category') return item.categories.includes(goal.key);
   if (goal.scope === 'group') return item.group === goal.key;
   // Under one tag a goal can count only active or only passive mobility; exercises with no type count in the plain goal only.
@@ -171,7 +175,7 @@ export function deriveWeeklyGoals(daily: readonly DailyGoal[], weekly: readonly 
   const fresh = daily.filter((goal) => !weekly.some((item) => sameGoalTarget(item, goal)));
   const room = Math.max(0, MAX_DAILY_GOALS - weekly.length);
   const add = fresh.slice(0, room).map((goal): DailyGoal => ({
-    id: newId(), scope: goal.scope, key: goal.key, measure: goal.measure, ...(goal.mobilityMode ? { mobilityMode: goal.mobilityMode } : {}), target: Math.min(targetMax('week', goal.measure), goal.target * factor),
+    id: newId(), scope: goal.scope, key: goal.key, measure: goal.measure, ...(goal.exerciseName ? { exerciseName: goal.exerciseName } : {}), ...(goal.mobilityMode ? { mobilityMode: goal.mobilityMode } : {}), target: Math.min(targetMax('week', goal.measure), goal.target * factor),
   }));
   return { add, existing: daily.length - fresh.length, dropped: fresh.length - add.length };
 }

@@ -2,13 +2,13 @@ import type { TFunction } from 'i18next';
 import { formatClock, formatDuration, formatNumber } from '../../shared/utils/format';
 import type { RecordKind } from './records';
 
-export function formatRecordValue(kind: RecordKind | 'volume', value: number, metric: string, t: TFunction): string {
+export function formatRecordValue(kind: RecordKind | 'volume', value: number, metric: string, t: TFunction, previous = false): string {
   switch (kind) {
     case 'loadAtReps':
     case 'e1rm':
       return `${formatNumber(Math.round(value * 10) / 10)} kg`;
     case 'lessAssist':
-      return value < 0 ? t('records.lighterBands') : `${formatNumber(Math.round(value * 10) / 10)} kg`;
+      return value < 0 ? t(previous ? 'equipment.kgUnknown' : 'records.lighterBands') : `${formatNumber(Math.round(value * 10) / 10)} kg`;
     case 'repsAtLoad':
       return t('records.reps', { count: value });
     case 'holdAtLoad':

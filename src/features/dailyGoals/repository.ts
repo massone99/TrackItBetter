@@ -1,4 +1,4 @@
-import { and, eq, gte, ne } from 'drizzle-orm';
+import { and, eq, gte, inArray, lt, ne } from 'drizzle-orm';
 import * as Crypto from 'expo-crypto';
 import { db, initializeDatabase } from '../../db/client';
 import { exerciseEntries, exercises, settings, trainingSets, workouts } from '../../db/schema';
@@ -14,12 +14,17 @@ function goalStore(period: GoalPeriod) {
   async function list(): Promise<DailyGoal[]> {
     await initializeDatabase();
     const row = await db.select({ value: settings.value }).from(settings).where(eq(settings.key, key)).get();
-    return parseDailyGoals(row?.value, period);
+    const goals = parseDailyGoals(row?.value, period);
+    const ids = goals.filter((goal) => goal.scope === 'exercise').map((goal) => goal.key);
+    if (ids.length === 0) return goals;
+    const names = new Map((await db.select({ id: exercises.id, name: exercises.name })
+      .from(exercises).where(inArray(exercises.id, ids))).map(({ id, name }) => [id, name]));
+    return goals.map((goal) => goal.scope === 'exercise' ? { ...goal, exerciseName: names.get(goal.key) } : goal);
   }
 
   async function save(goals: readonly DailyGoal[]): Promise<void> {
     if (goals.length > MAX_DAILY_GOALS || !goals.every((goal) => isValidDailyGoal(goal, period))) throw new RangeError('Invalid goals');
-    const value = JSON.stringify(goals);
+    const value = JSON.stringify(goals.map(({ exerciseName: _exerciseName, ...goal }) => goal));
     await db.insert(settings).values({ key, value }).onConflictDoUpdate({ target: settings.key, set: { value } });
   }
 
@@ -82,7 +87,9 @@ function goalStore(period: GoalPeriod) {
   }
 
   async function snapshot(now = new Date()): Promise<DailyGoalsSnapshot> {
-    const [goals, sets] = await Promise.all([list(), listSetsSince(period === 'week' ? startOfWeek(now) : startOfToday(now))]);
+    const start = period === 'week' ? startOfWeek(now) : startOfToday(now);
+    const end = new Date(start.getFullYear(), start.getMonth(), start.getDate() + (period === 'week' ? 7 : 1));
+    const [goals, sets] = await Promise.all([list(), listSetsSince(start, end)]);
     return {
       progress: goals.map((goal) => dailyGoalProgress(goal, sets)),
       sessions: new Set(sets.map((set) => set.workoutId)).size,
@@ -107,7 +114,7 @@ export const duplicateDailyGoal = daily.duplicate;
 export const moveDailyGoal = daily.move;
 
 /** Working sets completed since `since`, in any workout (finished or still going). */
-export async function listSetsSince(since: Date): Promise<DaySet[]> {
+export async function listSetsSince(since: Date, until?: Date): Promise<DaySet[]> {
   await initializeDatabase();
   const rows = await db.select({
     workoutId: workouts.id,
@@ -129,7 +136,7 @@ export async function listSetsSince(since: Date): Promise<DaySet[]> {
     .innerJoin(exerciseEntries, eq(trainingSets.entryId, exerciseEntries.id))
     .innerJoin(workouts, eq(exerciseEntries.workoutId, workouts.id))
     .innerJoin(exercises, eq(exerciseEntries.exerciseId, exercises.id))
-    .where(and(gte(trainingSets.completedAt, since), ne(trainingSets.kind, 'warmup')));
+    .where(and(gte(trainingSets.completedAt, since), until ? lt(trainingSets.completedAt, until) : undefined, ne(trainingSets.kind, 'warmup')));
   return rows.map((row) => ({
     workoutId: row.workoutId,
     workoutName: row.workoutName,

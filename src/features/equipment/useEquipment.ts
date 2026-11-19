@@ -19,8 +19,8 @@ export function apparatusName(apparatus: Apparatus | undefined, t: TFunction): s
 }
 
 /** Every band of every set, by id (archived sets included, so past sets still show their bands). */
-export function bandsById(catalog: EquipmentCatalog): Map<string, Band & { setName: string }> {
-  return new Map(catalog.bandSets.flatMap((set) => set.bands.map((band) => [band.id, { ...band, setName: set.name }] as const)));
+export function bandsById(catalog: EquipmentCatalog): Map<string, Band & { setId: string; setName: string }> {
+  return new Map(catalog.bandSets.flatMap((set) => set.bands.map((band) => [band.id, { ...band, setId: set.id, setName: set.name }] as const)));
 }
 
 /** The equipment catalog, read on mount; `reload` reads it again (e.g. when a screen regains focus). */

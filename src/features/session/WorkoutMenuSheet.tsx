@@ -2,7 +2,7 @@ import { useTranslation } from 'react-i18next';
 import { MenuList, MenuRow, Sheet } from '../../shared/components/ui';
 
 /** What the workout screen used to scatter around its top and bottom: settings, bulk actions and the destructive ones. */
-export function WorkoutMenuSheet({ visible, onClose, focusMode, telemetryOn, voiceCues, canFold, allCollapsed, canNarrate, canClear, onCheckIn, onFocus, onTelemetry, onVoice, onNarrate, onFoldAll, onSave, onClear }: {
+export function WorkoutMenuSheet({ visible, onClose, focusMode, telemetryOn, voiceCues, canFold, allCollapsed, canNarrate, canClear, onCheckIn, onFocus, onTelemetry, onVoice, onNarrate, onFoldAll, onDetails, onSave, onClear }: {
   visible: boolean;
   onClose: () => void;
   focusMode: boolean;
@@ -18,6 +18,7 @@ export function WorkoutMenuSheet({ visible, onClose, focusMode, telemetryOn, voi
   onVoice: () => void;
   onNarrate: () => void;
   onFoldAll: () => void;
+  onDetails: () => void;
   onSave: () => void;
   onClear: () => void;
 }) {
@@ -34,6 +35,7 @@ export function WorkoutMenuSheet({ visible, onClose, focusMode, telemetryOn, voi
         <MenuRow icon={voiceCues ? 'volume-high' : 'volume-mute-outline'} label={`${t('logger.voiceChip')} · ${state(voiceCues)}`} onPress={row(onVoice)} />
         {canNarrate ? <MenuRow icon="mic-outline" label={t('narration.start')} onPress={row(onNarrate)} /> : null}
         {canFold ? <MenuRow icon={allCollapsed ? 'chevron-down' : 'chevron-up'} label={t(allCollapsed ? 'common.expandAll' : 'common.collapseAll')} onPress={row(onFoldAll)} /> : null}
+        <MenuRow icon="document-text-outline" label={t('workoutDetails.editAction')} onPress={row(onDetails)} />
         <MenuRow icon="bookmark-outline" label={t('saveToProgram.action')} onPress={row(onSave)} />
         {canClear ? <MenuRow icon="remove-circle-outline" label={t('logger.clearAllSets')} tone="danger" onPress={row(onClear)} /> : null}
       </MenuList>

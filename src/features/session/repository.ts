@@ -703,10 +703,10 @@ export async function deleteWorkout(workoutId: string): Promise<void> {
 
 export const WORKOUT_NAME_MAX = 60;
 
-/** Renames a finished workout and moves its start and end, keeping it finished. */
+/** Edits a finished workout without changing its completion status. */
 export async function updateCompletedWorkoutDetails(
   workoutId: string,
-  details: { name: string; startedAt: Date; endedAt: Date },
+  details: { name: string; notes?: string; startedAt: Date; endedAt: Date },
 ): Promise<void> {
   const name = details.name.trim();
   if (!name || name.length > WORKOUT_NAME_MAX) throw new RangeError('Workout name must be 1–60 characters');
@@ -716,7 +716,7 @@ export async function updateCompletedWorkoutDetails(
   if (start > Date.now()) throw new RangeError('A finished workout cannot start in the future');
   await initializeDatabase();
   await db.update(workouts)
-    .set({ name, startedAt: details.startedAt, endedAt: details.endedAt })
+    .set({ name, notes: details.notes === undefined ? undefined : details.notes.trim().slice(0, 1000) || null, startedAt: details.startedAt, endedAt: details.endedAt })
     .where(and(eq(workouts.id, workoutId), isNotNull(workouts.endedAt)));
   bumpFinishedVersion();
 }

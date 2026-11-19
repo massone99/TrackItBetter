@@ -1,5 +1,5 @@
-import { router } from 'expo-router';
-import { useState, type ReactNode } from 'react';
+import { router, useFocusEffect } from 'expo-router';
+import { useCallback, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { setAssistKg, type SetBand, type Tension } from '../../domain/equipment';
@@ -27,10 +27,11 @@ export function BandsPicker({ bands, onChange, children }: { bands: readonly Set
   const [renaming, setRenaming] = useState<{ id: string; name: string } | null>(null);
   const [picking, setPicking] = useState(false);
   const [bandSetId, setBandSetId] = useState<string | null>(null);
+  useFocusEffect(useCallback(() => { void reload(); }, [reload]));
   if (!catalog) return null;
   const byId = bandsById(catalog);
-  const sets = catalog.bandSets.filter((item) => !item.archived && item.bands.length > 0);
-  const chosenSet = sets.find((item) => item.id === bandSetId) ?? sets[0] ?? null;
+  const sets = catalog.bandSets.filter((item) => !item.archived).map((item) => ({ ...item, bands: item.bands.filter((band) => !band.archived) })).filter((item) => item.bands.length > 0);
+  const chosenSet = sets.find((item) => item.id === (bandSetId ?? byId.get(bands[0]?.bandId)?.setId)) ?? sets[0] ?? null;
   const assist = setAssistKg(bands, byId);
   const save = onChange;
 
@@ -79,6 +80,7 @@ export function BandsPicker({ bands, onChange, children }: { bands: readonly Set
               {sets.map((item) => <Chip key={item.id} label={item.name} selected={item.id === chosenSet.id} onPress={() => setBandSetId(item.id)} />)}
             </View>
           ) : <Label>{chosenSet.name}</Label>}
+          <Label>{t('equipment.lightToStrong')}</Label>
           <View style={styles.choices}>
             {chosenSet.bands.map((band) => (
               <Pressable
@@ -89,13 +91,19 @@ export function BandsPicker({ bands, onChange, children }: { bands: readonly Set
                 style={({ pressed }) => [styles.option, { borderColor: palette.border, backgroundColor: palette.surface, opacity: pressed ? 0.75 : 1 }]}
               >
                 <View style={[styles.swatch, { backgroundColor: band.color, borderColor: palette.border }]} />
-                <Text style={styles.optionText}>{band.name}</Text>
+                <Text style={styles.optionText}>{[band.name, bandRange(band)].filter(Boolean).join(' · ')}</Text>
               </Pressable>
             ))}
           </View>
         </View>
       ) : null}
       {!picking && sets.length > 0 ? <ActionButton icon="add" label={bands.length === 0 ? t('bands.add') : t('bands.addAnother')} secondary onPress={() => setPicking(true)} /> : null}
+      {picking ? (
+        <>
+          <ActionButton label={t('common.cancel')} variant="ghost" onPress={() => setPicking(false)} />
+          <ActionButton icon="settings-outline" label={t('bands.manage')} variant="ghost" onPress={() => router.push('/equipment')} />
+        </>
+      ) : null}
       {children}
       <RenameBandSheet band={renaming} onClose={() => setRenaming(null)} onDone={() => void reload()} />
     </MenuGroup>
@@ -113,5 +121,5 @@ const baseStyles = StyleSheet.create({
   picker: { gap: 8 },
   choices: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   option: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 48, paddingHorizontal: 12, borderRadius: radii.control, borderWidth: 1 },
-  optionText: { fontFamily: fonts.medium, fontSize: 15 },
+  optionText: { flexShrink: 1, fontFamily: fonts.medium, fontSize: 15 },
 });

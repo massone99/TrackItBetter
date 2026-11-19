@@ -1,4 +1,4 @@
-import { asc, eq } from 'drizzle-orm';
+import { asc, eq, inArray, isNotNull, and } from 'drizzle-orm';
 import * as Crypto from 'expo-crypto';
 import { Directory, File, Paths } from 'expo-file-system';
 import { db, initializeDatabase } from '../../db/client';
@@ -83,12 +83,30 @@ export async function moveExerciseImage(id: string, delta: -1 | 1): Promise<void
 /** A picture carried by an import file: base64 data (a `data:` URL works too) and its size. */
 export type ImportedImage = { data: string; mimeType: 'image/jpeg' | 'image/png' | 'image/webp'; width: number; height: number };
 
+export const importedImageKey = (image: ImportedImage): string => fingerprint(image.data.replace(/^data:[^,]*,/, ''));
+
+export async function existingImportedImageKeys(exerciseIds: readonly string[]): Promise<Map<string, Set<string>>> {
+  await initializeDatabase();
+  const result = new Map<string, Set<string>>();
+  // Chunk the lookup so a large import stays below SQLite's parameter limit.
+  for (let offset = 0; offset < exerciseIds.length; offset += 500) {
+    const rows = await db.select({ exerciseId: exerciseImages.exerciseId, sourceKey: exerciseImages.sourceKey })
+      .from(exerciseImages).where(and(inArray(exerciseImages.exerciseId, exerciseIds.slice(offset, offset + 500)), isNotNull(exerciseImages.sourceKey)));
+    for (const { exerciseId, sourceKey } of rows) {
+      const keys = result.get(exerciseId) ?? new Set<string>();
+      keys.add(sourceKey!);
+      result.set(exerciseId, keys);
+    }
+  }
+  return result;
+}
+
 /**
  * Adds the pictures of an import file to an exercise, after the ones it has. A picture already added
  * from an earlier import (same data) is skipped, so a file can be imported again to add only what is new.
  * Returns how many were added.
  */
-export async function addImportedExerciseImages(exerciseId: string, images: readonly ImportedImage[]): Promise<number> {
+export async function addImportedExerciseImages(exerciseId: string, images: readonly ImportedImage[], onAdded?: () => void): Promise<number> {
   if (images.length === 0) return 0;
   await initializeDatabase();
   const current = await listExerciseImages(exerciseId);
@@ -98,15 +116,15 @@ export async function addImportedExerciseImages(exerciseId: string, images: read
   prepareExerciseImageDirectory();
   for (const image of images) {
     const data = image.data.replace(/^data:[^,]*,/, '');
-    const sourceKey = fingerprint(data);
+    const sourceKey = importedImageKey(image);
     if (known.has(sourceKey)) continue;
     known.add(sourceKey);
     const id = Crypto.randomUUID();
     const fileName = `${id}.${image.mimeType === 'image/png' ? 'png' : image.mimeType === 'image/webp' ? 'webp' : 'jpg'}`;
     const file = getExerciseImageFile(fileName);
-    file.create({ overwrite: true, intermediates: true });
-    file.write(decodeBase64(data));
     try {
+      file.create({ overwrite: true, intermediates: true });
+      file.write(decodeBase64(data));
       await db.insert(exerciseImages).values({ id, exerciseId, fileName, mimeType: image.mimeType, width: image.width, height: image.height, position, createdAt: new Date(), sourceKey });
     } catch (error) {
       deleteFile(fileName);
@@ -114,6 +132,7 @@ export async function addImportedExerciseImages(exerciseId: string, images: read
     }
     position += 1;
     added += 1;
+    onAdded?.();
   }
   return added;
 }

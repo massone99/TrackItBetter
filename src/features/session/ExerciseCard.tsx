@@ -6,7 +6,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { compareWithLast } from '../../domain/lastTime';
 import { formatRpe } from '../../domain/rpe';
 import { completedSetCount, groupSets } from '../../domain/setPairs';
-import type { RecordKind } from '../analytics/records';
+import type { RecordKind, SameLoadRecord, VolumeRecord } from '../analytics/records';
 import { openExercisePage } from '../exercises/openExercise';
 import { openReferenceVideo } from '../exercises/ReferenceLinkSheet';
 import { HoldDurationField } from '../../shared/components/DateTimePickers';
@@ -42,7 +42,7 @@ const NO_RECORDS: ReadonlyMap<string, RecordKind[]> = new Map();
  */
 const BANDS_FOLDED_KEY = 'workout.bandsFolded';
 
-export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, previous, hold = null, onChange, onSetValue, onComplete, onStartHold, onFinishHold, onAddSet, onAddWarmup, onCopyAllLast, onSetOptions, onUncomplete, onRemoveSet, onSwiped, showRpe, onRpe, onOptions, onToggleWarmup, setRecords = NO_RECORDS, volumeRecord = false, sameLoadRecord = null, supersetLabel = null, emomLabel: emomBadgeLabel, defaultRest = 0, onFormRating, onRomRating, onNote, focus = false, nowLabel = null, figure = null, editDone = false, typeDone = false, compare = true, apparatusLabel = null, firstTimeLabel, describeBands, compareBands, renderBandsEditor, fixedAction = false, onSetExpanded }: {
+export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, previous, hold = null, onChange, onSetValue, onComplete, onStartHold, onFinishHold, onAddSet, onAddWarmup, onCopyAllLast, onSetOptions, onUncomplete, onRemoveSet, onSwiped, showRpe, onRpe, onOptions, onToggleWarmup, setRecords = NO_RECORDS, volumeRecords = [], sameLoadRecords = [], supersetLabel = null, emomLabel: emomBadgeLabel, defaultRest = 0, onFormRating, onRomRating, onNote, focus = false, nowLabel = null, figure = null, editDone = false, typeDone = false, compare = true, apparatusLabel = null, firstTimeLabel, describeBands, compareBands, renderBandsEditor, fixedAction = false, onSetExpanded }: {
   handle?: ReactNode;
   exercise: SessionExercise;
   collapsed: boolean;
@@ -70,9 +70,9 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
   onOptions: () => void;
   onToggleWarmup: (set: SessionSet) => void;
   setRecords?: ReadonlyMap<string, RecordKind[]>;
-  volumeRecord?: boolean;
+  volumeRecords?: readonly VolumeRecord[];
   /** Mini-PR: more total reps (or seconds) than ever at this load with the same number of sets. */
-  sameLoadRecord?: { loadKg: number; sets: number; gain: number } | null;
+  sameLoadRecords?: readonly SameLoadRecord[];
   supersetLabel?: string | null;
   emomLabel?: string | null;
   /** Rest the app applies to a working set without its own, for the rest comparison. */
@@ -287,20 +287,23 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
             {apparatusLabel ? <Label>{`· ${apparatusLabel}`}</Label> : null}
             {supersetLabel ? <Label style={{ color: palette.accentStrong }}>{`· ${supersetLabel}`}</Label> : null}
             {emomBadgeLabel ? <Label accessibilityLiveRegion="polite" style={{ color: palette.accentStrong }}>{`· ${emomBadgeLabel}`}</Label> : null}
-            {sameLoadRecord ? (
-              <View style={[styles.recordChip, { backgroundColor: palette.recordSoft }]}>
+            {sameLoadRecords.map((record, index) => (
+              <View key={index} style={[styles.recordChip, { backgroundColor: palette.recordSoft }]}>
                 <Icon name="trophy-outline" size={13} color={palette.record} />
                 <Text style={[styles.clipChipText, { color: palette.record }]}>
-                  {t(sameLoadRecord.loadKg === 0 ? 'records.sameLoadBody' : 'records.sameLoad', { sets: sameLoadRecord.sets, load: formatNumber(sameLoadRecord.loadKg), gain: formatNumber(sameLoadRecord.gain) })}
+                  {t(record.loadKg === 0 ? 'records.sameLoadBody' : 'records.sameLoad', {
+                    sets: record.sets, load: formatNumber(record.loadKg),
+                    gain: timed ? formatClock(record.value - record.previous) : t('records.reps', { count: record.value - record.previous }),
+                  })} · {t(record.withBands ? 'records.withBands' : 'records.withoutBands')}
                 </Text>
               </View>
-            ) : null}
-            {volumeRecord ? (
-              <View style={[styles.recordChip, { backgroundColor: palette.recordSoft }]}>
+            ))}
+            {[...new Set(volumeRecords.map((record) => Boolean(record.withBands)))].map((assisted) => (
+              <View key={String(assisted)} style={[styles.recordChip, { backgroundColor: palette.recordSoft }]}>
                 <Icon name="trophy-outline" size={13} color={palette.record} />
-                <Text style={[styles.clipChipText, { color: palette.record }]}>{t('records.kinds.volume')}</Text>
+                <Text style={[styles.clipChipText, { color: palette.record }]}>{t('records.kinds.volume')} · {t(assisted ? 'records.withBands' : 'records.withoutBands')}</Text>
               </View>
-            ) : null}
+            ))}
           </View>
           {collapsed && results ? <Text numberOfLines={2} style={[styles.results, { color: palette.text }]}>{results}</Text> : null}
           {collapsed && comparisonFormNow !== null ? (
@@ -431,7 +434,7 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
           <NumberEdit
             value={stored}
             display={value}
-            label={`${t('logger.editValue', { number: set.index })} ${sideLabel}`}
+            label={`${fieldLabel} · ${t('logger.editValue', { number: set.index })} ${sideLabel}`}
             integer={field === 'reps'}
             onCommit={(next) => onSetValue(set, field, field === 'reps' ? Math.round(next) : next)}
             onControl={(control) => { controls.current.set(`${set.id}:${field}`, control); }}
@@ -560,12 +563,19 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
                 {valueDown}
                 <View style={styles.valueStack}>
                   {valueField}
-                  {set.id === exercise.sets[0]?.id && !table ? <Text style={[styles.valueCaption, { color: palette.textMuted }]}>{fieldLabel.toLowerCase()}</Text> : null}
+                  <Text style={[styles.valueCaption, { color: palette.textMuted }]}>{fieldLabel}</Text>
                 </View>
                 {valueUp}
               </View>
               {!withLoad ? null : set.addedLoadKg !== 0 || loadShown.has(set.id) ? (
-                <View style={[styles.colLoad, styles.stepper, table && [styles.tile, { backgroundColor: palette.surface }]]}>{loadDown}{loadField}{loadUp}</View>
+                <View style={[styles.colLoad, styles.stepper, table && [styles.tile, { backgroundColor: palette.surface }]]}>
+                  {loadDown}
+                  <View style={styles.valueStack}>
+                    {loadField}
+                    <Text style={[styles.valueCaption, { color: palette.textMuted }]}>kg</Text>
+                  </View>
+                  {loadUp}
+                </View>
               ) : done ? <View style={styles.colLoad} /> : (
                 <View style={[styles.colLoad, styles.stepper]}>
                   <Pressable
@@ -743,7 +753,7 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
               style={({ pressed }) => [styles.tableRowMain, pressed && { opacity: 0.7 }]}
             >
               <View style={styles.tableFigures}>
-                <Text numberOfLines={1} style={[styles.tableValue, { color: done || current ? palette.text : palette.textMuted }]}>
+                <Text style={[styles.tableValue, { color: done || current ? palette.text : palette.textMuted }]}>
                   {value}
                   <Text style={[styles.tableUnit, { color: palette.textMuted }]}>{`${rowUnit}${withLoad && set.addedLoadKg !== 0 ? ` · ${loadText} kg` : ''}`}</Text>
                 </Text>
@@ -890,7 +900,7 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
                     style={[styles.clipChip, { backgroundColor: palette.recordSoft }]}
                   >
                     <Icon name="trophy" size={13} color={palette.record} />
-                    <Text style={[styles.clipChipText, { color: palette.record }]}>{t('records.pr')}</Text>
+                    <Text style={[styles.clipChipText, { color: palette.record }]}>{t(set.bands.length ? 'records.prWithBands' : 'records.pr')}</Text>
                   </Pressable>
                 ) : null}
                 {set.clipCount > 0 ? (
@@ -1083,8 +1093,8 @@ const baseStyles = StyleSheet.create({
   goalTarget: { fontFamily: fonts.medium, fontSize: 16 },
   goalState: { fontFamily: fonts.semibold, fontSize: 15 },
   setBlock: { borderRadius: radii.control, overflow: 'hidden', marginBottom: 8 },
-  valueStack: { alignItems: 'center' },
-  valueCaption: { fontFamily: fonts.body, fontSize: 12, lineHeight: 14 },
+  valueStack: { flexShrink: 1, alignItems: 'center' },
+  valueCaption: { fontFamily: fonts.medium, fontSize: 12, lineHeight: 16, textAlign: 'center' },
   addLoad: { minWidth: 56, minHeight: 48, paddingHorizontal: 10, borderRadius: radii.control, borderWidth: 1, borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center' },
   addLoadText: { fontFamily: fonts.semibold, fontSize: 15 },
   // Large text: the open set is a card of one-column fields; the other sets are one line each.

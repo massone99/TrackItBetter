@@ -14,9 +14,11 @@ import { ExerciseImagesSection } from '../../src/features/exercises/ExerciseImag
 import { ExerciseProgressionsSection } from '../../src/features/progressions/ExerciseProgressionsSection';
 import { addExerciseToWorkout, getActiveWorkout, startWorkout } from '../../src/features/session/repository';
 import { getExerciseCycle, getExerciseEstimate, getExerciseOneRepMax, getExerciseHistory, getExerciseHistoryOverview, getExerciseRecordSummary, getExerciseRepsAtLoad, getExerciseWeekStats, type ExerciseHistoryOverview, type ExerciseHistorySession } from '../../src/features/analytics/repository';
-import type { ExerciseRecordSummary } from '../../src/features/analytics/records';
+import type { ExerciseRecordBreakdown, ExerciseRecordSummary } from '../../src/features/analytics/records';
 import type { RepsAtLoadGroup } from '../../src/features/analytics/repsAtLoad';
 import { RepsAtLoadCard } from '../../src/features/analytics/components/RepsAtLoadCard';
+import { bandsById, describeSetBands, useEquipment } from '../../src/features/equipment/useEquipment';
+import { Paged } from '../../src/shared/components/paging';
 import { formatRecordValue } from '../../src/features/analytics/recordLabels';
 import type { ExerciseEstimate, OneRepMaxEstimate } from '../../src/features/analytics/estimates';
 import { StatRow, StatTile } from '../../src/features/analytics/components/StatTiles';
@@ -25,7 +27,7 @@ import { formatMinutes, formatNumber } from '../../src/shared/utils/format';
 import { formatRpe } from '../../src/domain';
 import { poseDetectionAvailable } from '../../src/features/pose/detectPose';
 import { countPoseCapturesForExercise } from '../../src/features/pose/repository';
-import { ActionButton, Body, Chip, FooterAction, Icon, IconButton, ListGroup, ListRow, PageHeading, Screen, SectionTitle, SegmentedControl, Sheet, SwitchRow, Text, Toast } from '../../src/shared/components/ui';
+import { ActionButton, Body, Chip, FooterAction, Icon, IconButton, Card, Label, ListGroup, ListRow, PageHeading, Screen, SectionTitle, SegmentedControl, Sheet, SwitchRow, Text, Toast } from '../../src/shared/components/ui';
 import type { PairScope } from '../../src/domain/setPairs';
 import { useTheme } from '../../src/shared/theme/ThemeProvider';
 import { fonts } from '../../src/shared/theme/typography';
@@ -62,7 +64,8 @@ export default function ExerciseRoute() {
   // Chips of the estimate's loads: where each sits, so the chosen one is scrolled into view.
   const estimateChips = useRef<ScrollView>(null);
   const estimateChipX = useRef(new Map<number, number>());
-  const [records, setRecords] = useState<ExerciseRecordSummary | null>(null);
+  const [records, setRecords] = useState<ExerciseRecordBreakdown | null>(null);
+  const { catalog } = useEquipment();
   const [editingReference, setEditingReference] = useState(false);
   const [history, setHistory] = useState<ExerciseHistorySession[]>([]);
   const [overview, setOverview] = useState<ExerciseHistoryOverview | null>(null);
@@ -349,19 +352,33 @@ export default function ExerciseRoute() {
         </View>
       ) : null}
 
-      {records && exercise.metric !== 'distance' && records.bestAmount !== null ? (
+      {records && (records.bestAmount !== null || records.assisted.length > 0) ? (
         <View style={styles.section}>
           <SectionTitle title={t('records.title')} />
-          <StatRow>
-            <StatTile
-              value={formatRecordValue(exercise.metric === 'time' || exercise.metric === 'time_load' ? 'holdAtLoad' : 'repsAtLoad', records.bestAmount, exercise.metric, t)}
-              label={t('records.bestAmount')}
-            />
-            {records.bestE1rm !== null ? <StatTile value={formatRecordValue('e1rm', records.bestE1rm, exercise.metric, t)} label={t('records.bestE1rm')} /> : null}
-            {records.bestVolume !== null ? <StatTile value={formatRecordValue('volume', records.bestVolume, exercise.metric, t)} label={t('records.bestVolume')} /> : null}
-          </StatRow>
-          {records.repMaxes.length > 0 ? (
-            <Body>{t('records.repMaxes')}: {records.repMaxes.map((item) => t('records.repMax', { reps: item.reps, load: formatNumber(item.loadKg) })).join(' · ')}</Body>
+          {records.bestAmount !== null ? (
+            <RecordStats name={t('records.withoutBands')} records={records} metric={exercise.metric} />
+          ) : null}
+          {records.assisted.length > 0 ? (
+            <>
+              <Label>{t('records.withBands')}</Label>
+              <Paged items={records.assisted} pageSize={4} resetKey={`${exercise.id}:${pairScope}`}>
+                {(groups) => {
+                  const byId = catalog ? bandsById(catalog) : new Map();
+                  return groups.map((group) => (
+                    <RecordStats
+                      key={group.key}
+                      name={group.conditions.map((condition) => (
+                        condition.bands.length === 0 ? t('records.withoutBands')
+                          : condition.assistKg !== null ? t('bands.assist', { value: formatNumber(condition.assistKg) })
+                            : describeSetBands(condition, byId, t)!.text
+                      )).join(' / ')}
+                      records={group}
+                      metric={exercise.metric}
+                    />
+                  ));
+                }}
+              </Paged>
+            </>
           ) : null}
         </View>
       ) : null}
@@ -586,6 +603,27 @@ function Tag({ label, icon }: { label: string; icon: 'body-outline' | 'construct
       <Icon name={icon} size={13} color={palette.textMuted} />
       <Text style={[styles.tagText, { color: palette.text }]}>{label}</Text>
     </View>
+  );
+}
+
+function RecordStats({ name, records, metric }: { name: string; records: ExerciseRecordSummary; metric: string }) {
+  const { t } = useTranslation();
+  if (records.bestAmount === null) return null;
+  return (
+    <Card>
+      <Label>{name}</Label>
+      <StatRow>
+        <StatTile
+          value={formatRecordValue(metric === 'time' || metric === 'time_load' ? 'holdAtLoad' : 'repsAtLoad', records.bestAmount, metric, t)}
+          label={t('records.bestAmount')}
+        />
+        {records.bestE1rm !== null ? <StatTile value={formatRecordValue('e1rm', records.bestE1rm, metric, t)} label={t('records.bestE1rm')} /> : null}
+        {records.bestVolume !== null ? <StatTile value={formatRecordValue('volume', records.bestVolume, metric, t)} label={t('records.bestVolume')} /> : null}
+      </StatRow>
+      {records.repMaxes.length > 0 ? (
+        <Body>{t('records.repMaxes')} · {records.repMaxes.map((item) => t('records.repMax', { reps: item.reps, load: formatNumber(item.loadKg) })).join(' · ')}</Body>
+      ) : null}
+    </Card>
   );
 }
 

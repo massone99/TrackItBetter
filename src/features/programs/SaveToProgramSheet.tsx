@@ -78,6 +78,7 @@ export function SaveToProgramSheet({ visible, defaultName, exercises, onClose, o
 
   return (
     <Sheet visible={visible} onClose={onClose} title={t('saveToProgram.title')} body={empty ? t('saveToProgram.empty') : `${t('saveToProgram.exercisesCount', { count: exercises.length })} · ${t('log.setCount', { count: sets })}. ${t('saveToProgram.comesWith')}`}>
+      <Body>{t('saveToProgram.createsCopy')}</Body>
       <TextField label={t('saveToProgram.workoutName')} value={workoutName} onChangeText={setWorkoutName} maxLength={40} />
       <Text style={[styles.heading, { color: palette.textMuted }]}>{t('saveToProgram.where')}</Text>
       <Option icon="add-circle" title={t('saveToProgram.newProgram')} body={t('saveToProgram.newProgramBody')} selected={choice === 'new'} onPress={() => setChoice('new')} />
@@ -140,8 +141,8 @@ function Option({ icon, title, body, selected, onPress }: { icon: 'add-circle' |
         <Icon name={icon} size={20} color={selected ? palette.accentText : palette.accentStrong} />
       </View>
       <View style={styles.optionText}>
-        <Text numberOfLines={1} style={[styles.optionTitle, { color: palette.text }]}>{title}</Text>
-        <Text numberOfLines={1} style={[styles.optionBody, { color: palette.textMuted }]}>{body}</Text>
+        <Text style={[styles.optionTitle, { color: palette.text }]}>{title}</Text>
+        <Text style={[styles.optionBody, { color: palette.textMuted }]}>{body}</Text>
       </View>
       {selected ? <Icon name="checkmark-circle" size={22} color={palette.accentStrong} /> : null}
     </Pressable>
@@ -154,7 +155,7 @@ const baseStyles = StyleSheet.create({
   heading: { fontFamily: fonts.medium, fontSize: 13, marginTop: 4 },
   option: { flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: radii.control, paddingHorizontal: 14, paddingVertical: 12, minHeight: 64 },
   optionIcon: { width: 40, height: 40, borderRadius: radii.control, alignItems: 'center', justifyContent: 'center' },
-  optionText: { flex: 1, gap: 1 },
+  optionText: { flex: 1, minWidth: 0, gap: 1 },
   optionTitle: { fontFamily: fonts.display, fontSize: 18, lineHeight: 22 },
   optionBody: { fontFamily: fonts.body, fontSize: 13 },
 });

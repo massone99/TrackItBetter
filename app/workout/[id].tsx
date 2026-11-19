@@ -13,7 +13,7 @@ import { supersetStep } from '../../src/features/session/superset';
 import { SupersetActions, SupersetSettings } from '../../src/features/session/SupersetFields';
 import type { ScrollHandle } from '../../src/shared/components/keyboard';
 import { getSessionRecords } from '../../src/features/analytics/repository';
-import type { RecordKind } from '../../src/features/analytics/records';
+import type { RecordKind, SameLoadRecord, VolumeRecord } from '../../src/features/analytics/records';
 import { ExerciseCompareField } from '../../src/features/session/ExerciseCompareField';
 import { SwitchSection } from '../../src/features/progressions/SwitchSection';
 import { ExerciseAveragesField } from '../../src/features/session/ExerciseAveragesField';
@@ -76,6 +76,7 @@ import {
   Body,
   IconButton,
   Label,
+  ListRow,
   MenuGrid,
   MenuGroup,
   MenuList,
@@ -101,9 +102,6 @@ import { FreeRestBar } from '../../src/features/session/FreeRestBar';
 import { WorkoutMenuSheet } from '../../src/features/session/WorkoutMenuSheet';
 import { TotalGoalSheet } from '../../src/features/session/TotalGoalSheet';
 import { nextSetValue, totalProgress } from '../../src/domain/totalGoal';
-import { PrescriptionSyncSheet } from '../../src/features/programs/PrescriptionSyncSheet';
-import { listUserPrograms } from '../../src/features/programs/userPrograms';
-import { findPrescribedWorkout, hasStructureChange, prescriptionChanges, trainedExercises, type PrescribedMatch } from '../../src/domain/prescriptionSync';
 import { SaveToProgramSheet } from '../../src/features/programs/SaveToProgramSheet';
 import { ExerciseNoteField } from '../../src/features/session/ExerciseNoteField';
 import { WorkoutDetailsSheet } from '../../src/features/session/WorkoutDetailsSheet';
@@ -199,7 +197,7 @@ export default function WorkoutScreen() {
   const [emomNotice, setEmomNotice] = useState<string | null>(null);
   // PRs set so far in this workout: record kinds per set, and exercises with a volume mini PR.
   const recordCount = useRef<number | null>(null);
-  const [records, setRecords] = useState<{ sets: Map<string, RecordKind[]>; volume: Set<string>; sameLoad: Map<string, { loadKg: number; sets: number; gain: number }> }>(() => ({ sets: new Map(), volume: new Set(), sameLoad: new Map() }));
+  const [records, setRecords] = useState<{ sets: Map<string, RecordKind[]>; volume: VolumeRecord[]; sameLoad: SameLoadRecord[] }>(() => ({ sets: new Map(), volume: [], sameLoad: [] }));
   // The exercise in hand and its live telemetry against comparable history.
   // The exercise whose set the user expanded last is the selected one: blue "Now" card, telemetry, main action and rails all follow it,
   // until it has no set left to do (then the automatic choice below takes over again). Selecting never moves anything: the card of
@@ -287,8 +285,7 @@ export default function WorkoutScreen() {
     // Celebrate a new record, but not the ones already there when the workout is reopened.
     if (recordCount.current !== null && count > recordCount.current) tapFeedback('success');
     recordCount.current = count;
-    const sameLoad = new Map(found.sameLoad.map((record) => [record.exerciseId, { loadKg: record.loadKg, sets: record.sets, gain: record.value - record.previous }] as const));
-    setRecords({ sets: bySet, volume: new Set(found.volume.map((record) => record.exerciseId)), sameLoad });
+    setRecords({ sets: bySet, volume: found.volume, sameLoad: found.sameLoad });
   }, []);
 
   useEffect(() => {
@@ -678,7 +675,6 @@ export default function WorkoutScreen() {
     await refresh(workout.id);
   };
 
-  const [syncOffer, setSyncOffer] = useState<{ match: PrescribedMatch; exercises: SessionExercise[]; workoutId: string } | null>(null);
   const confirmFinish = async () => {
     if (!workout) return;
     setFinishOpen(false);
@@ -693,17 +689,7 @@ export default function WorkoutScreen() {
       else Alert.alert(t('history.saveError'), error instanceof Error ? error.message : String(error));
       return;
     }
-    // A workout from a program whose structure changed offers to update the prescribed workout; then the summary.
-    const summary = () => router.replace({ pathname: '/workout/summary/[id]', params: { id: workout.id } });
-    try {
-      const match = findPrescribedWorkout(await listUserPrograms(), workout.name);
-      const trained = trainedExercises(workout.exercises);
-      if (match && trained.length > 0 && hasStructureChange(prescriptionChanges(match.session, trained))) {
-        setSyncOffer({ match, exercises: trained, workoutId: workout.id });
-        return;
-      }
-    } catch { /* the offer is optional: go on to the summary */ }
-    summary();
+    router.replace({ pathname: '/workout/summary/[id]', params: { id: workout.id } });
   };
 
   const confirmDiscard = async () => {
@@ -872,13 +858,23 @@ export default function WorkoutScreen() {
             onCollapse={() => setDockOpen(false)}
           />
         ) : undefined}</View>}
-        // Add and Finish stay in reach however long the workout gets.
+        // At large text the Finish label gets the full width above the two icon actions.
         footer={workout.exercises.length > 0 && dockOpen && !railsMode ? (
-          <>
-            <IconButton icon="add" label={t('workout.addExercise')} size={56} onPress={() => setPickerOpen(true)} />
-            <FooterAction icon="flag-outline" label={t('workout.finish')} onPress={() => setFinishOpen(true)} />
-            <IconButton icon="chevron-down" label={t('workout.collapseDock')} size={56} onPress={() => setDockOpen(false)} />
-          </>
+          largeText ? (
+            <>
+              <FooterAction icon="flag-outline" label={t('workout.finish')} onPress={() => setFinishOpen(true)} />
+              <View style={styles.footerIcons}>
+                <IconButton icon="add" label={t('workout.addExercise')} size={56} onPress={() => setPickerOpen(true)} />
+                <IconButton icon="chevron-down" label={t('workout.collapseDock')} size={56} onPress={() => setDockOpen(false)} />
+              </View>
+            </>
+          ) : (
+            <>
+              <IconButton icon="add" label={t('workout.addExercise')} size={56} onPress={() => setPickerOpen(true)} />
+              <FooterAction icon="flag-outline" label={t('workout.finish')} onPress={() => setFinishOpen(true)} />
+              <IconButton icon="chevron-down" label={t('workout.collapseDock')} size={56} onPress={() => setDockOpen(false)} />
+            </>
+          )
         ) : undefined}
       >
         <WorkoutHeader
@@ -892,7 +888,9 @@ export default function WorkoutScreen() {
           onMenu={() => setMenuOpen(true)}
         />
 
-        {workout.notes ? <Body>{workout.notes}</Body> : null}
+        {workout.notes ? (
+          <ListRow icon="document-text-outline" title={t('workoutDetails.notes')} subtitle={workout.notes} onPress={() => setDetailsOpen(true)} />
+        ) : null}
 
         {workout.exercises.length > 0 ? <ExerciseSegments exercises={workout.exercises} currentId={currentEntryId} done={completedCount} total={totalSets} /> : null}
 
@@ -984,8 +982,8 @@ export default function WorkoutScreen() {
             onSetOptions={(set, view) => setSetSheet({ exercise, setId: set.id, view })}
             onToggleWarmup={(set) => void toggleWarmup(set)}
             setRecords={records.sets}
-            volumeRecord={records.volume.has(exercise.exerciseId)}
-            sameLoadRecord={records.sameLoad.get(exercise.exerciseId) ?? null}
+            volumeRecords={records.volume.filter((record) => record.exerciseId === exercise.exerciseId)}
+            sameLoadRecords={records.sameLoad.filter((record) => record.exerciseId === exercise.exerciseId)}
             emomLabel={exercise.entryId === emomEntryId && emom.phase ? emomBadge(emom.phase, emom.plan!, t) : null}
             supersetLabel={exercise.groupId ? t('superset.label', { letter: supersetLetters.get(exercise.groupId) ?? 'A' }) : null}
             onUncomplete={(set) => void reopenSet(set)}
@@ -1031,6 +1029,7 @@ export default function WorkoutScreen() {
         onVoice={toggleVoiceCues}
         onNarrate={() => router.push({ pathname: '/workout/narrate/[id]', params: { id: workout.id } })}
         onFoldAll={() => { tapFeedback(); setCollapsedEntries(new Map(workout.exercises.map((exercise) => [exercise.entryId, !allCollapsed]))); }}
+        onDetails={() => setDetailsOpen(true)}
         onSave={() => setSaveOpen(true)}
         onClear={() => setClearAllOpen(true)}
       />
@@ -1075,13 +1074,6 @@ export default function WorkoutScreen() {
           if (emom.plan) void emom.stop().then(() => emom.start(config));
           else emom.start(config);
         }}
-      />
-      <PrescriptionSyncSheet
-        visible={syncOffer !== null}
-        match={syncOffer?.match ?? null}
-        exercises={syncOffer?.exercises ?? []}
-        mode="structure"
-        onClose={() => { const target = syncOffer?.workoutId; setSyncOffer(null); if (target) router.replace({ pathname: '/workout/summary/[id]', params: { id: target } }); }}
       />
       <SaveToProgramSheet
         visible={saveOpen}
@@ -1528,6 +1520,7 @@ const baseStyles = StyleSheet.create({
   foldAllText: { fontFamily: fonts.semibold, fontSize: 14 },
   headingTools: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   footerRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  footerIcons: { flexDirection: 'row', justifyContent: 'space-between' },
   // Long labels: side by side only when each gets room for one line.
   footerCellWide: { flex: 1, minWidth: 220 },
   swipeHint: { flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: radii.control, paddingHorizontal: 14, paddingVertical: 10 },

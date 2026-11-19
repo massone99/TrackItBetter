@@ -107,9 +107,15 @@ describe('detectSameLoadRecords', () => {
     expect(detectSameLoadRecords(rows, 'new')).toEqual([]);
   });
 
-  it('never compares band help of unknown kg, and counts bodyweight reps as a load of zero', () => {
+  it('compares unknown kg by identical bands and tension, separately from unassisted sets', () => {
     const unknown = { bands: [{ bandId: 'blue', tension: 2 as const }], assistKg: null };
-    expect(detectSameLoadRecords([...sets('a', [5, 5], unknown), ...sets('new', [9, 9], unknown)], 'new')).toEqual([]);
+    expect(detectSameLoadRecords([...sets('a', [5, 5], unknown), ...sets('new', [9, 9], unknown)], 'new'))
+      .toEqual([{ exerciseId: 'dip', loadKg: 20, sets: 2, value: 18, previous: 10, withBands: true }]);
+    expect(detectSameLoadRecords([...sets('a', [5, 5]), ...sets('new', [9, 9], unknown)], 'new')).toEqual([]);
+    expect(detectSameLoadRecords([
+      ...sets('a', [5, 5], unknown),
+      ...sets('new', [9, 9], { ...unknown, bands: [{ bandId: 'blue', tension: 3 }] }),
+    ], 'new')).toEqual([]);
     const bodyweight = (workoutId: string, reps: number[]) => reps.map((value) => row({ workoutId, metric: 'reps', reps: value, addedLoadKg: 0, effectiveLoadKg: null }));
     expect(detectSameLoadRecords([...bodyweight('a', [10, 10]), ...bodyweight('new', [11, 10])], 'new')).toEqual([{ exerciseId: 'dip', loadKg: 0, sets: 2, value: 21, previous: 20 }]);
   });
@@ -212,6 +218,23 @@ describe('less help from bands', () => {
   it('is a record with no band at all, as the least help', () => {
     const today = pullUp({ workoutId: 'new' });
     expect(kinds(detectSetRecords([pullUp({ bands: band('blue'), assistKg: 25 }), today], 'new', 'average', compare), today.setId)).toContain('lessAssist');
+  });
+
+  it('keeps assisted reps and volume from inflating unassisted records', () => {
+    const helped = pullUp({ workoutId: 'a', reps: 20, bands: band('blue'), assistKg: null });
+    const bodyweight = pullUp({ workoutId: 'b', reps: 5 });
+    const today = pullUp({ workoutId: 'new', reps: 7 });
+    expect(kinds(detectSetRecords([helped, bodyweight, today], 'new'), today.setId)).toEqual(['repsAtLoad']);
+    expect(detectVolumeRecords([helped, bodyweight, today], 'new')).toEqual([{ exerciseId: 'pull-up', value: 7, previous: 5 }]);
+    expect(exerciseRecordSummary([helped, bodyweight, today], 'pull-up')).toMatchObject({
+      bestAmount: 7, assisted: [{ bestAmount: 20, conditions: [{ bands: band('blue'), assistKg: null }] }],
+    });
+  });
+
+  it('does not award less assistance after reducing the weight entered on the set', () => {
+    const previous = pullUp({ loggedLoadKg: 10, assistKg: 20, bands: band('blue') });
+    const today = pullUp({ workoutId: 'new', loggedLoadKg: 0, assistKg: 10, bands: band('green') });
+    expect(kinds(detectSetRecords([previous, today], 'new'), today.setId)).not.toContain('lessAssist');
   });
 
   it('uses the strength order, across band sets, when the kg are unknown', () => {

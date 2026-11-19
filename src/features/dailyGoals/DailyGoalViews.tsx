@@ -93,7 +93,7 @@ export function GoalRow({ period = 'day', progress, expanded, divider, canMoveUp
 }) {
   const styles = useScaledStyles(baseStyles);
   const { t } = useTranslation();
-  const { palette } = useTheme();
+  const { palette, largeText } = useTheme();
   const tg = useGoalT(period);
   const text = useGoalText()(progress);
   const { goal, reached } = progress;
@@ -109,17 +109,19 @@ export function GoalRow({ period = 'day', progress, expanded, divider, canMoveUp
         onPress={() => { tapFeedback(); onToggle(); }}
         style={({ pressed }) => [styles.row, { backgroundColor: pressed ? palette.surfaceMuted : 'transparent' }]}
       >
-        <View style={styles.rowHead}>
+        <View style={[styles.rowHead, largeText && styles.rowHeadLarge]}>
           {reached ? <Icon name="checkmark-circle" size={24} color={palette.success} /> : null}
-          <View style={styles.rowCopy}>
+          <View style={[styles.rowCopy, largeText && styles.rowCopyLarge]}>
             <Text style={[styles.name, { color: palette.text }]}>{name}</Text>
             <Text style={[styles.kind, { color: palette.textMuted }]}>{kind}</Text>
           </View>
-          <View style={styles.rowAmount}>
-            <Text style={[styles.amount, { color: reached ? palette.success : palette.text }]}>{text.amount}</Text>
-            <Text style={[styles.status, { color: reached ? palette.success : palette.accentStrong }]}>{reached ? text.over ?? t('dailyGoals.reachedShort') : text.remaining}</Text>
+          <View style={[styles.rowAmount, largeText && styles.rowAmountLarge]}>
+            <Text style={[styles.amount, largeText && styles.alignStart, { color: reached ? palette.success : palette.text }]}>{text.amount}</Text>
+            <Text style={[styles.status, largeText && styles.alignStart, { color: reached ? palette.success : palette.accentStrong }]}>{reached ? text.over ?? t('dailyGoals.reachedShort') : text.remaining}</Text>
           </View>
-          <Icon name={expanded ? 'chevron-up' : 'chevron-down'} size={18} color={palette.textMuted} />
+          <View style={largeText && styles.rowChevronLarge}>
+            <Icon name={expanded ? 'chevron-up' : 'chevron-down'} size={18} color={palette.textMuted} />
+          </View>
         </View>
         {reached ? null : (
           <View style={[styles.track, { backgroundColor: palette.surfaceMuted }]}>
@@ -135,7 +137,7 @@ export function GoalRow({ period = 'day', progress, expanded, divider, canMoveUp
             value={goal.target}
             display={goalAmount(goal.measure, goal.target)}
             step={GOAL_STEPS[goal.measure]}
-            min={GOAL_STEPS[goal.measure]}
+            min={goal.scope === 'exercise' ? 1 : GOAL_STEPS[goal.measure]}
             max={targetMax(period, goal.measure)}
             onChange={(value) => onTarget(Math.max(1, Math.round(value)))}
           />
@@ -230,10 +232,15 @@ const baseStyles = StyleSheet.create({
   groupHeader: { minHeight: 44, paddingHorizontal: 14, paddingTop: 12, paddingBottom: 4, justifyContent: 'center' },
   row: { minHeight: 56, paddingHorizontal: 14, paddingVertical: 10, gap: 8, justifyContent: 'center' },
   rowHead: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  rowHeadLarge: { flexWrap: 'wrap', alignItems: 'flex-start' },
   rowCopy: { flex: 1, minWidth: 0 },
+  rowChevronLarge: { position: 'absolute', right: 0, top: 0 },
+  alignStart: { textAlign: 'left' },
+  rowCopyLarge: { paddingRight: 28 },
   name: { fontSize: 16, fontFamily: fonts.semibold },
   kind: { fontSize: 13 },
   rowAmount: { alignItems: 'flex-end', flexShrink: 0, maxWidth: '45%' },
+  rowAmountLarge: { flexBasis: '100%', maxWidth: '100%', alignItems: 'flex-start' },
   amount: { fontSize: 18, fontFamily: fonts.display, textAlign: 'right' },
   status: { fontSize: 13, fontFamily: fonts.semibold, textAlign: 'right' },
   track: { height: 6, borderRadius: 3, overflow: 'hidden' },

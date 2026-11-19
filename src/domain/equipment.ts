@@ -21,6 +21,7 @@ export interface Band {
   /** Assistance in kg at the lightest and strongest stretch; null when not known. */
   minKg: number | null;
   maxKg: number | null;
+  archived?: boolean;
 }
 
 /** A brand's bands, ordered from the lightest to the strongest. */
@@ -138,6 +139,11 @@ export function orderAfterSetEdit(bandOrder: readonly string[], bandSets: readon
   return [...result.slice(0, at), ...added, ...result.slice(at)];
 }
 
+/** Identity of a band's setup, including repeated bands and tension, independent of selection order. */
+export function bandConfigurationKey(bands: readonly SetBand[]): string {
+  return JSON.stringify(bands.map(({ bandId, tension }) => JSON.stringify([bandId, tension])).sort());
+}
+
 /** Strength of one band on a set: its place in the order first, then its tension. */
 const bandLevel = (band: SetBand, ranks: ReadonlyMap<string, number>) => {
   const rank = ranks.get(band.bandId);
@@ -150,6 +156,9 @@ const bandLevel = (band: SetBand, ranks: ReadonlyMap<string, number>) => {
  * against two lighter ones). No bands is the least help.
  */
 export function compareBandHelp(a: readonly SetBand[], b: readonly SetBand[], ranks: ReadonlyMap<string, number>): -1 | 0 | 1 | null {
+  if (a.length === 0) return b.length === 0 ? 0 : -1;
+  if (b.length === 0) return 1;
+  if (bandConfigurationKey(a) === bandConfigurationKey(b)) return 0;
   const levels = (bands: readonly SetBand[]) => bands.map((band) => bandLevel(band, ranks));
   const left = levels(a);
   const right = levels(b);

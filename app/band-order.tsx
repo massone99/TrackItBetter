@@ -26,15 +26,13 @@ export default function BandOrderScreen() {
   if (!catalog) return <Screen><ActivityIndicator color={palette.accentStrong} /></Screen>;
 
   const active = catalog.bandSets.filter((set) => !set.archived);
-  const bands = new Map(active.flatMap((set) => set.bands.map((band) => [band.id, { ...band, setName: set.name }] as const)));
+  const bands = new Map(active.flatMap((set) => set.bands.filter((band) => !band.archived).map((band) => [band.id, { ...band, setName: set.name }] as const)));
   const ordered = [...bandRanks(catalog.bandSets, catalog.bandOrder).keys()].flatMap((id) => (bands.has(id) ? [bands.get(id)!] : []));
 
   const move = async (from: number, to: number) => {
     setError(null);
     const visible = moveItem(ordered, from, to - from).map((band) => band.id);
-    // Bands of archived sets keep their place after the visible ones.
-    const hidden = [...bandRanks(catalog.bandSets, catalog.bandOrder).keys()].filter((id) => !bands.has(id));
-    try { await saveBandOrder([...visible, ...hidden]); await reload(); } catch { setError(t('equipment.saveError')); }
+    try { await saveBandOrder(visible); await reload(); } catch { setError(t('equipment.saveError')); }
   };
 
   return (

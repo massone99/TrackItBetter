@@ -2,7 +2,7 @@ import { eq } from 'drizzle-orm';
 import * as Crypto from 'expo-crypto';
 import { db, initializeDatabase } from '../../db/client';
 import { settings } from '../../db/schema';
-import { defaultApparatus, orderAfterSetEdit, type Apparatus, type Band, type BandSet } from '../../domain/equipment';
+import { bandRanks, defaultApparatus, orderAfterSetEdit, type Apparatus, type Band, type BandSet } from '../../domain/equipment';
 
 export type { Apparatus, Band, BandSet, SetBand, Tension } from '../../domain/equipment';
 
@@ -38,13 +38,18 @@ export function parseCatalog(value: unknown): EquipmentCatalog {
         if (!band || typeof band !== 'object') return [];
         const b = band as Record<string, unknown>;
         if (typeof b.id !== 'string' || typeof b.name !== 'string') return [];
-        return [{ id: b.id, name: b.name, color: typeof b.color === 'string' ? b.color : '#828282', minKg: finite(b.minKg), maxKg: finite(b.maxKg) }];
+        return [{ id: b.id, name: b.name, color: typeof b.color === 'string' ? b.color : '#828282', minKg: finite(b.minKg), maxKg: finite(b.maxKg), ...(b.archived === true ? { archived: true } : {}) }];
       });
       return [{ id: row.id, name: row.name, bands, archived: row.archived === true }];
     })
     : [];
   const bandOrder = Array.isArray(source.bandOrder) ? source.bandOrder.filter((id): id is string => typeof id === 'string') : [];
-  return { apparatus, bandSets, bandOrder };
+  const ranks = bandRanks(bandSets, bandOrder);
+  return {
+    apparatus,
+    bandSets: bandSets.map((set) => ({ ...set, bands: [...set.bands].sort((a, b) => ranks.get(a.id)! - ranks.get(b.id)!) })),
+    bandOrder: [...ranks.keys()],
+  };
 }
 
 export async function getEquipment(): Promise<EquipmentCatalog> {
@@ -107,10 +112,14 @@ export async function renameBand(bandId: string, name: string): Promise<void> {
   await saveBandSet({ ...set, bands: set.bands.map((band) => (band.id === bandId ? { ...band, name: trimmed } : band)) });
 }
 
-/** Saves the strength order of every band, lightest first, across band sets. */
+/** Reorders the supplied bands within their existing global slots. Other bands keep their rank. */
 export async function saveBandOrder(bandOrder: string[]): Promise<void> {
   const catalog = await getEquipment();
-  await writeEquipment({ ...catalog, bandOrder });
+  const known = new Set(catalog.bandOrder);
+  const ordered = [...new Set(bandOrder.filter((id) => known.has(id)))];
+  const moved = new Set(ordered);
+  let next = 0;
+  await writeEquipment({ ...catalog, bandOrder: catalog.bandOrder.map((id) => moved.has(id) ? ordered[next++] : id) });
 }
 
 export async function setBandSetArchived(id: string, archived: boolean): Promise<void> {
