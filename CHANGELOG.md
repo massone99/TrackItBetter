@@ -2,6 +2,10 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.72.4 - 2026-11-19
+
+- Remove exercises directly from the ongoing workout overview. Tap Restore to undo, or confirm removal when an exercise contains video clips.
+
 ## 0.72.3 - 2026-11-19
 
 - Reorder neighbouring exercises from the ongoing workout overview, including exercises within a superset.
