@@ -2,6 +2,11 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.75.1 - 2026-11-20
+
+- Separate countdown settings from voice switches in Narrated mode and give duration shortcuts more room at larger text sizes.
+- Space out set controls, the copy form, ratings and timers in active workouts. Controls wrap on narrow screens and the workout title has room to stay legible.
+
 ## 0.75.0 - 2026-11-20
 
 - Hide set ratings from workout defaults. Saved effort, form and range-of-motion ratings are kept.
