@@ -2,6 +2,14 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.75.0 - 2026-11-20
+
+- Hide set ratings from workout defaults. Saved effort, form and range-of-motion ratings are kept.
+- Drag exercises to reorder them. The lifted row slides into its destination on release.
+- See how much the planned working sets add up to and compare that total with the exercise goal.
+- Add multiple copies of the last set at once, preserving left and right values for unilateral exercises.
+- Configure the preparation countdown and maximum wait for speech. Choose spoken cues or beeps separately for preparation and the start of each set.
+
 ## 0.74.0 - 2026-11-20
 
 - Timed method for exercises measured in time: a block of repeated holds and rests (for example 3 minutes of 10 s hold, 10 s rest), a recovery, then one long hold. Each part is saved as a set with its format in the note.
