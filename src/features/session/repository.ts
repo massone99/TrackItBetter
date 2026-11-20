@@ -524,7 +524,8 @@ async function splitBrokenSuperset(workoutId: string, movedId: string): Promise<
   if (rest.length === 1) await db.update(exerciseEntries).set({ groupId: null, groupType: null }).where(eq(exerciseEntries.id, rest[0].id));
 }
 
-export async function addSet(entryId: string, pairValues?: { left: PairEditValues; right: PairEditValues }): Promise<string> {
+export async function addSet(entryId: string, pairValues?: { left: PairEditValues; right: PairEditValues }, count = 1): Promise<string> {
+  if (!Number.isInteger(count) || count < 1 || count > 99) throw new RangeError("Invalid set count");
   await initializeDatabase();
   if (pairValues) validatePairValues(pairValues.left, pairValues.right);
   const [entryExercise] = await db
@@ -534,46 +535,49 @@ export async function addSet(entryId: string, pairValues?: { left: PairEditValue
     .innerJoin(workouts, eq(exerciseEntries.workoutId, workouts.id))
     .where(eq(exerciseEntries.id, entryId))
     .limit(1);
-  const [previous] = await db
-    .select()
-    .from(trainingSets)
-    .where(eq(trainingSets.entryId, entryId))
-    .orderBy(desc(trainingSets.index))
-    .limit(1);
   const setId = id();
-  const initialValue = entryExercise?.metric === 'time' || entryExercise?.metric === 'time_load'
-    ? { durationSec: 10 }
-    : entryExercise?.metric === 'distance'
-      ? { distanceM: 10 }
-      : { reps: 8 };
-  const values = {
-    id: setId,
-    entryId,
-    index: (previous?.index ?? 0) + 1,
-    kind: previous?.kind ?? 'working',
-    reps: previous?.reps ?? ('reps' in initialValue ? initialValue.reps : null),
-    durationSec: previous?.durationSec ?? ('durationSec' in initialValue ? initialValue.durationSec : null),
-    distanceM: previous?.distanceM ?? ('distanceM' in initialValue ? initialValue.distanceM : null),
-    addedLoadKg: previous?.addedLoadKg ?? 0,
-    restSec: previous?.restSec ?? null,
-    band: previous?.band ?? null,
-    bands: previous?.bands ?? null,
-    assistKg: previous?.assistKg ?? null,
-    rpe: previous?.rpe ?? null,
-    targetRpe: previous?.targetRpe ?? null,
-    side: 'both',
-    note: previous?.note ?? null,
-    completedAt: entryExercise?.endedAt ?? null,
-  };
   await db.transaction(async (tx) => {
-    if (entryExercise?.unilateral || pairValues) {
-      const pairId = id();
-      const prior = previous?.pairId ? await tx.select().from(trainingSets).where(eq(trainingSets.pairId, previous.pairId)) : [];
-      await tx.insert(trainingSets).values(['left', 'right'].map((side, position) => {
-        const source = prior.find((s) => s.side === side);
-        return { ...values, ...(source ? { reps: source.reps, durationSec: source.durationSec, distanceM: source.distanceM, addedLoadKg: source.addedLoadKg, rpe: source.rpe, note: source.note } : {}), ...(pairValues ? pairValues[side as 'left' | 'right'] : {}), id: position === 0 ? setId : id(), side, pairId };
-      }));
-    } else await tx.insert(trainingSets).values(values);
+    const [previous] = await tx
+      .select()
+      .from(trainingSets)
+      .where(eq(trainingSets.entryId, entryId))
+      .orderBy(desc(trainingSets.index))
+      .limit(1);
+    const initialValue = entryExercise?.metric === 'time' || entryExercise?.metric === 'time_load'
+      ? { durationSec: 10 }
+      : entryExercise?.metric === 'distance'
+        ? { distanceM: 10 }
+        : { reps: 8 };
+    const values = {
+      id: setId,
+      entryId,
+      index: (previous?.index ?? 0) + 1,
+      kind: previous?.kind ?? 'working',
+      reps: previous?.reps ?? ('reps' in initialValue ? initialValue.reps : null),
+      durationSec: previous?.durationSec ?? ('durationSec' in initialValue ? initialValue.durationSec : null),
+      distanceM: previous?.distanceM ?? ('distanceM' in initialValue ? initialValue.distanceM : null),
+      addedLoadKg: previous?.addedLoadKg ?? 0,
+      restSec: previous?.restSec ?? null,
+      band: previous?.band ?? null,
+      bands: previous?.bands ?? null,
+      assistKg: previous?.assistKg ?? null,
+      rpe: previous?.rpe ?? null,
+      targetRpe: previous?.targetRpe ?? null,
+      side: 'both',
+      note: previous?.note ?? null,
+      completedAt: entryExercise?.endedAt ?? null,
+    };
+    const prior = previous?.pairId ? await tx.select().from(trainingSets).where(eq(trainingSets.pairId, previous.pairId)) : [];
+    for (let offset = 0; offset < count; offset++) {
+      const copy = { ...values, id: offset === 0 ? setId : id(), index: values.index + offset };
+      if (entryExercise?.unilateral || pairValues || prior.length > 0) {
+        const pairId = id();
+        await tx.insert(trainingSets).values(['left', 'right'].map((side, position) => {
+          const source = prior.find((s) => s.side === side);
+          return { ...copy, ...(source ? { reps: source.reps, durationSec: source.durationSec, distanceM: source.distanceM, addedLoadKg: source.addedLoadKg, bands: source.bands, band: source.band, assistKg: source.assistKg, restSec: source.restSec, targetRpe: source.targetRpe, rpe: source.rpe, note: source.note } : {}), ...(pairValues ? pairValues[side as 'left' | 'right'] : {}), id: position === 0 ? copy.id : id(), side, pairId };
+        }));
+      } else await tx.insert(trainingSets).values(copy);
+    }
   });
   if (entryExercise?.endedAt) bumpFinishedVersion();
   return setId;

@@ -56,6 +56,20 @@ const buildUnilateral = async (name = 'Unilateral') => {
 };
 
 describe('unilateral session persistence', () => {
+  it('adds N open copies with independent pairs and preserves each side', async () => {
+    const { entryId } = await buildUnilateral();
+    const [left, right] = pairRows(entryId);
+    await updateSet(left.id as string, 'reps', 6);
+    await updateSet(right.id as string, 'reps', 9);
+    await addSet(entryId, undefined, 3);
+    const rows = pairRows(entryId);
+    expect(rows.map((row) => row.reps)).toEqual([6, 9, 6, 9, 6, 9, 6, 9]);
+    expect(new Set(rows.map((row) => row.pair_id)).size).toBe(4);
+    expect(rows.slice(2).every((row) => row.completed_at === null)).toBe(true);
+    await expect(addSet(entryId, undefined, 1.5)).rejects.toThrow();
+    expect(pairRows(entryId)).toHaveLength(8);
+  });
+
   it('clears every set of an exercise or a workout and restores them in order', async () => {
     const { workoutId, entryId } = await buildUnilateral();
     await addSet(entryId);

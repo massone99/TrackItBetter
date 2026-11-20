@@ -21,7 +21,7 @@ export interface ReorderRow { handle: ReactNode; dragging: boolean; wrapDrag: (c
  * brief hold), so a row keeps its own tap and long-press behaviour and the page still scrolls.
  * Screen readers get move up / move down actions on the grip instead.
  */
-export function ReorderableList<T>({ items, keyOf, nameOf, gap = 12, onMove, onRowLayout, renderRow }: {
+export function ReorderableList<T>({ items: currentItems, keyOf, nameOf, gap = 12, onMove, onRowLayout, renderRow }: {
   items: readonly T[];
   keyOf: (item: T) => string;
   nameOf: (item: T) => string;
@@ -37,6 +37,8 @@ export function ReorderableList<T>({ items, keyOf, nameOf, gap = 12, onMove, onR
   // Only which row is lifted is React state; the finger's travel and the neighbours' shifts are
   // shared values, so a drag frame moves views on the UI thread instead of re-rendering every row.
   const [lifted, setLifted] = useState<number | null>(null);
+  const [landingItems, setLandingItems] = useState<readonly T[] | null>(null);
+  const items = landingItems ?? currentItems;
   const motion = {
     from: useSharedValue(-1),
     over: useSharedValue(-1),
@@ -50,9 +52,10 @@ export function ReorderableList<T>({ items, keyOf, nameOf, gap = 12, onMove, onR
   const shiftMs = duration(140);
   // What the finger is doing and where the page was when the grab began; the row follows both.
   const pointer = useRef({ translation: 0, absoluteY: 0, startScroll: 0, from: -1, over: -1 });
+  const landing = useRef<ReturnType<typeof setTimeout> | null>(null);
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
   const stop = () => { if (timer.current) { clearInterval(timer.current); timer.current = null; } };
-  useEffect(() => stop, []);
+  useEffect(() => () => { stop(); if (landing.current) clearTimeout(landing.current); }, []);
 
   // Keep native web scrolling until the hold activates. After pickup, the browser
   // must leave the pointer stream with the pan handler until the finger lifts.
@@ -75,6 +78,7 @@ export function ReorderableList<T>({ items, keyOf, nameOf, gap = 12, onMove, onR
     if (motion.over.value !== over) motion.over.value = over;
   };
   const start = (index: number, absoluteY: number) => {
+    if (landing.current !== null) return;
     tapFeedback();
     pointer.current = { translation: 0, absoluteY, startScroll: scroll?.getOffset() ?? 0, from: index, over: index };
     motion.travel.value = heightOf(keyOf(items[index])) + gap;
@@ -99,11 +103,27 @@ export function ReorderableList<T>({ items, keyOf, nameOf, gap = 12, onMove, onR
     const { from, over } = pointer.current;
     if (from < 0) return;
     pointer.current.from = -1;
-    motion.from.value = -1;
-    motion.over.value = -1;
-    motion.offset.value = 0;
-    setLifted(null);
-    if (commit && over !== from) { tapFeedback('success'); onMove(from, over); }
+    const destination = commit ? over : from;
+    motion.over.value = destination;
+    const crossedRows = destination > from ? items.slice(from + 1, destination + 1) : items.slice(destination, from);
+    const distance = crossedRows.reduce((sum, item) => sum + heightOf(keyOf(item)) + gap, 0);
+    const land = () => {
+      landing.current = null;
+      motion.from.value = -1;
+      motion.over.value = -1;
+      motion.offset.value = 0;
+      setLandingItems(null);
+      setLifted(null);
+    };
+    if (destination !== from) {
+      // Commit on release; retain the previous layout until the lifted row reaches its new slot.
+      if (shiftMs > 0) setLandingItems(items);
+      tapFeedback('success');
+      onMove(from, destination);
+    }
+    if (shiftMs === 0) { land(); return; }
+    motion.offset.value = withTiming(Math.sign(destination - from) * distance, { duration: shiftMs });
+    landing.current = setTimeout(land, shiftMs);
   };
 
   /** The position the dragged row's centre has reached. */
@@ -129,6 +149,7 @@ export function ReorderableList<T>({ items, keyOf, nameOf, gap = 12, onMove, onR
         const dragged = lifted === index;
         const pan = (delay: number) => createDragGesture(delay, (y) => start(index, y),
           (translation, y) => {
+            if (pointer.current.from !== index) return;
             pointer.current.translation = translation;
             pointer.current.absoluteY = y;
             follow();

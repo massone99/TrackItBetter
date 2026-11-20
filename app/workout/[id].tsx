@@ -113,7 +113,7 @@ import { apparatusName, bandComparer, bandsById, describeSetBands, useEquipment 
 import { LoadError } from '../../src/shared/components/LoadError';
 import { SetSheet } from '../../src/features/session/SetSheet';
 import { ExerciseCard, holdDisplay } from '../../src/features/session/ExerciseCard';
-import { readBooleanPreference, RPE_PROMPT_KEY, writePreference } from '../../src/shared/settings/preferences';
+import { SET_RATINGS_KEY, readBooleanPreference, RPE_PROMPT_KEY, writePreference } from '../../src/shared/settings/preferences';
 
 import { instrument, MIN_TOUCH_TARGET, radii } from '../../src/shared/theme/tokens';
 import { useTheme } from '../../src/shared/theme/ThemeProvider';
@@ -261,6 +261,7 @@ export default function WorkoutScreen() {
   const [setSheet, setSetSheet] = useState<{ exercise: SessionExercise; setId: string; view?: 'bands' | 'note' | 'rest' } | null>(null);
   // Set that just got completed and is waiting for an optional RPE tap.
   // RPE chips under every working set; Profile can hide them.
+  const showRatings = readBooleanPreference(SET_RATINGS_KEY, true);
   const [showRpe] = useState(() => readBooleanPreference(RPE_PROMPT_KEY, true));
   const [loadNotice, setLoadNotice] = useState<string | null>(null);
   const [footerHeight, setFooterHeight] = useState(0);
@@ -879,6 +880,8 @@ export default function WorkoutScreen() {
         onStartHold={startHoldFor}
         onFinishHold={() => void finishCurrentHold()}
         onAddSet={() => void (exercise.entryId === emomEntryId ? addEmomRound() : addSet(exercise.entryId).then(() => refresh(workout.id)))}
+        showRatings={showRatings}
+        onAddCopies={exercise.entryId === emomEntryId ? undefined : (count) => void addSet(exercise.entryId, undefined, count).then(() => refresh(workout.id))}
         onAddWarmup={() => void addWarmupSet(exercise.entryId).then(() => refresh(workout.id))}
         onCopyAllLast={copyable.length > 0 || missingWarmups(exercise, previous.get(exercise.exerciseId)) > 0 ? () => void Promise.all(copyable.map(({ set, values }) => copyValuesToSet(set.id, values)))
           .then(() => addWarmupsFromLastTime(exercise.entryId, previous.get(exercise.exerciseId)?.warmups ?? []))
@@ -923,7 +926,7 @@ export default function WorkoutScreen() {
             <EmomMiniDock view={emomView} label={emomBadge(emomView.phase, emom.plan!, t)} onOpen={() => setEmomStage(true)} />
           ) : hold.active || restEndsAt !== null ? (
             <>
-              {restEndsAt !== null && rateTarget ? (
+              {restEndsAt !== null && rateTarget && showRatings ? (
                 <RateSetStrip
                   key={rateTarget.set.id}
                   setLabel={rateTarget.label}

@@ -19,7 +19,7 @@ import { fonts } from '../../shared/theme/typography';
 import { useScaledStyles } from '../../shared/theme/useScaledStyles';
 import { formatClock, formatNumber } from '../../shared/utils/format';
 import { Gauge, RegistrationMarks, Tag, useInk } from './instrument';
-import { readBooleanPreference, writePreference } from '../../shared/settings/preferences';
+import { SET_RATINGS_KEY, readBooleanPreference, writePreference } from '../../shared/settings/preferences';
 import { ChipsFold } from './ChipsFold';
 import { WorkoutNote } from './WorkoutNote';
 import { ExerciseNoteBlock } from './ExerciseNoteBlock';
@@ -52,7 +52,7 @@ const BANDS_FOLDED_KEY = 'workout.bandsFolded';
 const ADD_SLOP = { top: spacing.sm, bottom: spacing.sm, left: spacing.sm, right: 0 };
 const ADD_MORE_SLOP = { top: spacing.sm, bottom: spacing.sm, left: 0, right: spacing.md };
 
-export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, previous, hold = null, onChange, onSetValue, onComplete, onStartHold, onFinishHold, onAddSet, onAddWarmup, onCopyAllLast, onSetOptions, onUncomplete, onRemoveSet, onSwiped, showRpe, onRpe, onOptions, onToggleWarmup, setRecords = NO_RECORDS, volumeRecords = [], sameLoadRecords = [], onEntryNote, timeGoals = null, supersetLabel = null, emomLabel: emomBadgeLabel, defaultRest = 0, onFormRating, onRomRating, onNote, focus = false, nowLabel = null, figure = null, editDone = false, typeDone = false, compare = true, apparatusLabel = null, firstTimeLabel, describeBands, compareBands, renderBandsEditor, fixedAction = false, onSetExpanded, liveLayout, onOpenExerciseNote, wrapSetEditor, exerciseNavigation, footerAction = false }: {
+export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, previous, hold = null, onChange, onSetValue, onComplete, onStartHold, onFinishHold, onAddSet, onAddCopies, showRatings = readBooleanPreference(SET_RATINGS_KEY, true), onAddWarmup, onCopyAllLast, onSetOptions, onUncomplete, onRemoveSet, onSwiped, showRpe, onRpe, onOptions, onToggleWarmup, setRecords = NO_RECORDS, volumeRecords = [], sameLoadRecords = [], onEntryNote, timeGoals = null, supersetLabel = null, emomLabel: emomBadgeLabel, defaultRest = 0, onFormRating, onRomRating, onNote, focus = false, nowLabel = null, figure = null, editDone = false, typeDone = false, compare = true, apparatusLabel = null, firstTimeLabel, describeBands, compareBands, renderBandsEditor, fixedAction = false, onSetExpanded, liveLayout, onOpenExerciseNote, wrapSetEditor, exerciseNavigation, footerAction = false }: {
   /** One-at-a-time mode: the screen's footer logs the set to do, so the editor drops its own button. */
   footerAction?: boolean;
   handle?: ReactNode;
@@ -71,6 +71,8 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
   onComplete: (set: SessionSet) => void;
   onStartHold?: (set: SessionSet) => void;
   onFinishHold?: () => void;
+  showRatings?: boolean;
+  onAddCopies?: (count: number) => void;
   onAddSet: () => void;
   onAddWarmup?: () => void;
   /** Fills every open set from last time's matching set; given only when there is one to fill. */
@@ -190,7 +192,8 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
   // The set to do next carries the filled button, so the eye lands on it; later sets stay quiet.
   const nextSetId = exercise.sets.find((set) => !set.completedAt)?.id ?? null;
   // A total goal: how much of it the done sets cover, shown as "32 / 50 reps".
-  const goal = exercise.totalTarget != null ? totalProgress(exercise.sets, exercise.metric, exercise.totalTarget) : null;
+  const progress = totalProgress(exercise.sets, exercise.metric, exercise.totalTarget ?? 0);
+  const goal = exercise.totalTarget != null ? progress : null;
   const goalAmount = (value: number) => (timed ? formatClock(Math.round(value)) : distance ? `${formatNumber(value)} m` : formatNumber(value));
   const goalUnit = timed || distance ? '' : ` ${t('history.units.reps')}`;
   // Large text opens one set at a time: the one being held, else the one tapped (until it is done or
@@ -239,7 +242,15 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
   // Sets whose chips are unfolded; folded by default so the sets read as values, not as rows of buttons.
   const [chipsOpen, setChipsOpen] = useState<ReadonlySet<string>>(() => new Set());
   // The "more ways to add" list under the Add set button (warm-up); closed by default and after each choice.
+  const [copyCount, setCopyCount] = useState("3");
   const [addMenuOpen, setAddMenuOpen] = useState(false);
+  const copies = Number(copyCount);
+  const bulkAdd = addMenuOpen && onAddCopies && exercise.sets.length > 0 ? (
+    <View>
+      <TextField label={t('logger.copies')} keyboardType="number-pad" maxLength={2} value={copyCount} onChangeText={setCopyCount} />
+      <ActionButton secondary compact label={t('logger.addCopies')} disabled={!/^[1-9]\d?$/.test(copyCount)} onPress={() => { setAddMenuOpen(false); onAddCopies(copies); }} />
+    </View>
+  ) : null;
   // Sets whose telemetry (RPE, form, ROM and their pickers) is unfolded; folded by default.
   const [telemetryOpen, setTelemetryOpen] = useState<ReadonlySet<string>>(() => new Set());
   // Bands belong in the set in hand when the exercise already uses them, now or last time.
@@ -258,7 +269,7 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
   const tableCheckBox = { width: tableCheckSize, height: tableCheckSize };
   const checkLeft = setLayout.check === 'left';
   // A set is open when the user said so, else the one in hand (or just done, still to rate); the others show one line.
-  const openOf = (set: SessionSet) => table && (expanded.get(set.id) ?? (hold?.setId === set.id || set.id === nextSetId || (!!set.completedAt && set.id === lastDoneId && set.kind === 'working' && set.formRating === null)));
+  const openOf = (set: SessionSet) => table && (expanded.get(set.id) ?? (hold?.setId === set.id || set.id === nextSetId || (showRatings && !!set.completedAt && set.id === lastDoneId && set.kind === 'working' && set.formRating === null)));
   // One set open at a time: opening one folds the rest. "Open all" is the explicit way to see every set.
   const openOnly = (setId: string) => { onSetExpanded?.(); setExpanded(new Map(exercise.sets.map((item) => [item.id, item.id === setId] as const))); };
   const setAllOpen = (value: boolean) => { if (value) onSetExpanded?.(); setExpanded(new Map(exercise.sets.map((item) => [item.id, value] as const))); };
@@ -308,9 +319,9 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
     const working = set.kind === 'working' && !emomBadgeLabel;
     const foldable = done && !editDone && set.id !== lastDoneId;
     const isFolded = (value: number | null) => done && value !== null && (editDone || foldable);
-    const canRpe = showRpe && working;
-    const canForm = working;
-    const canRom = !!onRomRating && working;
+    const canRpe = showRatings && showRpe && working;
+    const canForm = showRatings && working;
+    const canRom = showRatings && !!onRomRating && working;
     // One value at a time: by default the first one still to fill (RPE, then form once done, then ROM) on the set in hand or just done.
     const live = done || editing || set.id === nextSetId;
     // With large text RPE is asked before completing; a done set opens form next, so the set in hand does not slide away.
@@ -418,7 +429,7 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
         </View>
       </Pressable>
     );
-    const summary = [title, timed ? value : distance ? `${value} m` : `${value} ${t('history.units.reps')}`, withLoad ? `${loadText} kg` : null, done && set.rpe !== null ? t('logger.rpeTag', { value: formatRpe(set.rpe) }) : null].filter(Boolean).join(' · ');
+    const summary = [title, timed ? value : distance ? `${value} m` : `${value} ${t('history.units.reps')}`, withLoad ? `${loadText} kg` : null, showRatings && done && set.rpe !== null ? t('logger.rpeTag', { value: formatRpe(set.rpe) }) : null].filter(Boolean).join(' · ');
     const actionCol = (
   <View style={[styles.colAction, { width: checkBtn }]}>
     {done ? (
@@ -468,7 +479,7 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
     )}
   </View>
     );
-    const compact = [timed ? value : distance ? `${value} m` : `${value} ${t('history.units.reps')}`, withLoad ? `${loadText} kg` : null, set.rpe !== null ? t('logger.rpeTag', { value: formatRpe(set.rpe) }) : null, set.formRating !== null ? `${t('lastTime.form')} ${formatNumber(set.formRating)}` : done && canForm ? `${t('lastTime.form')}?` : null].filter(Boolean).join(' · ');
+    const compact = [timed ? value : distance ? `${value} m` : `${value} ${t('history.units.reps')}`, withLoad ? `${loadText} kg` : null, canRpe && set.rpe !== null ? t('logger.rpeTag', { value: formatRpe(set.rpe) }) : null, canForm && set.formRating !== null ? `${t('lastTime.form')} ${formatNumber(set.formRating)}` : done && canForm ? `${t('lastTime.form')}?` : null].filter(Boolean).join(' · ');
     // Large text: a folded set is always one quiet row, like the compact list; ratings are given from the open set.
     const quiet = largeText && !editing;
     const rowBody = (
@@ -549,7 +560,7 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
             return (
               <>
                 {textIsLarge ? <Tag color={palette.accentStrong}>{`● ${holding ? t('activeSet.hold') : done ? t('activeSet.logged') : t('activeSet.inProgress')}`.toUpperCase()}</Tag> : null}
-                <PreviousSetBox label={t('activeSet.previousLabel')} value={previousValue} rpeLabel={t('lastTime.rpeChip')} rpeValue={match && match.rpe !== null ? formatRpe(match.rpe) : null} sideLabel={t('activeSet.lastSession')} />
+                <PreviousSetBox label={t('activeSet.previousLabel')} value={previousValue} rpeLabel={t('lastTime.rpeChip')} rpeValue={showRatings && match && match.rpe !== null ? formatRpe(match.rpe) : null} sideLabel={t('activeSet.lastSession')} />
                 <View style={styles.measureRow}>
                   <MeasureBox stack={textIsLarge} label={fieldLabel.toUpperCase()}>
                     <View style={styles.largeStepper}>{valueDown}<View style={styles.largeValue}>{valueField}</View>{valueUp}</View>
@@ -612,7 +623,7 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
     );
     const current = holding || set.id === nextSetId;
     const rowUnit = timed ? '' : distance ? ' m' : ` ${t('history.units.reps')}`;
-    const rowSummary = done ? [
+    const rowSummary = done && showRatings ? [
       set.rpe !== null ? `RPE ${formatRpe(set.rpe)}` : null,
       set.formRating !== null ? `F ${formatNumber(set.formRating)}` : null,
       set.romRating !== null ? `ROM ${formatNumber(set.romRating)}` : null,
@@ -729,7 +740,7 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
           record: liveLayout && Boolean(setRecords.get(set.id)?.length) };
 
         return done
-          ? swipe(<LedgerDoneRow {...row} rpe={set.rpe !== null ? formatRpe(set.rpe) : null} />, 'ld')
+          ? swipe(<LedgerDoneRow {...row} rpe={showRatings && set.rpe !== null ? formatRpe(set.rpe) : null} />, 'ld')
           : swipe(<LedgerUpcomingRow {...row} next={set.id === nextSetId} />, 'lu');
       }
       const restSec = set.restSec ?? defaultRest;
@@ -1078,8 +1089,11 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
               {goal.reached ? (goal.over > 0 ? t('totalGoal.reachedOver', { over: goalAmount(goal.over) }) : t('totalGoal.reached')) : t('totalGoal.remaining', { value: goalAmount(goal.remaining) })}
             </Text>
           </View>
+          <Label>{t('totalGoal.projected')} · {goalAmount(goal.projected)} / {goalAmount(goal.target)}{goalUnit}</Label>
           <ProgressMeter value={goal.done} total={goal.target} label={`${goalAmount(goal.done)} / ${goalAmount(goal.target)}${goalUnit}`} tone={goal.reached ? 'success' : 'accent'} />
         </View>
+      ) : !editDone && exercise.sets.some((set) => set.kind === 'working' && !set.completedAt) ? (
+        <Label>{t('totalGoal.projected')} · {goalAmount(progress.projected)}{goalUnit}</Label>
       ) : null}
 
       {!collapsed && hasComparison && previous ? (
@@ -1131,6 +1145,7 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
         </Pressable>
         {onAddWarmup ? <IconButton tone="plain" icon={addMenuOpen ? 'chevron-up' : 'chevron-down'} label={t('logger.addMore')} onPress={() => setAddMenuOpen(!addMenuOpen)} /> : null}
       </View>
+      {bulkAdd}
       {addMenuOpen && onAddWarmup ? <View style={styles.liveAddMenu}><ActionButton compact secondary icon="flame-outline" label={t('logger.addWarmup')} onPress={() => { setAddMenuOpen(false); onAddWarmup(); }} /></View> : null}
     </>;
     if (standalone) {
@@ -1177,6 +1192,7 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
       {exerciseNavigation}
       {title}
       {setTools}
+      {bulkAdd}
       {addMenuOpen && onAddWarmup ? <ActionButton compact secondary icon="flame-outline" label={t('logger.addWarmup')} onPress={() => { setAddMenuOpen(false); onAddWarmup(); }} /> : null}
       {exercise.sets.length > 0 ? <View style={[styles.liveFrame, { borderColor: palette.border, backgroundColor: palette.surface }]}>
         <LedgerHeader valueLabel={timed ? t('ledger.secCol') : distance ? t('ledger.metresCol') : t('liveWorkout.repsColumn')} withLoad={withLoad} live />
@@ -1306,7 +1322,8 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
             </Pressable>
           ) : null}
         </View>
-        {addMenuOpen && onAddWarmup ? (
+        {bulkAdd}
+      {addMenuOpen && onAddWarmup ? (
           <View style={[styles.addMenu, { borderColor: ink, backgroundColor: palette.surface }]}>
             <Pressable
               accessibilityRole="button"

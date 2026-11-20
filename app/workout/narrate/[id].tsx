@@ -7,10 +7,11 @@ import { groupSets } from '../../../src/domain/setPairs';
 import { firstCue } from '../../../src/features/exercises/cues';
 import { getExerciseById } from '../../../src/features/exercises/repository';
 import { NarrationPlayer, type NarrationDrill, type NarrationRecord } from '../../../src/features/narration/NarrationPlayer';
-import { readNarrationPrepSec } from '../../../src/features/narration/settings';
+import { PREP_VOICE_KEY, WORK_VOICE_KEY, readAnnouncementWaitSec, readNarrationPrepSec } from '../../../src/features/narration/settings';
 import { restForSet } from '../../../src/features/session/restDefaults';
 import { completeSet, getActiveWorkout, uncompleteSet, type ActiveWorkout } from '../../../src/features/session/repository';
 import { PageHeading, Screen } from '../../../src/shared/components/ui';
+import { readBooleanPreference } from '../../../src/shared/settings/preferences';
 import { useTheme } from '../../../src/shared/theme/ThemeProvider';
 
 /** Hands-free session over a workout's open sets: announces, counts down, rests, and marks each set done. */
@@ -21,6 +22,9 @@ export default function NarratedWorkoutScreen() {
   const [workout, setWorkout] = useState<ActiveWorkout | null | undefined>(undefined);
   const [drills, setDrills] = useState<NarrationDrill[]>([]);
   // Read once: changing the setting while narrating must not rebuild the plan under the player.
+  const [announcementWaitSec] = useState(readAnnouncementWaitSec);
+  const [workVoice] = useState(() => readBooleanPreference(WORK_VOICE_KEY, true));
+  const [prepVoice] = useState(() => readBooleanPreference(PREP_VOICE_KEY, true));
   const [prepSec] = useState(readNarrationPrepSec);
 
   useEffect(() => {
@@ -74,5 +78,5 @@ export default function NarratedWorkoutScreen() {
 
   if (workout === undefined) return <Screen><ActivityIndicator color={palette.accentStrong} /></Screen>;
   if (workout === null) return <Screen><PageHeading title={t('workout.unavailable')} subtitle={t('workout.finished')} /></Screen>;
-  return <NarrationPlayer draftKey={`narration.draft.${id}`} title={workout.name} segments={segments} drills={drills} exitHref={{ pathname: '/workout/[id]', params: { id } }} onSave={save} onSegmentDone={segmentDone} onSegmentReopened={segmentReopened} checkPairs={false} />;
+  return <NarrationPlayer announcementWaitSec={announcementWaitSec} workVoice={workVoice} prepVoice={prepVoice} draftKey={`narration.draft.${id}`} title={workout.name} segments={segments} drills={drills} exitHref={{ pathname: '/workout/[id]', params: { id } }} onSave={save} onSegmentDone={segmentDone} onSegmentReopened={segmentReopened} checkPairs={false} />;
 }

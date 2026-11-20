@@ -5,7 +5,7 @@ const set = (reps: number, done = true, extra: object = {}) => ({ kind: 'working
 describe('totalProgress', () => {
   it('sums completed working sets only', () => {
     const progress = totalProgress([set(12), set(11), set(9), set(9, false), set(5, true, { kind: 'warmup' })], 'reps', 50);
-    expect(progress).toMatchObject({ done: 32, remaining: 18, reached: false, over: 0 });
+    expect(progress).toMatchObject({ done: 32, projected: 41, remaining: 18, reached: false, over: 0 });
     expect(progress.fraction).toBeCloseTo(0.64);
   });
   it('reports a goal reached and how far past it', () => {

@@ -1,5 +1,16 @@
 import { readPreference, writePreference } from '../../shared/settings/preferences';
 
+export const WORK_VOICE_KEY = 'cue.work';
+export const PREP_VOICE_KEY = 'cue.prep';
+export const ANNOUNCEMENT_WAIT_KEY = 'narration.announcementWaitSec';
+export const DEFAULT_ANNOUNCEMENT_WAIT_SEC = 8;
+export const MAX_ANNOUNCEMENT_WAIT_SEC = 30;
+
+export function readAnnouncementWaitSec(): number {
+  const value = Number(readPreference(ANNOUNCEMENT_WAIT_KEY));
+  return Number.isInteger(value) && value >= 1 && value <= MAX_ANNOUNCEMENT_WAIT_SEC ? value : DEFAULT_ANNOUNCEMENT_WAIT_SEC;
+}
+
 export const NARRATION_PREP_KEY = 'narration.prepSec';
 export const DEFAULT_NARRATION_PREP_SEC = 5;
 export const MAX_NARRATION_PREP_SEC = 30;

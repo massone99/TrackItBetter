@@ -8,6 +8,7 @@ import { poseDetectionAvailable } from '../pose/detectPose';
 import { ActionButton, Body, Chip, IconButton, Label, MenuList, MenuRow, SegmentedControl, Sheet, TextField } from '../../shared/components/ui';
 import { formatClock, formatNumber } from '../../shared/utils/format';
 import { formatRpe } from '../../domain/rpe';
+import { SET_RATINGS_KEY, readBooleanPreference } from '../../shared/settings/preferences';
 import { ScaleRow } from './ScaleRow';
 import { describePreviousSet } from './ExerciseCard';
 import { removeSetWithUndo, setSetFormRating, setSetRomRating, updateSetNote, updateSetRpe, type PreviousSetValues, type RemovedRows, type SessionExercise, type SessionSet } from './repository';
@@ -138,7 +139,7 @@ export function SetSheet({ initialView, exercise, set, holdMode, onHoldMode, onC
               <Body>{t('logger.holdLongPressHint')}</Body>
             </View>
           ) : null}
-          {/* Ratings first: each is one tap on its row. */}
+          {readBooleanPreference(SET_RATINGS_KEY, true) && <>
           <ScaleRow
             label={t('ledger.rpe')}
             hint={set.targetRpe !== null ? t('activeSet.target', { value: formatRpe(set.targetRpe) }) : null}
@@ -171,6 +172,7 @@ export function SetSheet({ initialView, exercise, set, holdMode, onHoldMode, onC
               onChange={(next) => { setRom(next); void setSetRomRating(set.id, next).then(onChanged); }}
             />
           ) : null}
+          </>}
           {onOpenNote ? <WorkoutNote kind="setNote" value={set.note} onPress={onOpenNote} /> : <TextField
             label={t('logger.noteLabel')}
             value={note}
