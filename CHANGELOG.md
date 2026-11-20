@@ -2,6 +2,11 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.76.0 - 2026-11-20
+
+- Configure preparation, countdown warnings, and phase beeps for the timed method.
+- Save each hold as a separate set, including the measured portion of a hold when stopped early.
+
 ## 0.75.1 - 2026-11-20
 
 - Separate countdown settings from voice switches in Narrated mode and give duration shortcuts more room at larger text sizes.
