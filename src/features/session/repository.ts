@@ -645,7 +645,7 @@ export async function countEmomRounds(entryId: string, since: Date): Promise<num
  * Records one EMOM round as a completed working set at the round's end: the next planned set of the
  * exercise not done yet is used first, otherwise a new set (a left/right pair when unilateral) is added.
  */
-export async function recordEmomRound(entryId: string, field: 'reps' | 'durationSec', value: number, at: Date): Promise<void> {
+export async function recordEmomRound(entryId: string, field: 'reps' | 'durationSec', value: number, at: Date, note?: string): Promise<void> {
   await initializeDatabase();
   if (!Number.isInteger(value) || value < 0) throw new Error('Invalid workout set value');
   const [entry] = await db.select({ endedAt: workouts.endedAt }).from(exerciseEntries)
@@ -666,6 +666,8 @@ export async function recordEmomRound(entryId: string, field: 'reps' | 'duration
   await db.update(trainingSets)
     .set({ ...(field === 'reps' ? { reps: value } : { durationSec: value }), kind: 'working', completedAt: at })
     .where(inArray(trainingSets.id, ids));
+  // The timed method names its sets, so the history says which was the block and which the final hold.
+  if (note) await db.update(trainingSets).set({ note }).where(inArray(trainingSets.id, ids));
 }
 
 /** A workout cannot finish with one side of an L/R pair done and the other not; the UI words it. */

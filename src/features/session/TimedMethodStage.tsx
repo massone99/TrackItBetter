@@ -1,0 +1,195 @@
+import { useEffect, useRef, useState } from 'react';
+import { BackHandler, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { useTranslation } from 'react-i18next';
+import { timedRounds, type TimedMethodPhase, type TimedMethodPlan } from '../../domain/timedMethod';
+import { Icon, Text, tapFeedback } from '../../shared/components/ui';
+import { useAppInsets } from '../../shared/layout/useAppInsets';
+import { useTheme } from '../../shared/theme/ThemeProvider';
+import { MIN_TOUCH_TARGET, radii, spacing } from '../../shared/theme/tokens';
+import { fonts } from '../../shared/theme/typography';
+import { useScaledStyles } from '../../shared/theme/useScaledStyles';
+import { formatClock } from '../../shared/utils/format';
+
+/** The clock the stage and the dock show for a phase. */
+export function timedClock(phase: TimedMethodPhase): string {
+  switch (phase.phase) {
+    case 'countdown': case 'testCountdown': return String(phase.secondsLeft);
+    case 'hold': case 'rest': case 'recovery': return formatClock(phase.secondsLeft);
+    case 'test': case 'done': return formatClock(phase.seconds);
+    default: return '0:00';
+  }
+}
+
+/** One of the three steps (block, recovery, final hold) a phase belongs to, 1-based. */
+function stepOf(phase: TimedMethodPhase): number {
+  if (phase.phase === 'countdown' || phase.phase === 'hold' || phase.phase === 'rest') return 1;
+  if (phase.phase === 'recovery' || phase.phase === 'ready') return 2;
+  return 3;
+}
+
+export function TimedMethodStage({ exercise, plan, phase, onSkipRecovery, onStartTest, onFinishTest, onStop, onClose }: {
+  exercise: string;
+  plan: TimedMethodPlan;
+  phase: TimedMethodPhase;
+  onSkipRecovery: () => void;
+  onStartTest: () => void;
+  onFinishTest: () => void;
+  onStop: () => void;
+  onClose: () => void;
+}) {
+  const styles = useScaledStyles(baseStyles);
+  const { t } = useTranslation();
+  const { palette, largeText } = useTheme();
+  const insets = useAppInsets();
+  const [stopHint, setStopHint] = useState(false);
+  const hintTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    const subscription = BackHandler.addEventListener('hardwareBackPress', () => { onClose(); return true; });
+    return () => { subscription.remove(); if (hintTimer.current) clearTimeout(hintTimer.current); };
+  }, [onClose]);
+
+  const muted = palette.heroTextMuted;
+  const rounds = timedRounds(plan);
+  const step = stepOf(phase);
+  const round = phase.phase === 'hold' || phase.phase === 'rest' ? phase.round : phase.phase === 'countdown' ? 0 : rounds;
+  const holding = phase.phase === 'hold' || phase.phase === 'test';
+  const label = {
+    countdown: t('timedMethod.getReady'), hold: t('timedMethod.holdPhase'), rest: t('timedMethod.restPhase'), recovery: t('timedMethod.recoveryPhase'),
+    ready: t('timedMethod.readyPhase'), testCountdown: t('timedMethod.getReady'), test: t('timedMethod.testPhase'), done: t('timedMethod.donePhase'),
+  }[phase.phase];
+  // Progress of the clock within the phase (the final hold fills towards its goal).
+  const total = phase.phase === 'hold' ? plan.holdSec : phase.phase === 'rest' ? plan.restSec : phase.phase === 'recovery' ? plan.recoverySec : phase.phase === 'test' ? plan.testSec : 0;
+  const left = phase.phase === 'test' ? plan.testSec - phase.seconds : 'secondsLeft' in phase ? phase.secondsLeft : 0;
+  const filled = total > 0 ? Math.min(1, Math.max(0, phase.phase === 'test' ? phase.seconds / plan.testSec : 1 - left / total)) : 0;
+  const reached = phase.phase === 'test' && phase.seconds >= plan.testSec;
+  const showStopHint = () => {
+    tapFeedback();
+    setStopHint(true);
+    if (hintTimer.current) clearTimeout(hintTimer.current);
+    hintTimer.current = setTimeout(() => setStopHint(false), 3000);
+  };
+  const primary = phase.phase === 'recovery'
+    ? { label: t('timedMethod.skipRecovery'), icon: 'play-forward' as const, onPress: onSkipRecovery }
+    : phase.phase === 'ready' ? { label: t('timedMethod.startTest', { seconds: plan.testSec }), icon: 'play' as const, onPress: onStartTest }
+      : phase.phase === 'test' ? { label: t('timedMethod.endTest'), icon: 'stop' as const, onPress: onFinishTest } : null;
+
+  return (
+    <View style={[StyleSheet.absoluteFill, styles.stage, { backgroundColor: palette.hero }]}>
+      <ScrollView style={styles.scroll} contentContainerStyle={[styles.page, { paddingTop: insets.top + spacing.sm, paddingBottom: insets.bottom + spacing.lg }]} showsVerticalScrollIndicator={false}>
+        <View style={styles.topRow}>
+          <View style={styles.titles}>
+            <Text style={[styles.exercise, { color: palette.heroText }]}>{exercise}</Text>
+            <Text style={[styles.tag, { color: muted }]}>{t('timedMethod.stepOf', { step }).toUpperCase()}</Text>
+          </View>
+          <Pressable accessibilityRole="button" accessibilityLabel={t('emom.showWorkout')} onPress={() => { tapFeedback(); onClose(); }} style={({ pressed }) => [styles.workoutButton, { borderColor: muted }, pressed && styles.pressed]}>
+            <Icon name="list" size={18} color={palette.heroText} />
+            <Text style={[styles.tagStrong, { color: palette.heroText }]}>{t('emom.workout').toUpperCase()}</Text>
+          </Pressable>
+        </View>
+
+        <View style={styles.figures}>
+          <View>
+            <Text accessibilityLiveRegion="polite" style={[styles.phase, { color: palette.heroText }]}>{label}</Text>
+            {phase.phase === 'hold' || phase.phase === 'rest' ? (
+              <Text style={[styles.tagWide, { color: muted }]}>{t('timedMethod.round', { round, rounds }).toUpperCase()}</Text>
+            ) : phase.phase === 'recovery' ? <Text style={[styles.tagWide, { color: muted }]}>{t('timedMethod.recoveryHint').toUpperCase()}</Text>
+              : phase.phase === 'ready' || phase.phase === 'test' ? <Text style={[styles.tagWide, { color: muted }]}>{t('timedMethod.testGoal', { seconds: plan.testSec }).toUpperCase()}</Text> : null}
+          </View>
+          <View style={styles.clockBlock}>
+            <Text maxFontSizeMultiplier={1} numberOfLines={1} accessibilityRole="timer" accessibilityLabel={`${label} ${timedClock(phase)}`} style={[styles.clock, { color: palette.heroText }]}>{phase.phase === 'ready' ? 'GO' : timedClock(phase)}</Text>
+            <View accessible={false} style={[styles.track, { backgroundColor: palette.heroOverlay }]}>
+              <View style={[styles.fill, { backgroundColor: palette.heroText, width: `${Math.round(filled * 100)}%` }]} />
+            </View>
+            {reached ? <Text accessibilityLiveRegion="polite" style={[styles.tagStrong, { color: palette.heroText }]}>{t('timedMethod.goalReached').toUpperCase()}</Text> : null}
+          </View>
+          {/* One cell per cycle of the block: holds already done are filled, the current one is outlined. */}
+          <View style={styles.strip} accessible accessibilityLabel={t('timedMethod.stripLabel', { done: Math.max(0, step > 1 ? rounds : phase.phase === 'rest' ? round : round - 1), rounds })}>
+            {Array.from({ length: rounds }, (_, index) => {
+              const done = step > 1 || index < round - 1 || (phase.phase === 'rest' && index === round - 1);
+              const current = (phase.phase === 'hold' || phase.phase === 'rest') && index === round - 1 && !done;
+              return <View key={index} style={[styles.cell, done ? { backgroundColor: palette.heroText } : current ? [styles.cellCurrent, { borderColor: palette.heroText }] : { borderColor: muted, borderWidth: 1 }]} />;
+            })}
+          </View>
+          {holding ? null : <Text style={[styles.caption, { color: muted }]}>{phase.phase === 'rest' ? t('timedMethod.restHint') : ''}</Text>}
+        </View>
+
+        <View style={styles.controls}>
+          {primary ? (
+            <Pressable accessibilityRole="button" accessibilityLabel={primary.label} onPress={() => { tapFeedback('success'); primary.onPress(); }} style={({ pressed }) => [styles.action, largeText && styles.fullRow, { backgroundColor: palette.heroText }, pressed && styles.pressed]}>
+              <Icon name={primary.icon} size={22} color={palette.hero} />
+              <Text style={[styles.actionText, { color: palette.hero }]}>{primary.label.toUpperCase()}</Text>
+            </Pressable>
+          ) : null}
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={t('emom.stop')}
+            accessibilityHint={t('emom.holdHint')}
+            accessibilityActions={[{ name: 'longpress', label: t('emom.stop') }]}
+            onAccessibilityAction={(event) => { if (event.nativeEvent.actionName === 'longpress') onStop(); }}
+            onPress={showStopHint}
+            onLongPress={() => { tapFeedback(); onStop(); }}
+            delayLongPress={600}
+            style={({ pressed }) => [styles.action, largeText && styles.fullRow, styles.actionOutline, { borderColor: muted }, pressed && styles.pressed]}
+          >
+            <Icon name="stop" size={16} color={palette.heroText} />
+            <Text style={[styles.actionTextQuiet, { color: palette.heroText }]}>{t('emom.holdToStop')}</Text>
+          </Pressable>
+          {stopHint ? <Text accessibilityLiveRegion="polite" style={[styles.caption, styles.hint, styles.fullRow, { color: palette.heroText }]}>{t('emom.holdHint')}</Text> : null}
+        </View>
+      </ScrollView>
+    </View>
+  );
+}
+
+/** The running method in one line at the bottom of the workout; a tap opens the full screen again. */
+export function TimedMethodMiniDock({ exercise, phase, onOpen }: { exercise: string; phase: TimedMethodPhase; onOpen: () => void }) {
+  const styles = useScaledStyles(baseStyles);
+  const { t } = useTranslation();
+  const { palette } = useTheme();
+  const name = { countdown: 'getReady', hold: 'holdPhase', rest: 'restPhase', recovery: 'recoveryPhase', ready: 'readyPhase', testCountdown: 'getReady', test: 'testPhase', done: 'donePhase' }[phase.phase];
+  return (
+    <Pressable accessibilityRole="button" accessibilityLabel={`${t(`timedMethod.${name}`)}, ${exercise}, ${timedClock(phase)}`} accessibilityHint={t('emom.openStage')} onPress={() => { tapFeedback(); onOpen(); }} style={({ pressed }) => [styles.mini, { backgroundColor: palette.hero }, pressed && styles.pressed]}>
+      <View style={styles.miniText}>
+        <Text style={[styles.miniLabel, { color: palette.heroText }]} numberOfLines={2}>{t(`timedMethod.${name}`)}</Text>
+        <Text style={[styles.caption, { color: palette.heroTextMuted }]} numberOfLines={1}>{exercise}</Text>
+      </View>
+      <Text maxFontSizeMultiplier={1.2} accessibilityRole="timer" style={[styles.miniClock, { color: palette.heroText }]}>{phase.phase === 'ready' ? 'GO' : timedClock(phase)}</Text>
+      <Icon name="chevron-up" size={22} color={palette.heroText} />
+    </Pressable>
+  );
+}
+
+const baseStyles = StyleSheet.create({
+  stage: { zIndex: 20, elevation: 20 },
+  page: { flexGrow: 1, paddingHorizontal: spacing.xl, gap: spacing.md },
+  figures: { flexGrow: 1, justifyContent: 'flex-end', gap: spacing.lg, paddingBottom: spacing.xs },
+  fullRow: { flexBasis: '100%' },
+  scroll: { flex: 1 },
+  topRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: spacing.sm, minHeight: MIN_TOUCH_TARGET },
+  titles: { flexGrow: 1, flexShrink: 1, flexBasis: 160, minWidth: 0 },
+  exercise: { fontFamily: fonts.display, fontSize: 20, lineHeight: 24, textTransform: 'uppercase' },
+  tag: { fontFamily: fonts.mono, fontSize: 12, lineHeight: 16, letterSpacing: 1 },
+  tagStrong: { fontFamily: fonts.monoSemibold, fontSize: 12, lineHeight: 16, letterSpacing: 1 },
+  tagWide: { fontFamily: fonts.monoSemibold, fontSize: 13, lineHeight: 18, letterSpacing: 3 },
+  workoutButton: { minHeight: MIN_TOUCH_TARGET, flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingHorizontal: spacing.md, borderWidth: 1, borderRadius: radii.control },
+  phase: { fontFamily: fonts.display, fontSize: 56, lineHeight: 68, letterSpacing: -1, textTransform: 'uppercase' },
+  clockBlock: { gap: spacing.sm },
+  clock: { fontFamily: fonts.monoBold, fontSize: 96, lineHeight: 100, letterSpacing: -4, fontVariant: ['tabular-nums'] },
+  track: { height: 8, overflow: 'hidden' },
+  fill: { height: 8 },
+  caption: { fontFamily: fonts.mono, fontSize: 12, lineHeight: 16, letterSpacing: 0.5 },
+  strip: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs },
+  cell: { flexGrow: 1, flexBasis: 18, minWidth: 18, maxWidth: 48, minHeight: 28, borderRadius: radii.control },
+  cellCurrent: { borderWidth: 2 },
+  controls: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
+  action: { flexGrow: 1, flexBasis: 140, minHeight: 56, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.sm, paddingHorizontal: spacing.md, borderRadius: radii.control },
+  actionOutline: { borderWidth: 1 },
+  actionText: { flexShrink: 1, fontFamily: fonts.bold, fontSize: 16, letterSpacing: 0.5, textAlign: 'center' },
+  actionTextQuiet: { flexShrink: 1, fontFamily: fonts.semibold, fontSize: 15, textAlign: 'center' },
+  hint: { textAlign: 'center' },
+  pressed: { opacity: 0.7 },
+  mini: { minHeight: 56, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: spacing.md, paddingHorizontal: spacing.lg, paddingVertical: spacing.sm, borderRadius: radii.control },
+  miniText: { flexGrow: 1, flexShrink: 1, flexBasis: 140, minWidth: 0 },
+  miniLabel: { fontFamily: fonts.display, fontSize: 18, lineHeight: 22 },
+  miniClock: { fontFamily: fonts.monoBold, fontSize: 28, lineHeight: 32, fontVariant: ['tabular-nums'] },
+});

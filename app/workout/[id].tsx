@@ -71,6 +71,9 @@ import { getExerciseGoals, type ExerciseGoalProgress } from '../../src/features/
 import { EmomSetupSheet, emomFieldFor } from '../../src/features/session/EmomSetupSheet';
 import { emomLabel, firstRoundStart, type EmomPhase, type EmomPlan } from '../../src/domain/emom';
 import { EmomMiniDock, EmomStage, type EmomView } from '../../src/features/session/EmomStage';
+import { useTimedMethod } from '../../src/features/session/useTimedMethod';
+import { TimedMethodSetupSheet, timedMethodFits } from '../../src/features/session/TimedMethodSetupSheet';
+import { TimedMethodMiniDock, TimedMethodStage } from '../../src/features/session/TimedMethodStage';
 import type { HoldMode } from '../../src/domain/holdTimer';
 import { playBeep } from '../../src/shared/audio/beeps';
 import {
@@ -191,6 +194,8 @@ export default function WorkoutScreen() {
   const closeOptions = () => setOptionsFor(null);
   const [clearAllOpen, setClearAllOpen] = useState(false);
   const [emomSetupFor, setEmomSetupFor] = useState<SessionExercise | null>(null);
+  const [timedSetupFor, setTimedSetupFor] = useState<SessionExercise | null>(null);
+  const [timedStage, setTimedStage] = useState(true);
   const [emomNotice, setEmomNotice] = useState<string | null>(null);
   // The running EMOM shows full screen; "Workout" closes it to a mini dock at the bottom and the EMOM keeps running.
   const [emomStage, setEmomStage] = useState(true);
@@ -325,6 +330,8 @@ export default function WorkoutScreen() {
       setEmomNotice(t('emom.finished', { count: plan.rounds }));
     },
   });
+  const timed = useTimedMethod(id && id !== 'new' ? id : undefined, { onRecorded: () => { if (id) void refresh(id); } });
+  const closeTimedStage = useCallback(() => setTimedStage(false), []);
   const emomEntryId = emom.plan?.entryId ?? null;
   const closeEmomStage = useCallback(() => setEmomStage(false), []);
   // Stable: the toast restarts its timer when onHide changes, and the EMOM clock re-renders the screen four times a second.
@@ -532,13 +539,13 @@ export default function WorkoutScreen() {
   const openExercise = (exercise: SessionExercise) => openExerciseById(exercise.entryId);
   const exerciseOpen = workout?.exercises.some((entry) => entry.entryId === openExerciseId) ?? false;
   useFocusEffect(useCallback(() => {
-    if (!exerciseOpen || (emomStage && emom.plan)) return;
+    if (!exerciseOpen || (emomStage && emom.plan) || (timedStage && timed.plan)) return;
     const back = BackHandler.addEventListener('hardwareBackPress', () => {
       showOverview();
       return true;
     });
     return () => back.remove();
-  }, [emom.plan, emomStage, exerciseOpen, showOverview]));
+  }, [emom.plan, emomStage, timed.plan, timedStage, exerciseOpen, showOverview]));
   const openExerciseNote = (exercise: SessionExercise) => setNoteTarget({
     kind: 'exerciseNote', id: exercise.entryId, context: t('liveWorkout.exerciseNoteContext', { name: exercise.name }), value: exercise.notes,
   });
@@ -559,7 +566,8 @@ export default function WorkoutScreen() {
   const afterSetDone = async (setId: string) => {
     const exercise = workout?.exercises.find((item) => item.sets.some((set) => set.id === setId));
     // While an EMOM runs its clock is the rest: no rest timer on top of it.
-    if (emomEntryId) return;
+    // While an EMOM or a timed method runs, its clock is the rest: no rest timer on top of it.
+    if (emomEntryId || timed.plan) return;
     // A total goal: self-regulated rest (a clock counting up), and the next set until the total is reached.
     if (exercise?.totalTarget != null) {
       setRestEndsAt(null);
@@ -684,7 +692,7 @@ export default function WorkoutScreen() {
   };
 
   const startHoldFor = (set: SessionSet) => {
-    if (hold.active || emom.plan) return;
+    if (hold.active || emom.plan || timed.plan) return;
     skipRest();
     hold.start(set.id, holdModeFor(set.id), set.durationSec ?? 30);
   };
@@ -808,6 +816,8 @@ export default function WorkoutScreen() {
     }
     return best ? { ...best, label: setLabelOf(best.exercise, best.set).replace(/ · .*$/, '') } : null;
   })();
+  const timedExercise = timed.plan ? workout.exercises.find((item) => item.entryId === timed.plan?.entryId) ?? null : null;
+  const timedView = timed.plan && timed.phase ? { exercise: timedExercise?.name ?? '', phase: timed.phase } : null;
   const emomExercise = emom.plan ? workout.exercises.find((item) => item.entryId === emom.plan?.entryId) ?? null : null;
   const emomView: EmomView | null = emom.plan && emom.phase ? {
     exercise: emomExercise?.name ?? '',
@@ -907,7 +917,9 @@ export default function WorkoutScreen() {
         footerColor={footerColor}
         columnStyle={styles.workoutColumn}
         footerAccessory={<View style={styles.dockStack} onLayout={(event) => setFooterHeight(event.nativeEvent.layout.height)}>
-          {emomView ? (
+          {timedView ? (
+            <TimedMethodMiniDock exercise={timedView.exercise} phase={timedView.phase} onOpen={() => setTimedStage(true)} />
+          ) : emomView ? (
             <EmomMiniDock view={emomView} label={emomBadge(emomView.phase, emom.plan!, t)} onOpen={() => setEmomStage(true)} />
           ) : hold.active || restEndsAt !== null ? (
             <>
@@ -1120,7 +1132,19 @@ export default function WorkoutScreen() {
         onHide={hideUndo}
         bottomOffset={toastOffset}
       />
-      {emomView && emomStage ? (
+      {timedView && timed.plan && timedStage ? (
+        <TimedMethodStage
+          exercise={timedView.exercise}
+          plan={timed.plan}
+          phase={timedView.phase}
+          onSkipRecovery={timed.skipRecovery}
+          onStartTest={timed.startTest}
+          onFinishTest={() => void timed.finishTest()}
+          onStop={() => void timed.stop()}
+          onClose={closeTimedStage}
+        />
+      ) : null}
+      {emomView && emomStage && !timedView ? (
         <EmomStage
           view={emomView}
           onChange={(delta) => emom.setValue((emom.plan?.value ?? 0) + delta * (emom.plan?.field === 'durationSec' ? 5 : 1))}
@@ -1142,6 +1166,20 @@ export default function WorkoutScreen() {
       <Toast bottomOffset={toastOffset} message={emomNotice} onHide={() => setEmomNotice(null)} />
       <Toast bottomOffset={toastOffset} message={loadNotice} onHide={() => setLoadNotice(null)} />
 
+      <TimedMethodSetupSheet
+        exercise={timedSetupFor}
+        onClose={() => setTimedSetupFor(null)}
+        onStart={(config) => {
+          setTimedSetupFor(null);
+          setFoldedGroups(new Set());
+          setOpenExerciseId(config.entryId);
+          hold.stop();
+          skipRest();
+          setTimedStage(true);
+          if (emom.plan) void emom.stop();
+          timed.start(config);
+        }}
+      />
       <EmomSetupSheet
         exercise={emomSetupFor}
         onClose={() => setEmomSetupFor(null)}
@@ -1226,6 +1264,7 @@ export default function WorkoutScreen() {
                   }}
                 />
               ) : null}
+                {timedMethodFits(optionsFor.metric) ? <MenuTile icon="hourglass-outline" label={t('timedMethod.menu')} onPress={() => { const exercise = optionsFor; setOptionsFor(null); setTimedSetupFor(exercise); }} /> : null}
                 <MenuTile icon="flag-outline" label={optionsFor.totalTarget != null ? t('totalGoal.edit') : t('totalGoal.set')} onPress={() => { setTotalFor(optionsFor); setOptionsFor(null); }} />
                 <MenuTile icon="flame-outline" label={t('simple.addWarmups')} onPress={() => {
                   const exercise = optionsFor;

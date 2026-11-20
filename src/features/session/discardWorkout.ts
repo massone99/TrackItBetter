@@ -1,6 +1,7 @@
 import { deleteWorkout } from './repository';
 import { cancelRestFinishedNotification } from './restNotifications';
 import { clearEmomPlan } from './emomPlan';
+import { clearTimedPlan } from './timedMethodPlan';
 
 /**
  * Throws away a workout still in progress, from any screen: the workout and its sets, then what
@@ -10,5 +11,6 @@ import { clearEmomPlan } from './emomPlan';
 export async function discardActiveWorkout(workoutId: string): Promise<void> {
   await deleteWorkout(workoutId);
   clearEmomPlan(workoutId);
+  clearTimedPlan(workoutId);
   void cancelRestFinishedNotification().catch(() => undefined);
 }
