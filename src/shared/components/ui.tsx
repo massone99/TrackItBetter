@@ -355,7 +355,7 @@ export function ListRow({ icon, title, subtitle, value, onPress, onLongPress, lo
   selected?: boolean;
 }) {
   const styles = useScaledStyles(baseStyles);
-  const { palette } = useTheme();
+  const { palette, largeText } = useTheme();
   const ink = useInk();
   const content = (
     <>
@@ -367,8 +367,10 @@ export function ListRow({ icon, title, subtitle, value, onPress, onLongPress, lo
       <View style={styles.listCopy}>
         <Text style={[styles.listTitle, { color: selected ? palette.accentStrong : palette.text }, selected ? styles.listTitleSelected : null]}>{title}</Text>
         {subtitle ? <Text style={[styles.listSubtitle, { color: palette.textMuted }]}>{subtitle}</Text> : null}
+        {/* Large text: the value goes under the title, so the title keeps the row's width. */}
+        {value && largeText ? <Text style={[styles.listSubtitle, { color: palette.textMuted }]}>{value}</Text> : null}
       </View>
-      {value ? <Text style={[styles.listValue, { color: palette.textMuted }]}>{value}</Text> : null}
+      {value && !largeText ? <Text style={[styles.listValue, { color: palette.textMuted }]}>{value}</Text> : null}
       {selected !== undefined ? (
         <View style={styles.listCheck}>{selected ? <Icon name="checkmark-circle" size={22} color={palette.accentStrong} /> : null}</View>
       ) : !trailing && onPress ? <Icon name="chevron-forward" size={18} color={palette.textMuted} /> : null}
@@ -649,7 +651,7 @@ export function MenuList({ children }: PropsWithChildren) {
 
 export function MenuRow({ icon, label, onPress, tone = "default", value, chevron = false }: { icon?: IconName; label: string; onPress: () => void; tone?: "default" | "danger"; /** Current value, shown muted on the right. */ value?: string; /** A trailing chevron: the row opens another view. */ chevron?: boolean }) {
   const styles = useScaledStyles(baseStyles);
-  const { palette } = useTheme();
+  const { palette, largeText } = useTheme();
   const color = tone === "danger" ? palette.warning : palette.text;
   return (
     <Pressable
@@ -659,8 +661,13 @@ export function MenuRow({ icon, label, onPress, tone = "default", value, chevron
       style={({ pressed }) => [styles.menuRow, { minHeight: Math.max(MIN_TOUCH_TARGET, styles.menuRow.minHeight), backgroundColor: pressed ? palette.surfaceMuted : palette.surface }]}
     >
       {icon ? <Icon name={icon} size={20} color={tone === "danger" ? palette.warning : palette.accentStrong} /> : null}
-      <Text style={[styles.menuRowLabel, { color }]}>{label}</Text>
-      {value ? <Text style={[styles.menuRowValue, { color: palette.textMuted }]}>{value}</Text> : null}
+      {value && largeText ? (
+        <View style={styles.menuRowLabel}>
+          <Text style={[styles.menuRowLabelText, { color }]}>{label}</Text>
+          <Text style={[styles.menuRowValueStacked, { color: palette.textMuted }]}>{value}</Text>
+        </View>
+      ) : <Text style={[styles.menuRowLabel, { color }]}>{label}</Text>}
+      {value && !largeText ? <Text style={[styles.menuRowValue, { color: palette.textMuted }]}>{value}</Text> : null}
       {chevron ? <Icon name="chevron-forward" size={18} color={palette.textMuted} /> : null}
     </Pressable>
   );
@@ -679,7 +686,7 @@ export function MenuSwitchRow({ label, value, onChange }: { label: string; value
       style={({ pressed }) => [styles.menuRow, { minHeight: Math.max(MIN_TOUCH_TARGET, styles.menuRow.minHeight), backgroundColor: pressed ? palette.surfaceMuted : palette.surface }]}
     >
       <Text style={[styles.menuRowLabel, { color: palette.text }]}>{label}</Text>
-      <View style={[styles.menuSwitch, { backgroundColor: value ? palette.accent : palette.border }]}>
+      <View style={[styles.menuSwitch, { backgroundColor: value ? palette.accent : palette.textMuted }]}>
         <View style={[styles.menuSwitchKnob, { backgroundColor: palette.surface, alignSelf: value ? "flex-end" : "flex-start" }]} />
       </View>
     </Pressable>
@@ -1028,6 +1035,8 @@ const baseStyles = StyleSheet.create({
   menuRow: { minHeight: MIN_TOUCH_TARGET, flexDirection: "row", alignItems: "center", gap: spacing.md, paddingHorizontal: spacing.lg, paddingVertical: spacing.sm },
   menuRowLabel: { flex: 1, fontFamily: fonts.medium, fontSize: 16, lineHeight: 22 },
   listValue: { flexShrink: 1, maxWidth: "45%", textAlign: "right", fontFamily: fonts.body, fontSize: 13, lineHeight: 18 },
+  menuRowLabelText: { fontFamily: fonts.medium, fontSize: 16, lineHeight: 22 },
+  menuRowValueStacked: { fontFamily: fonts.body, fontSize: 14, lineHeight: 20 },
   menuRowValue: { flexShrink: 1, maxWidth: "45%", textAlign: "right", fontFamily: fonts.body, fontSize: 14, lineHeight: 20 },
   menuSwitch: { width: 44, height: 26, borderRadius: radii.control, padding: 3, justifyContent: "center" },
   menuSwitchKnob: { width: 20, height: 20, borderRadius: radii.small },

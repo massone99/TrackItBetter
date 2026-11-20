@@ -110,7 +110,7 @@ export default function ProgramsTab() {
     >
       <PageHeading
         title={t('programsTab.title')}
-        subtitle={view === 'programs' ? t('programsTab.subtitle') : t('library.subtitle')}
+        subtitle={view === 'programs' ? undefined : t('library.subtitle')}
         action={<IconButton icon="add" tone="accent" label={t('simple.createTitle')} onPress={() => setCreateOpen(true)} />}
       />
       <SegmentedControl<ProgramsView>

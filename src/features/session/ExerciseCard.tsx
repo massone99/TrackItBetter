@@ -722,7 +722,9 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
         </SwipeableSetRow>
       );
       if (!inHand) {
-        const row = { label, side, warmup: set.kind === 'warmup', value: timed ? value : distance ? `${value} m` : value, load: withLoad ? loadText : null, bands, withLoad, onOpen: openSet, onMenu: openMenu,
+        // One-at-a-time card: a bodyweight set shows no "0 kg" column.
+        const rowLoad = withLoad && (liveLayout !== 'standalone' || exercise.metric.endsWith('_load') || exercise.sets.some((item) => item.addedLoadKg !== 0));
+        const row = { label, side, warmup: set.kind === 'warmup', value: timed ? value : distance ? `${value} m` : value, load: rowLoad ? loadText : null, bands, withLoad: rowLoad, onOpen: openSet, onMenu: openMenu,
           live: Boolean(liveLayout), note: liveLayout ? set.note : null, active: Boolean(liveLayout && setInHand(set)), units: liveLayout && !timed && !distance ? t('history.units.reps') : undefined,
           record: liveLayout && Boolean(setRecords.get(set.id)?.length) };
 
@@ -741,7 +743,7 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
         const number = set.kind === 'warmup' ? set.index : workingNumber;
         return <LedgerActiveRow
           key={set.id}
-          label={label} side={side} warmup={set.kind === 'warmup'} withLoad={withLoad}
+          label={label} side={side} warmup={set.kind === 'warmup'} withLoad={withLoad && (exercise.metric.endsWith('_load') || set.addedLoadKg !== 0)}
           onComplete={() => complete(set)} onMenu={openMenu}
           valueField={valueField} valueDown={valueDown} valueUp={valueUp}
           loadField={loadField} loadDown={loadDown} loadUp={loadUp}
@@ -1154,7 +1156,7 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
             <IconButton icon="ellipsis-horizontal" label={t('simple.exerciseMenu', { name: exercise.name })} tone="plain" onPress={onOptions} />
           </View>
           {compare ? (
-            <View style={[styles.liveLast, { backgroundColor: palette.background }]}>
+            <View style={[styles.liveLast, textIsLarge && styles.liveLastStacked, { backgroundColor: palette.background }]}>
               <Label style={styles.liveLastLabel}>{previous ? t('simple.lastLabel', { date: previous.workoutStartedAt.toLocaleDateString(i18n.language, { month: 'short', day: 'numeric' }) }) : t('simple.firstTime')}</Label>
               <Text style={[styles.liveLastValue, { color: palette.text }]}>{previousText ?? firstTimeLabel ?? ''}</Text>
               {onCopyAllLast ? <Pressable accessibilityRole="button" accessibilityLabel={t('logger.copyAllPrevious')} onPress={() => { tapFeedback(); onCopyAllLast(); }} style={styles.liveCopy}>
@@ -1384,9 +1386,10 @@ const baseStyles = StyleSheet.create({
   liveCard: { gap: 10 },
   liveHead: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, paddingTop: 14, paddingBottom: 10, paddingLeft: 16, paddingRight: 4 },
   liveTarget: { fontFamily: fonts.body, fontSize: 14, lineHeight: 20, marginTop: 4 },
-  liveLast: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8, marginHorizontal: 16, marginBottom: 12, paddingLeft: 12, borderRadius: radii.control, minHeight: 48 },
+  liveLast: { flexDirection: 'row', alignItems: 'center', gap: 8, marginHorizontal: 16, marginBottom: 12, paddingLeft: 12, borderRadius: radii.control, minHeight: 48 },
   liveLastLabel: { flexShrink: 0 },
-  liveLastValue: { flexGrow: 1, flexShrink: 1, fontFamily: fonts.monoSemibold, fontSize: 14 },
+  liveLastStacked: { flexDirection: 'column', alignItems: 'flex-start', paddingTop: 8 },
+  liveLastValue: { flex: 1, minWidth: 0, fontFamily: fonts.monoSemibold, fontSize: 14 },
   liveCopy: { minHeight: 48, justifyContent: 'center', paddingHorizontal: 12 },
   liveCopyText: { fontFamily: fonts.monoSemibold, fontSize: 12, letterSpacing: 0.7, textTransform: 'uppercase' },
   liveAddRow: { flexDirection: 'row', alignItems: 'center', borderTopWidth: 1 },

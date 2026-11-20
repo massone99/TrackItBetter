@@ -49,6 +49,15 @@ export function RateSetStrip({ setLabel, rpe, target, form, showRpe, onRpe, onFo
       </View>
     </View>
   );
+  // Very large text: the two scales would push the timer off screen, so one row opens the set's sheet instead.
+  if (largeText) {
+    return (
+      <Pressable accessibilityRole="button" onPress={() => { tapFeedback(); onMore(); }} style={[styles.strip, styles.compactRow, { backgroundColor: palette.background, borderBottomColor: palette.border }]}>
+        <Text style={[styles.title, styles.flex, { color: palette.accentStrong }]}>{t('simple.rateSet', { set: setLabel })}</Text>
+        <Text style={[styles.moreText, { color: palette.accentStrong }]}>›</Text>
+      </Pressable>
+    );
+  }
   return (
     <View style={[styles.strip, { backgroundColor: palette.background, borderBottomColor: palette.border }]}>
       <View style={styles.head}>
@@ -65,6 +74,8 @@ export function RateSetStrip({ setLabel, rpe, target, form, showRpe, onRpe, onFo
 
 const baseStyles = StyleSheet.create({
   strip: { paddingHorizontal: spacing.lg, paddingTop: spacing.sm, paddingBottom: spacing.md, gap: spacing.sm, borderBottomWidth: 1 },
+  compactRow: { flexDirection: 'row', alignItems: 'center', minHeight: MIN_TOUCH_TARGET, gap: spacing.sm },
+  flex: { flex: 1 },
   head: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.sm, flexWrap: 'wrap' },
   title: { flexShrink: 1, fontFamily: fonts.monoSemibold, fontSize: 12, lineHeight: 16, letterSpacing: 0.7, textTransform: 'uppercase' },
   more: { minHeight: MIN_TOUCH_TARGET, justifyContent: 'center', paddingLeft: spacing.sm },
