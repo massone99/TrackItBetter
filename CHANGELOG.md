@@ -2,6 +2,16 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.73.0 - 2026-11-20
+
+- Log a set from one big button at the bottom of the exercise. The set in hand opens inside the list, with chips for load, bands, rest, note and video; load appears only when used.
+- Rate effort and form with one tap while the rest timer runs.
+- The progress bar at the top opens all exercises; the workout menu groups actions, display switches and destructive actions, with Finish first.
+- Exercise menu: four quick actions, then one row per setting with its current value.
+- Workout overview: tap Edit to reorder, group or remove exercises; hold an exercise for its menu.
+- Programs: next workout on top, templates in view, sorting and filters behind View, and one + for programs, templates, import, exercises and chains. Program details, view mode and delete move to the program menu.
+- You: a short index with four groups; appearance and text have their own page with a live preview.
+
 ## 0.72.6 - 2026-11-20
 
 - Keep notes, rest, EMOM and session goals within reach in the exercise options panel. Expand individual sections for replacement, equipment and grouping, history, library settings, and removal.
