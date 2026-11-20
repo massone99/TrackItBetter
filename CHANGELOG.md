@@ -2,6 +2,11 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.74.0 - 2026-11-20
+
+- Timed method for exercises measured in time: a block of repeated holds and rests (for example 3 minutes of 10 s hold, 10 s rest), a recovery, then one long hold. Each part is saved as a set with its format in the note.
+- The recovery and final hold are optional: switch them off in the setup, or finish without them during the recovery.
+
 ## 0.73.0 - 2026-11-20
 
 - Log a set from one big button at the bottom of the exercise. The set in hand opens inside the list, with chips for load, bands, rest, note and video; load appears only when used.
