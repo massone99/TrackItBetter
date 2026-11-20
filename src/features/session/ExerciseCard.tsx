@@ -52,7 +52,9 @@ const BANDS_FOLDED_KEY = 'workout.bandsFolded';
 const ADD_SLOP = { top: spacing.sm, bottom: spacing.sm, left: spacing.sm, right: 0 };
 const ADD_MORE_SLOP = { top: spacing.sm, bottom: spacing.sm, left: 0, right: spacing.md };
 
-export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, previous, hold = null, onChange, onSetValue, onComplete, onStartHold, onFinishHold, onAddSet, onAddWarmup, onCopyAllLast, onSetOptions, onUncomplete, onRemoveSet, onSwiped, showRpe, onRpe, onOptions, onToggleWarmup, setRecords = NO_RECORDS, volumeRecords = [], sameLoadRecords = [], onEntryNote, timeGoals = null, supersetLabel = null, emomLabel: emomBadgeLabel, defaultRest = 0, onFormRating, onRomRating, onNote, focus = false, nowLabel = null, figure = null, editDone = false, typeDone = false, compare = true, apparatusLabel = null, firstTimeLabel, describeBands, compareBands, renderBandsEditor, fixedAction = false, onSetExpanded, liveLayout, onOpenExerciseNote, wrapSetEditor, exerciseNavigation }: {
+export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, previous, hold = null, onChange, onSetValue, onComplete, onStartHold, onFinishHold, onAddSet, onAddWarmup, onCopyAllLast, onSetOptions, onUncomplete, onRemoveSet, onSwiped, showRpe, onRpe, onOptions, onToggleWarmup, setRecords = NO_RECORDS, volumeRecords = [], sameLoadRecords = [], onEntryNote, timeGoals = null, supersetLabel = null, emomLabel: emomBadgeLabel, defaultRest = 0, onFormRating, onRomRating, onNote, focus = false, nowLabel = null, figure = null, editDone = false, typeDone = false, compare = true, apparatusLabel = null, firstTimeLabel, describeBands, compareBands, renderBandsEditor, fixedAction = false, onSetExpanded, liveLayout, onOpenExerciseNote, wrapSetEditor, exerciseNavigation, footerAction = false }: {
+  /** One-at-a-time mode: the screen's footer logs the set to do, so the editor drops its own button. */
+  footerAction?: boolean;
   handle?: ReactNode;
   liveLayout?: 'standalone' | 'inline';
   onOpenExerciseNote?: () => void;
@@ -755,6 +757,10 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
             onAction: done ? () => uncomplete(set) : timed && onStartHold
               ? () => { if (holding) onFinishHold?.(); else onStartHold(set); } : () => complete(set),
             onManual: !done && timed && !holding && onStartHold ? () => complete(set) : undefined,
+            badge: liveSetBadge(set, number),
+            rest: restSec > 0 ? { value: formatClock(restSec), filled: set.restSec !== null, onPress: () => { onSetOptions(set, 'rest'); } } : undefined,
+            video: { clips: set.clipCount, onPress: () => { if (set.clipCount > 0) onSetOptions(set); else router.push({ pathname: '/form-check/[setId]', params: { setId: set.id } }); } },
+            inlineAction: !(footerAction && set.id === nextSetId),
           }}
         />;
       }
@@ -1115,27 +1121,71 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
       {onAddWarmup ? <IconButton tone="plain" icon="chevron-down" label={t('logger.addMore')} onPress={() => setAddMenuOpen(!addMenuOpen)} /> : null}
     </View>;
     const wrap = (node: ReactNode) => wrapSetEditor ? wrapSetEditor(node) : node;
+    const addRow = <>
+      <View style={[styles.liveAddRow, { borderTopColor: palette.border }]}>
+        <Pressable accessibilityRole="button" onPress={() => { tapFeedback(); setAddMenuOpen(false); onAddSet(); }} style={({ pressed }) => [styles.liveAdd, pressed && { opacity: 0.6 }]}>
+          <Icon name="add" size={18} color={palette.accentStrong} />
+          <Text style={[styles.liveAddText, { color: palette.accentStrong }]}>{emomBadgeLabel ? t('emom.addRound') : t('liveWorkout.addSet')}</Text>
+        </Pressable>
+        {onAddWarmup ? <IconButton tone="plain" icon={addMenuOpen ? 'chevron-up' : 'chevron-down'} label={t('logger.addMore')} onPress={() => setAddMenuOpen(!addMenuOpen)} /> : null}
+      </View>
+      {addMenuOpen && onAddWarmup ? <View style={styles.liveAddMenu}><ActionButton compact secondary icon="flame-outline" label={t('logger.addWarmup')} onPress={() => { setAddMenuOpen(false); onAddWarmup(); }} /></View> : null}
+    </>;
+    if (standalone) {
+      // One card: name and target, last time, then every set with the one in hand open in its place.
+      const firstWorking = exercise.sets.find((item) => item.kind === 'working');
+      const unilateral = exercise.sets.some((item) => item.side === 'left' || item.side === 'right');
+      const target = firstWorking ? (timed ? formatClock(firstWorking.durationSec ?? 0) : distance ? `${formatNumber(firstWorking.distanceM ?? 0)} m` : t('simple.repsValue', { count: firstWorking.reps ?? 0 })) : null;
+      const targetLine = [
+        target ? t(unilateral ? 'simple.targetEachSide' : 'simple.target', { count: workingSets, value: target }) : null,
+        targetText ? t('logger.rpeTag', { value: targetText }) : null,
+        apparatusLabel,
+      ].filter(Boolean).join(' · ');
+      return <View style={styles.liveCard}>
+        <View style={[styles.liveFrame, { borderColor: ink, backgroundColor: palette.surface }]}>
+          <View style={styles.liveHead}>
+            <View style={styles.flex}>
+              <Pressable accessibilityLabel={exercise.name} accessibilityRole="header" onLongPress={() => openExercisePage(exercise.exerciseId)}>
+                <Text style={styles.liveExerciseName}>{exercise.name}</Text>
+              </Pressable>
+              {targetLine ? <Text style={[styles.liveTarget, { color: palette.textMuted }]}>{targetLine}</Text> : null}
+              {emomBadgeLabel ? <Label accessibilityLiveRegion="polite" style={{ color: palette.accentStrong }}>{emomBadgeLabel}</Label> : null}
+            </View>
+            <IconButton icon="ellipsis-horizontal" label={t('simple.exerciseMenu', { name: exercise.name })} tone="plain" onPress={onOptions} />
+          </View>
+          {compare ? (
+            <View style={[styles.liveLast, { backgroundColor: palette.background }]}>
+              <Label style={styles.liveLastLabel}>{previous ? t('simple.lastLabel', { date: previous.workoutStartedAt.toLocaleDateString(i18n.language, { month: 'short', day: 'numeric' }) }) : t('simple.firstTime')}</Label>
+              <Text style={[styles.liveLastValue, { color: palette.text }]}>{previousText ?? firstTimeLabel ?? ''}</Text>
+              {onCopyAllLast ? <Pressable accessibilityRole="button" accessibilityLabel={t('logger.copyAllPrevious')} onPress={() => { tapFeedback(); onCopyAllLast(); }} style={styles.liveCopy}>
+                <Text style={[styles.liveCopyText, { color: palette.accentStrong }]}>{t('simple.copy')}</Text>
+              </Pressable> : null}
+            </View>
+          ) : null}
+          {exercise.sets.map((set) => (
+            <View key={set.id}>{editor?.id === set.id ? wrap(renderSet(editor)) : renderSet(set, true)}</View>
+          ))}
+          {addRow}
+        </View>
+        {recordBadges}
+        {exerciseDetails}
+      </View>;
+    }
     return <View style={styles.liveCard}>
       {exerciseNavigation}
-      {wrap(standalone ? (
-        <View style={[styles.liveFrame, { borderColor: palette.accentStrong, backgroundColor: palette.surface }]}>
-          {title}
-          {note}
-          {editor ? renderSet(editor) : null}
-        </View>
-      ) : title)}
-      {standalone ? setTools : null}
+      {title}
+      {setTools}
       {addMenuOpen && onAddWarmup ? <ActionButton compact secondary icon="flame-outline" label={t('logger.addWarmup')} onPress={() => { setAddMenuOpen(false); onAddWarmup(); }} /> : null}
       {exercise.sets.length > 0 ? <View style={[styles.liveFrame, { borderColor: palette.border, backgroundColor: palette.surface }]}>
         <LedgerHeader valueLabel={timed ? t('ledger.secCol') : distance ? t('ledger.metresCol') : t('liveWorkout.repsColumn')} withLoad={withLoad} live />
         {exercise.sets.map((set) => (
           <View key={set.id}>
             {renderSet(set, true)}
-            {!standalone && editor?.id === set.id ? wrap(<>{note}{renderSet(editor)}</>) : null}
+            {editor?.id === set.id ? wrap(<>{note}{renderSet(editor)}</>) : null}
           </View>
         ))}
       </View> : null}
-      {!standalone ? <>{!editor ? note : null}{setTools}</> : null}
+      {!editor ? note : null}
       {recordBadges}
       {exerciseDetails}
     </View>;
@@ -1332,6 +1382,17 @@ function ValueChip({ label, icon, filled, open = false, grow = false, lines = 1,
 
 const baseStyles = StyleSheet.create({
   liveCard: { gap: 10 },
+  liveHead: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, paddingTop: 14, paddingBottom: 10, paddingLeft: 16, paddingRight: 4 },
+  liveTarget: { fontFamily: fonts.body, fontSize: 14, lineHeight: 20, marginTop: 4 },
+  liveLast: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8, marginHorizontal: 16, marginBottom: 12, paddingLeft: 12, borderRadius: radii.control, minHeight: 48 },
+  liveLastLabel: { flexShrink: 0 },
+  liveLastValue: { flexGrow: 1, flexShrink: 1, fontFamily: fonts.monoSemibold, fontSize: 14 },
+  liveCopy: { minHeight: 48, justifyContent: 'center', paddingHorizontal: 12 },
+  liveCopyText: { fontFamily: fonts.monoSemibold, fontSize: 12, letterSpacing: 0.7, textTransform: 'uppercase' },
+  liveAddRow: { flexDirection: 'row', alignItems: 'center', borderTopWidth: 1 },
+  liveAdd: { flex: 1, minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 14 },
+  liveAddText: { fontFamily: fonts.monoSemibold, fontSize: 12, letterSpacing: 0.7, textTransform: 'uppercase' },
+  liveAddMenu: { paddingHorizontal: 12, paddingBottom: 12 },
   liveFrame: { overflow: 'hidden', borderWidth: 1, borderRadius: 5 },
   liveTitle: { flexDirection: 'row', alignItems: 'flex-start', gap: 4, padding: 14, paddingBottom: 9 },
   liveInlineTitle: { paddingHorizontal: 0, paddingVertical: 8 },

@@ -3,13 +3,14 @@ import { displayWorkoutName } from '../../src/features/session/workoutName';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import * as Speech from 'expo-speech';
 import { useTranslation } from 'react-i18next';
-import { useCallback, useEffect, useMemo, useRef, useState, type PropsWithChildren } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AccessibilityInfo, ActivityIndicator, Alert, BackHandler, Pressable, StyleSheet, View } from 'react-native';
 import { groupSets, completedSetCount } from '../../src/domain/setPairs';
 import { ExercisePicker, type ExerciseChoice } from '../../src/features/exercises/ExercisePicker';
 import { ReferenceLinkSheet } from '../../src/features/exercises/ReferenceLinkSheet';
+import { openExercisePage } from '../../src/features/exercises/openExercise';
 import { cancelRestFinishedNotification, scheduleRestFinishedNotification } from '../../src/features/session/restNotifications';
-import { restForSet } from '../../src/features/session/restDefaults';
+import { readExerciseRest, restForSet } from '../../src/features/session/restDefaults';
 import { supersetStep } from '../../src/features/session/superset';
 import { SupersetActions, SupersetSettings } from '../../src/features/session/SupersetFields';
 import type { ScrollHandle } from '../../src/shared/components/keyboard';
@@ -63,7 +64,6 @@ import { SetBandsField } from '../../src/features/equipment/SetBandsField';
 import { IncompletePairsSheet } from '../../src/features/session/IncompletePairsSheet';
 import { incompletePairs, type IncompletePair } from '../../src/features/session/incompletePairs';
 import { TelemetryPanel } from '../../src/features/session/telemetry/ExerciseTelemetryDock';
-import { WorkoutDockPanel } from '../../src/features/session/DockRails';
 import { useExerciseTelemetry } from '../../src/features/session/telemetry/useExerciseTelemetry';
 import { useEmom, type EmomAlertText } from '../../src/features/session/useEmom';
 import { discardActiveWorkout } from '../../src/features/session/discardWorkout';
@@ -78,6 +78,7 @@ import {
   Body,
   IconButton,
   Label,
+  ListRow,
   MenuGrid,
   MenuGroup,
   MenuList,
@@ -97,10 +98,10 @@ import {
 import { WorkoutOverview, WorkoutExerciseRow, WorkoutGroupSheet, OverviewButton, useOverviewGroups, type GroupSheet } from '../../src/features/session/WorkoutOverview';
 import { workoutSections } from '../../src/features/session/workoutGroups';
 import { WorkoutNote, WorkoutNoteSheet, type WorkoutNoteKind } from '../../src/features/session/WorkoutNote';
-import { ExerciseSegments } from '../../src/features/session/ExerciseSegments';
 import { WorkoutHeader } from '../../src/features/session/WorkoutHeader';
 import { FreeRestBar } from '../../src/features/session/FreeRestBar';
 import { WorkoutMenuSheet } from '../../src/features/session/WorkoutMenuSheet';
+import { RateSetStrip } from '../../src/features/session/RateSetStrip';
 import { TotalGoalSheet } from '../../src/features/session/TotalGoalSheet';
 import { nextSetValue, totalProgress } from '../../src/domain/totalGoal';
 import { SaveToProgramSheet } from '../../src/features/programs/SaveToProgramSheet';
@@ -164,13 +165,13 @@ export default function WorkoutScreen() {
     return null;
   }), []);
   const [clockNow, setClockNow] = useState<number | null>(null);
-  const [dockPanel, setDockPanel] = useState<'workout' | null>(null);
   const [telemetrySheet, setTelemetrySheet] = useState(false);
   const [telemetryOn, setTelemetryOn] = useState(() => readBooleanPreference(TELEMETRY_ENABLED_KEY, true));
   const [focusMode, setFocusMode] = useState(() => readBooleanPreference(FOCUS_MODE_KEY, true));
   const [voiceCues, setVoiceCues] = useState(() => readBooleanPreference(VOICE_CUES_KEY, false));
   const [readinessOpen, setReadinessOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [editingOverview, setEditingOverview] = useState(false);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const { catalog, reload: reloadEquipment } = useEquipment();
   const bandIndex = catalog ? bandsById(catalog) : null;
@@ -183,7 +184,11 @@ export default function WorkoutScreen() {
   // Self-regulated rest under a total goal: when the clock started, and the rest offered on demand.
   const [freeRest, setFreeRest] = useState<{ since: number; restSec: number } | null>(null);
   const [totalFor, setTotalFor] = useState<SessionExercise | null>(null);
-  const [optionsFor, setOptionsFor] = useState<SessionExercise | null>(null);
+  const [optionsFor, setOptionsForState] = useState<SessionExercise | null>(null);
+  // Which part of the exercise menu is open: the main list, or one of its settings.
+  const [optionsView, setOptionsView] = useState<'rest' | 'replace' | 'setup' | 'history' | 'library' | null>(null);
+  const setOptionsFor = (exercise: SessionExercise | null) => { setOptionsView(null); setOptionsForState(exercise); };
+  const closeOptions = () => setOptionsFor(null);
   const [clearAllOpen, setClearAllOpen] = useState(false);
   const [emomSetupFor, setEmomSetupFor] = useState<SessionExercise | null>(null);
   const [emomNotice, setEmomNotice] = useState<string | null>(null);
@@ -511,7 +516,6 @@ export default function WorkoutScreen() {
   const scrollRef = useRef<ScrollHandle>(null);
   const showOverview = useCallback(() => {
     setOpenExerciseId(null);
-    setDockPanel(null);
     selectedRef.current = null;
     setSelectedEntryId(null);
     scrollRef.current?.scrollTo({ y: 0, animated: false });
@@ -781,21 +785,29 @@ export default function WorkoutScreen() {
   const workoutName = displayWorkoutName(workout.name, t('log.pastName'));
   const focused = workout.exercises.find((exercise) => exercise.entryId === openExerciseId);
   const next = handExercise;
-  const scheduledSet = focused?.sets.find((set) => !set.completedAt);
-  const scheduledRest = focused && scheduledSet ? recoveryAfterSet(workout, focused, scheduledSet).seconds : null;
-  const scheduledNumber = focused && scheduledSet
-    ? groupSets(focused.sets.filter((set) => set.kind === scheduledSet.kind && set.index <= scheduledSet.index)).length
-    : 0;
   const exercisePosition = focused ? workout.exercises.indexOf(focused) + 1 : 0;
   const previousExercise = focused ? workout.exercises[exercisePosition - 2] : undefined;
   const followingExercise = focused ? workout.exercises[exercisePosition] : undefined;
-  const canFold = groups.length > 0;
-  const allFoldKeys = groups.flatMap((group) => [`group:${group.id ?? 'loose'}`, ...(group.nested ?? []).map((item) => `superset:${item.id}`)]);
-  const allCollapsed = allFoldKeys.length > 0 && allFoldKeys.every((key) => foldedGroups.has(key));
   const background = mode === 'light' ? '#eaeff2' : palette.background;
   const footerColor = mode === 'light' ? '#f5f7f9' : palette.background;
   const nextOther = next && next.entryId !== focused?.entryId ? next
     : workout.exercises.slice(exercisePosition).find((entry) => entry.sets.some((set) => !set.completedAt));
+  // The set the footer logs: the first one still to do of the exercise in hand.
+  const focusedOpenSet = focused?.sets.find((set) => !set.completedAt) ?? null;
+  const setLabelOf = (exercise: SessionExercise, set: SessionSet) => {
+    const number = groupSets(exercise.sets.filter((item) => item.kind === set.kind && item.index <= set.index)).length;
+    const name = set.kind === 'warmup' ? t('ledger.warmup') : t('simple.setNumber', { number });
+    return set.side === 'left' ? `${name} · ${t('logger.sideLeft')}` : set.side === 'right' ? `${name} · ${t('logger.sideRight')}` : name;
+  };
+  const focusedOpenLabel = focused && focusedOpenSet ? setLabelOf(focused, focusedOpenSet) : '';
+  // While resting, the last working set done can be rated from the footer.
+  const rateTarget = (() => {
+    let best: { exercise: SessionExercise; set: SessionSet } | null = null;
+    for (const exercise of workout.exercises) for (const set of exercise.sets) {
+      if (set.completedAt && set.kind === 'working' && (!best || set.completedAt > best.set.completedAt!)) best = { exercise, set };
+    }
+    return best ? { ...best, label: setLabelOf(best.exercise, best.set).replace(/ · .*$/, '') } : null;
+  })();
   const emomExercise = emom.plan ? workout.exercises.find((item) => item.entryId === emom.plan?.entryId) ?? null : null;
   const emomView: EmomView | null = emom.plan && emom.phase ? {
     exercise: emomExercise?.name ?? '',
@@ -830,6 +842,7 @@ export default function WorkoutScreen() {
         key={exercise.entryId}
         focus
         liveLayout={focusMode ? 'standalone' : 'inline'}
+        footerAction={focusMode}
         wrapSetEditor={(editor) => (
           <ExerciseSwipeArea previousId={previousExercise?.entryId} nextId={followingExercise?.entryId} onNavigate={swipeToExercise}>
             {editor}
@@ -897,52 +910,54 @@ export default function WorkoutScreen() {
           {emomView ? (
             <EmomMiniDock view={emomView} label={emomBadge(emomView.phase, emom.plan!, t)} onOpen={() => setEmomStage(true)} />
           ) : hold.active || restEndsAt !== null ? (
-            <TimerBar
-              hold={hold.active}
-              restEndsAt={restEndsAt}
-              voiceCues={voiceCues}
-              onRestEnd={endRest}
-              onFinishHold={() => void finishCurrentHold()}
-              onExtend={() => adjustRest(REST_STEP_SEC)}
-              onReduce={() => adjustRest(-REST_STEP_SEC)}
-              onSkip={skipRest}
-              nextName={next?.name}
-            />
+            <>
+              {restEndsAt !== null && rateTarget ? (
+                <RateSetStrip
+                  key={rateTarget.set.id}
+                  setLabel={rateTarget.label}
+                  rpe={rateTarget.set.rpe}
+                  target={rateTarget.set.targetRpe}
+                  form={rateTarget.set.formRating}
+                  showRpe={showRpe}
+                  onRpe={(value) => void saveRpe(rateTarget.set, value)}
+                  onForm={(value) => void saveFormRating(rateTarget.set, value)}
+                  onMore={() => openSetOptions(rateTarget.exercise, rateTarget.set)}
+                />
+              ) : null}
+              <TimerBar
+                hold={hold.active}
+                restEndsAt={restEndsAt}
+                voiceCues={voiceCues}
+                onRestEnd={endRest}
+                onFinishHold={() => void finishCurrentHold()}
+                onExtend={() => adjustRest(REST_STEP_SEC)}
+                onReduce={() => adjustRest(-REST_STEP_SEC)}
+                onSkip={skipRest}
+                nextName={next?.name}
+              />
+            </>
           ) : freeRest ? (
             <FreeRestBar since={freeRest.since} restSec={freeRest.restSec} onStartRest={() => startRestTimer(freeRest.restSec)} onClose={() => setFreeRest(null)} />
-          ) : focused && scheduledRest !== null ? (
-            <View style={[styles.plannedRest, { backgroundColor: palette.surface, borderColor: palette.border }]}>
-              <View style={styles.flex}>
-                <Text style={styles.plannedLabel}>{t('liveWorkout.plannedRest')}</Text>
-                <Text style={styles.plannedValue}>{formatClock(scheduledRest)}</Text>
-              </View>
-              <Text style={[styles.shrink, styles.plannedLabel]}>{t('liveWorkout.afterSet', { number: scheduledNumber })}</Text>
-            </View>
           ) : null}
-          {focused ? (
-            <>
-              {dockPanel === 'workout' ? (
-                <WorkoutDockPanel title={t('dock.workoutPanel', { current: exercisePosition, total: workout.exercises.length })}
-                  options={[
-                    { id: 'add', icon: 'add', label: t('workout.addExercise'), hint: t('dock.addHint'), tone: 'normal', onPress: () => { setDockPanel(null); setPickerOpen(true); } },
-                    { id: 'finish', icon: 'flag-outline', label: t('workout.finish'), hint: t('dock.finishHint'), tone: 'primary', onPress: () => { setDockPanel(null); setFinishOpen(true); } },
-                    { id: 'discard', icon: 'close-circle-outline', label: t('workout.discard'), hint: t('dock.discardHint'), tone: 'danger', onPress: () => { setDockPanel(null); setDiscardOpen(true); } },
-                  ]} />
-              ) : null}
-              <View style={styles.railsRow}>
-                {telemetryOn ? <Pressable accessibilityRole="button" style={styles.rail} onPress={() => { tapFeedback(); setTelemetrySheet(true); }}>
-                  <Icon name="speedometer-outline" size={18} color={palette.textMuted} />
-                  <Text style={styles.railLabel}>{t('dock.telemetry')}</Text>
-                </Pressable> : null}
-                <Pressable accessibilityRole="button" style={styles.rail} onPress={showOverview}>
-                  <Icon name="list-outline" size={18} color={palette.textMuted} />
-                  <Text style={styles.railLabel}>{t('liveWorkout.workoutRail', { current: exercisePosition, total: workout.exercises.length })}</Text>
-                </Pressable>
-                <IconButton icon="ellipsis-horizontal" tone="plain" label={t('dock.workoutPanel', { current: exercisePosition, total: workout.exercises.length })}
-                  onPress={() => setDockPanel(dockPanel === 'workout' ? null : 'workout')} />
-              </View>
-            </>
-          ) : actions}
+          {focused ? (hold.active || restEndsAt !== null ? null : (
+            <View style={styles.logAction}>
+              {focusedOpenSet ? (
+                <ActionButton
+                  icon={focused.metric.startsWith('time') && !emom.plan ? 'play' : 'checkmark'}
+                  label={focused.metric.startsWith('time') && !emom.plan ? t('simple.startHold', { set: focusedOpenLabel }) : t('simple.logSet', { set: focusedOpenLabel })}
+                  onPress={() => {
+                    tapFeedback('success');
+                    if (focused.metric.startsWith('time') && !emom.plan) startHoldFor(focusedOpenSet);
+                    else void completeHoldManually(focusedOpenSet);
+                  }}
+                />
+              ) : nextOther ? (
+                <ActionButton icon="arrow-forward" label={t('simple.nextExercise', { name: nextOther.name })} onPress={() => openExercise(nextOther)} />
+              ) : (
+                <ActionButton icon="flag" label={t('workout.finish')} onPress={() => setFinishOpen(true)} />
+              )}
+            </View>
+          )) : actions}
         </View>}
       >
         <WorkoutHeader
@@ -954,9 +969,11 @@ export default function WorkoutScreen() {
           onTitleLongPress={() => setDetailsOpen(true)}
           titleLongPressLabel={t('workoutDetails.editHint')}
           onMenu={() => setMenuOpen(true)}
+          exercises={workout.exercises}
+          currentId={focused?.entryId ?? next?.entryId ?? null}
+          position={focused ? exercisePosition : undefined}
         />
-        {workout.exercises.length > 0 ? <ExerciseSegments exercises={workout.exercises} currentId={next?.entryId ?? null} done={completedCount} total={totalSets} /> : null}
-        <WorkoutNote kind="workoutNote" value={workout.notes} onPress={() => setNoteTarget({ kind: 'workoutNote', id: workout.id, context: workoutName, value: workout.notes })} />
+        {workout.notes ? <WorkoutNote kind="workoutNote" value={workout.notes} onPress={() => setNoteTarget({ kind: 'workoutNote', id: workout.id, context: workoutName, value: workout.notes })} /> : null}
 
         {readinessOpen ? (
           <Card style={styles.readinessCard}>
@@ -974,15 +991,29 @@ export default function WorkoutScreen() {
 
 
         {focused ? <>
+          {telemetryOn && telemetry ? (
+            <Pressable accessibilityRole="button" onPress={() => { tapFeedback(); setTelemetrySheet(true); }} style={[styles.telemetryRow, { borderColor: palette.border }]}>
+              <Icon name="speedometer-outline" size={18} color={palette.textMuted} />
+              <Text style={[styles.flex, styles.railLabel]}>{t('telemetry.title')}</Text>
+              <Icon name="chevron-forward" size={16} color={palette.textMuted} />
+            </Pressable>
+          ) : null}
           {renderExercise(focused)}
           {nextOther ? <View style={styles.dockStack}>
             <Label>{t('liveWorkout.nextMovement')}</Label>
             <WorkoutExerciseRow exercise={nextOther} next={nextOther.entryId === next?.entryId} onPress={() => openExercise(nextOther)} />
           </View> : null}
         </> : <>
-          {resumeExercise ? addExerciseAction : null}
           {totalSets > 0 && completedCount === totalSets ? <Body>{t('liveWorkout.readyToFinish')}</Body> : null}
-          <WorkoutOverview canMove={canMove} onMove={async (exercise, target) => {
+          <WorkoutOverview editing={editingOverview} onEditing={setEditingOverview}
+            addRow={workout.exercises.length > 0 ? (
+              <Pressable accessibilityRole="button" onPress={() => { tapFeedback(); setPickerOpen(true); }}
+                style={({ pressed }) => [styles.addRow, { borderColor: palette.accentStrong, backgroundColor: pressed ? palette.accentSoft : palette.surface }]}>
+                <Icon name="add" size={18} color={palette.accentStrong} />
+                <Text style={[styles.addRowText, { color: palette.accentStrong }]}>{t('workout.addExercise')}</Text>
+              </Pressable>
+            ) : null}
+            canMove={canMove} onMove={async (exercise, target) => {
             await changeWorkoutGroups(workout.id, { type: 'dropExercise', id: exercise.entryId, targetId: target.entryId });
             await refresh(workout.id);
           }} groups={groups} folded={foldedGroups} nextId={next?.entryId ?? null}
@@ -996,11 +1027,12 @@ export default function WorkoutScreen() {
             renderExercise={(exercise, marker, wrapDrag = (content) => content) => (
               <View style={styles.overviewExerciseRow}>
                 {wrapDrag(<View collapsable={false} style={styles.flex}>
-                  <WorkoutExerciseRow exercise={exercise} marker={marker} next={exercise.entryId === next?.entryId} onPress={() => openExercise(exercise)} />
+                  <WorkoutExerciseRow exercise={exercise} marker={marker} next={exercise.entryId === next?.entryId} onPress={() => openExercise(exercise)}
+                    onLongPress={editingOverview ? undefined : () => setOptionsFor(exercise)} />
                 </View>)}
-                <IconButton icon="close" tone="plain" size={44} color={palette.textMuted}
+                {editingOverview ? <IconButton icon="close" tone="plain" size={44} color={palette.textMuted}
                   label={t('liveWorkout.removeNamedExercise', { name: exercise.name })}
-                  onPress={() => void removeExerciseOrConfirm(exercise)} />
+                  onPress={() => void removeExerciseOrConfirm(exercise)} /> : null}
               </View>
             )}
           />
@@ -1039,21 +1071,23 @@ export default function WorkoutScreen() {
       <WorkoutMenuSheet
         visible={menuOpen}
         onClose={() => setMenuOpen(false)}
+        subtitle={t('simple.menuSubtitle', { done: completedCount, total: totalSets })}
+        position={focused ? t('simple.position', { current: exercisePosition, total: workout.exercises.length }) : undefined}
+        hasNote={Boolean(workout.notes)}
+        rated={workout.sleep !== null || workout.energy !== null || workout.soreness !== null}
         focusMode={focusMode}
         telemetryOn={telemetryOn}
         voiceCues={voiceCues}
-        canFold={canFold}
-        allCollapsed={allCollapsed}
         canNarrate={workout.exercises.some((exercise) => exercise.sets.some((set) => !set.completedAt))}
         canClear={workout.exercises.some((exercise) => exercise.sets.length > 0)}
+        canFinish={workout.exercises.length > 0}
+        onFinish={() => setFinishOpen(true)}
         onCheckIn={() => setReadinessOpen(true)}
-        onFocus={() => { tapFeedback(); setDockPanel(null); setFocusMode(!focusMode); writePreference(FOCUS_MODE_KEY, String(!focusMode)); }}
-        onTelemetry={() => { tapFeedback(); setTelemetryOn(!telemetryOn); writePreference(TELEMETRY_ENABLED_KEY, String(!telemetryOn)); }}
+        onFocus={() => { setFocusMode(!focusMode); writePreference(FOCUS_MODE_KEY, String(!focusMode)); }}
+        onTelemetry={() => { setTelemetryOn(!telemetryOn); writePreference(TELEMETRY_ENABLED_KEY, String(!telemetryOn)); }}
         onVoice={toggleVoiceCues}
         onNarrate={() => router.push({ pathname: '/workout/narrate/[id]', params: { id: workout.id } })}
-        onFoldAll={() => { showOverview(); setFoldedGroups(new Set(allCollapsed ? [] : allFoldKeys)); }}
         onOverview={focused ? showOverview : undefined}
-        onShowTelemetry={telemetryOn ? () => setTelemetrySheet(true) : undefined}
         onDiscard={() => setDiscardOpen(true)}
         onDetails={() => setDetailsOpen(true)}
         onSave={() => setSaveOpen(true)}
@@ -1172,12 +1206,14 @@ export default function WorkoutScreen() {
         onSave={async (details) => { await updateWorkoutDetails(workout.id, details); await refresh(workout.id); setDetailsOpen(false); }}
       />
 
-      <Sheet visible={optionsFor !== null} onClose={() => setOptionsFor(null)} title={optionsFor?.name ?? t('logger.options')}>
+      <Sheet visible={optionsFor !== null} onClose={closeOptions} title={optionsFor?.name ?? t('logger.options')}
+        subtitle={optionsFor ? t('simple.exercisePosition', { current: workout.exercises.indexOf(optionsFor) + 1, total: workout.exercises.length }) : undefined}>
         {optionsFor ? (
-          <View key={optionsFor.entryId} style={styles.dockStack}>
-            <WorkoutNote kind="exerciseNote" value={optionsFor.notes} onPress={() => { setOptionsFor(null); openExerciseNote(optionsFor); }} />
-            <ExerciseRestFields key={`rest-${optionsFor.entryId}`} exercise={optionsFor} onSaved={() => void refresh(workout.id)} />
-            <MenuGrid>
+          <View key={`${optionsFor.entryId}-${optionsView ?? 'main'}`} style={styles.dockStack}>
+            {optionsView === null ? <>
+              {/* The four things done most often, then one flat row per setting with its value, then removal apart. */}
+              <MenuGrid>
+                <MenuTile icon="swap-horizontal" label={t('simple.replace')} onPress={() => setOptionsView('replace')} />
               {emomFieldFor(optionsFor.metric) ? (
                 <MenuTile
                   icon="timer-outline"
@@ -1190,12 +1226,32 @@ export default function WorkoutScreen() {
                   }}
                 />
               ) : null}
-              <MenuTile icon="flag-outline" label={optionsFor.totalTarget != null ? t('totalGoal.edit') : t('totalGoal.set')} onPress={() => { setTotalFor(optionsFor); setOptionsFor(null); }} />
-            </MenuGrid>
-            <ExerciseOptionSection title={t('liveWorkout.swapSection')}>
+                <MenuTile icon="flag-outline" label={optionsFor.totalTarget != null ? t('totalGoal.edit') : t('totalGoal.set')} onPress={() => { setTotalFor(optionsFor); setOptionsFor(null); }} />
+                <MenuTile icon="flame-outline" label={t('simple.addWarmups')} onPress={() => {
+                  const exercise = optionsFor;
+                  const warmups = previous.get(exercise.exerciseId)?.warmups ?? [];
+                  setOptionsFor(null);
+                  void (warmups.length > 0 ? addWarmupsFromLastTime(exercise.entryId, warmups) : addWarmupSet(exercise.entryId)).then(() => refresh(workout.id));
+                }} />
+              </MenuGrid>
+              <MenuList>
+                <MenuRow label={t('logger.restGroup')} value={t('simple.restValue', { working: readExerciseRest(optionsFor.exerciseId, 'working'), warmup: readExerciseRest(optionsFor.exerciseId, 'warmup') })} chevron onPress={() => setOptionsView('rest')} />
+                <MenuRow label={t('logger.noteLabel')} value={optionsFor.notes ? optionsFor.notes : t('simple.add')} chevron onPress={() => { setOptionsFor(null); openExerciseNote(optionsFor); }} />
+                {catalog && (optionsFor.apparatusIds?.length ?? 0) > 0 ? <MenuRow label={t('equipment.apparatusInWorkout')} value={apparatusName(catalog.apparatus.find((item) => item.id === optionsFor.apparatusId), t)} chevron onPress={() => setOptionsView('setup')} /> : null}
+                <MenuRow label={t('simple.moveGroup')} value={groups.find((group) => group.exercises.some((entry) => entry.entryId === optionsFor.entryId))?.name} chevron onPress={() => setOptionsView('setup')} />
+                <MenuRow label={t('simple.historyCompare')} chevron onPress={() => setOptionsView('history')} />
+                <MenuRow label={t('simple.exercisePage')} chevron onPress={() => setOptionsView('library')} />
+              </MenuList>
+              <MenuList>
+                {optionsFor.sets.length > 0 ? <MenuRow tone="danger" icon="remove-circle-outline" label={t('logger.clearSets')} onPress={() => void clearSets({ exercise: optionsFor })} /> : null}
+                <MenuRow tone="danger" icon="trash-outline" label={t('logger.removeExercise')} onPress={() => void removeExerciseOrConfirm(optionsFor)} />
+              </MenuList>
+            </> : <>
+              {optionsView === 'rest' ? <ExerciseRestFields key={`rest-${optionsFor.entryId}`} exercise={optionsFor} onSaved={() => void refresh(workout.id)} /> : null}
+              {optionsView === 'replace' ? <>
               <SwitchSection key={`switch-${optionsFor.entryId}-${optionsFor.exerciseId}`} exercise={optionsFor} onSwitch={(id, name) => void switchTo(optionsFor, id, name)} onOther={() => { setReplacing(optionsFor); setOptionsFor(null); setPickerOpen(true); }} />
-            </ExerciseOptionSection>
-            <ExerciseOptionSection title={t('liveWorkout.setupSection')}>
+              </> : null}
+              {optionsView === 'setup' ? <>
               {catalog && (optionsFor.apparatusIds?.length ?? 0) > 0 ? (
                 <MenuGroup title={t('equipment.apparatusInWorkout')}>
                   <View style={styles.choiceRow}>
@@ -1229,12 +1285,12 @@ export default function WorkoutScreen() {
                     onPress={() => { setOptionsFor(null); void changeWorkoutGroups(workout.id, { type: 'moveExercise', id: optionsFor.entryId, offset }).then(() => refresh(workout.id)); }} />;
                 })}
                 </MenuGrid>
-            </ExerciseOptionSection>
-            <ExerciseOptionSection title={t('liveWorkout.historySection')}>
+              </> : null}
+              {optionsView === 'history' ? <>
               <ExerciseCompareField key={`compare-${optionsFor.entryId}`} exercise={optionsFor} workoutId={workout.id} workoutName={workout.name} onChanged={() => void refresh(workout.id)} />
               <ExerciseAveragesField key={`averages-${optionsFor.entryId}`} exercise={optionsFor} onChanged={() => void refresh(workout.id)} />
-            </ExerciseOptionSection>
-            <ExerciseOptionSection title={t('liveWorkout.librarySection')}>
+              </> : null}
+              {optionsView === 'library' ? <>
                 <MenuGrid>
                 <MenuTile
                   icon="construct-outline"
@@ -1247,13 +1303,10 @@ export default function WorkoutScreen() {
                 />
                 <MenuTile icon={optionsFor.demoUrl ? 'create-outline' : 'link'} label={optionsFor.demoUrl ? t('logger.reference') : t('exercise.addReference')} onPress={() => { setReferenceFor(optionsFor); setOptionsFor(null); }} />
                 </MenuGrid>
-            </ExerciseOptionSection>
-            <ExerciseOptionSection title={t('liveWorkout.removeSection')}>
-              <MenuList>
-                {optionsFor.sets.length > 0 ? <MenuRow tone="danger" icon="remove-circle-outline" label={t('logger.clearSets')} onPress={() => void clearSets({ exercise: optionsFor })} /> : null}
-                <MenuRow tone="danger" icon="trash-outline" label={t('logger.removeExercise')} onPress={() => void removeExerciseOrConfirm(optionsFor)} />
-              </MenuList>
-            </ExerciseOptionSection>
+                <ListRow icon="open-outline" title={t('logger.openExercise')} onPress={() => { const exerciseId = optionsFor.exerciseId; setOptionsFor(null); openExercisePage(exerciseId); }} />
+              </> : null}
+              <ActionButton icon="arrow-back" secondary label={t('bands.back')} onPress={() => setOptionsView(null)} />
+            </>}
           </View>
         ) : null}
       </Sheet>
@@ -1508,24 +1561,11 @@ function ReadinessRow({ label, value, onChange }: { label: string; value: number
 }
 
 
-function ExerciseOptionSection({ title, children }: PropsWithChildren<{ title: string }>) {
-  const [expanded, setExpanded] = useState(false);
-  const { palette } = useTheme();
-  const styles = useScaledStyles(baseStyles);
-  return (
-    <View style={[styles.optionSection, { borderColor: palette.border }]}>
-      <Pressable accessibilityRole="button" accessibilityLabel={title} accessibilityState={{ expanded }} aria-expanded={expanded}
-        onPress={() => { tapFeedback(); setExpanded(!expanded); }}
-        style={({ pressed }) => [styles.optionHeading, { backgroundColor: pressed ? palette.surfaceMuted : palette.surface }]}>
-        <Text style={[styles.flex, styles.readinessTitle]}>{title}</Text>
-        <Icon name={expanded ? 'chevron-up' : 'chevron-down'} size={16} color={palette.textMuted} />
-      </Pressable>
-      <View style={[styles.optionBody, !expanded && styles.optionHidden]}>{children}</View>
-    </View>
-  );
-}
-
 const baseStyles = StyleSheet.create({
+  telemetryRow: { minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12, borderWidth: 1, borderRadius: radii.control },
+  logAction: { paddingTop: 4 },
+  addRow: { minHeight: 52, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 14, borderWidth: 1, borderStyle: 'dashed', borderRadius: radii.control },
+  addRowText: { fontFamily: fonts.monoSemibold, fontSize: 12, letterSpacing: 0.7, textTransform: 'uppercase' },
   // The blocks of the lower dock (panel, main action, rails, timer) never touch: one step of the spacing scale between them.
   overStage: { zIndex: 30, elevation: 30 },
   dockStack: { gap: 8 },

@@ -78,7 +78,7 @@ beforeAll(async () => { await i18n.changeLanguage('en'); });
 beforeEach(() => { __resetMockPrefs(); });
 
 describe('UserProgramScreen author, category, and barebone mode', () => {
-  it('shows category and author chips and toggles barebone workout rows', async () => {
+  it('shows category and author in the program menu and toggles barebone workout rows', async () => {
     render(
       <SafeAreaProvider initialMetrics={metrics}>
         <ThemeProvider>
@@ -87,11 +87,12 @@ describe('UserProgramScreen author, category, and barebone mode', () => {
       </SafeAreaProvider>,
     );
 
-    expect((await screen.findAllByRole('button', { name: 'Strength' })).length).toBeGreaterThanOrEqual(2);
-    expect(screen.getByRole('button', { name: 'Tom Merrick' })).toBeTruthy();
+    expect(await screen.findByText(/Tom Merrick/)).toBeTruthy();
     expect(screen.getByText(/3 sets/)).toBeTruthy();
 
-    fireEvent.press(screen.getByRole('button', { name: t('programsList.barebone') }));
+    fireEvent.press(screen.getByRole('button', { name: t('simple.programMenu') }));
+    expect(screen.getByRole('button', { name: `${t('programAuthor.label')}, Tom Merrick` })).toBeTruthy();
+    fireEvent.press(screen.getByRole('switch', { name: t('programsList.barebone') }));
     expect(screen.queryByText(/3 sets/)).toBeNull();
     expect(screen.getByText('Upper Push')).toBeTruthy();
   });

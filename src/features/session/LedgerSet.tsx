@@ -1,8 +1,7 @@
 import { useState, type ReactNode } from 'react';
-import { Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import { ActionButton, Icon, Text, tapFeedback } from '../../shared/components/ui';
-import { WorkoutNote } from './WorkoutNote';
+import { Icon, Text, tapFeedback, type IconName } from '../../shared/components/ui';
 import { ChipsFold } from './ChipsFold';
 import { useInk } from '../../shared/theme/ink';
 import { useScaledStyles } from '../../shared/theme/useScaledStyles';
@@ -88,6 +87,13 @@ export interface LedgerActiveRowProps extends LedgerCommon {
     disabled?: boolean;
     onAction: () => void;
     onManual?: () => void;
+    /** "Set 2 of 4 · Left side", above the value. */
+    badge?: string;
+    /** Rest after this set, and the set's clips: chips of the editor. */
+    rest?: { value: string; filled: boolean; onPress: () => void };
+    video?: { clips: number; onPress: () => void };
+    /** Off when the screen's footer carries the action (the set to do in one-at-a-time mode). */
+    inlineAction?: boolean;
   };
 }
 
@@ -270,35 +276,48 @@ export function LedgerActiveRow(props: LedgerActiveRowProps) {
   return props.live ? <LiveSetEditor {...props} live={props.live} /> : <ClassicLedgerActiveRow {...props} />;
 }
 
-function LiveSetEditor({ live, note, bands, bandsInUse, valueField, valueDown, valueUp, loadField, loadDown, loadUp, withLoad, onMenu }: LedgerActiveRowProps & { live: NonNullable<LedgerActiveRowProps['live']> }) {
+function LiveSetEditor({ live, note, bands, side, valueField, valueDown, valueUp, loadField, loadDown, loadUp, withLoad, onMenu }: LedgerActiveRowProps & { live: NonNullable<LedgerActiveRowProps['live']> }) {
   const { t } = useTranslation();
   const styles = useScaledStyles(baseStyles);
-  const { palette, mode, largeText } = useTheme();
-  const { width } = useWindowDimensions();
-  const fieldsStack = largeText || width < 340;
-  return <View>
-    <View style={[styles.liveMeasurements, { backgroundColor: mode === 'light' ? '#e8ebfb' : palette.accentSoft, borderColor: palette.border }]}>
-      <View style={[styles.liveFields, fieldsStack && styles.liveFieldsStack]}>
-        <LiveField stacked={fieldsStack} label={live.fieldLabel} unit={live.unit} down={valueDown} up={valueUp}>{valueField}</LiveField>
-        {withLoad ? <LiveField stacked={fieldsStack} label={t('liveWorkout.addedLoad')} unit="kg" down={loadDown} up={loadUp}>{loadField}</LiveField> : null}
+  const { palette, largeText } = useTheme();
+  // "+ Load" shows the load stepper on a set without load; once a load is set it stays.
+  const [loadOpen, setLoadOpen] = useState(false);
+  const showLoad = withLoad || loadOpen;
+  const chip = (key: string, icon: IconName, label: string, onPress: () => void, filled = false, dashed = false, colors?: string[]) => (
+    <Pressable key={key} accessibilityRole="button" accessibilityLabel={label} onPress={() => { tapFeedback(); onPress(); }}
+      style={({ pressed }) => [styles.editorChip, { borderColor: dashed ? palette.accentStrong : palette.text, borderStyle: dashed ? 'dashed' : 'solid', backgroundColor: filled ? palette.accentSoft : palette.surface, opacity: pressed ? 0.7 : 1 }]}>
+      {colors && colors.length > 0 ? <Swatches colors={colors} /> : <Icon name={icon} size={16} color={dashed ? palette.accentStrong : palette.text} />}
+      <Text style={[styles.editorChipText, { color: dashed ? palette.accentStrong : palette.text }]}>{label}</Text>
+    </Pressable>
+  );
+  const chips = [
+    withLoad ? null : chip('load', loadOpen ? 'remove' : 'add', t('simple.load'), () => setLoadOpen(!loadOpen), loadOpen, !loadOpen),
+    bands ? chip('bands', 'git-commit-outline', bands.colors.length > 0 ? (bands.assist ? `−${bands.assist} kg` : t('bands.title')) : t('bands.title'), bands.onPress, bands.colors.length > 0, false, bands.colors) : null,
+    live.rest ? chip('rest', 'timer-outline', t('logger.restChip', { value: live.rest.value }), live.rest.onPress, live.rest.filled) : null,
+    note ? chip('note', 'document-text-outline', note.text ? note.text : t('logger.noteLabel'), note.onPress, Boolean(note.text)) : null,
+    live.video ? chip('video', live.video.clips > 0 ? 'play-circle-outline' : 'videocam-outline', live.video.clips > 0 ? t('logger.clip', { count: live.video.clips }) : t('logger.videoChip'), live.video.onPress, live.video.clips > 0) : null,
+  ];
+  const sideTag = (letter: 'L' | 'R') => {
+    const current = side === letter;
+    return <View key={letter} style={[styles.sideTag, current ? { backgroundColor: palette.accentStrong } : { borderWidth: 1, borderColor: palette.accentStrong }]}>
+      <Text style={[styles.sideTagText, { color: current ? palette.accentText : palette.accentStrong }]}>{letter}</Text>
+    </View>;
+  };
+  return <Pressable accessible={false} accessibilityRole="none" onLongPress={onMenu} delayLongPress={450}
+    style={[styles.editor, { backgroundColor: palette.accentSoft, borderColor: palette.accentStrong }]}>
+    {live.badge || side ? (
+      <View style={styles.editorTop}>
+        {live.badge ? <Text style={[styles.editorBadge, { color: palette.accentStrong }]}>{live.badge}</Text> : null}
+        {side ? <View accessible accessibilityLabel={side === 'L' ? t('logger.sideLeft') : t('logger.sideRight')} style={styles.sideTags}>{sideTag('L')}{sideTag('R')}</View> : null}
       </View>
-      {live.comparable ? <Text style={[styles.comparable, { color: palette.textMuted }]}>{t('liveWorkout.comparable', { value: live.comparable })}</Text> : null}
-    </View>
-    {bands && (bandsInUse || bands.colors.length > 0) ? (
-      <Pressable accessibilityRole="button" accessibilityLabel={t('liveWorkout.bandHelp')}
-        onPress={() => { tapFeedback(); bands.onPress(); }}
-        style={[styles.liveBands, { backgroundColor: palette.surfaceMuted, borderColor: palette.border }]}>
-        <Swatches colors={bands.colors} />
-        <View style={styles.colField}>
-          <Text style={styles.fieldLabel}>{t('liveWorkout.bandHelp')}</Text>
-          <Text style={[styles.comparable, { color: palette.textMuted }]}>{live.bandsText ?? t('ledger.noBands')}</Text>
-        </View>
-        {bands.colors.length > 0 ? <Text style={[styles.small, { color: palette.textMuted }]}>{bands.assist ? `−${bands.assist} kg` : t('bands.unknown')}</Text> : null}
-        <Icon name="chevron-forward" size={16} color={palette.accentStrong} />
-      </Pressable>
     ) : null}
-    {note ? <WorkoutNote inset kind="setNote" value={note.text} onPress={note.onPress} /> : null}
-    <View style={[styles.liveActions, largeText && styles.liveFieldsStack]}>
+    <View style={[styles.liveFields, largeText && styles.liveFieldsStack]}>
+      <LiveField stacked={largeText} big label={live.fieldLabel} unit={live.unit} down={valueDown} up={valueUp}>{valueField}</LiveField>
+      {showLoad ? <LiveField stacked={largeText} label={t('liveWorkout.addedLoad')} unit="kg" down={loadDown} up={loadUp}>{loadField}</LiveField> : null}
+    </View>
+    {live.comparable ? <Text style={[styles.comparable, { color: palette.textMuted }]}>{t('liveWorkout.comparable', { value: live.comparable })}</Text> : null}
+    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.editorChips}>{chips}</ScrollView>
+    {live.inlineAction === false && !live.done ? null : (
       <Pressable accessibilityRole="button" accessibilityLabel={live.action} disabled={live.disabled}
         accessibilityState={{ disabled: live.disabled }}
         accessibilityActions={live.onManual ? [{ name: 'longpress', label: t('logger.markDoneNoTimer') }] : undefined}
@@ -308,17 +327,16 @@ function LiveSetEditor({ live, note, bands, bandsInUse, valueField, valueDown, v
         <Icon name={live.done ? 'arrow-undo' : live.holding ? 'stop' : live.onManual ? 'play' : 'checkmark'} size={20} color={palette.accentText} />
         <Text style={[styles.liveCompleteText, { color: palette.accentText }]}>{live.action}</Text>
       </Pressable>
-      <ActionButton compact secondary label={t('liveWorkout.details')} onPress={onMenu} />
-    </View>
-  </View>;
+    )}
+  </Pressable>;
 }
 
-function LiveField({ stacked, label, unit, down, up, children }: { stacked: boolean; label: string; unit?: string; down?: ReactNode; up?: ReactNode; children: ReactNode }) {
+function LiveField({ stacked, big = false, label, unit, down, up, children }: { stacked: boolean; big?: boolean; label: string; unit?: string; down?: ReactNode; up?: ReactNode; children: ReactNode }) {
   const { palette } = useTheme();
   const styles = useScaledStyles(baseStyles);
   return <View style={[styles.liveField, !stacked && styles.liveFieldInline]}>
     <Text style={styles.fieldLabel}>{label}</Text>
-    <View style={[styles.liveStepper, { backgroundColor: palette.surface, borderColor: palette.border }]}>
+    <View style={[styles.liveStepper, big && styles.liveStepperBig, { backgroundColor: palette.surface, borderColor: palette.text }]}>
       {down ? <View style={[styles.stepSeparator, { borderRightWidth: 1, borderColor: palette.border }]}>{down}</View> : null}
       <View style={styles.liveValue}>
         {children}
@@ -450,6 +468,16 @@ function ClassicLedgerActiveRow(props: LedgerActiveRowProps) {
 const baseStyles = StyleSheet.create({
   liveRow: { paddingLeft: 10 },
   liveRowNumber: { width: 42, flexDirection: 'row', flexWrap: 'wrap', gap: 3, alignItems: 'center' },
+  editor: { borderTopWidth: 2, borderBottomWidth: 2, paddingHorizontal: 16, paddingTop: 12, paddingBottom: 14, gap: 12 },
+  editorTop: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
+  editorBadge: { fontFamily: fonts.monoSemibold, fontSize: 12, lineHeight: 16, letterSpacing: 0.7, textTransform: 'uppercase', flexShrink: 1 },
+  sideTags: { flexDirection: 'row', gap: 4 },
+  sideTag: { minWidth: 28, minHeight: 24, borderRadius: 4, alignItems: 'center', justifyContent: 'center' },
+  sideTagText: { fontFamily: fonts.monoBold, fontSize: 12 },
+  editorChips: { gap: 8, paddingRight: 16 },
+  editorChip: { minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, borderWidth: 1, borderRadius: 4 },
+  editorChipText: { fontFamily: fonts.monoSemibold, fontSize: 12, letterSpacing: 0.5, textTransform: 'uppercase', maxWidth: 160 },
+  liveStepperBig: { minHeight: 64 },
   liveMeasurements: { borderTopWidth: 1, borderBottomWidth: 1, paddingHorizontal: 13, paddingVertical: 12, gap: 10 },
   liveFields: { flexDirection: 'row', gap: 9 },
   liveFieldsStack: { flexDirection: 'column' },

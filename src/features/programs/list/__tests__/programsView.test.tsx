@@ -56,6 +56,8 @@ const samplePrograms: UserProgram[] = [
   },
 ];
 
+const openView = () => fireEvent.press(screen.getByRole('button', { name: t('simple.view') }));
+
 const renderView = () =>
   render(
     <SafeAreaProvider initialMetrics={metrics}>
@@ -86,6 +88,7 @@ describe('ProgramsView filters, sorting, and barebone mode', () => {
   it('opens collapsible filters and filters programs by author', () => {
     renderView();
     expect(screen.queryByText('Tom Merrick')).toBeNull();
+    openView();
     fireEvent.press(screen.getByRole('button', { name: t('programsList.filters') }));
     fireEvent.press(screen.getByRole('button', { name: 'Tom Merrick' }));
     expect(screen.getByText('Mobility Flow')).toBeTruthy();
@@ -95,20 +98,23 @@ describe('ProgramsView filters, sorting, and barebone mode', () => {
 
   it('opens sort sheet and applies a chosen sort option', () => {
     renderView();
+    openView();
     const sortBtn = screen.getByRole('button', { name: `${t('programsList.sort')}: ${t('programsList.sortOptions.recent')}` });
     fireEvent.press(sortBtn);
     fireEvent.press(screen.getByRole('button', { name: t('programsList.sortOptions.nameAsc') }));
+    openView();
     expect(screen.getByRole('button', { name: `${t('programsList.sort')}: ${t('programsList.sortOptions.nameAsc')}` })).toBeTruthy();
   });
 
   it('toggles barebone names-only mode hiding hero, tags, and metadata', () => {
     renderView();
-    expect(screen.getByText(t('programsList.inProgress'))).toBeTruthy();
+    expect(screen.getByText(/Up next/)).toBeTruthy();
     expect(screen.getAllByText('Strength').length).toBeGreaterThan(0);
 
+    openView();
     fireEvent.press(screen.getByRole('button', { name: t('programsList.barebone') }));
 
-    expect(screen.queryByText(t('programsList.inProgress'))).toBeNull();
+    expect(screen.queryByText(/Up next/)).toBeNull();
     expect(screen.queryByText('Strength')).toBeNull();
     expect(screen.getByText('Strength Alpha')).toBeTruthy();
     expect(screen.getByText('Mobility Flow')).toBeTruthy();
@@ -116,6 +122,7 @@ describe('ProgramsView filters, sorting, and barebone mode', () => {
 
   it('filters by custom cluster and toggles group-by-cluster view', () => {
     renderView();
+    openView();
     fireEvent.press(screen.getByRole('button', { name: t('programsList.filters') }));
     fireEvent.press(screen.getAllByRole('button', { name: 'bands programs' })[0]);
     expect(screen.getByText('Strength Alpha')).toBeTruthy();

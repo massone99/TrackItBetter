@@ -15,7 +15,7 @@ function show() {
     <SafeAreaProvider initialMetrics={metrics}>
       <ThemeProvider>
         <WorkoutHeader
-          title="Push day" startedAt={new Date()} done={3} total={7}
+          title="Push Pull Legs · Push day" startedAt={new Date()} done={3} total={7} exercises={[]} currentId={null}
           titleLongPressLabel="Hold to rename" {...handlers}
         />
       </ThemeProvider>
@@ -30,7 +30,7 @@ describe('WorkoutHeader', () => {
   it('shows the workout name and set count', () => {
     show();
     expect(screen.getByText('Push day')).toBeTruthy();
-    expect(screen.getByText('elapsed · 3/7 sets')).toBeTruthy();
+    expect(screen.getByText('Push Pull Legs')).toBeTruthy();
     expect(screen.getByLabelText('3/7 sets')).toBeTruthy();
     expect(screen.getByRole('header')).toBeTruthy();
   });

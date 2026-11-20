@@ -36,7 +36,7 @@ export function SessionCard({ session, number, isNext, open, starting, info, met
   const { palette } = useTheme();
   const nameOf = (exerciseId: string) => info.get(exerciseId)?.name ?? t('userProgram.exerciseMissing');
   return (
-    <Card style={[styles.session, isNext && { borderColor: palette.accentStrong }]}>
+    <Card style={[styles.session, isNext && { borderColor: palette.accentStrong, borderWidth: 2 }]}>
       <View style={styles.sessionTop}>
         {handle}
         <Pressable
@@ -62,8 +62,9 @@ export function SessionCard({ session, number, isNext, open, starting, info, met
             <Icon name={open ? 'chevron-up' : 'chevron-down'} size={20} color={palette.textMuted} />
           </View>
         </Pressable>
-        {open ? null : (
-          <IconButton icon="play" tone={isNext ? 'accent' : 'muted'} label={`${t('userProgram.start')} ${session.name}`} disabled={starting !== null} onPress={onStart} />
+        {/* The next workout starts from the footer; the others keep a small Start of their own. */}
+        {open || isNext ? null : (
+          <IconButton icon="play" tone="muted" label={`${t('userProgram.start')} ${session.name}`} disabled={starting !== null} onPress={onStart} />
         )}
       </View>
       {session.notes?.trim() ? <Text style={[styles.target, { color: palette.text }]}>{session.notes.trim()}</Text> : null}
@@ -155,7 +156,7 @@ const baseStyles = StyleSheet.create({
   sessionTop: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   sessionHead: { flex: 1, flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
   headMeta: { alignItems: 'flex-end', gap: 4 },
-  sessionName: { fontFamily: fonts.display, fontSize: 26, lineHeight: 30 },
+  sessionName: { fontFamily: fonts.display, fontSize: 22, lineHeight: 26, textTransform: 'uppercase' },
   exerciseRow: { borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 12, gap: 5 },
   exerciseName: { fontFamily: fonts.semibold, fontSize: 15 },
   target: { fontFamily: fonts.medium, fontSize: 14 },

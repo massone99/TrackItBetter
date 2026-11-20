@@ -339,8 +339,10 @@ export function PageHeading({ title, subtitle, action, onTitleLongPress, titleLo
   );
 }
 
-export function ListRow({ icon, title, subtitle, onPress, onLongPress, longPressLabel, trailing, tint, selected }: {
+export function ListRow({ icon, title, subtitle, value, onPress, onLongPress, longPressLabel, trailing, tint, selected }: {
   icon?: IconName;
+  /** Current value, muted on the right inside the row (before the chevron). */
+  value?: string;
   title: string;
   subtitle?: string;
   onPress?: () => void;
@@ -366,6 +368,7 @@ export function ListRow({ icon, title, subtitle, onPress, onLongPress, longPress
         <Text style={[styles.listTitle, { color: selected ? palette.accentStrong : palette.text }, selected ? styles.listTitleSelected : null]}>{title}</Text>
         {subtitle ? <Text style={[styles.listSubtitle, { color: palette.textMuted }]}>{subtitle}</Text> : null}
       </View>
+      {value ? <Text style={[styles.listValue, { color: palette.textMuted }]}>{value}</Text> : null}
       {selected !== undefined ? (
         <View style={styles.listCheck}>{selected ? <Icon name="checkmark-circle" size={22} color={palette.accentStrong} /> : null}</View>
       ) : !trailing && onPress ? <Icon name="chevron-forward" size={18} color={palette.textMuted} /> : null}
@@ -377,7 +380,7 @@ export function ListRow({ icon, title, subtitle, onPress, onLongPress, longPress
       {onPress ? (
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel={subtitle ? `${title}, ${subtitle}` : title}
+          accessibilityLabel={[title, subtitle, value].filter(Boolean).join(", ")}
           accessibilityState={selected !== undefined ? { selected } : undefined}
           onPress={() => { tapFeedback(); onPress(); }}
           onLongPress={onLongPress}
@@ -644,19 +647,41 @@ export function MenuList({ children }: PropsWithChildren) {
   return <View style={[styles.menuList, { borderColor: palette.border, backgroundColor: palette.border }]}>{children}</View>;
 }
 
-export function MenuRow({ icon, label, onPress, tone = "default" }: { icon: IconName; label: string; onPress: () => void; tone?: "default" | "danger" }) {
+export function MenuRow({ icon, label, onPress, tone = "default", value, chevron = false }: { icon?: IconName; label: string; onPress: () => void; tone?: "default" | "danger"; /** Current value, shown muted on the right. */ value?: string; /** A trailing chevron: the row opens another view. */ chevron?: boolean }) {
   const styles = useScaledStyles(baseStyles);
   const { palette } = useTheme();
   const color = tone === "danger" ? palette.warning : palette.text;
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={label}
+      accessibilityLabel={value ? `${label}, ${value}` : label}
       onPress={() => { tapFeedback(); onPress(); }}
       style={({ pressed }) => [styles.menuRow, { minHeight: Math.max(MIN_TOUCH_TARGET, styles.menuRow.minHeight), backgroundColor: pressed ? palette.surfaceMuted : palette.surface }]}
     >
-      <Icon name={icon} size={20} color={tone === "danger" ? palette.warning : palette.accentStrong} />
+      {icon ? <Icon name={icon} size={20} color={tone === "danger" ? palette.warning : palette.accentStrong} /> : null}
       <Text style={[styles.menuRowLabel, { color }]}>{label}</Text>
+      {value ? <Text style={[styles.menuRowValue, { color: palette.textMuted }]}>{value}</Text> : null}
+      {chevron ? <Icon name="chevron-forward" size={18} color={palette.textMuted} /> : null}
+    </Pressable>
+  );
+}
+
+/** A menu row with an on/off switch; the whole row toggles it. */
+export function MenuSwitchRow({ label, value, onChange }: { label: string; value: boolean; onChange: (value: boolean) => void }) {
+  const styles = useScaledStyles(baseStyles);
+  const { palette } = useTheme();
+  return (
+    <Pressable
+      accessibilityRole="switch"
+      accessibilityLabel={label}
+      accessibilityState={{ checked: value }}
+      onPress={() => { tapFeedback(); onChange(!value); }}
+      style={({ pressed }) => [styles.menuRow, { minHeight: Math.max(MIN_TOUCH_TARGET, styles.menuRow.minHeight), backgroundColor: pressed ? palette.surfaceMuted : palette.surface }]}
+    >
+      <Text style={[styles.menuRowLabel, { color: palette.text }]}>{label}</Text>
+      <View style={[styles.menuSwitch, { backgroundColor: value ? palette.accent : palette.border }]}>
+        <View style={[styles.menuSwitchKnob, { backgroundColor: palette.surface, alignSelf: value ? "flex-end" : "flex-start" }]} />
+      </View>
     </Pressable>
   );
 }
@@ -1002,6 +1027,10 @@ const baseStyles = StyleSheet.create({
   menuList: { borderRadius: radii.surface, borderWidth: StyleSheet.hairlineWidth, overflow: "hidden", gap: StyleSheet.hairlineWidth },
   menuRow: { minHeight: MIN_TOUCH_TARGET, flexDirection: "row", alignItems: "center", gap: spacing.md, paddingHorizontal: spacing.lg, paddingVertical: spacing.sm },
   menuRowLabel: { flex: 1, fontFamily: fonts.medium, fontSize: 16, lineHeight: 22 },
+  listValue: { flexShrink: 1, maxWidth: "45%", textAlign: "right", fontFamily: fonts.body, fontSize: 13, lineHeight: 18 },
+  menuRowValue: { flexShrink: 1, maxWidth: "45%", textAlign: "right", fontFamily: fonts.body, fontSize: 14, lineHeight: 20 },
+  menuSwitch: { width: 44, height: 26, borderRadius: radii.control, padding: 3, justifyContent: "center" },
+  menuSwitchKnob: { width: 20, height: 20, borderRadius: radii.small },
   menuGrid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
   menuTile: { flexGrow: 0, flexBasis: "31.5%", minHeight: 64, borderRadius: radii.surface, paddingHorizontal: spacing.sm, paddingVertical: spacing.sm, alignItems: "center", justifyContent: "center", gap: spacing.xs },
   menuTileLarge: { flexBasis: "48%" },

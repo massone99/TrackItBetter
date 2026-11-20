@@ -55,8 +55,10 @@ export function exerciseValue(exercise: SessionExercise, set: SessionSet, reps: 
   return `${set.reps ?? 0} ${reps}`;
 }
 
-export function WorkoutExerciseRow({ exercise, next, marker, expanded, onPress }: {
+export function WorkoutExerciseRow({ exercise, next, marker, expanded, onPress, onLongPress }: {
   exercise: SessionExercise; next: boolean; marker?: string; expanded?: boolean; onPress: () => void;
+  /** Opens the exercise menu; without it a long press is left to drag to reorder. */
+  onLongPress?: () => void;
 }) {
   const { t } = useTranslation();
   const { palette, mode } = useTheme();
@@ -80,7 +82,9 @@ export function WorkoutExerciseRow({ exercise, next, marker, expanded, onPress }
     <Pressable accessibilityRole="button" accessibilityState={expanded === undefined ? undefined : { expanded }} aria-expanded={expanded}
       accessibilityLabel={exercise.name}
       accessibilityHint={[hint, exercise.notes, t('liveWorkout.count', { done, total: sets.length })].filter(Boolean).join(' · ')}
-      onLongPress={() => {}}
+      onLongPress={onLongPress ?? (() => {})}
+      accessibilityActions={onLongPress ? [{ name: 'longpress', label: t('logger.options') }] : undefined}
+      onAccessibilityAction={onLongPress ? (event) => { if (event.nativeEvent.actionName === 'longpress') onLongPress(); } : undefined}
       delayLongPress={350}
       onPress={() => { tapFeedback(); onPress(); }}
       style={({ pressed }) => [styles.exercise, { borderColor: palette.border, backgroundColor: next ? mode === 'light' ? '#e8ebfb' : palette.accentSoft : palette.surface }, pressed && { opacity: 0.72 }]}>
@@ -124,8 +128,12 @@ export function OverviewButton({ label, accessibilityLabel, icon, onPress, accen
   </Pressable>;
 }
 
-export function WorkoutOverview({ groups, folded, nextId, onFold, onFoldAll, onGroupSheet, renderExercise, canMove, onMove }: {
+export function WorkoutOverview({ groups, folded, nextId, onFold, onFoldAll, onGroupSheet, renderExercise, canMove, onMove, editing, onEditing, addRow }: {
   groups: OverviewGroup[]; folded: ReadonlySet<string>; nextId: string | null;
+  /** Edit mode: fold all, groups, supersets, drag to reorder and remove. Off, the list only shows and opens. */
+  editing: boolean; onEditing: (editing: boolean) => void;
+  /** The last row of the list (Add exercise). */
+  addRow?: ReactNode;
   onFold: (key: string) => void; onFoldAll: (keys: string[]) => void; onGroupSheet: (sheet: GroupSheet) => void;
   canMove: (exercise: SessionExercise, offset: -1 | 1) => boolean;
   onMove: (exercise: SessionExercise, target: SessionExercise) => Promise<void>;
@@ -166,7 +174,7 @@ export function WorkoutOverview({ groups, folded, nextId, onFold, onFoldAll, onG
             </View>
             <Text style={[styles.smallMono, { color: palette.textMuted }]}>{t('liveWorkout.count', { done, total })}</Text>
           </Pressable>
-          {group.id !== null || group.exercises.length >= 2 ? (
+          {editing && (group.id !== null || group.exercises.length >= 2) ? (
             <Pressable accessibilityRole="button" accessibilityLabel={t('liveWorkout.groupOptions', { name: group.name })}
               onPress={() => { tapFeedback(); onGroupSheet({ view: 'options', group }); }}
               style={[styles.groupMenu, { borderColor: palette.border, backgroundColor: nested ? palette.surfaceMuted : palette.surface }]}>
@@ -177,6 +185,7 @@ export function WorkoutOverview({ groups, folded, nextId, onFold, onFoldAll, onG
         {closed ? null : group.exercises.map((exercise, index, entries) => {
           const child = group.nested?.find((item) => item.id === exercise.groupId);
           if (child) return child.exercises[0].entryId === exercise.entryId ? section(child) : null;
+          if (!editing) return <View key={exercise.entryId}>{renderExercise(exercise)}</View>;
           if (index > 0 && canMove(exercise, -1)) return null;
           let end = index;
           while (end + 1 < entries.length && canMove(entries[end], 1)) end++;
@@ -192,18 +201,27 @@ export function WorkoutOverview({ groups, folded, nextId, onFold, onFoldAll, onG
   };
   return (
     <View style={styles.overview}>
-      <View style={[styles.toolbar, { borderColor: palette.border }]}>
-        <OverviewButton label={t('common.collapseAll')} icon="contract-outline" disabled={keys.every((key) => folded.has(key))} onPress={() => onFoldAll(keys)} />
-        <OverviewButton label={t('common.expandAll')} icon="expand-outline" disabled={!keys.some((key) => folded.has(key))} onPress={() => onFoldAll([])} />
-        <View style={styles.newGroup}>
-          <OverviewButton label={t('liveWorkout.group')} accent onPress={() => onGroupSheet({ view: 'create' })} />
-        </View>
+      <View style={styles.editRow}>
+        <Pressable accessibilityRole="button" accessibilityState={{ selected: editing }} onPress={() => { tapFeedback(); onEditing(!editing); }} style={styles.editButton}>
+          <Text style={[styles.editText, { color: palette.accentStrong }]}>{editing ? t('simple.done') : t('simple.edit')}</Text>
+        </Pressable>
       </View>
-      {groups.some((group) => group.exercises.some((exercise) => canMove(exercise, 1))) ? (
+      {editing ? (
+        <View style={[styles.toolbar, { borderColor: palette.border }]}>
+          <OverviewButton label={t('common.collapseAll')} icon="contract-outline" disabled={keys.every((key) => folded.has(key))} onPress={() => onFoldAll(keys)} />
+          <OverviewButton label={t('common.expandAll')} icon="expand-outline" disabled={!keys.some((key) => folded.has(key))} onPress={() => onFoldAll([])} />
+          <View style={styles.newGroup}>
+            <OverviewButton label={t('liveWorkout.group')} accent onPress={() => onGroupSheet({ view: 'create' })} />
+          </View>
+        </View>
+      ) : null}
+      {editing && groups.some((group) => group.exercises.some((exercise) => canMove(exercise, 1))) ? (
         <Text style={[styles.hint, { color: palette.textMuted }]}>{t('liveWorkout.dragHint')}</Text>
       ) : null}
       {failed ? <Text accessibilityRole="alert">{t('liveWorkout.saveFailed')}</Text> : null}
       {groups.map(section)}
+      {addRow}
+      {editing ? null : <Text style={[styles.hint, { color: palette.textMuted }]}>{t('simple.overviewHint')}</Text>}
     </View>
   );
 }
@@ -295,6 +313,9 @@ export function WorkoutGroupSheet({ sheet, groups, exercises, onClose, onChange,
 }
 
 const baseStyles = StyleSheet.create({
+  editRow: { flexDirection: 'row', justifyContent: 'flex-end', marginBottom: -8 },
+  editButton: { minHeight: 48, justifyContent: 'center', paddingHorizontal: 12 },
+  editText: { fontFamily: fonts.monoSemibold, fontSize: 12, letterSpacing: 0.7, textTransform: 'uppercase' },
   overview: { gap: 8 },
   orderRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   toolbar: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 6, paddingBottom: 8, borderBottomWidth: 1 },
