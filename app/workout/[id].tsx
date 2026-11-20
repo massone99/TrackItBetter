@@ -3,7 +3,7 @@ import { displayWorkoutName } from '../../src/features/session/workoutName';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import * as Speech from 'expo-speech';
 import { useTranslation } from 'react-i18next';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type PropsWithChildren } from 'react';
 import { AccessibilityInfo, ActivityIndicator, Alert, BackHandler, Pressable, StyleSheet, View } from 'react-native';
 import { groupSets, completedSetCount } from '../../src/domain/setPairs';
 import { ExercisePicker, type ExerciseChoice } from '../../src/features/exercises/ExercisePicker';
@@ -1174,44 +1174,10 @@ export default function WorkoutScreen() {
 
       <Sheet visible={optionsFor !== null} onClose={() => setOptionsFor(null)} title={optionsFor?.name ?? t('logger.options')}>
         {optionsFor ? (
-          <>
-            <SwitchSection key={`switch-${optionsFor.entryId}-${optionsFor.exerciseId}`} exercise={optionsFor} onSwitch={(id, name) => void switchTo(optionsFor, id, name)} onOther={() => { setReplacing(optionsFor); setOptionsFor(null); setPickerOpen(true); }} />
+          <View key={optionsFor.entryId} style={styles.dockStack}>
             <WorkoutNote kind="exerciseNote" value={optionsFor.notes} onPress={() => { setOptionsFor(null); openExerciseNote(optionsFor); }} />
-            {catalog && (optionsFor.apparatusIds?.length ?? 0) > 0 ? (
-              <MenuGroup title={t('equipment.apparatusInWorkout')}>
-                <View style={styles.choiceRow}>
-                  {optionsFor.apparatusIds!.map((apparatusId) => (
-                    <Chip
-                      key={apparatusId}
-                      label={apparatusName(catalog.apparatus.find((item) => item.id === apparatusId), t)}
-                      selected={optionsFor.apparatusId === apparatusId}
-                      onPress={() => { const entryId = optionsFor.entryId; setOptionsFor(null); void setEntryApparatus(entryId, apparatusId).then(() => refresh(workout.id)); }}
-                    />
-                  ))}
-                </View>
-                {optionsFor.apparatusAffectsDifficulty ? <Label>{t('equipment.apparatusCompareHint')}</Label> : null}
-              </MenuGroup>
-            ) : null}
-            <ExerciseCompareField key={`compare-${optionsFor.entryId}`} exercise={optionsFor} workoutId={workout.id} workoutName={workout.name} onChanged={() => void refresh(workout.id)} />
-            <ExerciseAveragesField key={`averages-${optionsFor.entryId}`} exercise={optionsFor} onChanged={() => void refresh(workout.id)} />
-            {!workout.groupLayout ? <ExerciseBlockField key={`block-${optionsFor.entryId}-${optionsFor.block}`} entryId={optionsFor.entryId} value={optionsFor.block} onChanged={() => { setOptionsFor(null); void refresh(workout.id); }} /> : null}
-            <SupersetSettings key={`superset-${optionsFor.entryId}-${optionsFor.groupId ?? ''}`} exercise={optionsFor} />
             <ExerciseRestFields key={`rest-${optionsFor.entryId}`} exercise={optionsFor} onSaved={() => void refresh(workout.id)} />
             <MenuGrid>
-              <SupersetActions
-                key={`superset-actions-${optionsFor.entryId}-${optionsFor.groupId ?? ''}`}
-                exercise={optionsFor}
-                hasNext={(() => {
-                  const candidate = workout.exercises[workout.exercises.findIndex((item) => item.entryId === optionsFor.entryId) + 1];
-                  return Boolean(candidate && (workout.groupLayout ? candidate.workoutGroupId === optionsFor.workoutGroupId : candidate.block === optionsFor.block));
-                })()}
-                onChanged={() => { setOptionsFor(null); void refresh(workout.id); }}
-              />
-              {([-1, 1] as const).map((offset) => {
-                if (!canMove(optionsFor, offset)) return null;
-                return <MenuTile key={offset} icon={offset < 0 ? 'arrow-up' : 'arrow-down'} label={t(offset < 0 ? 'liveWorkout.moveUp' : 'liveWorkout.moveDown')}
-                  onPress={() => { setOptionsFor(null); void changeWorkoutGroups(workout.id, { type: 'moveExercise', id: optionsFor.entryId, offset }).then(() => refresh(workout.id)); }} />;
-              })}
               {emomFieldFor(optionsFor.metric) ? (
                 <MenuTile
                   icon="timer-outline"
@@ -1225,23 +1191,70 @@ export default function WorkoutScreen() {
                 />
               ) : null}
               <MenuTile icon="flag-outline" label={optionsFor.totalTarget != null ? t('totalGoal.edit') : t('totalGoal.set')} onPress={() => { setTotalFor(optionsFor); setOptionsFor(null); }} />
-              <MenuTile icon="swap-horizontal" label={t('logger.replaceExercise')} onPress={() => { setReplacing(optionsFor); setOptionsFor(null); setPickerOpen(true); }} />
-              <MenuTile
-                icon="construct-outline"
-                label={t('logger.editExercise')}
-                onPress={() => {
-                  const exerciseId = optionsFor.exerciseId;
-                  setOptionsFor(null);
-                  router.push({ pathname: '/exercise/new', params: { edit: exerciseId } });
-                }}
-              />
-              <MenuTile icon={optionsFor.demoUrl ? 'create-outline' : 'link'} label={optionsFor.demoUrl ? t('logger.reference') : t('exercise.addReference')} onPress={() => { setReferenceFor(optionsFor); setOptionsFor(null); }} />
             </MenuGrid>
-            <MenuList>
-              {optionsFor.sets.length > 0 ? <MenuRow tone="danger" icon="remove-circle-outline" label={t('logger.clearSets')} onPress={() => void clearSets({ exercise: optionsFor })} /> : null}
-              <MenuRow tone="danger" icon="trash-outline" label={t('logger.removeExercise')} onPress={() => void removeExerciseOrConfirm(optionsFor)} />
-            </MenuList>
-          </>
+            <ExerciseOptionSection title={t('liveWorkout.swapSection')}>
+              <SwitchSection key={`switch-${optionsFor.entryId}-${optionsFor.exerciseId}`} exercise={optionsFor} onSwitch={(id, name) => void switchTo(optionsFor, id, name)} onOther={() => { setReplacing(optionsFor); setOptionsFor(null); setPickerOpen(true); }} />
+            </ExerciseOptionSection>
+            <ExerciseOptionSection title={t('liveWorkout.setupSection')}>
+              {catalog && (optionsFor.apparatusIds?.length ?? 0) > 0 ? (
+                <MenuGroup title={t('equipment.apparatusInWorkout')}>
+                  <View style={styles.choiceRow}>
+                    {optionsFor.apparatusIds!.map((apparatusId) => (
+                      <Chip
+                        key={apparatusId}
+                        label={apparatusName(catalog.apparatus.find((item) => item.id === apparatusId), t)}
+                        selected={optionsFor.apparatusId === apparatusId}
+                        onPress={() => { const entryId = optionsFor.entryId; setOptionsFor(null); void setEntryApparatus(entryId, apparatusId).then(() => refresh(workout.id)); }}
+                      />
+                    ))}
+                  </View>
+                  {optionsFor.apparatusAffectsDifficulty ? <Label>{t('equipment.apparatusCompareHint')}</Label> : null}
+                </MenuGroup>
+              ) : null}
+              {!workout.groupLayout ? <ExerciseBlockField key={`block-${optionsFor.entryId}-${optionsFor.block}`} entryId={optionsFor.entryId} value={optionsFor.block} onChanged={() => { setOptionsFor(null); void refresh(workout.id); }} /> : null}
+              <SupersetSettings key={`superset-${optionsFor.entryId}-${optionsFor.groupId ?? ''}`} exercise={optionsFor} />
+                <MenuGrid>
+                <SupersetActions
+                  key={`superset-actions-${optionsFor.entryId}-${optionsFor.groupId ?? ''}`}
+                  exercise={optionsFor}
+                  hasNext={(() => {
+                    const candidate = workout.exercises[workout.exercises.findIndex((item) => item.entryId === optionsFor.entryId) + 1];
+                    return Boolean(candidate && (workout.groupLayout ? candidate.workoutGroupId === optionsFor.workoutGroupId : candidate.block === optionsFor.block));
+                  })()}
+                  onChanged={() => { setOptionsFor(null); void refresh(workout.id); }}
+                />
+                {([-1, 1] as const).map((offset) => {
+                  if (!canMove(optionsFor, offset)) return null;
+                  return <MenuTile key={offset} icon={offset < 0 ? 'arrow-up' : 'arrow-down'} label={t(offset < 0 ? 'liveWorkout.moveUp' : 'liveWorkout.moveDown')}
+                    onPress={() => { setOptionsFor(null); void changeWorkoutGroups(workout.id, { type: 'moveExercise', id: optionsFor.entryId, offset }).then(() => refresh(workout.id)); }} />;
+                })}
+                </MenuGrid>
+            </ExerciseOptionSection>
+            <ExerciseOptionSection title={t('liveWorkout.historySection')}>
+              <ExerciseCompareField key={`compare-${optionsFor.entryId}`} exercise={optionsFor} workoutId={workout.id} workoutName={workout.name} onChanged={() => void refresh(workout.id)} />
+              <ExerciseAveragesField key={`averages-${optionsFor.entryId}`} exercise={optionsFor} onChanged={() => void refresh(workout.id)} />
+            </ExerciseOptionSection>
+            <ExerciseOptionSection title={t('liveWorkout.librarySection')}>
+                <MenuGrid>
+                <MenuTile
+                  icon="construct-outline"
+                  label={t('logger.editExercise')}
+                  onPress={() => {
+                    const exerciseId = optionsFor.exerciseId;
+                    setOptionsFor(null);
+                    router.push({ pathname: '/exercise/new', params: { edit: exerciseId } });
+                  }}
+                />
+                <MenuTile icon={optionsFor.demoUrl ? 'create-outline' : 'link'} label={optionsFor.demoUrl ? t('logger.reference') : t('exercise.addReference')} onPress={() => { setReferenceFor(optionsFor); setOptionsFor(null); }} />
+                </MenuGrid>
+            </ExerciseOptionSection>
+            <ExerciseOptionSection title={t('liveWorkout.removeSection')}>
+              <MenuList>
+                {optionsFor.sets.length > 0 ? <MenuRow tone="danger" icon="remove-circle-outline" label={t('logger.clearSets')} onPress={() => void clearSets({ exercise: optionsFor })} /> : null}
+                <MenuRow tone="danger" icon="trash-outline" label={t('logger.removeExercise')} onPress={() => void removeExerciseOrConfirm(optionsFor)} />
+              </MenuList>
+            </ExerciseOptionSection>
+          </View>
         ) : null}
       </Sheet>
 
@@ -1495,6 +1508,23 @@ function ReadinessRow({ label, value, onChange }: { label: string; value: number
 }
 
 
+function ExerciseOptionSection({ title, children }: PropsWithChildren<{ title: string }>) {
+  const [expanded, setExpanded] = useState(false);
+  const { palette } = useTheme();
+  const styles = useScaledStyles(baseStyles);
+  return (
+    <View style={[styles.optionSection, { borderColor: palette.border }]}>
+      <Pressable accessibilityRole="button" accessibilityLabel={title} accessibilityState={{ expanded }} aria-expanded={expanded}
+        onPress={() => { tapFeedback(); setExpanded(!expanded); }}
+        style={({ pressed }) => [styles.optionHeading, { backgroundColor: pressed ? palette.surfaceMuted : palette.surface }]}>
+        <Text style={[styles.flex, styles.readinessTitle]}>{title}</Text>
+        <Icon name={expanded ? 'chevron-up' : 'chevron-down'} size={16} color={palette.textMuted} />
+      </Pressable>
+      <View style={[styles.optionBody, !expanded && styles.optionHidden]}>{children}</View>
+    </View>
+  );
+}
+
 const baseStyles = StyleSheet.create({
   // The blocks of the lower dock (panel, main action, rails, timer) never touch: one step of the spacing scale between them.
   overStage: { zIndex: 30, elevation: 30 },
@@ -1506,6 +1536,10 @@ const baseStyles = StyleSheet.create({
   plannedValue: { fontFamily: fonts.monoBold, fontSize: 27, lineHeight: 31 },
   exerciseNavigation: { flexDirection: 'row', justifyContent: 'space-between' },
   overviewExerciseRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  optionSection: { borderWidth: 1, borderRadius: 8, overflow: 'hidden' },
+  optionHeading: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12, minHeight: 48 },
+  optionBody: { gap: 8, padding: 8, paddingTop: 0 },
+  optionHidden: { display: 'none' },
   railsRow: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', gap: 8 },
   rail: { flexShrink: 1, flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 44, paddingHorizontal: 4 },
   railLabel: { fontFamily: fonts.semibold, fontSize: 13, flexShrink: 1 },

@@ -2,6 +2,10 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.72.6 - 2026-11-20
+
+- Keep notes, rest, EMOM and session goals within reach in the exercise options panel. Expand individual sections for replacement, equipment and grouping, history, library settings, and removal.
+
 ## 0.72.5 - 2026-11-19
 
 - Hold an exercise row and drag it to reorder within its group or superset. Neighbouring rows slide into place as you move.
