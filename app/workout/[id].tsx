@@ -331,7 +331,10 @@ export default function WorkoutScreen() {
       setEmomNotice(t('emom.finished', { count: plan.rounds }));
     },
   });
-  const timed = useTimedMethod(id && id !== 'new' ? id : undefined, { onRecorded: () => { if (id) void refresh(id); } });
+  const timed = useTimedMethod(id && id !== 'new' ? id : undefined, {
+    onRecorded: () => { if (id) void refresh(id); },
+    onSaveError: () => Alert.alert(t('history.saveError')),
+  });
   const closeTimedStage = useCallback(() => setTimedStage(false), []);
   const emomEntryId = emom.plan?.entryId ?? null;
   const closeEmomStage = useCallback(() => setEmomStage(false), []);
@@ -485,6 +488,7 @@ export default function WorkoutScreen() {
   const switchTo = async (exercise: SessionExercise, id: string, name: string) => {
     if (!workout) return;
     setOptionsFor(null);
+    if (exercise.entryId === timed.plan?.entryId && !await timed.stop()) return;
     if (exercise.entryId === emomEntryId) await emom.stop();
     if (hold.active) hold.stop();
     try {
@@ -720,6 +724,7 @@ export default function WorkoutScreen() {
     if (incompletePairs(workout.exercises).length > 0) { setPairsOpen(true); return; }
     void Speech.stop();
     void cancelRestFinishedNotification().catch(() => undefined);
+    if (!await timed.stop()) return;
     if (emom.plan) await emom.stop();
     try { await finishWorkout(workout.id); }
     catch (error) {
@@ -748,6 +753,7 @@ export default function WorkoutScreen() {
   const removeExercise = async (exercise: SessionExercise) => {
     setRemoveExerciseFor(null);
     if (!workout) return;
+    if (exercise.entryId === timed.plan?.entryId && !await timed.stop()) return;
     if (exercise.entryId === emomEntryId) await emom.stop();
     await removeExerciseEntry(exercise.entryId);
     await refresh(workout.id);
@@ -758,6 +764,7 @@ export default function WorkoutScreen() {
     setOptionsFor(null);
     if (!workout) return;
     if (exercise.sets.some((set) => set.clipCount > 0)) { setRemoveExerciseFor(exercise); return; }
+    if (exercise.entryId === timed.plan?.entryId && !await timed.stop()) return;
     if (exercise.entryId === emomEntryId) await emom.stop();
     offerUndo(t('logger.removedExercise', { name: exercise.name }), await removeExerciseEntryWithUndo(exercise.entryId));
     await refresh(workout.id);
@@ -770,14 +777,16 @@ export default function WorkoutScreen() {
     if (!workout) return;
     const targets = scope ? [scope.exercise] : workout.exercises;
     if (hold.active) hold.stop();
+    if (targets.some((exercise) => exercise.entryId === timed.plan?.entryId) && !await timed.stop()) return;
     if (targets.some((exercise) => exercise.entryId === emomEntryId)) await emom.stop();
     const count = targets.reduce((sum, exercise) => sum + exercise.sets.length, 0);
     offerUndo(t('logger.clearedSets', { count }), await clearSetsWithUndo(scope ? { entryId: scope.exercise.entryId } : { workoutId: workout.id }));
     await refresh(workout.id);
   };
 
-  const createExercise = (name: string) => {
+  const createExercise = async (name: string) => {
     if (!workout) return;
+    if (replacing && replacing.entryId === timed.plan?.entryId && !await timed.stop()) return;
     setPickerOpen(false);
     router.push({ pathname: '/exercise/new', params: { addTo: workout.id, ...(replacing ? { replaceEntry: replacing.entryId } : {}), ...(name ? { name } : {}) } });
     setReplacing(null);
@@ -818,6 +827,9 @@ export default function WorkoutScreen() {
     return best ? { ...best, label: setLabelOf(best.exercise, best.set).replace(/ · .*$/, '') } : null;
   })();
   const timedExercise = timed.plan ? workout.exercises.find((item) => item.entryId === timed.plan?.entryId) ?? null : null;
+  // The first hold can already count before the first completed cycle reaches the database.
+  const hasTimedHolds = finishOpen && timed.plan && timed.phase && timed.phase.phase !== 'countdown' &&
+    (timed.phase.phase !== 'hold' || timed.phase.round > 1 || timed.phase.secondsLeft < timed.plan.holdSec);
   const timedView = timed.plan && timed.phase ? { exercise: timedExercise?.name ?? '', phase: timed.phase } : null;
   const emomExercise = emom.plan ? workout.exercises.find((item) => item.entryId === emom.plan?.entryId) ?? null : null;
   const emomView: EmomView | null = emom.plan && emom.phase ? {
@@ -1101,7 +1113,9 @@ export default function WorkoutScreen() {
         onFocus={() => { setFocusMode(!focusMode); writePreference(FOCUS_MODE_KEY, String(!focusMode)); }}
         onTelemetry={() => { setTelemetryOn(!telemetryOn); writePreference(TELEMETRY_ENABLED_KEY, String(!telemetryOn)); }}
         onVoice={toggleVoiceCues}
-        onNarrate={() => router.push({ pathname: '/workout/narrate/[id]', params: { id: workout.id } })}
+        onNarrate={async () => {
+          if (await timed.stop()) router.push({ pathname: '/workout/narrate/[id]', params: { id: workout.id } });
+        }}
         onOverview={focused ? showOverview : undefined}
         onDiscard={() => setDiscardOpen(true)}
         onDetails={() => setDetailsOpen(true)}
@@ -1172,21 +1186,23 @@ export default function WorkoutScreen() {
       <TimedMethodSetupSheet
         exercise={timedSetupFor}
         onClose={() => setTimedSetupFor(null)}
-        onStart={(config) => {
+        onStart={async (config) => {
+          if (!await timed.stop()) return;
+          if (emom.plan) await emom.stop();
           setTimedSetupFor(null);
           setFoldedGroups(new Set());
           setOpenExerciseId(config.entryId);
           hold.stop();
           skipRest();
           setTimedStage(true);
-          if (emom.plan) void emom.stop();
           timed.start(config);
         }}
       />
       <EmomSetupSheet
         exercise={emomSetupFor}
         onClose={() => setEmomSetupFor(null)}
-        onStart={(config) => {
+        onStart={async (config) => {
+          if (!await timed.stop()) return;
           setEmomSetupFor(null);
           // The rounds fill this exercise's sets: show them.
           setFoldedGroups(new Set());
@@ -1218,11 +1234,11 @@ export default function WorkoutScreen() {
         visible={finishOpen}
         onClose={() => setFinishOpen(false)}
         title={t('logger.finishTitle')}
-        body={completedCount > 0 ? `${t('logger.finishBody', { count: completedCount })}${tiny ? `\n\n${t('logger.tinyWorkout')}` : ''}` : t('logger.noCompleted')}
+        body={hasTimedHolds ? t('timedMethod.finishWorkout') : completedCount > 0 ? `${t('logger.finishBody', { count: completedCount })}${tiny ? `\n\n${t('logger.tinyWorkout')}` : ''}` : t('logger.noCompleted')}
       >
-        {workout.exercises.some((e) => e.sets.some((s) => s.completedAt)) ? <ActionButton icon="flag" label={t('workout.finish')} onPress={() => void confirmFinish()} /> : null}
+        {hasTimedHolds || workout.exercises.some((e) => e.sets.some((s) => s.completedAt)) ? <ActionButton icon="flag" label={t('workout.finish')} onPress={() => void confirmFinish()} /> : null}
         <ActionButton label={t('logger.keepGoing')} secondary onPress={() => setFinishOpen(false)} />
-        {completedCount === 0 || tiny ? (
+        {!hasTimedHolds && (completedCount === 0 || tiny) ? (
           <ActionButton icon="close-circle-outline" label={t('workout.discard')} variant="danger" onPress={() => { setFinishOpen(false); setDiscardOpen(true); }} />
         ) : null}
       </Sheet>

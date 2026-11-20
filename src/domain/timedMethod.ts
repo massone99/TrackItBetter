@@ -9,6 +9,9 @@ export interface TimedMethodPlan {
   /** When the countdown before the block started (ms). */
   startedAt: number;
   countdownSec: number;
+  cues?: TimedMethodCues;
+  /** Frozen when ending the method, so retrying a save cannot extend a hold. */
+  stoppedAt?: number;
   /** Length of the whole block; it holds as many full hold + rest cycles as fit. */
   blockSec: number;
   holdSec: number;
@@ -22,7 +25,7 @@ export interface TimedMethodPlan {
   testStartedAt: number | null;
   /** When the final hold was ended (ms). */
   testEndedAt: number | null;
-  /** The block's set is already saved. */
+  /** Older plans that already saved the block as one aggregate set. */
   blockSaved: boolean;
 }
 
@@ -37,6 +40,34 @@ export type TimedMethodPhase =
 
 export const TIMED_COUNTDOWN_SEC = 5;
 
+export interface TimedMethodCues {
+  warningSec: number;
+  intervalWarnings: boolean;
+  holdStart: boolean;
+  restStart: boolean;
+  milestones: boolean;
+}
+
+export const DEFAULT_TIMED_CUES: TimedMethodCues = {
+  warningSec: 3,
+  intervalWarnings: false,
+  holdStart: true,
+  restStart: true,
+  milestones: true,
+};
+
+export function parseTimedCues(cues: Partial<TimedMethodCues> | null | undefined): TimedMethodCues {
+  const warningSec = cues?.warningSec;
+  return {
+    warningSec: warningSec !== undefined && Number.isInteger(warningSec) && warningSec >= 0 && warningSec <= 10
+      ? warningSec : DEFAULT_TIMED_CUES.warningSec,
+    intervalWarnings: cues?.intervalWarnings === true,
+    holdStart: cues?.holdStart !== false,
+    restStart: cues?.restStart !== false,
+    milestones: cues?.milestones !== false,
+  };
+}
+
 /** Full hold + rest cycles in the block. */
 export function timedRounds(plan: Pick<TimedMethodPlan, 'blockSec' | 'holdSec' | 'restSec'>): number {
   return Math.max(1, Math.floor(plan.blockSec / (plan.holdSec + plan.restSec)));
@@ -49,11 +80,6 @@ export function blockStart(plan: Pick<TimedMethodPlan, 'startedAt' | 'countdownS
 /** When the last cycle ends (ms). */
 export function blockEnd(plan: Pick<TimedMethodPlan, 'startedAt' | 'countdownSec' | 'blockSec' | 'holdSec' | 'restSec'>): number {
   return blockStart(plan) + timedRounds(plan) * (plan.holdSec + plan.restSec) * 1000;
-}
-
-/** Seconds actually held in the block: what its set records. */
-export function blockHoldSec(plan: Pick<TimedMethodPlan, 'blockSec' | 'holdSec' | 'restSec'>): number {
-  return timedRounds(plan) * plan.holdSec;
 }
 
 export function recoveryEnd(plan: TimedMethodPlan): number {
@@ -73,6 +99,7 @@ export function timedPhase(plan: TimedMethodPlan, now: number): TimedMethodPhase
     const phaseEnd = holding ? plan.holdSec * 1000 : cycle;
     return { phase: holding ? 'hold' : 'rest', round, secondsLeft: Math.max(1, Math.ceil((phaseEnd - inCycle) / 1000)) };
   }
+  if (plan.testSec === 0) return { phase: 'done', seconds: 0 };
   if (plan.testStartedAt === null) {
     const over = recoveryEnd(plan);
     return now < over ? { phase: 'recovery', secondsLeft: Math.max(1, Math.ceil((over - now) / 1000)) } : { phase: 'ready' };
@@ -82,23 +109,53 @@ export function timedPhase(plan: TimedMethodPlan, now: number): TimedMethodPhase
   return { phase: 'test', seconds: Math.floor((now - plan.testStartedAt) / 1000) };
 }
 
-/** Sound between two phases: ticks for the last 3 seconds, go when a hold starts, a softer one when rest starts, done at the end. */
-export function timedCue(previous: TimedMethodPhase | null, current: TimedMethodPhase): 'tick' | 'go' | 'done' | null {
-  if (current.phase === 'done') return previous?.phase === 'done' ? null : 'done';
-  if (current.phase === 'ready') return previous && previous.phase !== 'ready' ? 'done' : null;
-  if (current.phase === 'test') return previous?.phase === 'testCountdown' ? 'go' : null;
-  if (current.phase === 'hold') return previous && (previous.phase === 'countdown' || previous.phase === 'rest') ? 'go' : null;
-  if (current.phase === 'rest') return previous?.phase === 'hold' ? 'tick' : null;
-  if (current.phase === 'recovery') return null;
-  const secondsLeft = current.phase === 'countdown' || current.phase === 'testCountdown' ? current.secondsLeft : null;
-  if (secondsLeft === null) return null;
-  const changed = !previous || previous.phase !== current.phase || ('secondsLeft' in previous && previous.secondsLeft !== secondsLeft);
-  return changed && secondsLeft <= 3 ? 'tick' : null;
+/** A transition wins over a warning tick, and each warning is played once per second. */
+export function timedCue(previous: TimedMethodPhase | null, current: TimedMethodPhase, cues = DEFAULT_TIMED_CUES, goalSec = 0): 'tick' | 'go' | 'done' | null {
+  const changedPhase = previous?.phase !== current.phase;
+  if (current.phase === 'done' || current.phase === 'ready') {
+    return previous && changedPhase && cues.milestones ? 'done' : null;
+  }
+  if (current.phase === 'recovery' && changedPhase && cues.milestones) return 'done';
+  if (current.phase === 'test') {
+    if (changedPhase) return cues.holdStart ? 'go' : null;
+    return cues.milestones && goalSec > 0 && previous?.phase === 'test' && previous.seconds < goalSec && current.seconds >= goalSec ? 'done' : null;
+  }
+  const newRound = 'round' in current && previous && 'round' in previous && previous.round !== current.round;
+  if (current.phase === 'hold' && (changedPhase || newRound) && cues.holdStart) return 'go';
+  if (current.phase === 'rest' && changedPhase && cues.restStart) return 'tick';
+  const canWarn = current.phase === 'countdown' || current.phase === 'testCountdown' || cues.intervalWarnings;
+  return canWarn && current.secondsLeft <= cues.warningSec &&
+    (changedPhase || newRound || (previous && 'secondsLeft' in previous && previous.secondsLeft !== current.secondsLeft)) ? 'tick' : null;
 }
 
-/** "Timed 9 × 10″/10″": the note that keeps the context of the sets. */
-export function timedLabel(plan: Pick<TimedMethodPlan, 'blockSec' | 'holdSec' | 'restSec'>): string {
-  return `Timed ${timedRounds(plan)} × ${plan.holdSec}″/${plan.restSec}″`;
+export interface TimedHold {
+  seconds: number;
+  completedAt: Date;
+  restSec: number | null;
+}
+
+/** One measured set per hold. A partial hold counts once a whole second has elapsed. */
+export function timedHolds(plan: TimedMethodPlan, until: number, finish: boolean): TimedHold[] {
+  const rounds = timedRounds(plan);
+  const start = blockStart(plan);
+  const cycleMs = (plan.holdSec + plan.restSec) * 1000;
+  const sets: TimedHold[] = [];
+  // Older versions already saved an aggregate set. Continue from there on a restored plan.
+  if (!plan.blockSaved) {
+    for (let index = 0; index < rounds; index++) {
+      const begins = start + index * cycleMs;
+      const ends = Math.min(until, begins + plan.holdSec * 1000);
+      const seconds = Math.floor((ends - begins) / 1000);
+      if (seconds < 1) break;
+      sets.push({ seconds, completedAt: new Date(ends), restSec: Math.floor(Math.max(0, Math.min(until - ends, plan.restSec * 1000)) / 1000) });
+    }
+  }
+  if (finish && plan.testStartedAt !== null) {
+    const ends = plan.testEndedAt ?? until;
+    const seconds = Math.floor((ends - plan.testStartedAt) / 1000);
+    if (seconds >= 1) sets.push({ seconds, completedAt: new Date(ends), restSec: null });
+  }
+  return sets;
 }
 
 export function parseTimedPlan(raw: string | null): TimedMethodPlan | null {
@@ -108,7 +165,7 @@ export function parseTimedPlan(raw: string | null): TimedMethodPlan | null {
     const numbers = [plan.startedAt, plan.countdownSec, plan.blockSec, plan.holdSec, plan.restSec, plan.recoverySec, plan.testSec];
     const valid = typeof plan.workoutId === 'string' && typeof plan.entryId === 'string' && numbers.every((value) => Number.isFinite(value))
       && plan.holdSec > 0 && plan.restSec >= 0 && plan.blockSec > 0 && typeof plan.blockSaved === 'boolean';
-    return valid ? { ...plan, recoveryEndedAt: plan.recoveryEndedAt ?? null, testStartedAt: plan.testStartedAt ?? null, testEndedAt: plan.testEndedAt ?? null } : null;
+    return valid ? { ...plan, recoveryEndedAt: plan.recoveryEndedAt ?? null, testStartedAt: plan.testStartedAt ?? null, testEndedAt: plan.testEndedAt ?? null, cues: parseTimedCues(plan.cues) } : null;
   } catch {
     return null;
   }

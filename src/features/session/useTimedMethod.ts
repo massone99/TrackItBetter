@@ -1,30 +1,30 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AppState } from 'react-native';
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
-import { blockEnd, blockHoldSec, TIMED_COUNTDOWN_SEC, timedCue, timedLabel, timedPhase, type TimedMethodPhase, type TimedMethodPlan } from '../../domain/timedMethod';
+import { blockEnd, blockStart, recoveryEnd, timedCue, timedPhase, timedRounds, type TimedMethodPhase, type TimedMethodPlan } from '../../domain/timedMethod';
 import { playBeep } from '../../shared/audio/beeps';
 import { writePreference } from '../../shared/settings/preferences';
-import { recordEmomRound } from './repository';
-import { clearTimedPlan, readTimedPlan, timedPlanKey, writeTimedConfig, type TimedMethodConfig } from './timedMethodPlan';
+import { recordTimedMethod } from './repository';
+import { readTimedPlan, timedPlanKey, writeTimedConfig, type TimedMethodConfig } from './timedMethodPlan';
 
 const KEEP_AWAKE_TAG = 'timed-method';
-export { clearTimedPlan, readTimedPlan };
 
 export type TimedStart = TimedMethodConfig & { entryId: string; exerciseId: string };
 
-/**
- * Runs one timed method per workout. The plan is kept on the device and every phase is read from timestamps, so
- * leaving the screen or locking the phone loses nothing. The block is saved as one set when it ends, and the
- * final hold as another when it is ended; the app saves whatever was done if the method is stopped early.
- */
-export function useTimedMethod(workoutId: string | undefined, { onRecorded }: { onRecorded: () => void }) {
+export function useTimedMethod(workoutId: string | undefined, callbacks: { onRecorded: () => void; onSaveError: () => void }) {
   const [plan, setPlan] = useState<TimedMethodPlan | null>(() => (workoutId ? readTimedPlan(workoutId) : null));
   const [phase, setPhase] = useState<TimedMethodPhase | null>(null);
   const planRef = useRef(plan);
   const previous = useRef<TimedMethodPhase | null>(null);
-  const saving = useRef<Promise<void>>(Promise.resolve());
-  const onRecordedRef = useRef(onRecorded);
-  useEffect(() => { onRecordedRef.current = onRecorded; });
+  const writing = useRef<Promise<void> | null>(null);
+  const stopping = useRef<Promise<boolean> | null>(null);
+  const savedRounds = useRef(0);
+  const retryAt = useRef(0);
+  const alertedRound = useRef(0);
+  const stopFailed = useRef(false);
+  const justStarted = useRef(false);
+  const callbacksRef = useRef(callbacks);
+  useEffect(() => { callbacksRef.current = callbacks; });
 
   const save = useCallback((next: TimedMethodPlan | null) => {
     planRef.current = next;
@@ -32,18 +32,36 @@ export function useTimedMethod(workoutId: string | undefined, { onRecorded }: { 
     if (workoutId) writePreference(timedPlanKey(workoutId), next ? JSON.stringify(next) : '');
   }, [workoutId]);
 
-  /** Saves the block's set once its time is over; the plan remembers it so it is never saved twice. */
-  const saveBlock = useCallback((current: TimedMethodPlan) => {
-    if (current.blockSaved) return;
-    const next = { ...current, blockSaved: true };
-    save(next);
-    saving.current = saving.current
-      .then(() => recordEmomRound(current.entryId, 'durationSec', blockHoldSec(current), new Date(blockEnd(current)), timedLabel(current)))
-      .then(() => onRecordedRef.current())
-      .catch(() => undefined);
+  /** Stopping during a hold saves its measured duration. A failed save keeps the frozen plan for retry. */
+  const stop = useCallback((): Promise<boolean> => {
+    if (stopping.current) return stopping.current;
+    const current = planRef.current;
+    if (!current) return Promise.resolve(true);
+    const stoppedAt = current.stoppedAt ?? current.testEndedAt ?? Date.now();
+    save({ ...current, stoppedAt });
+    const alreadyDone = previous.current?.phase === 'done';
+    const pending = (async () => {
+      try {
+        await writing.current;
+        await recordTimedMethod(current, stoppedAt, true);
+        if (current.cues?.milestones !== false && !alreadyDone) playBeep('done');
+        save(null);
+        setPhase(null);
+        previous.current = null;
+        callbacksRef.current.onRecorded();
+        return true;
+      } catch {
+        stopFailed.current = true;
+        callbacksRef.current.onSaveError();
+        return false;
+      } finally {
+        stopping.current = null;
+      }
+    })();
+    stopping.current = pending;
+    return pending;
   }, [save]);
 
-  const stopRef = useRef<() => Promise<void>>(async () => undefined);
   const active = plan !== null;
   useEffect(() => {
     if (!active) return;
@@ -52,16 +70,37 @@ export function useTimedMethod(workoutId: string | undefined, { onRecorded }: { 
       const current = planRef.current;
       if (!current) return;
       const now = Date.now();
+      if (current.stoppedAt !== undefined || current.testEndedAt !== null) {
+        setPhase((shown) => shown?.phase === 'done' ? shown : { phase: 'done', seconds: 0 });
+        if (!stopFailed.current) void stop();
+        return;
+      }
       const next = timedPhase(current, now);
-      const cue = timedCue(previous.current, next);
-      if (cue && previous.current !== null) playBeep(cue);
+      const cue = timedCue(previous.current, next, current.cues, current.testSec);
+      if (cue && (previous.current || justStarted.current)) playBeep(cue);
+      justStarted.current = false;
       previous.current = next;
       setPhase((shown) => (shown && JSON.stringify(shown) === JSON.stringify(next) ? shown : next));
-      if (now >= blockEnd(current)) {
-        saveBlock(current);
-        // No final hold planned: the method ends with the block.
-        if (current.testSec === 0) void stopRef.current();
+      if (current.testSec === 0 && now >= blockEnd(current)) {
+        void stop();
+        return;
       }
+      if (current.blockSaved || writing.current) return;
+      const cycleMs = (current.holdSec + current.restSec) * 1000;
+      const rounds = Math.min(timedRounds(current), Math.floor((now - blockStart(current)) / cycleMs));
+      if (rounds <= savedRounds.current || now < retryAt.current) return;
+      writing.current = recordTimedMethod(current, blockStart(current) + rounds * cycleMs, false)
+        .then(() => {
+          savedRounds.current = rounds;
+          callbacksRef.current.onRecorded();
+        })
+        .catch(() => {
+          retryAt.current = Date.now() + 5000;
+          if (alertedRound.current === rounds) return;
+          alertedRound.current = rounds;
+          callbacksRef.current.onSaveError();
+        })
+        .finally(() => { writing.current = null; });
     };
     tick();
     const interval = setInterval(tick, 250);
@@ -71,56 +110,37 @@ export function useTimedMethod(workoutId: string | undefined, { onRecorded }: { 
       subscription.remove();
       void deactivateKeepAwake(KEEP_AWAKE_TAG).catch(() => undefined);
     };
-  }, [active, saveBlock]);
+  }, [active, stop]);
 
   const start = useCallback((config: TimedStart) => {
-    if (!workoutId) return;
+    if (!workoutId || planRef.current) return;
     const { entryId, exerciseId, ...settings } = config;
     writeTimedConfig(exerciseId, settings);
     previous.current = null;
+    justStarted.current = true;
+    savedRounds.current = 0;
+    retryAt.current = 0;
+    alertedRound.current = 0;
+    stopFailed.current = false;
     setPhase(null);
-    save({ ...settings, workoutId, entryId, startedAt: Date.now(), countdownSec: TIMED_COUNTDOWN_SEC, recoveryEndedAt: null, testStartedAt: null, testEndedAt: null, blockSaved: false });
+    save({ ...settings, workoutId, entryId, startedAt: Date.now(), recoveryEndedAt: null, testStartedAt: null, testEndedAt: null, blockSaved: false });
   }, [workoutId, save]);
 
-  /** Cuts the recovery short and goes to "ready". */
   const skipRecovery = useCallback(() => {
     const current = planRef.current;
-    if (current && current.recoveryEndedAt === null && Date.now() < blockEnd(current) + current.recoverySec * 1000) save({ ...current, recoveryEndedAt: Math.max(Date.now(), blockEnd(current)) });
+    const now = Date.now();
+    if (current && current.stoppedAt === undefined && timedPhase(current, now).phase === 'recovery') {
+      save({ ...current, recoveryEndedAt: now });
+    }
   }, [save]);
 
-  /** Starts the final hold after a short countdown. */
   const startTest = useCallback(() => {
     const current = planRef.current;
-    if (current && current.testStartedAt === null) save({ ...current, testStartedAt: Date.now() + TIMED_COUNTDOWN_SEC * 1000 });
-  }, [save]);
-
-  /** Ends the final hold, saves it with the seconds held and closes the method. */
-  const finishTest = useCallback(async () => {
-    const current = planRef.current;
-    if (!current || current.testStartedAt === null || current.testEndedAt !== null) return;
     const now = Date.now();
-    const held = Math.max(0, Math.round((now - current.testStartedAt) / 1000));
-    save({ ...current, testEndedAt: now });
-    await saving.current;
-    // A hold ended during its countdown is not a hold: nothing to save.
-    if (held > 0) await recordEmomRound(current.entryId, 'durationSec', held, new Date(now), `${timedLabel(current)} · ${current.testSec}″`).catch(() => undefined);
-    onRecordedRef.current();
-    save(null);
-    setPhase(null);
-    previous.current = null;
+    if (current && current.stoppedAt === undefined && current.testSec > 0 && current.testStartedAt === null && now >= recoveryEnd(current)) {
+      save({ ...current, testStartedAt: now + current.countdownSec * 1000 });
+    }
   }, [save]);
 
-  /** Closes the method; the block is kept if it was over, the one in progress is dropped. */
-  const stop = useCallback(async () => {
-    const current = planRef.current;
-    if (current && Date.now() >= blockEnd(current)) saveBlock(current);
-    await saving.current;
-    save(null);
-    setPhase(null);
-    previous.current = null;
-  }, [save, saveBlock]);
-
-  useEffect(() => { stopRef.current = stop; });
-
-  return { plan, phase: plan ? phase : null, start, skipRecovery, startTest, finishTest, stop };
+  return { plan, phase: plan ? phase : null, start, skipRecovery, startTest, finishTest: stop, stop };
 }

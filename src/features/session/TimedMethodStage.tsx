@@ -68,7 +68,9 @@ export function TimedMethodStage({ exercise, plan, phase, onSkipRecovery, onStar
     if (hintTimer.current) clearTimeout(hintTimer.current);
     hintTimer.current = setTimeout(() => setStopHint(false), 3000);
   };
-  const primary = phase.phase === 'recovery'
+  const primary = plan.stoppedAt !== undefined
+    ? { label: t('common.save'), icon: 'save-outline' as const, onPress: onStop }
+    : phase.phase === 'recovery'
     ? { label: t('timedMethod.skipRecovery'), icon: 'play-forward' as const, onPress: onSkipRecovery }
     : phase.phase === 'ready' ? { label: t('timedMethod.startTest', { seconds: plan.testSec }), icon: 'play' as const, onPress: onStartTest }
       : phase.phase === 'test' ? { label: t('timedMethod.endTest'), icon: 'stop' as const, onPress: onFinishTest } : null;
@@ -128,9 +130,9 @@ export function TimedMethodStage({ exercise, plan, phase, onSkipRecovery, onStar
           ) : null}
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel={t('emom.stop')}
-            accessibilityHint={t('emom.holdHint')}
-            accessibilityActions={[{ name: 'longpress', label: t('emom.stop') }]}
+            accessibilityLabel={t('timedMethod.stopAndSave')}
+            accessibilityHint={t('timedMethod.holdToSave')}
+            accessibilityActions={[{ name: 'longpress', label: t('timedMethod.stopAndSave') }]}
             onAccessibilityAction={(event) => { if (event.nativeEvent.actionName === 'longpress') onStop(); }}
             onPress={showStopHint}
             onLongPress={() => { tapFeedback(); onStop(); }}
@@ -138,9 +140,9 @@ export function TimedMethodStage({ exercise, plan, phase, onSkipRecovery, onStar
             style={({ pressed }) => [styles.action, largeText && styles.fullRow, styles.actionOutline, { borderColor: muted }, pressed && styles.pressed]}
           >
             <Icon name="stop" size={16} color={palette.heroText} />
-            <Text style={[styles.actionTextQuiet, { color: palette.heroText }]}>{t('emom.holdToStop')}</Text>
+            <Text style={[styles.actionTextQuiet, { color: palette.heroText }]}>{t('timedMethod.holdToSave')}</Text>
           </Pressable>
-          {stopHint ? <Text accessibilityLiveRegion="polite" style={[styles.caption, styles.hint, styles.fullRow, { color: palette.heroText }]}>{t('emom.holdHint')}</Text> : null}
+          {stopHint ? <Text accessibilityLiveRegion="polite" style={[styles.caption, styles.hint, styles.fullRow, { color: palette.heroText }]}>{t('timedMethod.holdToSave')}</Text> : null}
         </View>
       </ScrollView>
     </View>

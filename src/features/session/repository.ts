@@ -1,11 +1,12 @@
+import { timedHolds, timedRounds, type TimedMethodPlan } from '../../domain/timedMethod';
 import { isValidFormRating } from '../../domain/formRating';
 import { readCompareMode } from '../../shared/settings/preferences';
 import { isMobilityExercise } from '../exercises/categories';
-import { and, asc, count, desc, eq, gt, gte, inArray, isNotNull, isNull, lt, max, ne, or, sql } from 'drizzle-orm';
+import { and, asc, count, desc, eq, gt, gte, inArray, isNotNull, isNull, like, lt, max, ne, or, sql } from 'drizzle-orm';
 import * as Crypto from 'expo-crypto';
 import { db, initializeDatabase } from '../../db/client';
 import { bumpFinishedVersion } from '../../db/cache';
-import { bodyMeasurements, exerciseEntries, exercises, formCheckVideos, trainingSets, workouts } from '../../db/schema';
+import { bodyMeasurements, exerciseEntries, exercises, formCheckVideos, settings, trainingSets, workouts } from '../../db/schema';
 import { deleteFormCheckVideosForSets, deleteClipFilesIfUnused, releaseClipFiles, retainClipFiles } from '../media/formVideos';
 import { countPoseCapturesBySet } from '../pose/repository';
 import { isValidRpe } from '../../domain/rpe';
@@ -674,6 +675,52 @@ export async function recordEmomRound(entryId: string, field: 'reps' | 'duration
   if (note) await db.update(trainingSets).set({ note }).where(inArray(trainingSets.id, ids));
 }
 
+const timedSavePrefix = (workoutId: string) => `workout.timedSaved.${workoutId}.`;
+
+/** The sets and the saved position commit together, so a stopped plan can retry after reopening. */
+export async function recordTimedMethod(plan: TimedMethodPlan, until: number, finish: boolean): Promise<void> {
+  const holds = timedHolds(plan, until, finish);
+  if (holds.length === 0) return;
+  await initializeDatabase();
+  // Expo's Drizzle driver is synchronous. Keep the reads, sets and checkpoint in one transaction.
+  db.transaction((tx) => {
+    const key = `${timedSavePrefix(plan.workoutId)}${plan.entryId}.${plan.startedAt}`;
+    const saved = tx.select({ value: settings.value }).from(settings).where(eq(settings.key, key)).get()?.value;
+    const recorded = Number(saved ?? 0);
+    const pending = holds.slice(recorded);
+    if (pending.length === 0) return;
+    const entry = tx.select({ endedAt: workouts.endedAt }).from(exerciseEntries)
+      .innerJoin(workouts, eq(exerciseEntries.workoutId, workouts.id))
+      .where(and(eq(exerciseEntries.id, plan.entryId), eq(exerciseEntries.workoutId, plan.workoutId))).get();
+    if (!entry || entry.endedAt) throw new Error('Use the completed workout editor');
+    const rows = tx.select().from(trainingSets).where(eq(trainingSets.entryId, plan.entryId)).orderBy(asc(trainingSets.index)).all();
+    const groups = groupSets(rows);
+    const lastDone = groups.reduce((last, group, index) => (group.some((set) => set.completedAt) ? index : last), -1);
+    // The timer measures one hold at a time, with no side information. Keep planned L/R pairs intact.
+    const open = groups.slice(lastDone + 1).flatMap(([set]) => set.kind === 'working' && !set.pairId ? [set] : []);
+    let template = rows.at(-1);
+    let index = template?.index ?? 0;
+    for (const [position, hold] of pending.entries()) {
+      const planned = open[position];
+      const values = { durationSec: hold.seconds, restSec: hold.restSec, completedAt: hold.completedAt };
+      const note = hold.restSec === null ? `Timed · final hold target ${plan.testSec}″` : `Timed · ${recorded + position + 1}/${timedRounds(plan)}`;
+      if (planned) {
+        tx.update(trainingSets).set({ ...values, note: planned.note ?? note }).where(eq(trainingSets.id, planned.id)).run();
+        template = planned;
+      } else {
+        index += 1;
+        tx.insert(trainingSets).values({
+          ...values, entryId: plan.entryId, id: id(), index, note,
+          addedLoadKg: template?.addedLoadKg, band: template?.band, bands: template?.bands, assistKg: template?.assistKg,
+          targetRpe: template?.targetRpe,
+        }).run();
+      }
+    }
+    const value = String(holds.length);
+    tx.insert(settings).values({ key, value }).onConflictDoUpdate({ target: settings.key, set: { value } }).run();
+  });
+}
+
 /** A workout cannot finish with one side of an L/R pair done and the other not; the UI words it. */
 export class IncompletePairError extends Error {
   constructor(readonly exerciseName: string, readonly setIndex: number, readonly side: 'left' | 'right') {
@@ -717,6 +764,7 @@ export async function deleteWorkout(workoutId: string): Promise<void> {
     if (entries.length > 0) await tx.delete(trainingSets).where(inArray(trainingSets.entryId, entries.map((entry) => entry.id)));
     await tx.delete(exerciseEntries).where(eq(exerciseEntries.workoutId, workoutId));
     await tx.delete(workouts).where(eq(workouts.id, workoutId));
+    await tx.delete(settings).where(like(settings.key, `${timedSavePrefix(workoutId)}%`));
   });
   bumpFinishedVersion();
 }
