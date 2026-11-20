@@ -14,7 +14,7 @@ export interface TimedMethodPlan {
   holdSec: number;
   restSec: number;
   recoverySec: number;
-  /** Goal of the final single hold. */
+  /** Goal of the final single hold; 0 when there is none (the method ends with the block). */
   testSec: number;
   /** Set when the recovery is cut short by hand (ms). */
   recoveryEndedAt: number | null;

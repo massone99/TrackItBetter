@@ -120,6 +120,12 @@ export function TimedMethodStage({ exercise, plan, phase, onSkipRecovery, onStar
               <Text style={[styles.actionText, { color: palette.hero }]}>{primary.label.toUpperCase()}</Text>
             </Pressable>
           ) : null}
+          {phase.phase === 'recovery' || phase.phase === 'ready' ? (
+            <Pressable accessibilityRole="button" accessibilityLabel={t('timedMethod.finishNoTest')} onPress={() => { tapFeedback(); onStop(); }} style={({ pressed }) => [styles.action, largeText && styles.fullRow, styles.actionOutline, { borderColor: muted }, pressed && styles.pressed]}>
+              <Icon name="flag-outline" size={16} color={palette.heroText} />
+              <Text style={[styles.actionTextQuiet, { color: palette.heroText }]}>{t('timedMethod.finishNoTest')}</Text>
+            </Pressable>
+          ) : null}
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={t('emom.stop')}

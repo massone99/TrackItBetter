@@ -22,7 +22,8 @@ export function readTimedConfig(exerciseId: string): TimedMethodConfig {
   try {
     const raw = readPreference(configKey(exerciseId));
     const parsed = raw ? JSON.parse(raw) as Partial<TimedMethodConfig> : {};
-    const pick = (key: keyof TimedMethodConfig) => (Number.isFinite(parsed[key]) && (parsed[key] as number) > 0 ? parsed[key] as number : DEFAULT_TIMED_CONFIG[key]);
+    // The final hold is optional: 0 means "no final hold".
+    const pick = (key: keyof TimedMethodConfig) => (Number.isFinite(parsed[key]) && (parsed[key] as number) >= (key === 'testSec' ? 0 : 1) ? parsed[key] as number : DEFAULT_TIMED_CONFIG[key]);
     return { blockSec: pick('blockSec'), holdSec: pick('holdSec'), restSec: pick('restSec'), recoverySec: pick('recoverySec'), testSec: pick('testSec') };
   } catch {
     return DEFAULT_TIMED_CONFIG;

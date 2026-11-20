@@ -43,6 +43,7 @@ export function useTimedMethod(workoutId: string | undefined, { onRecorded }: { 
       .catch(() => undefined);
   }, [save]);
 
+  const stopRef = useRef<() => Promise<void>>(async () => undefined);
   const active = plan !== null;
   useEffect(() => {
     if (!active) return;
@@ -56,7 +57,11 @@ export function useTimedMethod(workoutId: string | undefined, { onRecorded }: { 
       if (cue && previous.current !== null) playBeep(cue);
       previous.current = next;
       setPhase((shown) => (shown && JSON.stringify(shown) === JSON.stringify(next) ? shown : next));
-      if (now >= blockEnd(current)) saveBlock(current);
+      if (now >= blockEnd(current)) {
+        saveBlock(current);
+        // No final hold planned: the method ends with the block.
+        if (current.testSec === 0) void stopRef.current();
+      }
     };
     tick();
     const interval = setInterval(tick, 250);
@@ -114,6 +119,8 @@ export function useTimedMethod(workoutId: string | undefined, { onRecorded }: { 
     setPhase(null);
     previous.current = null;
   }, [save, saveBlock]);
+
+  useEffect(() => { stopRef.current = stop; });
 
   return { plan, phase: plan ? phase : null, start, skipRecovery, startTest, finishTest, stop };
 }
