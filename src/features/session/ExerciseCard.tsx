@@ -246,7 +246,7 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
   const [addMenuOpen, setAddMenuOpen] = useState(false);
   const copies = Number(copyCount);
   const bulkAdd = addMenuOpen && onAddCopies && exercise.sets.length > 0 ? (
-    <View>
+    <View style={styles.copyForm}>
       <TextField label={t('logger.copies')} keyboardType="number-pad" maxLength={2} value={copyCount} onChangeText={setCopyCount} />
       <ActionButton secondary compact label={t('logger.addCopies')} disabled={!/^[1-9]\d?$/.test(copyCount)} onPress={() => { setAddMenuOpen(false); onAddCopies(copies); }} />
     </View>
@@ -1140,13 +1140,17 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
     const addRow = <>
       <View style={[styles.liveAddRow, { borderTopColor: palette.border }]}>
         <Pressable accessibilityRole="button" onPress={() => { tapFeedback(); setAddMenuOpen(false); onAddSet(); }} style={({ pressed }) => [styles.liveAdd, pressed && { opacity: 0.6 }]}>
-          <Icon name="add" size={18} color={palette.accentStrong} />
+          {emomBadgeLabel ? <Icon name="add" size={18} color={palette.accentStrong} /> : null}
           <Text style={[styles.liveAddText, { color: palette.accentStrong }]}>{emomBadgeLabel ? t('emom.addRound') : t('liveWorkout.addSet')}</Text>
         </Pressable>
         {onAddWarmup ? <IconButton tone="plain" icon={addMenuOpen ? 'chevron-up' : 'chevron-down'} label={t('logger.addMore')} onPress={() => setAddMenuOpen(!addMenuOpen)} /> : null}
       </View>
-      {bulkAdd}
-      {addMenuOpen && onAddWarmup ? <View style={styles.liveAddMenu}><ActionButton compact secondary icon="flame-outline" label={t('logger.addWarmup')} onPress={() => { setAddMenuOpen(false); onAddWarmup(); }} /></View> : null}
+      {addMenuOpen ? (
+        <View style={styles.liveAddMenu}>
+          {bulkAdd}
+          {onAddWarmup ? <ActionButton compact secondary icon="flame-outline" label={t('logger.addWarmup')} onPress={() => { setAddMenuOpen(false); onAddWarmup(); }} /> : null}
+        </View>
+      ) : null}
     </>;
     if (standalone) {
       // One card: name and target, last time, then every set with the one in hand open in its place.
@@ -1323,7 +1327,7 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
           ) : null}
         </View>
         {bulkAdd}
-      {addMenuOpen && onAddWarmup ? (
+        {addMenuOpen && onAddWarmup ? (
           <View style={[styles.addMenu, { borderColor: ink, backgroundColor: palette.surface }]}>
             <Pressable
               accessibilityRole="button"
@@ -1400,19 +1404,20 @@ function ValueChip({ label, icon, filled, open = false, grow = false, lines = 1,
 }
 
 const baseStyles = StyleSheet.create({
-  liveCard: { gap: 10 },
-  liveHead: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, paddingTop: 14, paddingBottom: 10, paddingLeft: 16, paddingRight: 4 },
+  liveCard: { gap: spacing.md },
+  liveHead: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.md, paddingHorizontal: spacing.lg, paddingVertical: spacing.md },
   liveTarget: { fontFamily: fonts.body, fontSize: 14, lineHeight: 20, marginTop: 4 },
-  liveLast: { flexDirection: 'row', alignItems: 'center', gap: 8, marginHorizontal: 16, marginBottom: 12, paddingLeft: 12, borderRadius: radii.control, minHeight: 48 },
+  liveLast: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginHorizontal: spacing.lg, marginBottom: spacing.md, paddingHorizontal: spacing.md, paddingVertical: spacing.sm, borderRadius: radii.control, minHeight: 48 },
   liveLastLabel: { flexShrink: 0 },
-  liveLastStacked: { flexDirection: 'column', alignItems: 'flex-start', paddingTop: 8 },
+  liveLastStacked: { flexDirection: 'column', alignItems: 'flex-start' },
   liveLastValue: { flex: 1, minWidth: 0, fontFamily: fonts.monoSemibold, fontSize: 14 },
   liveCopy: { minHeight: 48, justifyContent: 'center', paddingHorizontal: 12 },
   liveCopyText: { fontFamily: fonts.monoSemibold, fontSize: 12, letterSpacing: 0.7, textTransform: 'uppercase' },
-  liveAddRow: { flexDirection: 'row', alignItems: 'center', borderTopWidth: 1 },
+  liveAddRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingHorizontal: spacing.sm, paddingVertical: spacing.xs, borderTopWidth: 1 },
   liveAdd: { flex: 1, minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 14 },
   liveAddText: { fontFamily: fonts.monoSemibold, fontSize: 12, letterSpacing: 0.7, textTransform: 'uppercase' },
-  liveAddMenu: { paddingHorizontal: 12, paddingBottom: 12 },
+  liveAddMenu: { gap: spacing.md, paddingHorizontal: spacing.lg, paddingTop: spacing.sm, paddingBottom: spacing.lg },
+  copyForm: { gap: spacing.sm },
   liveFrame: { overflow: 'hidden', borderWidth: 1, borderRadius: 5 },
   liveTitle: { flexDirection: 'row', alignItems: 'flex-start', gap: 4, padding: 14, paddingBottom: 9 },
   liveInlineTitle: { paddingHorizontal: 0, paddingVertical: 8 },
@@ -1421,7 +1426,7 @@ const baseStyles = StyleSheet.create({
   liveBadge: { fontFamily: fonts.monoSemibold, fontSize: 12, textTransform: "uppercase", borderRadius: 4, padding: 7, flexShrink: 1 },
   liveValueFigure: { fontFamily: fonts.monoBold, fontSize: 21, lineHeight: 25 },
   liveExerciseName: { fontFamily: fonts.display, fontSize: 30, lineHeight: 34 },
-  liveLogTitle: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  liveLogTitle: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: spacing.sm },
   liveLogHeading: { fontFamily: fonts.display, fontSize: 21, lineHeight: 26 },
   bandDot: { width: 12, height: 12, borderRadius: radii.control, borderWidth: 1 },
   flex: { flex: 1 },

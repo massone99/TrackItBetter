@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { completedSetCount, groupSets } from '../../domain/setPairs';
 import { ActionButton, Body, Icon, MenuList, MenuRow, Sheet, tapFeedback, Text, TextField, type IconName } from '../../shared/components/ui';
 import { useTheme } from '../../shared/theme/ThemeProvider';
+import { spacing } from '../../shared/theme/tokens';
 import { fonts } from '../../shared/theme/typography';
 import { useScaledStyles } from '../../shared/theme/useScaledStyles';
 import { formatClock, formatNumber } from '../../shared/utils/format';
@@ -313,19 +314,19 @@ export function WorkoutGroupSheet({ sheet, groups, exercises, onClose, onChange,
 }
 
 const baseStyles = StyleSheet.create({
-  editRow: { flexDirection: 'row', justifyContent: 'flex-end', marginBottom: -8 },
+  editRow: { flexDirection: 'row', justifyContent: 'flex-end', paddingBottom: spacing.xs },
   editButton: { minHeight: 48, justifyContent: 'center', paddingHorizontal: 12 },
   editText: { fontFamily: fonts.monoSemibold, fontSize: 12, letterSpacing: 0.7, textTransform: 'uppercase' },
-  overview: { gap: 8 },
-  orderRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  overview: { gap: spacing.md },
+  orderRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   toolbar: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 6, paddingBottom: 8, borderBottomWidth: 1 },
   newGroup: { marginLeft: 'auto' },
   button: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, minHeight: 44, borderWidth: 1, borderRadius: 4, paddingHorizontal: 8, paddingVertical: 6 },
   grow: { flexGrow: 1, flexShrink: 1 },
   buttonText: { fontFamily: fonts.semibold, fontSize: 11, flexShrink: 1 },
   footerButtonText: { fontSize: 14 },
-  group: { gap: 4 },
-  nested: { borderWidth: 1, borderRadius: 4, overflow: 'hidden' },
+  group: { gap: spacing.sm },
+  nested: { gap: spacing.sm, padding: spacing.sm, borderWidth: 1, borderRadius: 4, overflow: 'hidden' },
   groupHeader: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   fold: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 44 },
   nestedFold: { paddingHorizontal: 8 },

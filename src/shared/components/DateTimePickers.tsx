@@ -7,7 +7,8 @@ import { useScaledStyles } from '../theme/useScaledStyles';
 import { ActionButton, Chip, Icon, IconButton, NumberEdit, Sheet, Text, tapFeedback } from './ui';
 import { Wheel } from './Wheel';
 import { formatClock } from '../utils/format';
-import { radii } from '../theme/tokens';
+import { STACK_TEXT_SCALE } from '../theme/scale';
+import { radii, spacing } from '../theme/tokens';
 
 const dayStart = (date: Date) => new Date(date.getFullYear(), date.getMonth(), date.getDate());
 const sameDay = (a: Date, b: Date) => a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
@@ -161,11 +162,14 @@ const baseStyles = StyleSheet.create({
   presets: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingBottom: 8 },
   // Quick values in an even grid, four to a row, instead of a ragged line.
   presetCell: { flexGrow: 1, flexBasis: 56 },
+  presetCellLarge: { flexBasis: '40%' },
   colon: { fontFamily: fonts.display, fontSize: 26 },
   durationInputs: { flexDirection: 'row', gap: 12 },
   durationInput: { flex: 1 },
   durationAdjust: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 20 },
   durationValue: { fontFamily: fonts.display, fontSize: 44, lineHeight: 50, minWidth: 120, textAlign: 'center', fontVariant: ['tabular-nums'] },
+  durationField: { gap: spacing.sm },
+  inlinePresets: { paddingBottom: 0 },
   compactDurationWrapper: { flexShrink: 1 },
   compactDuration: { minWidth: 64, minHeight: 48, paddingHorizontal: 8, paddingVertical: 8, borderRadius: radii.control, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
   compactDurationFlat: { borderWidth: 0, backgroundColor: 'transparent', paddingHorizontal: 0, paddingVertical: 0, minWidth: 0 },
@@ -191,7 +195,7 @@ export function DurationField({ label, value, min = 0, max = 600, step = 5, pres
   onChange: (value: number) => void;
 }) {
   const styles = useScaledStyles(baseStyles);
-  const { palette } = useTheme();
+  const { palette, fontScale } = useTheme();
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const [draft, setDraftState] = useState(0);
@@ -212,7 +216,7 @@ export function DurationField({ label, value, min = 0, max = 600, step = 5, pres
   };
   const choose = (preset: number) => { tapFeedback(); onChange(clamp(preset)); setOpen(false); };
   return (
-    <View style={compact ? styles.compactDurationWrapper : undefined}>
+    <View style={compact ? styles.compactDurationWrapper : styles.durationField}>
       {compact ? <Pressable
         accessibilityRole="button" accessibilityLabel={`${label}: ${format(value)}`}
         accessibilityHint={t('durationPicker.hint')} accessibilityState={{ expanded: open, disabled }} disabled={disabled}
@@ -222,8 +226,8 @@ export function DurationField({ label, value, min = 0, max = 600, step = 5, pres
         <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75} style={[styles.compactDurationText, { color: palette.text }]}>{format(value)}</Text>
       </Pressable> : <FieldRow label={label} icon="timer-outline" open={open} disabled={disabled} value={format(value)} onToggle={show} />}
       {!compact && !disabled && presets && presets.length > 0 ? (
-        <View style={styles.presets}>
-          {presets.map((preset) => <View key={preset} style={styles.presetCell}><Chip label={format(preset)} selected={value === preset} onPress={() => onChange(Math.min(upperBound, Math.max(min, preset)))} /></View>)}
+        <View style={[styles.presets, styles.inlinePresets]}>
+          {presets.map((preset) => <View key={preset} style={[styles.presetCell, fontScale >= STACK_TEXT_SCALE && styles.presetCellLarge]}><Chip label={format(preset)} selected={value === preset} onPress={() => onChange(Math.min(upperBound, Math.max(min, preset)))} /></View>)}
         </View>
       ) : null}
       {open ? <Sheet visible onClose={() => setOpen(false)} title={label}>
@@ -233,7 +237,7 @@ export function DurationField({ label, value, min = 0, max = 600, step = 5, pres
           <NumberEdit value={draft} display={formatClock(draft)} label={`${label} · ${t('durationPicker.typeHint')}`} clock onCommit={setDraft} style={[styles.durationValue, { color: palette.text }]} />
           <IconButton icon="add" label={t('durationPicker.increase')} disabled={draft >= upperBound} onPress={() => setDraft(draft + step)} />
         </View>
-        {presets?.length ? <View style={styles.presets}>{presets.filter((preset) => preset >= min && preset <= upperBound).map((preset) => <View key={preset} style={styles.presetCell}><Chip label={formatClock(preset)} selected={value === preset} onPress={() => choose(preset)} /></View>)}</View> : null}
+        {presets?.length ? <View style={styles.presets}>{presets.filter((preset) => preset >= min && preset <= upperBound).map((preset) => <View key={preset} style={[styles.presetCell, fontScale >= STACK_TEXT_SCALE && styles.presetCellLarge]}><Chip label={formatClock(preset)} selected={value === preset} onPress={() => choose(preset)} /></View>)}</View> : null}
         <View style={styles.wheels}>
           <Wheel label={t('picker.minutes')} items={minuteItems} value={Math.floor(draft / 60)} width={96} onChange={(minute) => setDraft(minute * 60 + (draft % 60))} />
           <Text style={[styles.colon, { color: palette.textMuted }]}>:</Text>

@@ -53,8 +53,8 @@ export function ScaleRow({ label, hint, values, value, onChange, half = false, h
           ) : null}
         </View>
       </View>
-      <View style={[styles.segments, { borderColor: ink }]}>
-        {values.map((item, index) => {
+      <View style={styles.segments}>
+        {values.map((item) => {
           const selected = whole === item;
           return (
             <Pressable
@@ -63,7 +63,7 @@ export function ScaleRow({ label, hint, values, value, onChange, half = false, h
               accessibilityLabel={valueLabel(selected && isHalf ? item + 0.5 : item)}
               accessibilityState={{ selected }}
               onPress={() => { tapFeedback(); onChange(selected ? null : item); }}
-              style={({ pressed }) => [styles.segment, index > 0 && { borderLeftWidth: 1, borderLeftColor: palette.border }, { backgroundColor: selected ? palette.accentSoft : pressed ? palette.surfaceMuted : palette.surface }]}
+              style={({ pressed }) => [styles.segment, { borderColor: ink, backgroundColor: selected ? palette.accentSoft : pressed ? palette.surfaceMuted : palette.surface }]}
             >
               <Text style={[styles.segmentText, { color: selected ? palette.accentStrong : palette.text }, selected && styles.segmentSelected]}>{selected && isHalf ? `${item}½` : String(item)}</Text>
             </Pressable>
@@ -75,15 +75,15 @@ export function ScaleRow({ label, hint, values, value, onChange, half = false, h
 }
 
 const baseStyles = StyleSheet.create({
-  block: { gap: spacing.xs + 2 },
+  block: { gap: spacing.sm },
   head: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: spacing.sm, minHeight: 28 },
-  headEnd: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  headEnd: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: spacing.sm, maxWidth: '100%' },
   label: { fontFamily: fonts.monoSemibold, fontSize: 12, letterSpacing: 1, textTransform: 'uppercase' },
   hint: { fontFamily: fonts.mono, fontSize: 12, letterSpacing: 1, textTransform: 'uppercase' },
   half: { minWidth: 36, minHeight: 28, paddingHorizontal: spacing.sm, borderWidth: 1, borderRadius: radii.control, alignItems: 'center', justifyContent: 'center' },
   halfText: { fontFamily: fonts.monoSemibold, fontSize: 13 },
-  segments: { flexDirection: 'row', borderWidth: 1, borderRadius: radii.control, overflow: 'hidden' },
-  segment: { flex: 1, minWidth: 0, minHeight: MIN_TOUCH_TARGET, alignItems: 'center', justifyContent: 'center' },
+  segments: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs },
+  segment: { flexGrow: 1, flexBasis: MIN_TOUCH_TARGET, minHeight: MIN_TOUCH_TARGET, borderWidth: 1, borderRadius: radii.control, alignItems: 'center', justifyContent: 'center' },
   segmentText: { fontFamily: fonts.mono, fontSize: 15 },
   segmentSelected: { fontFamily: fonts.monoBold },
 });

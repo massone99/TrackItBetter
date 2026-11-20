@@ -1,5 +1,8 @@
 import { useBooleanPreference } from "../../src/shared/settings/useBooleanPreference";
 import { useState } from "react";
+import { StyleSheet, View } from "react-native";
+import { spacing } from "../../src/shared/theme/tokens";
+import { useScaledStyles } from "../../src/shared/theme/useScaledStyles";
 import { useTranslation } from "react-i18next";
 import { Body, Card, ListGroup, PageHeading, Screen, SectionTitle, SegmentedControl, SwitchRow } from "../../src/shared/components/ui";
 import { DurationField } from "../../src/shared/components/DateTimePickers";
@@ -10,6 +13,7 @@ import { SET_RATINGS_KEY, COMPARE_MODE_KEY, readBooleanPreference, readCompareMo
 /** Workout defaults: rest, the RPE row, what "last time" compares with, and the narration countdown. */
 export default function TrainingSettingsScreen() {
   const { t } = useTranslation();
+  const styles = useScaledStyles(baseStyles);
   const [rpePrompt, setRpePrompt] = useState(() => readBooleanPreference(RPE_PROMPT_KEY, true));
   const [compareMode, setCompareMode] = useState<CompareMode>(readCompareMode);
   const [ratings, setRatings] = useBooleanPreference(SET_RATINGS_KEY, true);
@@ -47,14 +51,26 @@ export default function TrainingSettingsScreen() {
         />
         <Body>{t("compare.profileHint")}</Body>
       </Card>
-      <SectionTitle title={t("narration.title")} />
-      <Card>
-        <DurationField label={t("narration.prep")} value={prepSec} min={0} max={MAX_NARRATION_PREP_SEC} step={1} presets={[0, 3, 5, 10]} format={(seconds) => seconds === 0 ? t("narration.prepOff") : t("userProgram.secondsValue", { value: seconds })} onChange={(value) => { setPrepSec(value); writeNarrationPrepSec(value); }} />
-        <DurationField label={t("narration.announcementWait")} value={announcementWait} min={1} max={MAX_ANNOUNCEMENT_WAIT_SEC} step={1} presets={[1, 3, 5, 8]} format={(seconds) => t("userProgram.secondsValue", { value: seconds })} onChange={(next) => { setAnnouncementWait(next); writePreference(ANNOUNCEMENT_WAIT_KEY, String(next)); }} />
-        <SwitchRow icon="volume-high-outline" title={t("narration.workVoice")} value={workVoice} onChange={setWorkVoice} />
-        <SwitchRow icon="volume-high-outline" title={t("narration.prepVoice")} value={prepVoice} onChange={setPrepVoice} />
-        <Body>{t("narration.prepHint")}</Body>
-      </Card>
+      <View style={styles.narration}>
+        <SectionTitle title={t("narration.title")} />
+        <Card style={styles.timing}>
+          <View style={styles.preparation}>
+            <DurationField label={t("narration.prep")} value={prepSec} min={0} max={MAX_NARRATION_PREP_SEC} step={1} presets={[0, 3, 5, 10]} format={(seconds) => seconds === 0 ? t("narration.prepOff") : t("userProgram.secondsValue", { value: seconds })} onChange={(value) => { setPrepSec(value); writeNarrationPrepSec(value); }} />
+            <Body>{t("narration.prepHint")}</Body>
+          </View>
+          <DurationField label={t("narration.announcementWait")} value={announcementWait} min={1} max={MAX_ANNOUNCEMENT_WAIT_SEC} step={1} presets={[1, 3, 5, 8]} format={(seconds) => t("userProgram.secondsValue", { value: seconds })} onChange={(next) => { setAnnouncementWait(next); writePreference(ANNOUNCEMENT_WAIT_KEY, String(next)); }} />
+        </Card>
+        <ListGroup>
+          <SwitchRow icon="volume-high-outline" title={t("narration.workVoice")} value={workVoice} onChange={setWorkVoice} />
+          <SwitchRow icon="volume-high-outline" title={t("narration.prepVoice")} value={prepVoice} onChange={setPrepVoice} />
+        </ListGroup>
+      </View>
     </Screen>
   );
 }
+
+const baseStyles = StyleSheet.create({
+  narration: { gap: spacing.md, marginTop: spacing.xs },
+  timing: { paddingVertical: spacing.lg, gap: spacing.lg },
+  preparation: { gap: spacing.sm },
+});

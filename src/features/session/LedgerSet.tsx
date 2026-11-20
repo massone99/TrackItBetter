@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react';
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { Icon, Text, tapFeedback, type IconName } from '../../shared/components/ui';
 import { ChipsFold } from './ChipsFold';
@@ -114,7 +114,7 @@ export function LedgerHeader({ valueLabel, withLoad = true, live = false }: Ledg
   const ink = useInk();
   const cell = [styles.headText, { color: palette.textMuted }];
   return (
-    <View style={[styles.header, { borderBottomColor: ink }, live && { backgroundColor: palette.surfaceMuted }]} accessibilityRole="header">
+    <View style={[styles.header, { borderBottomColor: ink }, live && [styles.liveHeader, { backgroundColor: palette.surfaceMuted }]]} accessibilityRole="header">
       <Text style={[live ? styles.liveRowNumber : styles.colSet, ...cell]}>{live ? t('liveWorkout.setColumn') : t('ledger.setCol')}</Text>
       <Text style={[styles.colField, ...cell]}>{valueLabel}</Text>
       {withLoad ? <Text style={[styles.colField, ...cell]}>{t(live ? 'liveWorkout.loadColumn' : 'ledger.kgCol')}</Text> : null}
@@ -316,7 +316,7 @@ function LiveSetEditor({ live, note, bands, side, valueField, valueDown, valueUp
       {showLoad ? <LiveField stacked={largeText} label={t('liveWorkout.addedLoad')} unit="kg" down={loadDown} up={loadUp}>{loadField}</LiveField> : null}
     </View>
     {live.comparable ? <Text style={[styles.comparable, { color: palette.textMuted }]}>{t('liveWorkout.comparable', { value: live.comparable })}</Text> : null}
-    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.editorChips}>{chips}</ScrollView>
+    <View style={styles.editorChips}>{chips}</View>
     {live.inlineAction === false && !live.done ? null : (
       <Pressable accessibilityRole="button" accessibilityLabel={live.action} disabled={live.disabled}
         accessibilityState={{ disabled: live.disabled }}
@@ -337,12 +337,12 @@ function LiveField({ stacked, big = false, label, unit, down, up, children }: { 
   return <View style={[styles.liveField, !stacked && styles.liveFieldInline]}>
     <Text style={styles.fieldLabel}>{label}</Text>
     <View style={[styles.liveStepper, big && styles.liveStepperBig, { backgroundColor: palette.surface, borderColor: palette.text }]}>
-      {down ? <View style={[styles.stepSeparator, { borderRightWidth: 1, borderColor: palette.border }]}>{down}</View> : null}
+      {down ? <View style={[styles.stepKey, { backgroundColor: palette.surfaceMuted }]}>{down}</View> : null}
       <View style={styles.liveValue}>
         {children}
         {unit ? <Text style={[styles.unit, { color: palette.text }]}>{unit}</Text> : null}
       </View>
-      {up ? <View style={[styles.stepSeparator, { borderLeftWidth: 1, borderColor: palette.border }]}>{up}</View> : null}
+      {up ? <View style={[styles.stepKey, { backgroundColor: palette.surfaceMuted }]}>{up}</View> : null}
     </View>
   </View>;
 }
@@ -466,26 +466,27 @@ function ClassicLedgerActiveRow(props: LedgerActiveRowProps) {
 }
 
 const baseStyles = StyleSheet.create({
-  liveRow: { paddingLeft: 10 },
+  liveHeader: { paddingHorizontal: spacing.md, paddingVertical: spacing.xs },
+  liveRow: { minHeight: MIN_TOUCH_TARGET, paddingHorizontal: spacing.md, paddingVertical: spacing.sm },
   liveRowNumber: { width: 42, flexDirection: 'row', flexWrap: 'wrap', gap: 3, alignItems: 'center' },
-  editor: { borderTopWidth: 2, borderBottomWidth: 2, paddingHorizontal: 16, paddingTop: 12, paddingBottom: 14, gap: 12 },
+  editor: { borderWidth: 1, borderRadius: radii.control, margin: spacing.sm, padding: spacing.md, gap: spacing.md },
   editorTop: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
   editorBadge: { fontFamily: fonts.monoSemibold, fontSize: 12, lineHeight: 16, letterSpacing: 0.7, textTransform: 'uppercase', flexShrink: 1 },
   sideTags: { flexDirection: 'row', gap: 4 },
   sideTag: { minWidth: 28, minHeight: 24, borderRadius: 4, alignItems: 'center', justifyContent: 'center' },
   sideTagText: { fontFamily: fonts.monoBold, fontSize: 12 },
-  editorChips: { gap: 8, paddingRight: 16 },
+  editorChips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   editorChip: { minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, borderWidth: 1, borderRadius: 4 },
   editorChipText: { fontFamily: fonts.monoSemibold, fontSize: 12, letterSpacing: 0.5, textTransform: 'uppercase', maxWidth: 160 },
   liveStepperBig: { minHeight: 64 },
   liveMeasurements: { borderTopWidth: 1, borderBottomWidth: 1, paddingHorizontal: 13, paddingVertical: 12, gap: 10 },
-  liveFields: { flexDirection: 'row', gap: 9 },
+  liveFields: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md },
   liveFieldsStack: { flexDirection: 'column' },
   liveField: { gap: 5, minWidth: 0 },
-  liveFieldInline: { flex: 1 },
+  liveFieldInline: { flexGrow: 1, flexBasis: 176 },
   fieldLabel: { fontFamily: fonts.semibold, fontSize: 13 },
-  liveStepper: { minHeight: 50, flexDirection: 'row', alignItems: 'stretch', borderWidth: 1, borderRadius: 4 },
-  stepSeparator: { justifyContent: 'center', alignItems: 'center', width: 42 },
+  liveStepper: { minHeight: 50, flexDirection: 'row', alignItems: 'stretch', gap: spacing.sm, padding: spacing.xs, borderWidth: 1, borderRadius: radii.control },
+  stepKey: { flexShrink: 0, minWidth: MIN_TOUCH_TARGET, justifyContent: 'center', alignItems: 'center', borderRadius: radii.control },
   liveValue: { flex: 1, minWidth: 0, flexWrap: 'wrap', flexDirection: 'row', alignItems: 'center', alignContent: 'center', justifyContent: 'center', gap: 3 },
   unit: { fontFamily: fonts.monoSemibold, fontSize: 11 },
   comparable: { fontSize: 12 },

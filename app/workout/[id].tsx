@@ -115,7 +115,7 @@ import { SetSheet } from '../../src/features/session/SetSheet';
 import { ExerciseCard, holdDisplay } from '../../src/features/session/ExerciseCard';
 import { SET_RATINGS_KEY, readBooleanPreference, RPE_PROMPT_KEY, writePreference } from '../../src/shared/settings/preferences';
 
-import { instrument, MIN_TOUCH_TARGET, radii } from '../../src/shared/theme/tokens';
+import { instrument, MIN_TOUCH_TARGET, radii, spacing } from '../../src/shared/theme/tokens';
 import { useTheme } from '../../src/shared/theme/ThemeProvider';
 import { fonts } from '../../src/shared/theme/typography';
 import { formatClock } from '../../src/shared/utils/format';
@@ -1513,22 +1513,22 @@ function TimerBar({ hold, restEndsAt, voiceCues, onRestEnd, onFinishHold, onExte
         : t('logger.holding');
   return (
     <View style={[styles.timerBar, { backgroundColor: palette.hero }]}>
-      <View style={[styles.timerInner, !largeText && styles.timerInnerLine]}>
-      <View style={styles.timerReadout}>
-        <Text numberOfLines={largeText ? undefined : 2} style={[styles.timerLabel, { color: palette.heroText }]}>{label}</Text>
-        {hold || restEndsAt === null
-          ? <Text style={[styles.timerValue, { color: palette.heroText }]}>{hold ? holdDisplay(hold) : ''}</Text>
-          : <RestCountdown key={restEndsAt} endsAt={restEndsAt} voiceCues={voiceCues} onEnd={onRestEnd} />}
-      </View>
-      {holding ? (
-        <TimerAction label={countingDown ? t('common.cancel') : t('logger.doneHold')} filled onPress={onFinishHold} />
-      ) : (
-        <View style={styles.timerActions}>
-          <TimerAction label={t('logger.subtractTime')} onPress={onReduce} />
-          <TimerAction label={t('logger.addTime')} onPress={onExtend} />
-          <TimerAction label={t('logger.skip')} filled onPress={onSkip} />
+      <View style={[styles.timerInner, largeText && styles.timerInnerStacked]}>
+        <View style={styles.timerReadout}>
+          <Text numberOfLines={largeText ? undefined : 2} style={[styles.timerLabel, { color: palette.heroText }]}>{label}</Text>
+          {hold || restEndsAt === null
+            ? <Text style={[styles.timerValue, { color: palette.heroText }]}>{hold ? holdDisplay(hold) : ''}</Text>
+            : <RestCountdown key={restEndsAt} endsAt={restEndsAt} voiceCues={voiceCues} onEnd={onRestEnd} />}
         </View>
-      )}
+        {holding ? (
+          <TimerAction label={countingDown ? t('common.cancel') : t('logger.doneHold')} filled onPress={onFinishHold} />
+        ) : (
+          <View style={styles.timerActions}>
+            <TimerAction label={t('logger.subtractTime')} onPress={onReduce} />
+            <TimerAction label={t('logger.addTime')} onPress={onExtend} />
+            <TimerAction label={t('logger.skip')} filled onPress={onSkip} />
+          </View>
+        )}
       </View>
     </View>
   );
@@ -1610,17 +1610,17 @@ const baseStyles = StyleSheet.create({
   addRowText: { fontFamily: fonts.monoSemibold, fontSize: 12, letterSpacing: 0.7, textTransform: 'uppercase' },
   // The blocks of the lower dock (panel, main action, rails, timer) never touch: one step of the spacing scale between them.
   overStage: { zIndex: 30, elevation: 30 },
-  dockStack: { gap: 8 },
-  workoutColumn: { gap: 13 },
+  dockStack: { gap: spacing.md },
+  workoutColumn: { gap: spacing.lg },
   footerStacked: { flexDirection: 'column', alignItems: 'stretch' },
   plannedRest: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 10, minHeight: 64, borderWidth: 1, borderRadius: 4 },
   plannedLabel: { fontSize: 12 },
   plannedValue: { fontFamily: fonts.monoBold, fontSize: 27, lineHeight: 31 },
-  exerciseNavigation: { flexDirection: 'row', justifyContent: 'space-between' },
-  overviewExerciseRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  exerciseNavigation: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', gap: spacing.sm },
+  overviewExerciseRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   optionSection: { borderWidth: 1, borderRadius: 8, overflow: 'hidden' },
   optionHeading: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12, minHeight: 48 },
-  optionBody: { gap: 8, padding: 8, paddingTop: 0 },
+  optionBody: { gap: spacing.md, padding: spacing.md, paddingTop: spacing.xs },
   optionHidden: { display: 'none' },
   railsRow: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', gap: 8 },
   rail: { flexShrink: 1, flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 44, paddingHorizontal: 4 },
@@ -1632,21 +1632,20 @@ const baseStyles = StyleSheet.create({
   shrink: { flexShrink: 1 },
   readinessTitle: { fontFamily: fonts.medium, fontSize: 15 },
   readinessHint: { fontFamily: fonts.body, fontSize: 13, marginTop: 2 },
-  readinessCard: { gap: 10, marginTop: -10 },
-  readinessRow: { minHeight: 40, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
-  readinessLabel: { flex: 1, fontFamily: fonts.medium, fontSize: 14 },
-  readinessOptions: { flexDirection: 'row', gap: 6 },
+  readinessCard: { gap: spacing.md, paddingVertical: spacing.md },
+  readinessRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: spacing.sm },
+  readinessLabel: { flexGrow: 1, flexBasis: 64, fontFamily: fonts.medium, fontSize: 14 },
+  readinessOptions: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, maxWidth: '100%' },
   readinessOption: { width: 44, height: MIN_TOUCH_TARGET, borderRadius: radii.control, alignItems: 'center', justifyContent: 'center' },
   readinessValue: { fontFamily: fonts.display, fontSize: 18 },
   footerRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 8 },
-  timerBar: { borderRadius: instrument.radius, paddingHorizontal: 8, paddingVertical: 6 },
+  timerBar: { borderRadius: instrument.radius, padding: spacing.md },
   timerInner: { width: '100%', maxWidth: 640, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
   timerLabel: { fontFamily: fonts.medium, fontSize: 12, lineHeight: 14, opacity: 0.85 },
   timerValue: { fontFamily: fonts.monoBold, fontSize: 24, lineHeight: 28, fontVariant: ['tabular-nums'] },
-  timerInnerLine: { flexWrap: 'nowrap' },
-  timerReadout: { flexGrow: 1, flexShrink: 1, minWidth: 85 },
-  timerActions: { flexShrink: 0, flexDirection: 'row', alignItems: 'center', gap: 6 },
-  // No wrapping here: a wrapping column lays the two rows side by side and squeezes the labels to nothing.
-  timerAction: { minWidth: 44, minHeight: 40, borderRadius: instrument.radius, paddingHorizontal: 8, paddingVertical: 6, alignItems: 'center', justifyContent: 'center' },
+  timerInnerStacked: { flexDirection: 'column', flexWrap: 'nowrap', alignItems: 'stretch' },
+  timerReadout: { flexGrow: 1, flexShrink: 1, minWidth: 100, minHeight: MIN_TOUCH_TARGET, justifyContent: 'center', gap: spacing.xs },
+  timerActions: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: spacing.sm, maxWidth: '100%' },
+  timerAction: { minWidth: MIN_TOUCH_TARGET, minHeight: MIN_TOUCH_TARGET, borderRadius: instrument.radius, paddingHorizontal: 8, paddingVertical: 6, alignItems: 'center', justifyContent: 'center' },
   timerActionText: { fontFamily: fonts.semibold, fontSize: 12 },
 });
