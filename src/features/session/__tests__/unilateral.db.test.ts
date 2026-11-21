@@ -56,6 +56,20 @@ const buildUnilateral = async (name = 'Unilateral') => {
 };
 
 describe('unilateral session persistence', () => {
+  it('adds N open copies with independent pairs and preserves each side', async () => {
+    const { entryId } = await buildUnilateral();
+    const [left, right] = pairRows(entryId);
+    await updateSet(left.id as string, 'reps', 6);
+    await updateSet(right.id as string, 'reps', 9);
+    await addSet(entryId, undefined, 3);
+    const rows = pairRows(entryId);
+    expect(rows.map((row) => row.reps)).toEqual([6, 9, 6, 9, 6, 9, 6, 9]);
+    expect(new Set(rows.map((row) => row.pair_id)).size).toBe(4);
+    expect(rows.slice(2).every((row) => row.completed_at === null)).toBe(true);
+    await expect(addSet(entryId, undefined, 1.5)).rejects.toThrow();
+    expect(pairRows(entryId)).toHaveLength(8);
+  });
+
   it('clears every set of an exercise or a workout and restores them in order', async () => {
     const { workoutId, entryId } = await buildUnilateral();
     await addSet(entryId);
@@ -332,6 +346,8 @@ describe('schema v9 to v10 migration', () => {
       ALTER TABLE exercise_entry DROP COLUMN unilateral_rest_mode;
       ALTER TABLE training_set DROP COLUMN pair_id;
       ALTER TABLE exercise_image DROP COLUMN source_key;
+      ALTER TABLE workout DROP COLUMN group_layout;
+      ALTER TABLE exercise_entry DROP COLUMN workout_group_id;
       PRAGMA user_version = 9;
       INSERT INTO workout (id, name, started_at, ended_at) VALUES ('legacy-workout', 'Legacy', 10, 20);
       INSERT INTO exercise_entry (id, workout_id, exercise_id, "order") VALUES ('legacy-entry', 'legacy-workout', 'reverse-lunge', 1);
@@ -339,7 +355,7 @@ describe('schema v9 to v10 migration', () => {
     `);
     await migrateDatabase(legacy.expo);
     await migrateDatabase(legacy.expo);
-    expect(legacy.sqlite.prepare('PRAGMA user_version').get()).toEqual({ user_version: 23 });
+    expect(legacy.sqlite.prepare('PRAGMA user_version').get()).toEqual({ user_version: 24 });
     expect(legacy.sqlite.prepare('SELECT side, reps, added_load_kg, pair_id FROM training_set WHERE id = ?').get('legacy-set')).toEqual({ side: 'both', reps: 8, added_load_kg: 12, pair_id: null });
     expect(legacy.sqlite.prepare('SELECT unilateral_rest_mode FROM exercise WHERE id = ?').get('reverse-lunge')).toEqual({ unilateral_rest_mode: 'pair' });
     expect(legacy.sqlite.prepare('SELECT unilateral_rest_mode FROM exercise_entry WHERE id = ?').get('legacy-entry')).toEqual({ unilateral_rest_mode: null });

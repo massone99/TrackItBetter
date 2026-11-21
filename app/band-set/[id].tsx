@@ -7,7 +7,7 @@ import { moveItem } from '../../src/domain/userProgram';
 import { newBand, saveBandSet, setBandSetArchived } from '../../src/features/equipment/repository';
 import { bandRange, useEquipment } from '../../src/features/equipment/useEquipment';
 import { ReorderableList } from '../../src/shared/components/ReorderableList';
-import { ActionButton, Body, Card, EmptyState, Icon, IconButton, Label, PageHeading, Screen, Sheet, tapFeedback, Text, TextField } from '../../src/shared/components/ui';
+import { ActionButton, Body, Card, EmptyState, Icon, Label, ListGroup, ListRow, PageHeading, Screen, Sheet, tapFeedback, Text, TextField } from '../../src/shared/components/ui';
 import { goBack } from '../../src/shared/navigation/goBack';
 import { useTheme } from '../../src/shared/theme/ThemeProvider';
 import { fonts } from '../../src/shared/theme/typography';
@@ -41,10 +41,19 @@ export default function BandSetScreen() {
   if (!catalog) return <Screen><ActivityIndicator color={palette.accentStrong} /></Screen>;
   if (!set) return <Screen><PageHeading title={t('equipment.bandSetMissing')} /></Screen>;
 
-  const save = async (next: BandSet) => {
-    setError(null);
-    try { await saveBandSet(next); await reload(); } catch { setError(t('equipment.saveError')); }
+  const active = set.bands.filter((band) => !band.archived);
+  const archived = set.bands.filter((band) => band.archived);
+  const editIndex = active.findIndex((band) => band.id === editing?.id);
+  const move = (from: number, to: number) => {
+    const moved = moveItem(active, from, to - from);
+    let index = 0;
+    return save({ ...set, bands: set.bands.map((band) => band.archived ? band : moved[index++]) });
   };
+
+  async function save(next: BandSet) {
+    setError(null);
+    try { await saveBandSet(next); await reload(); return true; } catch { setError(t('equipment.saveError')); return false; }
+  }
   const saveName = () => {
     const typed = (name ?? set.name).trim();
     if (typed && typed !== set.name) void save({ ...set, name: typed });
@@ -57,20 +66,20 @@ export default function BandSetScreen() {
       {error ? <Body style={{ color: palette.warning }}>{error}</Body> : null}
       <TextField label={t('equipment.bandSetName')} value={name ?? set.name} onChangeText={setName} onBlur={saveName} maxLength={40} />
       <Label>{t('equipment.bandsTitle')}</Label>
-      {set.bands.length === 0 ? <EmptyState icon="git-commit-outline" title={t('equipment.noBands')} body={t('equipment.noBandsBody')} /> : null}
+      {active.length === 0 ? <EmptyState icon="git-commit-outline" title={t('equipment.noBands')} body={t('equipment.noBandsBody')} /> : null}
       <ReorderableList
-        items={set.bands}
+        items={active}
         keyOf={(band) => band.id}
         nameOf={(band) => band.name}
         gap={8}
-        onMove={(from, to) => void save({ ...set, bands: moveItem(set.bands, from, to - from) })}
-        renderRow={(band, _index, row) => (
+        onMove={(from, to) => void move(from, to)}
+        renderRow={(band, index, row) => (
           <Card style={styles.bandRow}>
-            {set.bands.length > 1 ? row.handle : null}
+            {active.length > 1 ? row.handle : null}
             <Pressable accessibilityRole="button" accessibilityLabel={`${t('equipment.renameBandLabel', { name: band.name })} ${bandRange(band)}`.trim()} onPress={() => setEditing(band)} style={styles.bandMain}>
               <View style={[styles.swatch, { backgroundColor: band.color, borderColor: palette.border }]} />
               <View style={styles.flex}>
-                <Text style={styles.bandName}>{band.name}</Text>
+                <Text style={styles.bandName}>{t('equipment.bandRank', { position: index + 1, name: band.name })}</Text>
                 <Text style={[styles.bandKg, { color: palette.textMuted }]}>{bandRange(band) || t('equipment.kgUnknown')}</Text>
               </View>
               <Icon name="create-outline" size={20} color={palette.textMuted} />
@@ -80,8 +89,18 @@ export default function BandSetScreen() {
       />
       <ActionButton icon="add" label={t('equipment.addBand')} secondary onPress={() => {
         const band = newBand(t('equipment.bandDefaultName', { number: set.bands.length + 1 }), BAND_COLORS[set.bands.length % BAND_COLORS.length]);
-        void save({ ...set, bands: [...set.bands, band] }).then(() => setEditing(band));
+        void save({ ...set, bands: [...set.bands, band] }).then((saved) => { if (saved) setEditing(band); });
       }} />
+      {archived.length > 0 ? (
+        <>
+          <Label>{t('equipment.archivedBands')}</Label>
+          <ListGroup>
+            {archived.map((band) => (
+              <ListRow key={band.id} icon="archive-outline" title={band.name} subtitle={t('equipment.restore')} onPress={() => void save({ ...set, bands: set.bands.map((item) => item.id === band.id ? { ...item, archived: false } : item) })} />
+            ))}
+          </ListGroup>
+        </>
+      ) : null}
       <ActionButton icon="archive-outline" label={t('equipment.archiveBandSet')} variant="ghost" onPress={() => void setBandSetArchived(set.id, true).then(() => goBack('/equipment'))} />
 
       {editing ? (
@@ -89,17 +108,19 @@ export default function BandSetScreen() {
           key={editing.id}
           band={editing}
           onClose={() => setEditing(null)}
-          onSave={(band) => { setEditing(null); void save({ ...set, bands: set.bands.map((item) => (item.id === band.id ? band : item)) }); }}
-          onRemove={() => { setEditing(null); void save({ ...set, bands: set.bands.filter((item) => item.id !== editing.id) }); }}
+          onSave={(band) => { void save({ ...set, bands: set.bands.map((item) => (item.id === band.id ? band : item)) }).then((saved) => { if (saved) setEditing(null); }); }}
+          onMoveUp={editIndex > 0 ? () => { void move(editIndex, editIndex - 1); } : undefined}
+          onMoveDown={editIndex >= 0 && editIndex < active.length - 1 ? () => { void move(editIndex, editIndex + 1); } : undefined}
+          onRemove={() => { void save({ ...set, bands: set.bands.map((item) => item.id === editing.id ? { ...item, archived: true } : item) }).then((saved) => { if (saved) setEditing(null); }); }}
         />
       ) : null}
     </Screen>
   );
 }
 
-function BandSheet({ band, onClose, onSave, onRemove }: { band: Band; onClose: () => void; onSave: (band: Band) => void; onRemove: () => void }) {
+function BandSheet({ band, onClose, onSave, onRemove, onMoveUp, onMoveDown }: { band: Band; onClose: () => void; onSave: (band: Band) => void; onRemove: () => void; onMoveUp?: () => void; onMoveDown?: () => void }) {
   const { t } = useTranslation();
-  const { palette } = useTheme();
+  const { palette, largeText } = useTheme();
   const styles = useScaledStyles(baseStyles);
   const [name, setName] = useState(band.name);
   const [color, setColor] = useState(band.color);
@@ -142,16 +163,20 @@ function BandSheet({ band, onClose, onSave, onRemove }: { band: Band; onClose: (
           />
         </View>
       </View>
-      <View style={styles.kgRow}>
+      <View style={[styles.kgRow, largeText && styles.kgStack]}>
         <View style={styles.flex}><TextField label={t('equipment.minKg')} value={minKg} onChangeText={(text) => setMinKg(sanitizeNumberInput(text))} keyboardType="decimal-pad" placeholder="–" /></View>
         <View style={styles.flex}><TextField label={t('equipment.maxKg')} value={maxKg} onChangeText={(text) => setMaxKg(sanitizeNumberInput(text))} keyboardType="decimal-pad" placeholder="–" /></View>
       </View>
       <Body>{low !== null && high !== null && low > high ? t('equipment.kgOrder') : t('equipment.kgHelp')}</Body>
       <ActionButton label={t('common.save')} disabled={invalid} onPress={() => onSave({ ...band, name: name.trim(), color, minKg: low, maxKg: high })} />
-      <View style={styles.removeRow}>
-        <IconButton icon="trash-outline" label={t('equipment.removeBand')} tone="plain" onPress={onRemove} />
-        <Text style={[styles.removeText, { color: palette.textMuted }]}>{t('equipment.removeBandHint')}</Text>
-      </View>
+      {onMoveUp || onMoveDown ? (
+        <View style={styles.orderActions}>
+          <ActionButton icon="arrow-up" label={t('equipment.lighterPosition')} secondary disabled={!onMoveUp} onPress={() => onMoveUp?.()} />
+          <ActionButton icon="arrow-down" label={t('equipment.strongerPosition')} secondary disabled={!onMoveDown} onPress={() => onMoveDown?.()} />
+        </View>
+      ) : null}
+      <ActionButton icon="archive-outline" label={t('equipment.archiveBand')} variant="ghost" onPress={onRemove} />
+      <Body>{t('equipment.archiveBandHint')}</Body>
     </Sheet>
   );
 }
@@ -166,8 +191,8 @@ const baseStyles = StyleSheet.create({
   colors: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   colorOption: { width: 44, height: 44, borderRadius: radii.control },
   kgRow: { flexDirection: 'row', gap: 12 },
+  kgStack: { flexDirection: 'column' },
+  orderActions: { gap: 8 },
   hexRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 12 },
   hexSwatch: { width: 48, height: 48, borderRadius: radii.control, borderWidth: 1, marginBottom: 2 },
-  removeRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  removeText: { flex: 1, fontFamily: fonts.medium, fontSize: 13 },
 });

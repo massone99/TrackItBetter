@@ -1,3 +1,4 @@
+import { DEFAULT_ANNOUNCEMENT_WAIT_SEC } from './settings';
 import { useKeepAwake } from 'expo-keep-awake';
 import type { Href } from 'expo-router';
 import * as Speech from 'expo-speech';
@@ -18,8 +19,8 @@ import { playBeep } from '../../shared/audio/beeps';
 import { goBack } from '../../shared/navigation/goBack';
 import { radii } from '../../shared/theme/tokens';
 
-/** Longest wait for an announcement to end before the countdown starts anyway. */
-const ANNOUNCEMENT_TIMEOUT_MS = 8000;
+
+
 /** How long an announcement may take to start before it is spoken again. */
 const RETRY_AFTER_MS = 1500;
 
@@ -37,6 +38,9 @@ export interface NarrationPlayerProps {
   exitHref: Href;
   /** Voice for this run; without it the saved preference decides. */
   initialVoice?: boolean;
+  announcementWaitSec?: number;
+  workVoice?: boolean;
+  prepVoice?: boolean;
   /** Saves what was done; rejecting shows the save error and lets the user retry. */
   onSave: (records: NarrationRecord[], startedAt: Date) => Promise<void>;
   /** Called as soon as a work segment is confirmed (countdown over or "done"), so the sets follow the user's position. */
@@ -58,7 +62,7 @@ function readDraft(key: string, signature: string): { records: [number, Performe
   } catch { return null; }
 }
 
-export function NarrationPlayer({ draftKey, title, segments, drills, exitHref, initialVoice, onSave, onSegmentDone, onSegmentReopened, checkPairs = true }: NarrationPlayerProps & { checkPairs?: boolean }) {
+export function NarrationPlayer({ draftKey, title, segments, drills, exitHref, initialVoice, announcementWaitSec = DEFAULT_ANNOUNCEMENT_WAIT_SEC, workVoice = true, prepVoice = true, onSave, onSegmentDone, onSegmentReopened, checkPairs = true }: NarrationPlayerProps & { checkPairs?: boolean }) {
   useKeepAwake();
   const styles = useScaledStyles(baseStyles);
   const { t, i18n } = useTranslation();
@@ -68,7 +72,6 @@ export function NarrationPlayer({ draftKey, title, segments, drills, exitHref, i
   const [index, setIndex] = useState(() => readDraft(draftKey, signature)?.index ?? 0);
   const [endsAt, setEndsAt] = useState<number | null>(null);
   const [pausedRemaining, setPausedRemaining] = useState<number | null>(null);
-  // Full length of a timed segment whose announcement is still being spoken; its countdown starts after it.
   // Set when the speech engine reports an error, so a silent player says why.
   const [voiceFailed, setVoiceFailed] = useState(false);
   const [announcingMs, setAnnouncingMs] = useState<number | null>(null);
@@ -107,7 +110,7 @@ export function NarrationPlayer({ draftKey, title, segments, drills, exitHref, i
       clearTimeout(fallback);
       onDone?.();
     };
-    const fallback = setTimeout(settle, ANNOUNCEMENT_TIMEOUT_MS);
+    const fallback = setTimeout(settle, announcementWaitSec * 1000);
     if (!voice || !text) { settle(); return; }
     // Stop and speak are separate native calls: speaking only once the stop has finished keeps a late
     // stop from flushing the new announcement, which would start the countdown in silence.
@@ -117,6 +120,7 @@ export function NarrationPlayer({ draftKey, title, segments, drills, exitHref, i
     const generation = ++speechGeneration.current;
     const options = { language, rate: 0.98, onStart: () => { started = true; setVoiceFailed(false); }, onDone: settle, onStopped: settle, onError: () => { setVoiceFailed(true); settle(); } };
     const say = () => {
+      if (settled || speechGeneration.current !== generation) return;
       Speech.speak(text, options);
       // An utterance that never starts (flushed by a stop in flight) is spoken once more, unless speech is under way.
       setTimeout(() => {
@@ -127,7 +131,7 @@ export function NarrationPlayer({ draftKey, title, segments, drills, exitHref, i
       }, RETRY_AFTER_MS);
     };
     Speech.stop().then(say, say);
-  }, [voice, i18n.resolvedLanguage]);
+  }, [voice, i18n.resolvedLanguage, announcementWaitSec]);
 
   const finish = useCallback(async (records: Map<number, Performed>) => {
     if (finished.current) return;
@@ -177,8 +181,18 @@ export function NarrationPlayer({ draftKey, title, segments, drills, exitHref, i
       setEndsAt(Date.now() + seconds * 1000);
       setNow(Date.now());
     };
-    // A drill starting gets the "go" beep; breaks between drills only a light tap.
-    if (target.kind === 'work') playBeep('go'); else tapFeedback();
+    const preparation = target.kind === 'prep' || target.kind === 'switch';
+    if (target.kind === 'work') playBeep('go');
+    else if (preparation && (!voice || !prepVoice)) {
+      // Short preparations already start with the countdown's first tick.
+      if (seconds > 3) playBeep('tick');
+    } else tapFeedback();
+    if ((target.kind === 'work' && !workVoice) || (preparation && !prepVoice)) {
+      speechGeneration.current += 1;
+      void Speech.stop();
+      startCountdown();
+      return;
+    }
     if (target.kind === 'work') {
       const drill = drills[target.stepIndex];
       const side = target.side === 'left' ? t('mobility.left') : target.side === 'right' ? t('mobility.right') : '';
@@ -195,7 +209,7 @@ export function NarrationPlayer({ draftKey, title, segments, drills, exitHref, i
       const name = drills[target.stepIndex]?.name ?? '';
       speak(upcoming && rounds > 1 ? t('narration.getReadySet', { name, number: upcoming.round, total: rounds }) : t('mobility.getReadyFor', { name }), startCountdown);
     }
-  }, [segments, drills, finish, speak, t]);
+  }, [segments, drills, finish, speak, t, workVoice, prepVoice, voice]);
 
   // Starts the first segment once the drill names are known, so the first cue can name the drill.
   useEffect(() => {
@@ -223,13 +237,17 @@ export function NarrationPlayer({ draftKey, title, segments, drills, exitHref, i
 
   // A light tick for the last three seconds of each countdown, spoken aloud before a drill starts.
   const secondsLeft = remainingMs === null ? null : Math.ceil(remainingMs / 1000);
-  const countingIn = segment !== undefined && segment.kind !== 'work';
+  const countingIn = segment !== undefined && segment.kind !== 'work' && (segment.kind === 'rest' || prepVoice);
   useEffect(() => {
     if (secondsLeft === null || secondsLeft <= 0 || secondsLeft > 3 || paused || announcingMs !== null) return;
     playBeep('tick');
     // A spoken number never cuts an announcement still in progress.
-    if (countingIn) void Speech.isSpeakingAsync().then((speaking) => { if (!speaking) speak(String(secondsLeft)); }, () => speak(String(secondsLeft)));
-  }, [secondsLeft, paused, announcingMs, countingIn, speak]);
+    if (!countingIn || !voice) return;
+    let current = true;
+    const sayNumber = (speaking: boolean) => { if (current && !speaking) speak(String(secondsLeft)); };
+    void Speech.isSpeakingAsync().then(sayNumber, () => sayNumber(false));
+    return () => { current = false; };
+  }, [index, secondsLeft, paused, announcingMs, countingIn, speak, voice]);
 
   const togglePause = () => {
     if (remainingMs === null) return;

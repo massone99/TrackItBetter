@@ -3,7 +3,7 @@ import { seedCatalogIfEmpty } from '../../../db/seed/import';
 import { getSessionRecords } from '../../analytics/repository';
 import { updateExercise } from '../../exercises/customRepository';
 import { addExerciseToWorkout, addSet, getActiveWorkout, getPreviousPerformance, setEntryApparatus, setEntryBands, setSetBands, startWorkout, updateSet } from '../../session/repository';
-import { addApparatus, getEquipment, newBand, saveBandSet } from '../repository';
+import { addApparatus, getEquipment, newBand, renameBand, saveBandOrder, saveBandSet } from '../repository';
 import { bandsById } from '../useEquipment';
 
 jest.mock('../../../db/client', () => {
@@ -124,5 +124,19 @@ describe('equipment', () => {
     await setEntryBands(entryId, [], byId);
     expect((real.sqlite.prepare('SELECT bands FROM training_set WHERE entry_id = ?').all(entryId) as { bands: string | null }[]).every((row) => row.bands === null)).toBe(true);
     real.sqlite.prepare('DELETE FROM workout WHERE id = ?').run(workoutId);
+  });
+
+  it('keeps the resistance order after renaming or archiving a band', async () => {
+    const light = newBand('Light', '#27AE60');
+    const heavy = newBand('Heavy', '#2F80ED');
+    const archived = { ...newBand('Archived', '#828282'), archived: true };
+    const set = await saveBandSet({ name: 'Strength order', bands: [light, archived, heavy] });
+    await saveBandOrder([heavy.id, light.id]);
+    await renameBand(heavy.id, 'Strong');
+    const catalog = await getEquipment();
+    const saved = catalog.bandSets.find((item) => item.id === set.id)!;
+    expect(saved.bands.map((band) => band.id)).toEqual([heavy.id, archived.id, light.id]);
+    expect(catalog.bandOrder.filter((id) => saved.bands.some((band) => band.id === id))).toEqual([heavy.id, archived.id, light.id]);
+    expect(bandsById(catalog).get(archived.id)).toMatchObject({ archived: true, name: 'Archived' });
   });
 });

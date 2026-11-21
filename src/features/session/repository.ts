@@ -1,11 +1,12 @@
+import { timedHolds, timedRounds, type TimedMethodPlan } from '../../domain/timedMethod';
 import { isValidFormRating } from '../../domain/formRating';
 import { readCompareMode } from '../../shared/settings/preferences';
 import { isMobilityExercise } from '../exercises/categories';
-import { and, asc, count, desc, eq, gt, gte, inArray, isNotNull, isNull, lt, max, ne, or, sql } from 'drizzle-orm';
+import { and, asc, count, desc, eq, gt, gte, inArray, isNotNull, isNull, like, lt, max, ne, or, sql } from 'drizzle-orm';
 import * as Crypto from 'expo-crypto';
 import { db, initializeDatabase } from '../../db/client';
 import { bumpFinishedVersion } from '../../db/cache';
-import { bodyMeasurements, exerciseEntries, exercises, formCheckVideos, trainingSets, workouts } from '../../db/schema';
+import { bodyMeasurements, exerciseEntries, exercises, formCheckVideos, settings, trainingSets, workouts } from '../../db/schema';
 import { deleteFormCheckVideosForSets, deleteClipFilesIfUnused, releaseClipFiles, retainClipFiles } from '../media/formVideos';
 import { countPoseCapturesBySet } from '../pose/repository';
 import { isValidRpe } from '../../domain/rpe';
@@ -13,6 +14,7 @@ import { isLoadMetric, measureOf } from '../../domain/userProgram';
 import type { SetKind } from './restDefaults';
 import { formatSupersetType, type SupersetRest } from './superset';
 import { groupSets, completedSetCount, validatePairs } from '../../domain/setPairs';
+import { legacyWorkoutGroups, parseWorkoutGroupLayout, type WorkoutGroupLayout } from './workoutGroups';
 import { blockAfterMove, blockOf, sortByBlock, type Block } from '../../domain/blocks';
 import { effectiveApparatus, parseIdList, parseSetBands, setAssistKg, type Band, type SetBand } from '../../domain/equipment';
 
@@ -64,6 +66,7 @@ export interface SessionExercise {
   unilateralRestOverride?: 'side' | 'pair' | null;
   /** Part of the workout this exercise belongs to. */
   block: Block;
+  workoutGroupId?: string | null;
   entryId: string;
   exerciseId: string;
   name: string;
@@ -85,6 +88,7 @@ export interface ActiveWorkout {
   name: string;
   /** Free-text note for the whole workout; starts as the prescribed workout's note. */
   notes: string | null;
+  groupLayout?: WorkoutGroupLayout | null;
   startedAt: Date;
   sleep: number | null;
   energy: number | null;
@@ -250,6 +254,12 @@ export async function updateWorkoutDetails(workoutId: string, details: { name: s
   await bumpIfFinished({ workoutId });
 }
 
+export async function updateWorkoutNote(workoutId: string, note: string): Promise<void> {
+  await initializeDatabase();
+  await db.update(workouts).set({ notes: note.trim().slice(0, 1000) || null }).where(eq(workouts.id, workoutId));
+  await bumpIfFinished({ workoutId });
+}
+
 export async function getActiveWorkout(id?: string): Promise<ActiveWorkout | null> {
   await initializeDatabase();
   const [workout] = await db
@@ -266,6 +276,7 @@ export async function getActiveWorkout(id?: string): Promise<ActiveWorkout | nul
     id: workout.id,
     name: workout.name,
     notes: workout.notes,
+    groupLayout: parseWorkoutGroupLayout(workout.groupLayout),
     startedAt: workout.startedAt,
     sleep: workout.sleep,
     energy: workout.energy,
@@ -328,6 +339,7 @@ async function loadSessionExercises(workoutId: string): Promise<SessionExercise[
       apparatusAffectsDifficulty: exercise.apparatusAffectsDifficulty,
       notes: entry.notes,
       block: blockOf(entry.block),
+      workoutGroupId: entry.workoutGroupId,
       groupId: entry.groupId,
       groupType: entry.groupType,
       totalTarget: entry.totalTarget ?? null,
@@ -370,6 +382,7 @@ export async function getCompletedWorkout(workoutId: string): Promise<CompletedW
     id: workout.id,
     name: workout.name,
     notes: workout.notes,
+    groupLayout: parseWorkoutGroupLayout(workout.groupLayout),
     startedAt: workout.startedAt,
     endedAt: workout.endedAt,
     sleep: workout.sleep,
@@ -467,6 +480,8 @@ async function prefillFromLastTime(entryId: string, workoutId: string, exerciseI
 
 /** Renumbers a workout's exercises so every block is contiguous (warm-up, main work, mobility). */
 async function normalizeBlockOrder(workoutId: string): Promise<void> {
+  const [workout] = await db.select({ layout: workouts.groupLayout }).from(workouts).where(eq(workouts.id, workoutId));
+  if (parseWorkoutGroupLayout(workout?.layout ?? null)) return;
   const entries = await db.select().from(exerciseEntries).where(eq(exerciseEntries.workoutId, workoutId)).orderBy(asc(exerciseEntries.order));
   const sorted = sortByBlock(entries);
   await db.transaction(async (tx) => {
@@ -510,7 +525,8 @@ async function splitBrokenSuperset(workoutId: string, movedId: string): Promise<
   if (rest.length === 1) await db.update(exerciseEntries).set({ groupId: null, groupType: null }).where(eq(exerciseEntries.id, rest[0].id));
 }
 
-export async function addSet(entryId: string, pairValues?: { left: PairEditValues; right: PairEditValues }): Promise<string> {
+export async function addSet(entryId: string, pairValues?: { left: PairEditValues; right: PairEditValues }, count = 1): Promise<string> {
+  if (!Number.isInteger(count) || count < 1 || count > 99) throw new RangeError("Invalid set count");
   await initializeDatabase();
   if (pairValues) validatePairValues(pairValues.left, pairValues.right);
   const [entryExercise] = await db
@@ -520,46 +536,49 @@ export async function addSet(entryId: string, pairValues?: { left: PairEditValue
     .innerJoin(workouts, eq(exerciseEntries.workoutId, workouts.id))
     .where(eq(exerciseEntries.id, entryId))
     .limit(1);
-  const [previous] = await db
-    .select()
-    .from(trainingSets)
-    .where(eq(trainingSets.entryId, entryId))
-    .orderBy(desc(trainingSets.index))
-    .limit(1);
   const setId = id();
-  const initialValue = entryExercise?.metric === 'time' || entryExercise?.metric === 'time_load'
-    ? { durationSec: 10 }
-    : entryExercise?.metric === 'distance'
-      ? { distanceM: 10 }
-      : { reps: 8 };
-  const values = {
-    id: setId,
-    entryId,
-    index: (previous?.index ?? 0) + 1,
-    kind: previous?.kind ?? 'working',
-    reps: previous?.reps ?? ('reps' in initialValue ? initialValue.reps : null),
-    durationSec: previous?.durationSec ?? ('durationSec' in initialValue ? initialValue.durationSec : null),
-    distanceM: previous?.distanceM ?? ('distanceM' in initialValue ? initialValue.distanceM : null),
-    addedLoadKg: previous?.addedLoadKg ?? 0,
-    restSec: previous?.restSec ?? null,
-    band: previous?.band ?? null,
-    bands: previous?.bands ?? null,
-    assistKg: previous?.assistKg ?? null,
-    rpe: previous?.rpe ?? null,
-    targetRpe: previous?.targetRpe ?? null,
-    side: 'both',
-    note: previous?.note ?? null,
-    completedAt: entryExercise?.endedAt ?? null,
-  };
   await db.transaction(async (tx) => {
-    if (entryExercise?.unilateral || pairValues) {
-      const pairId = id();
-      const prior = previous?.pairId ? await tx.select().from(trainingSets).where(eq(trainingSets.pairId, previous.pairId)) : [];
-      await tx.insert(trainingSets).values(['left', 'right'].map((side, position) => {
-        const source = prior.find((s) => s.side === side);
-        return { ...values, ...(source ? { reps: source.reps, durationSec: source.durationSec, distanceM: source.distanceM, addedLoadKg: source.addedLoadKg, rpe: source.rpe, note: source.note } : {}), ...(pairValues ? pairValues[side as 'left' | 'right'] : {}), id: position === 0 ? setId : id(), side, pairId };
-      }));
-    } else await tx.insert(trainingSets).values(values);
+    const [previous] = await tx
+      .select()
+      .from(trainingSets)
+      .where(eq(trainingSets.entryId, entryId))
+      .orderBy(desc(trainingSets.index))
+      .limit(1);
+    const initialValue = entryExercise?.metric === 'time' || entryExercise?.metric === 'time_load'
+      ? { durationSec: 10 }
+      : entryExercise?.metric === 'distance'
+        ? { distanceM: 10 }
+        : { reps: 8 };
+    const values = {
+      id: setId,
+      entryId,
+      index: (previous?.index ?? 0) + 1,
+      kind: previous?.kind ?? 'working',
+      reps: previous?.reps ?? ('reps' in initialValue ? initialValue.reps : null),
+      durationSec: previous?.durationSec ?? ('durationSec' in initialValue ? initialValue.durationSec : null),
+      distanceM: previous?.distanceM ?? ('distanceM' in initialValue ? initialValue.distanceM : null),
+      addedLoadKg: previous?.addedLoadKg ?? 0,
+      restSec: previous?.restSec ?? null,
+      band: previous?.band ?? null,
+      bands: previous?.bands ?? null,
+      assistKg: previous?.assistKg ?? null,
+      rpe: previous?.rpe ?? null,
+      targetRpe: previous?.targetRpe ?? null,
+      side: 'both',
+      note: previous?.note ?? null,
+      completedAt: entryExercise?.endedAt ?? null,
+    };
+    const prior = previous?.pairId ? await tx.select().from(trainingSets).where(eq(trainingSets.pairId, previous.pairId)) : [];
+    for (let offset = 0; offset < count; offset++) {
+      const copy = { ...values, id: offset === 0 ? setId : id(), index: values.index + offset };
+      if (entryExercise?.unilateral || pairValues || prior.length > 0) {
+        const pairId = id();
+        await tx.insert(trainingSets).values(['left', 'right'].map((side, position) => {
+          const source = prior.find((s) => s.side === side);
+          return { ...copy, ...(source ? { reps: source.reps, durationSec: source.durationSec, distanceM: source.distanceM, addedLoadKg: source.addedLoadKg, bands: source.bands, band: source.band, assistKg: source.assistKg, restSec: source.restSec, targetRpe: source.targetRpe, rpe: source.rpe, note: source.note } : {}), ...(pairValues ? pairValues[side as 'left' | 'right'] : {}), id: position === 0 ? copy.id : id(), side, pairId };
+        }));
+      } else await tx.insert(trainingSets).values(copy);
+    }
   });
   if (entryExercise?.endedAt) bumpFinishedVersion();
   return setId;
@@ -631,7 +650,7 @@ export async function countEmomRounds(entryId: string, since: Date): Promise<num
  * Records one EMOM round as a completed working set at the round's end: the next planned set of the
  * exercise not done yet is used first, otherwise a new set (a left/right pair when unilateral) is added.
  */
-export async function recordEmomRound(entryId: string, field: 'reps' | 'durationSec', value: number, at: Date): Promise<void> {
+export async function recordEmomRound(entryId: string, field: 'reps' | 'durationSec', value: number, at: Date, note?: string): Promise<void> {
   await initializeDatabase();
   if (!Number.isInteger(value) || value < 0) throw new Error('Invalid workout set value');
   const [entry] = await db.select({ endedAt: workouts.endedAt }).from(exerciseEntries)
@@ -652,6 +671,54 @@ export async function recordEmomRound(entryId: string, field: 'reps' | 'duration
   await db.update(trainingSets)
     .set({ ...(field === 'reps' ? { reps: value } : { durationSec: value }), kind: 'working', completedAt: at })
     .where(inArray(trainingSets.id, ids));
+  // The timed method names its sets, so the history says which was the block and which the final hold.
+  if (note) await db.update(trainingSets).set({ note }).where(inArray(trainingSets.id, ids));
+}
+
+const timedSavePrefix = (workoutId: string) => `workout.timedSaved.${workoutId}.`;
+
+/** The sets and the saved position commit together, so a stopped plan can retry after reopening. */
+export async function recordTimedMethod(plan: TimedMethodPlan, until: number, finish: boolean): Promise<void> {
+  const holds = timedHolds(plan, until, finish);
+  if (holds.length === 0) return;
+  await initializeDatabase();
+  // Expo's Drizzle driver is synchronous. Keep the reads, sets and checkpoint in one transaction.
+  db.transaction((tx) => {
+    const key = `${timedSavePrefix(plan.workoutId)}${plan.entryId}.${plan.startedAt}`;
+    const saved = tx.select({ value: settings.value }).from(settings).where(eq(settings.key, key)).get()?.value;
+    const recorded = Number(saved ?? 0);
+    const pending = holds.slice(recorded);
+    if (pending.length === 0) return;
+    const entry = tx.select({ endedAt: workouts.endedAt }).from(exerciseEntries)
+      .innerJoin(workouts, eq(exerciseEntries.workoutId, workouts.id))
+      .where(and(eq(exerciseEntries.id, plan.entryId), eq(exerciseEntries.workoutId, plan.workoutId))).get();
+    if (!entry || entry.endedAt) throw new Error('Use the completed workout editor');
+    const rows = tx.select().from(trainingSets).where(eq(trainingSets.entryId, plan.entryId)).orderBy(asc(trainingSets.index)).all();
+    const groups = groupSets(rows);
+    const lastDone = groups.reduce((last, group, index) => (group.some((set) => set.completedAt) ? index : last), -1);
+    // The timer measures one hold at a time, with no side information. Keep planned L/R pairs intact.
+    const open = groups.slice(lastDone + 1).flatMap(([set]) => set.kind === 'working' && !set.pairId ? [set] : []);
+    let template = rows.at(-1);
+    let index = template?.index ?? 0;
+    for (const [position, hold] of pending.entries()) {
+      const planned = open[position];
+      const values = { durationSec: hold.seconds, restSec: hold.restSec, completedAt: hold.completedAt };
+      const note = hold.restSec === null ? `Timed · final hold target ${plan.testSec}″` : `Timed · ${recorded + position + 1}/${timedRounds(plan)}`;
+      if (planned) {
+        tx.update(trainingSets).set({ ...values, note: planned.note ?? note }).where(eq(trainingSets.id, planned.id)).run();
+        template = planned;
+      } else {
+        index += 1;
+        tx.insert(trainingSets).values({
+          ...values, entryId: plan.entryId, id: id(), index, note,
+          addedLoadKg: template?.addedLoadKg, band: template?.band, bands: template?.bands, assistKg: template?.assistKg,
+          targetRpe: template?.targetRpe,
+        }).run();
+      }
+    }
+    const value = String(holds.length);
+    tx.insert(settings).values({ key, value }).onConflictDoUpdate({ target: settings.key, set: { value } }).run();
+  });
 }
 
 /** A workout cannot finish with one side of an L/R pair done and the other not; the UI words it. */
@@ -697,16 +764,17 @@ export async function deleteWorkout(workoutId: string): Promise<void> {
     if (entries.length > 0) await tx.delete(trainingSets).where(inArray(trainingSets.entryId, entries.map((entry) => entry.id)));
     await tx.delete(exerciseEntries).where(eq(exerciseEntries.workoutId, workoutId));
     await tx.delete(workouts).where(eq(workouts.id, workoutId));
+    await tx.delete(settings).where(like(settings.key, `${timedSavePrefix(workoutId)}%`));
   });
   bumpFinishedVersion();
 }
 
 export const WORKOUT_NAME_MAX = 60;
 
-/** Renames a finished workout and moves its start and end, keeping it finished. */
+/** Edits a finished workout without changing its completion status. */
 export async function updateCompletedWorkoutDetails(
   workoutId: string,
-  details: { name: string; startedAt: Date; endedAt: Date },
+  details: { name: string; notes?: string; startedAt: Date; endedAt: Date },
 ): Promise<void> {
   const name = details.name.trim();
   if (!name || name.length > WORKOUT_NAME_MAX) throw new RangeError('Workout name must be 1–60 characters');
@@ -716,7 +784,7 @@ export async function updateCompletedWorkoutDetails(
   if (start > Date.now()) throw new RangeError('A finished workout cannot start in the future');
   await initializeDatabase();
   await db.update(workouts)
-    .set({ name, startedAt: details.startedAt, endedAt: details.endedAt })
+    .set({ name, notes: details.notes === undefined ? undefined : details.notes.trim().slice(0, 1000) || null, startedAt: details.startedAt, endedAt: details.endedAt })
     .where(and(eq(workouts.id, workoutId), isNotNull(workouts.endedAt)));
   bumpFinishedVersion();
 }
@@ -1202,20 +1270,26 @@ export async function repeatWorkoutIfIdle(sourceId: string): Promise<{ workoutId
  */
 export async function repeatWorkout(sourceId: string): Promise<string> {
   await initializeDatabase();
-  const [source] = await db.select({ name: workouts.name }).from(workouts).where(eq(workouts.id, sourceId)).limit(1);
+  const [source] = await db.select({ name: workouts.name, groupLayout: workouts.groupLayout }).from(workouts).where(eq(workouts.id, sourceId)).limit(1);
   if (!source) throw new Error('Workout not found');
   const entries = await db.select().from(exerciseEntries).where(eq(exerciseEntries.workoutId, sourceId)).orderBy(asc(exerciseEntries.order));
   const sourceSets = entries.length === 0 ? [] : await db.select().from(trainingSets)
     .where(and(inArray(trainingSets.entryId, entries.map((entry) => entry.id)), isNotNull(trainingSets.completedAt))).orderBy(asc(trainingSets.index));
   const workoutId = id();
   const newEntries: (typeof exerciseEntries.$inferInsert)[] = [];
+  const supersetIds = new Map(entries.flatMap((entry) => entry.groupId ? [entry.groupId] : []).map((groupId) => [groupId, id()]));
+  const layout = parseWorkoutGroupLayout(source.groupLayout);
+  if (layout) layout.supersets = layout.supersets.flatMap((group) => {
+    const newId = supersetIds.get(group.id);
+    return newId ? [{ ...group, id: newId }] : [];
+  });
   const newSets: (typeof trainingSets.$inferInsert)[] = [];
   for (const entry of entries) {
     const sets = sourceSets.filter((set) => set.entryId === entry.id);
     if (sets.length === 0) continue;
     validatePairs(sets, true);
     const entryId = id();
-    newEntries.push({ id: entryId, workoutId, exerciseId: entry.exerciseId, order: newEntries.length + 1, notes: entry.notes, groupId: entry.groupId, groupType: entry.groupType, unilateralRestMode: entry.unilateralRestMode, block: entry.block, apparatusId: entry.apparatusId, totalTarget: entry.totalTarget });
+    newEntries.push({ id: entryId, workoutId, exerciseId: entry.exerciseId, order: newEntries.length + 1, notes: entry.notes, groupId: entry.groupId ? supersetIds.get(entry.groupId) : null, groupType: entry.groupType, workoutGroupId: entry.workoutGroupId, unilateralRestMode: entry.unilateralRestMode, block: entry.block, apparatusId: entry.apparatusId, totalTarget: entry.totalTarget });
     const pairIds = new Map(sets.filter((s) => s.pairId).map((s) => [s.pairId, id()]));
     newSets.push(...sets.map((set) => ({
       // How hard and how clean it was belong to that day: the copy starts without them.
@@ -1225,7 +1299,7 @@ export async function repeatWorkout(sourceId: string): Promise<string> {
   const bodyweightKg = await latestBodyweightKg();
   // One transaction: a failure part-way leaves no half-copied workout open.
   await db.transaction(async (tx) => {
-    await tx.insert(workouts).values({ id: workoutId, name: source.name, startedAt: new Date(), bodyweightKg });
+    await tx.insert(workouts).values({ id: workoutId, name: source.name, groupLayout: layout ? JSON.stringify(layout) : null, startedAt: new Date(), bodyweightKg });
     if (newEntries.length > 0) await tx.insert(exerciseEntries).values(newEntries);
     for (let start = 0; start < newSets.length; start += INSERT_CHUNK) await tx.insert(trainingSets).values(newSets.slice(start, start + INSERT_CHUNK));
   });
@@ -1619,6 +1693,9 @@ export async function linkWithNext(entryId: string): Promise<void> {
     .where(and(eq(exerciseEntries.workoutId, current.workoutId), gt(exerciseEntries.order, current.order)))
     .orderBy(asc(exerciseEntries.order)).limit(1);
   if (!next) return;
+  const [workout] = await db.select({ layout: workouts.groupLayout }).from(workouts).where(eq(workouts.id, current.workoutId));
+  const layout = parseWorkoutGroupLayout(workout?.layout ?? null);
+  if (layout ? current.workoutGroupId !== next.workoutGroupId : blockOf(current.block) !== blockOf(next.block)) return;
   const groupId = current.groupId ?? next.groupId ?? id();
   const groupType = current.groupType ?? next.groupType ?? formatSupersetType({ mode: 'round', betweenSec: 0 });
   const oldGroups = [current.groupId, next.groupId].filter((value): value is string => value !== null);
@@ -1676,4 +1753,115 @@ export async function moveExerciseEntry(workoutId: string, entryId: string, toIn
     if (rest.length === 1) await tx.update(exerciseEntries).set({ groupId: null, groupType: null }).where(eq(exerciseEntries.id, rest[0].id));
   });
   await bumpIfFinished({ workoutId });
+}
+
+export type WorkoutGroupChange =
+  | { type: 'group'; id?: string; name: string; entryIds: string[] }
+  | { type: 'superset'; id?: string; parentId: string | null; name: string; entryIds: string[] }
+  | { type: 'deleteGroup' | 'deleteSuperset'; id: string }
+  | { type: 'moveGroup'; id: string; offset: -1 | 1 }
+  | { type: 'moveExercise'; id: string; offset: -1 | 1 }
+  | { type: 'dropExercise'; id: string; targetId: string };
+
+/** Update visual grouping and real exercise order together. Sets and notes keep their original ids. */
+export async function changeWorkoutGroups(workoutId: string, change: WorkoutGroupChange): Promise<void> {
+  await initializeDatabase();
+  await db.transaction(async (tx) => {
+    const [workout] = await tx.select({ layout: workouts.groupLayout }).from(workouts)
+      .where(and(eq(workouts.id, workoutId), isNull(workouts.endedAt)));
+    if (!workout) throw new Error('Active workout not found');
+    const before = await tx.select().from(exerciseEntries).where(eq(exerciseEntries.workoutId, workoutId))
+      .orderBy(asc(exerciseEntries.order));
+    const saved = parseWorkoutGroupLayout(workout.layout);
+    const layout = saved ?? { groups: legacyWorkoutGroups(before), supersets: [] };
+    const entries = before.map((entry) => ({ ...entry, workoutGroupId: saved ? saved.groups.find((group) => group.id === entry.workoutGroupId)?.id ?? null : blockOf(entry.block) }));
+    const detach = (entry: (typeof entries)[number]) => { entry.groupId = null; entry.groupType = null; };
+
+    if (change.type === 'group' || change.type === 'superset') {
+      const name = change.name.trim().slice(0, 80);
+      if (!name) throw new Error('Group name is required');
+      const groupId = change.id ?? id();
+      const selected = new Set(change.entryIds);
+      if (change.type === 'group') {
+        const existing = layout.groups.find((group) => group.id === groupId);
+        if (change.id && !existing) throw new Error('Group not found');
+        if (existing) existing.name = name;
+        else layout.groups.push({ id: groupId, name });
+        for (const entry of entries) {
+          if (selected.has(entry.id)) entry.workoutGroupId = groupId;
+          else if (entry.workoutGroupId === groupId) entry.workoutGroupId = null;
+        }
+      } else {
+        if (change.parentId !== null && !layout.groups.some((group) => group.id === change.parentId)) throw new Error('Group not found');
+        const members = entries.filter((entry) => selected.has(entry.id));
+        if (members.length < 2) throw new Error('A superset needs at least two exercises');
+        const rest = entries.find((entry) => entry.groupId === groupId)?.groupType ?? formatSupersetType({ mode: 'round', betweenSec: 0 });
+        layout.supersets = [...layout.supersets.filter((group) => group.id !== groupId), { id: groupId, name }];
+        for (const entry of entries) {
+          if (members.includes(entry)) {
+            entry.workoutGroupId = change.parentId;
+            entry.groupId = groupId;
+            entry.groupType = rest;
+          } else if (entry.groupId === groupId) detach(entry);
+        }
+      }
+    } else if (change.type === 'deleteGroup') {
+      layout.groups = layout.groups.filter((group) => group.id !== change.id);
+      for (const entry of entries) {
+        if (entry.workoutGroupId !== change.id) continue;
+        entry.workoutGroupId = null;
+        detach(entry);
+      }
+    } else if (change.type === 'deleteSuperset') {
+      for (const entry of entries) if (entry.groupId === change.id) detach(entry);
+    } else if (change.type === 'moveGroup') {
+      const from = layout.groups.findIndex((group) => group.id === change.id);
+      const to = from + change.offset;
+      if (from >= 0 && to >= 0 && to < layout.groups.length) {
+        [layout.groups[from], layout.groups[to]] = [layout.groups[to], layout.groups[from]];
+      }
+    } else if (change.type === 'moveExercise' || change.type === 'dropExercise') {
+      const from = entries.findIndex((entry) => entry.id === change.id);
+      const to = change.type === 'dropExercise' ? entries.findIndex((entry) => entry.id === change.targetId) : from + change.offset;
+      if (entries[from] && entries[to] && entries.slice(Math.min(from, to), Math.max(from, to) + 1).every((entry) =>
+        entry.workoutGroupId === entries[from].workoutGroupId && entry.groupId === entries[from].groupId)) {
+        const [moved] = entries.splice(from, 1);
+        entries.splice(to, 0, moved);
+      }
+    }
+
+    // Keep any superset that moves together. If split, keep the members that stay in its original
+    // group, when at least two remain there.
+    const supersetIds = new Set(entries.flatMap((entry) => entry.groupId ? [entry.groupId] : []));
+    for (const groupId of supersetIds) {
+      const members = entries.filter((entry) => entry.groupId === groupId);
+      if (members.length >= 2 && members.every((entry) => entry.workoutGroupId === members[0].workoutGroupId)) continue;
+      const original = before.find((entry) => entry.groupId === groupId);
+      const parent = saved ? original?.workoutGroupId : blockOf(original?.block);
+      const remaining = members.filter((entry) => entry.workoutGroupId === parent);
+      for (const entry of members) if (remaining.length < 2 || !remaining.includes(entry)) detach(entry);
+    }
+    layout.supersets = layout.supersets.filter(({ id }) => entries.some((entry) => entry.groupId === id));
+
+    const ordered = [...layout.groups.map((group) => group.id), null].flatMap((groupId) => {
+      const group = entries.filter((entry) => entry.workoutGroupId === groupId);
+      const seen = new Set<string>();
+      return group.flatMap((entry) => {
+        if (!entry.groupId) return [entry];
+        if (seen.has(entry.groupId)) return [];
+        seen.add(entry.groupId);
+        return group.filter((member) => member.groupId === entry.groupId);
+      });
+    });
+    await tx.update(workouts).set({ groupLayout: JSON.stringify(layout) }).where(eq(workouts.id, workoutId));
+    const originalById = new Map(before.map((entry) => [entry.id, entry]));
+    for (const [position, entry] of ordered.entries()) {
+      const original = originalById.get(entry.id);
+      if (original?.order === position + 1 && original.workoutGroupId === entry.workoutGroupId
+        && original.groupId === entry.groupId && original.groupType === entry.groupType) continue;
+      await tx.update(exerciseEntries).set({
+        order: position + 1, workoutGroupId: entry.workoutGroupId, groupId: entry.groupId, groupType: entry.groupType,
+      }).where(eq(exerciseEntries.id, entry.id));
+    }
+  });
 }

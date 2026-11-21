@@ -19,8 +19,8 @@ export function apparatusName(apparatus: Apparatus | undefined, t: TFunction): s
 }
 
 /** Every band of every set, by id (archived sets included, so past sets still show their bands). */
-export function bandsById(catalog: EquipmentCatalog): Map<string, Band & { setName: string }> {
-  return new Map(catalog.bandSets.flatMap((set) => set.bands.map((band) => [band.id, { ...band, setName: set.name }] as const)));
+export function bandsById(catalog: EquipmentCatalog): Map<string, Band & { setId: string; setName: string }> {
+  return new Map(catalog.bandSets.flatMap((set) => set.bands.map((band) => [band.id, { ...band, setId: set.id, setName: set.name }] as const)));
 }
 
 /** The equipment catalog, read on mount; `reload` reads it again (e.g. when a screen regains focus). */
@@ -40,11 +40,12 @@ export function describeSetBands(
   set: { bands: readonly { bandId: string; tension: number }[]; assistKg: number | null },
   byId: ReadonlyMap<string, Band>,
   t: TFunction,
-): { colors: string[]; text: string } | null {
+): { colors: string[]; text: string; label: string } | null {
   if (set.bands.length === 0) return null;
   const parts = set.bands.map((item) => t('bands.chip', { name: byId.get(item.bandId)?.name ?? t('bands.unknown'), tension: item.tension }));
   const kg = set.assistKg === null ? null : t('bands.assistShort', { value: formatNumber(set.assistKg) });
-  return { colors: set.bands.map((item) => byId.get(item.bandId)?.color ?? '#828282'), text: [parts.join(' + '), kg].filter(Boolean).join(' · ') };
+  const label = parts.join(' + ');
+  return { colors: set.bands.map((item) => byId.get(item.bandId)?.color ?? '#828282'), text: [label, kg].filter(Boolean).join(' · '), label };
 }
 
 /** Compares the help of two sets' bands through the global strength order (for "vs last time" without kg). */

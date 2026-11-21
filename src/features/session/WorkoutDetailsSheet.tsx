@@ -21,6 +21,7 @@ export function WorkoutDetailsSheet({ visible, kind, name, notes, onSave, onClos
   const [saving, setSaving] = useState(false);
 
   const save = async () => {
+    if (saving) return;
     if (!draftName.trim()) { setError(t('workoutDetails.nameRequired')); return; }
     setSaving(true);
     setError(null);

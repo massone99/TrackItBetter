@@ -2,6 +2,7 @@ import { amountOf, perSet, type ComparableSet } from './lastTime';
 
 /** How far an exercise is towards its total goal, over its completed working sets (an L/R pair counts once). */
 export interface TotalProgress {
+  projected: number;
   done: number;
   target: number;
   remaining: number;
@@ -17,7 +18,8 @@ const round = (value: number) => Math.round(value * 10) / 10;
 export function totalProgress(sets: readonly ComparableSet[], metric: string, target: number): TotalProgress {
   const done = round(perSet(sets.filter((set) => set.completedAt), (set) => amountOf(set, metric)).reduce((sum, value) => sum + value, 0));
   const remaining = round(Math.max(0, target - done));
-  return { done, target, remaining, reached: done >= target, over: round(Math.max(0, done - target)), fraction: target > 0 ? Math.min(1, done / target) : 0 };
+  const projected = round(perSet(sets, (set) => amountOf(set, metric)).reduce((sum, value) => sum + value, 0));
+  return { projected, done, target, remaining, reached: done >= target, over: round(Math.max(0, done - target)), fraction: target > 0 ? Math.min(1, done / target) : 0 };
 }
 
 /**

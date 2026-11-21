@@ -1,7 +1,7 @@
 import { netLoadKg } from '../../domain/strengthEstimates';
 import { calculateEffectiveLoad, calculateVolume, detectPersonalRecords, estimateOneRepMax } from '../../domain';
 import { setEstimate } from './estimates';
-import { aggregatePairs, realMean, recordScope } from '../../domain/setPairs';
+import { aggregatePairs, pairMean, realMean, recordScope } from '../../domain/setPairs';
 
 export type ProgressMetric = 'reps' | 'time' | 'reps_load' | 'time_load' | 'distance';
 
@@ -63,6 +63,7 @@ export interface PersonalBest {
   exerciseName: string;
   /** Set for exercises done one side at a time; shown next to the name by `personalBestName`. */
   side?: RecordSide;
+  withBands?: boolean;
   kind: 'reps' | 'hold' | 'load' | 'estimated1rm' | 'distance';
   value: number;
   achievedAt: Date;
@@ -148,7 +149,7 @@ export function buildProgressSnapshot(
   };
   const candidates: { exerciseId: string; type: 'max_reps' | 'max_hold' | 'max_load' | 'e1rm' | 'volume'; value: number; setId: string; achievedAt: string }[] = [];
   const distances = new Map<string, PersonalBest>();
-  const exerciseNames = new Map<string, { exerciseName: string; side?: RecordSide }>();
+  const exerciseNames = new Map<string, { exerciseName: string; side?: RecordSide; withBands?: boolean }>();
   const trendPoints = new Map<string, { exerciseId: string; exerciseName: string; kind: TrendKind; date: Date; value: number }>();
   const estimatePoints = new Map<string, { trendKey: string; date: Date; value: number }>();
   const volumeSets: { reps?: number; durationSec?: number; effectiveLoadKg?: number }[] = [];
@@ -156,13 +157,18 @@ export function buildProgressSnapshot(
 
   // Only exercises done one side at a time carry a side in their record name.
   const lateralExercises = new Set(rows.filter((row) => row.pairId || row.side === 'left' || row.side === 'right').map((row) => row.exerciseId));
+  const hasBands = (row: CompletedSetRow) => (row.pairMembers ?? [row]).some((side) => (side.bandCount ?? 0) > 0);
+  const assistedExercises = new Set(rows.filter(hasBands).map((row) => row.exerciseId));
   for (const row of rows) {
     if (!row.completedAt) continue;
-    const candidateId = `${row.exerciseId}\u0000${recordScope(row)}`;
+    const withBands = hasBands(row);
+    const candidateId = `${row.exerciseId}\u0000${recordScope(row)}\u0000${withBands}`;
     allWorkouts.add(row.workoutId);
-    exerciseNames.set(candidateId, lateralExercises.has(row.exerciseId)
-      ? { exerciseName: row.exerciseName, side: recordSide(recordScope(row)) }
-      : { exerciseName: row.exerciseName });
+    exerciseNames.set(candidateId, {
+      exerciseName: row.exerciseName,
+      ...(lateralExercises.has(row.exerciseId) ? { side: recordSide(recordScope(row)) } : {}),
+      ...(assistedExercises.has(row.exerciseId) ? { withBands } : {}),
+    });
     const metric = row.metric as ProgressMetric;
     const inWeek = row.workoutStartedAt.getTime() >= weekStart && row.workoutStartedAt.getTime() <= now.getTime();
     if (inWeek) {
@@ -322,8 +328,8 @@ function isLegPattern(pattern: string | null): boolean {
   ].includes(pattern);
 }
 
-export function getEffectiveLoad(row: CompletedSetRow): number | undefined {
-  if (row.pairMembers) return realMean(row, getEffectiveLoad) ?? undefined;
+export function getEffectiveLoad(row: Pick<CompletedSetRow, 'addedLoadKg' | 'assistKg' | 'bandCount' | 'leverageFactor' | 'bodyweightKg' | 'pairMembers'>): number | undefined {
+  if (row.pairMembers) return pairMean(row.pairMembers, getEffectiveLoad) ?? undefined;
   // Help from bands lowers the load; with bands of unknown kg the load is unknown.
   const net = netLoadKg(row.addedLoadKg, row.assistKg, row.bandCount);
   if (net === null) return undefined;

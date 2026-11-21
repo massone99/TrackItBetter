@@ -1,4 +1,5 @@
 import { and, asc, desc, eq, inArray, isNotNull, or } from 'drizzle-orm';
+import { parseSetBands } from '../../domain/equipment';
 import * as Crypto from 'expo-crypto';
 import { db, initializeDatabase } from '../../db/client';
 import { chainSteps, exerciseEntries, exerciseLinks, exercises, levelCriteria, progressionChains, trainingSets, workouts } from '../../db/schema';
@@ -53,6 +54,7 @@ async function historyOf(ids: readonly string[]): Promise<Map<string, History>> 
     reps: trainingSets.reps,
     durationSec: trainingSets.durationSec,
     addedLoadKg: trainingSets.addedLoadKg,
+    bands: trainingSets.bands,
   })
     .from(trainingSets)
     .innerJoin(exerciseEntries, eq(trainingSets.entryId, exerciseEntries.id))
@@ -61,7 +63,9 @@ async function historyOf(ids: readonly string[]): Promise<Map<string, History>> 
     .orderBy(desc(workouts.startedAt), asc(trainingSets.index));
   const byExercise = new Map<string, Map<string, ProgressionSession['sets'][number][]>>();
   const dateOf = new Map<string, Date>();
-  for (const row of aggregatePairs(rows.map((row) => ({ ...row, side: row.side ?? undefined })))) {
+  // For now a set helped by bands never counts towards a step: only work without bands does.
+  const unassisted = rows.filter((row) => parseSetBands(row.bands).length === 0);
+  for (const row of aggregatePairs(unassisted.map((row) => ({ ...row, side: row.side ?? undefined })))) {
     const sessions = byExercise.get(row.exerciseId) ?? new Map<string, ProgressionSession['sets'][number][]>();
     byExercise.set(row.exerciseId, sessions);
     dateOf.set(row.workoutId, row.startedAt);

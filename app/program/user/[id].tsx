@@ -18,10 +18,11 @@ import { ProgramMetaSheet } from '../../../src/features/programs/ProgramMetaShee
 import { programAuthors, programCategories, programClusters } from '../../../src/features/programs/list/derive';
 import { createProgramCluster, deleteUserProgram, duplicateUserProgram, getUserProgram, listProgramClusters, listUserPrograms, saveUserProgram, updateUserProgram } from '../../../src/features/programs/userPrograms';
 import { WorkoutDetailsSheet } from '../../../src/features/session/WorkoutDetailsSheet';
-import { WorkoutInProgressSheet } from '../../../src/features/session/WorkoutInProgressSheet';
+import { useStartGuard } from '../../../src/features/session/useStartGuard';
 import { getActiveWorkout, listRecentWorkoutNames } from '../../../src/features/session/repository';
 import { ReorderableList } from '../../../src/shared/components/ReorderableList';
-import { ActionButton, Body, Chip, FooterAction, EmptyState, IconButton, ListGroup, PageHeading, Screen, SectionTitle, SegmentedControl, Sheet, tapFeedback, Text, Toast } from '../../../src/shared/components/ui';
+import { ActionButton, Body, FooterAction, EmptyState, Icon, IconButton, Label, ListGroup, MenuList, MenuRow, MenuSwitchRow, PageHeading, Screen, SectionTitle, SegmentedControl, Sheet, tapFeedback, Text, Toast } from '../../../src/shared/components/ui';
+import { radii } from '../../../src/shared/theme/tokens';
 import { PROGRAM_WORKOUTS_BAREBONE_KEY } from '../../../src/shared/settings/preferences';
 import { useBooleanPreference } from '../../../src/shared/settings/useBooleanPreference';
 import { goBack } from '../../../src/shared/navigation/goBack';
@@ -41,7 +42,7 @@ export default function UserProgramScreen() {
   const [error, setError] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [active, setActive] = useState<{ id: string; name: string } | null>(null);
-  const [blockedBy, setBlockedBy] = useState<{ id: string; name: string } | null>(null);
+  const { block, sheet: inProgressSheet } = useStartGuard();
   const [recentNames, setRecentNames] = useState<string[]>([]);
   const [editing, setEditing] = useState<UserProgramSession | null>(null);
   const [opened, setOpened] = useState<Set<string>>(() => new Set());  // every workout starts folded each time the program is entered, not persisted
@@ -57,6 +58,7 @@ export default function UserProgramScreen() {
   const [metaSheet, setMetaSheet] = useState<ProgramMetaKind | null>(null);
   const [clustersOpen, setClustersOpen] = useState(false);
   const [barebone, toggleBarebone] = useBooleanPreference(PROGRAM_WORKOUTS_BAREBONE_KEY, false);
+  const [menuOpen, setMenuOpen] = useState(false);
 
   useFocusEffect(useCallback(() => {
     let mounted = true;
@@ -96,9 +98,10 @@ export default function UserProgramScreen() {
   const nextId = nextSession?.id ?? null;
   const layout: ProgramLayout = program.layout ?? 'sequence';
 
-  const start = async (session: UserProgramSession) => {
+  // `force` skips the check of the open workout once the user has discarded it (`active` is only reloaded later).
+  const start = async (session: UserProgramSession, force = false) => {
     if (starting) return;
-    if (active) { setBlockedBy(active); return; }
+    if (active && !force) { block(active, () => void start(session, true)); return; }
     setStarting(session.id);
     setError(null);
     try {
@@ -227,67 +230,22 @@ export default function UserProgramScreen() {
     >
       <PageHeading
         title={program.name}
-        subtitle={program.sessions.length > 0 ? t('userProgram.daysPerWeek', { count: program.sessions.length }) : t('userProgram.noWorkoutsYet')}
         action={
           <View style={styles.actions}>
-            <IconButton icon="copy-outline" label={t('userProgram.duplicate')} onPress={() => void duplicate()} />
-            <IconButton icon="create-outline" tone="accent" label={t('programBuilder.edit')} onPress={() => router.push({ pathname: '/program-builder', params: { id: program.id } })} />
+            <IconButton icon="create-outline" tone="plain" label={t('programBuilder.edit')} onPress={() => router.push({ pathname: '/program-builder', params: { id: program.id } })} />
+            <IconButton icon="ellipsis-horizontal" label={t('simple.programMenu')} onPress={() => setMenuOpen(true)} />
           </View>
         }
       />
-      <View style={styles.categoryRow}>
-        <Chip
-          icon={disciplineOf(program) === 'mobility' ? 'body-outline' : 'barbell-outline'}
-          label={t(`programDiscipline.${disciplineOf(program)}`)}
-          selected
-          onPress={() => {
-            const next = disciplineOf(program) === 'mobility' ? 'strength' : 'mobility';
-            void change(() => ({ discipline: next }));
-          }}
-        />
-        <Chip
-          icon="pricetag-outline"
-          label={program.category ?? t('programCategory.add')}
-          selected={Boolean(program.category)}
-          onPress={() => setMetaSheet('category')}
-        />
-        <Chip
-          icon="person-outline"
-          label={program.author ?? t('programAuthor.add')}
-          selected={Boolean(program.author)}
-          onPress={() => setMetaSheet('author')}
-        />
-        {(program.clusters ?? []).map((cluster) => (
-          <Chip
-            key={cluster}
-            icon="folder-outline"
-            label={cluster}
-            selected
-            onPress={() => setClustersOpen(true)}
-          />
-        ))}
-        <Chip
-          icon="folder-outline"
-          label={t('programCluster.add')}
-          onPress={() => setClustersOpen(true)}
-        />
+      <View style={styles.meta}>
+        <Label style={{ color: palette.accentStrong }}>{[t(`programDiscipline.${disciplineOf(program)}`), program.category, program.author, t('programsList.workouts', { count: program.sessions.length })].filter(Boolean).join(' · ')}</Label>
+        {layout === 'sequence' && program.sessions.length > 0 ? <Body>{t('userProgram.rotationHelp')}</Body> : null}
       </View>
-
-      {active ? <Body>{t('userProgram.activeWorkout', { name: active.name })}</Body> : null}
       {error ? <Text style={[styles.error, { color: palette.warning }]}>{error}</Text> : null}
 
-      <SegmentedControl value={layout} options={(['sequence', 'weeks', 'groups'] as const).map((value) => ({ value, label: layoutLabels[value] }))} onChange={setLayout} />
-
-      {program.sessions.length > 0 ? (
-        <View style={styles.categoryRow}>
-          <Chip icon="list-outline" label={t('programsList.barebone')} selected={barebone} onPress={() => toggleBarebone()} />
-        </View>
-      ) : null}
-
-      {layout === 'sequence' && program.sessions.length > 0 && !barebone ? <Body>{t('userProgram.rotationHelp')}</Body> : null}
       {layout === 'sequence' ? (
         <SectionTitle
-          title={t('userProgram.daysTitle')}
+          title={t('simple.rotation')}
           action={program.sessions.length > 1 ? (
             <Pressable accessibilityRole="button" hitSlop={8} style={styles.toggleAllTarget} onPress={() => { tapFeedback(); setOpened(allCollapsed ? new Set(program.sessions.map((session) => session.id)) : new Set()); }}>
               <Text style={[styles.toggleAll, { color: palette.accentStrong }]}>{allCollapsed ? t('userProgram.expandAll') : t('userProgram.collapseAll')}</Text>
@@ -344,6 +302,17 @@ export default function UserProgramScreen() {
         />
       )}
 
+      {program.sessions.length > 0 ? (
+        <>
+          <Pressable accessibilityRole="button" onPress={() => { tapFeedback(); router.push({ pathname: '/program-workout', params: { programId: program.id, sessionId: 'new' } }); }}
+            style={({ pressed }) => [styles.addWorkout, { borderColor: palette.accentStrong, backgroundColor: pressed ? palette.accentSoft : 'transparent' }]}>
+            <Icon name="add" size={18} color={palette.accentStrong} />
+            <Text style={[styles.addWorkoutText, { color: palette.accentStrong }]}>{t('simple.addWorkout')}</Text>
+          </Pressable>
+          <Text style={[styles.hint, { color: palette.textMuted }]}>{t('simple.workoutHint')}</Text>
+        </>
+      ) : null}
+
       <GroupSheets
         program={program}
         sheet={sheet}
@@ -391,9 +360,29 @@ export default function UserProgramScreen() {
         }}
       />
 
-      <WorkoutInProgressSheet active={blockedBy} onClose={() => setBlockedBy(null)} />
+      {inProgressSheet}
 
-      <ActionButton icon="trash-outline" label={t('programBuilder.delete')} variant="danger" onPress={() => setConfirmDelete(true)} />
+      {/* Everything about the program that is not training it: copy, labels, how the list is shown, delete. */}
+      <Sheet visible={menuOpen} onClose={() => setMenuOpen(false)} title={program.name}>
+        <MenuList>
+          <MenuRow label={t('userProgram.duplicate')} onPress={() => { setMenuOpen(false); void duplicate(); }} />
+          <MenuRow label={t('programDiscipline.label')} value={t(`programDiscipline.${disciplineOf(program)}`)} onPress={() => {
+            const next = disciplineOf(program) === 'mobility' ? 'strength' : 'mobility';
+            void change(() => ({ discipline: next }));
+          }} />
+          <MenuRow label={t('programCategory.label')} value={program.category ?? t('programCategory.add')} chevron onPress={() => { setMenuOpen(false); setMetaSheet('category'); }} />
+          <MenuRow label={t('programAuthor.label')} value={program.author ?? t('programAuthor.add')} chevron onPress={() => { setMenuOpen(false); setMetaSheet('author'); }} />
+          <MenuRow label={t('programCluster.label')} value={(program.clusters ?? []).join(', ') || t('programCluster.add')} chevron onPress={() => { setMenuOpen(false); setClustersOpen(true); }} />
+        </MenuList>
+        <Label>{t('simple.viewAs')}</Label>
+        <SegmentedControl value={layout} options={(['sequence', 'weeks', 'groups'] as const).map((value) => ({ value, label: layoutLabels[value] }))} onChange={setLayout} />
+        <MenuList>
+          <MenuSwitchRow label={t('programsList.barebone')} value={barebone} onChange={() => toggleBarebone()} />
+        </MenuList>
+        <MenuList>
+          <MenuRow icon="trash-outline" tone="danger" label={t('programBuilder.delete')} onPress={() => { setMenuOpen(false); setConfirmDelete(true); }} />
+        </MenuList>
+      </Sheet>
 
       <Sheet visible={confirmDelete} onClose={() => setConfirmDelete(false)} title={t('programBuilder.deleteTitle')} body={t('programBuilder.deleteBody', { name: program.name })}>
         <ActionButton icon="trash-outline" label={t('programBuilder.delete')} variant="danger" onPress={() => {
@@ -447,7 +436,10 @@ export default function UserProgramScreen() {
 
 const baseStyles = StyleSheet.create({
   actions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  categoryRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  meta: { gap: 4, marginTop: -8 },
+  addWorkout: { minHeight: 52, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderWidth: 1, borderStyle: 'dashed', borderRadius: radii.control },
+  addWorkoutText: { flexShrink: 1, textAlign: 'center', fontFamily: fonts.monoSemibold, fontSize: 12, letterSpacing: 0.7, textTransform: 'uppercase' },
+  hint: { fontFamily: fonts.body, fontSize: 13, lineHeight: 18, marginTop: -8 },
   emptyAction: { alignSelf: 'stretch', marginTop: 6 },
   toggleAllTarget: { minHeight: 48, justifyContent: 'center' },
   toggleAll: { fontFamily: fonts.semibold, fontSize: 14, paddingVertical: 12 },

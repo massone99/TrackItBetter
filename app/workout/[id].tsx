@@ -1,19 +1,21 @@
+import { ExerciseSwipeArea } from '../../src/features/session/ExerciseSwipeArea';
 import { displayWorkoutName } from '../../src/features/session/workoutName';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import * as Speech from 'expo-speech';
 import { useTranslation } from 'react-i18next';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AccessibilityInfo, ActivityIndicator, Alert, Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { AccessibilityInfo, ActivityIndicator, Alert, BackHandler, Pressable, StyleSheet, View } from 'react-native';
 import { groupSets, completedSetCount } from '../../src/domain/setPairs';
 import { ExercisePicker, type ExerciseChoice } from '../../src/features/exercises/ExercisePicker';
 import { ReferenceLinkSheet } from '../../src/features/exercises/ReferenceLinkSheet';
+import { openExercisePage } from '../../src/features/exercises/openExercise';
 import { cancelRestFinishedNotification, scheduleRestFinishedNotification } from '../../src/features/session/restNotifications';
-import { restForSet } from '../../src/features/session/restDefaults';
+import { readExerciseRest, restForSet } from '../../src/features/session/restDefaults';
 import { supersetStep } from '../../src/features/session/superset';
 import { SupersetActions, SupersetSettings } from '../../src/features/session/SupersetFields';
 import type { ScrollHandle } from '../../src/shared/components/keyboard';
 import { getSessionRecords } from '../../src/features/analytics/repository';
-import type { RecordKind } from '../../src/features/analytics/records';
+import type { RecordKind, SameLoadRecord, VolumeRecord } from '../../src/features/analytics/records';
 import { ExerciseCompareField } from '../../src/features/session/ExerciseCompareField';
 import { SwitchSection } from '../../src/features/progressions/SwitchSection';
 import { ExerciseAveragesField } from '../../src/features/session/ExerciseAveragesField';
@@ -31,10 +33,10 @@ import {
   copyValuesToSet,
   switchEntryExercise,
   undoSwitch,
-  deleteWorkout,
   finishWorkout,
   IncompletePairError,
-  moveExerciseEntry,
+  changeWorkoutGroups,
+  updateWorkoutNote,
   getActiveWorkout,
   getPreviousPerformance,
   setEntryApparatus,
@@ -56,20 +58,22 @@ import {
 } from '../../src/features/session/repository';
 import type { ActiveWorkout, PreviousPerformance, PreviousSetValues, RemovedRows, SessionExercise, SessionSet, SwitchSnapshot } from '../../src/features/session/repository';
 import { defaultHoldMode, rememberHoldMode, useHoldTimer, type ActiveHold } from '../../src/features/session/useHoldTimer';
-import { exerciseFinished, nextFolded } from '../../src/domain/folding';
 import { adjustedRest, REST_STEP_SEC } from '../../src/domain/restTimer';
 import { ExerciseBlockField } from '../../src/features/session/ExerciseBlockField';
-import { blockOf, usesBlocks, type Block } from '../../src/domain/blocks';
 import { SetBandsField } from '../../src/features/equipment/SetBandsField';
 import { IncompletePairsSheet } from '../../src/features/session/IncompletePairsSheet';
 import { incompletePairs, type IncompletePair } from '../../src/features/session/incompletePairs';
-import { ExerciseTelemetryDock, TelemetryPanel } from '../../src/features/session/telemetry/ExerciseTelemetryDock';
-import { DockRails, WorkoutDockPanel } from '../../src/features/session/DockRails';
+import { TelemetryPanel } from '../../src/features/session/telemetry/ExerciseTelemetryDock';
 import { useExerciseTelemetry } from '../../src/features/session/telemetry/useExerciseTelemetry';
-import { clearEmomPlan, useEmom, type EmomAlertText } from '../../src/features/session/useEmom';
+import { useEmom, type EmomAlertText } from '../../src/features/session/useEmom';
+import { discardActiveWorkout } from '../../src/features/session/discardWorkout';
+import { getExerciseGoals, type ExerciseGoalProgress } from '../../src/features/dailyGoals/repository';
 import { EmomSetupSheet, emomFieldFor } from '../../src/features/session/EmomSetupSheet';
 import { emomLabel, firstRoundStart, type EmomPhase, type EmomPlan } from '../../src/domain/emom';
 import { EmomMiniDock, EmomStage, type EmomView } from '../../src/features/session/EmomStage';
+import { useTimedMethod } from '../../src/features/session/useTimedMethod';
+import { TimedMethodSetupSheet, timedMethodFits } from '../../src/features/session/TimedMethodSetupSheet';
+import { TimedMethodMiniDock, TimedMethodStage } from '../../src/features/session/TimedMethodStage';
 import type { HoldMode } from '../../src/domain/holdTimer';
 import { playBeep } from '../../src/shared/audio/beeps';
 import {
@@ -77,6 +81,7 @@ import {
   Body,
   IconButton,
   Label,
+  ListRow,
   MenuGrid,
   MenuGroup,
   MenuList,
@@ -85,7 +90,6 @@ import {
   Card,
   Chip,
   EmptyState,
-  FooterAction,
   Icon,
   PageHeading,
   Screen,
@@ -94,69 +98,58 @@ import {
   Toast,
   tapFeedback,
 } from '../../src/shared/components/ui';
-import { ReorderableList } from '../../src/shared/components/ReorderableList';
-import { ExerciseSegments } from '../../src/features/session/ExerciseSegments';
-import { Tag, useInk } from '../../src/features/session/instrument';
+import { WorkoutOverview, WorkoutExerciseRow, WorkoutGroupSheet, OverviewButton, useOverviewGroups, type GroupSheet } from '../../src/features/session/WorkoutOverview';
+import { workoutSections } from '../../src/features/session/workoutGroups';
+import { WorkoutNote, WorkoutNoteSheet, type WorkoutNoteKind } from '../../src/features/session/WorkoutNote';
 import { WorkoutHeader } from '../../src/features/session/WorkoutHeader';
 import { FreeRestBar } from '../../src/features/session/FreeRestBar';
 import { WorkoutMenuSheet } from '../../src/features/session/WorkoutMenuSheet';
+import { RateSetStrip } from '../../src/features/session/RateSetStrip';
 import { TotalGoalSheet } from '../../src/features/session/TotalGoalSheet';
 import { nextSetValue, totalProgress } from '../../src/domain/totalGoal';
-import { PrescriptionSyncSheet } from '../../src/features/programs/PrescriptionSyncSheet';
-import { listUserPrograms } from '../../src/features/programs/userPrograms';
-import { findPrescribedWorkout, hasStructureChange, prescriptionChanges, trainedExercises, type PrescribedMatch } from '../../src/domain/prescriptionSync';
 import { SaveToProgramSheet } from '../../src/features/programs/SaveToProgramSheet';
-import { ExerciseNoteField } from '../../src/features/session/ExerciseNoteField';
 import { WorkoutDetailsSheet } from '../../src/features/session/WorkoutDetailsSheet';
 import { apparatusName, bandComparer, bandsById, describeSetBands, useEquipment } from '../../src/features/equipment/useEquipment';
 import { LoadError } from '../../src/shared/components/LoadError';
 import { SetSheet } from '../../src/features/session/SetSheet';
 import { ExerciseCard, holdDisplay } from '../../src/features/session/ExerciseCard';
-import Animated, { FadeInDown, FadeOutLeft, LayoutAnimationConfig } from 'react-native-reanimated';
-import { readBooleanPreference, RPE_PROMPT_KEY, writePreference } from '../../src/shared/settings/preferences';
+import { SET_RATINGS_KEY, readBooleanPreference, RPE_PROMPT_KEY, writePreference } from '../../src/shared/settings/preferences';
 
 import { instrument, MIN_TOUCH_TARGET, radii, spacing } from '../../src/shared/theme/tokens';
 import { useTheme } from '../../src/shared/theme/ThemeProvider';
 import { fonts } from '../../src/shared/theme/typography';
 import { formatClock } from '../../src/shared/utils/format';
 import { useScaledStyles } from '../../src/shared/theme/useScaledStyles';
-import { useAnimationSettings } from '../../src/shared/settings/AnimationProvider';
 
 const VOICE_CUES_KEY = 'workout.voice_cues.enabled';
-// The active-set design and the dock rails live in focus mode, so it is on by default (a new key: earlier "off" choices do not hide the new design).
+// Prefer the standalone editor when entering an exercise. The workout itself always opens in overview.
 const FOCUS_MODE_KEY = 'workout.focus_mode.v2';
 const TELEMETRY_ENABLED_KEY = 'workout.telemetry.enabled';
-/** Pause between finishing an exercise and folding it. */
-const FOLD_DELAY_MS = 650;
 
 /** Taps on the same set's done button closer than this are one tap. */
 const DOUBLE_TAP_MS = 500;
 
-/** Set once the first set has been swiped, which hides the gesture hint. */
-const SWIPE_HINT_KEY = 'workout.swipeHintSeen';
+type NoteTarget = { kind: WorkoutNoteKind; id: string; context: string; value: string | null };
 
 export default function WorkoutScreen() {
   const styles = useScaledStyles(baseStyles);
   const { id } = useLocalSearchParams<{ id: string }>();
   const { t } = useTranslation();
-  const { palette, largeText } = useTheme();
-  const { height: windowHeight } = useWindowDimensions();
-  const { duration } = useAnimationSettings();
-  const exerciseEntering = duration(260) ? FadeInDown.duration(duration(260)) : undefined;
-  const itemExiting = duration(200) ? FadeOutLeft.duration(duration(200)) : undefined;
+  const { palette, mode, largeText } = useTheme();
   const [workout, setWorkout] = useState<ActiveWorkout | null>(null);
   const workoutRef = useRef<ActiveWorkout | null>(null);
   useEffect(() => { workoutRef.current = workout; }, [workout]);
-  const [collapsedEntries, setCollapsedEntries] = useState<ReadonlyMap<string, boolean>>(new Map());
-  const completionState = useRef<ReadonlyMap<string, boolean>>(new Map());
-  const loadedOnce = useRef(false);
+  const [foldedGroups, setFoldedGroups] = useState<ReadonlySet<string>>(() => new Set());
+  const [openExerciseId, setOpenExerciseId] = useState<string | null>(null);
+  const [groupSheet, setGroupSheet] = useState<GroupSheet | null>(null);
+  const [noteTarget, setNoteTarget] = useState<NoteTarget | null>(null);
+  const sections = useMemo(() => workout ? workoutSections(workout.exercises, workout.groupLayout) : [], [workout]);
+  const groups = useOverviewGroups(sections, workout?.groupLayout);
   const [previous, setPrevious] = useState<Map<string, PreviousPerformance>>(new Map());
   const [loading, setLoading] = useState(true);
   const [loadFailed, setLoadFailed] = useState(false);
   const [loadAttempt, setLoadAttempt] = useState(0);
   const [pickerOpen, setPickerOpen] = useState(false);
-  // The bottom dock (rest countdown and Finish) can be folded to a strip to see more of the sets.
-  const [dockOpen, setDockOpen] = useState(true);
   // Entry whose exercise is being replaced; null when the picker adds an exercise instead.
   const [replacing, setReplacing] = useState<SessionExercise | null>(null);
   // A rest keeps running when the screen is left: its end time lives outside the component.
@@ -175,13 +168,13 @@ export default function WorkoutScreen() {
     return null;
   }), []);
   const [clockNow, setClockNow] = useState<number | null>(null);
-  const [dockPanel, setDockPanel] = useState<'telemetry' | 'workout' | null>(null);
   const [telemetrySheet, setTelemetrySheet] = useState(false);
   const [telemetryOn, setTelemetryOn] = useState(() => readBooleanPreference(TELEMETRY_ENABLED_KEY, true));
   const [focusMode, setFocusMode] = useState(() => readBooleanPreference(FOCUS_MODE_KEY, true));
   const [voiceCues, setVoiceCues] = useState(() => readBooleanPreference(VOICE_CUES_KEY, false));
   const [readinessOpen, setReadinessOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [editingOverview, setEditingOverview] = useState(false);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const { catalog, reload: reloadEquipment } = useEquipment();
   const bandIndex = catalog ? bandsById(catalog) : null;
@@ -194,9 +187,15 @@ export default function WorkoutScreen() {
   // Self-regulated rest under a total goal: when the clock started, and the rest offered on demand.
   const [freeRest, setFreeRest] = useState<{ since: number; restSec: number } | null>(null);
   const [totalFor, setTotalFor] = useState<SessionExercise | null>(null);
-  const [optionsFor, setOptionsFor] = useState<SessionExercise | null>(null);
+  const [optionsFor, setOptionsForState] = useState<SessionExercise | null>(null);
+  // Which part of the exercise menu is open: the main list, or one of its settings.
+  const [optionsView, setOptionsView] = useState<'rest' | 'replace' | 'setup' | 'history' | 'library' | null>(null);
+  const setOptionsFor = (exercise: SessionExercise | null) => { setOptionsView(null); setOptionsForState(exercise); };
+  const closeOptions = () => setOptionsFor(null);
   const [clearAllOpen, setClearAllOpen] = useState(false);
   const [emomSetupFor, setEmomSetupFor] = useState<SessionExercise | null>(null);
+  const [timedSetupFor, setTimedSetupFor] = useState<SessionExercise | null>(null);
+  const [timedStage, setTimedStage] = useState(true);
   const [emomNotice, setEmomNotice] = useState<string | null>(null);
   // The running EMOM shows full screen; "Workout" closes it to a mini dock at the bottom and the EMOM keeps running.
   const [emomStage, setEmomStage] = useState(true);
@@ -204,11 +203,9 @@ export default function WorkoutScreen() {
   const [emomAdded, setEmomAdded] = useState<{ setId: string; message: string } | null>(null);
   // PRs set so far in this workout: record kinds per set, and exercises with a volume mini PR.
   const recordCount = useRef<number | null>(null);
-  const [records, setRecords] = useState<{ sets: Map<string, RecordKind[]>; volume: Set<string>; sameLoad: Map<string, { loadKg: number; sets: number; gain: number }> }>(() => ({ sets: new Map(), volume: new Set(), sameLoad: new Map() }));
-  // The exercise in hand and its live telemetry against comparable history.
-  // The exercise whose set the user expanded last is the selected one: blue "Now" card, telemetry, main action and rails all follow it,
-  // until it has no set left to do (then the automatic choice below takes over again). Selecting never moves anything: the card of
-  // the selected exercise keeps the room of its own Complete button (empty) while the fixed one exists.
+  const [exerciseGoals, setExerciseGoals] = useState<Map<string, ExerciseGoalProgress>>(() => new Map());
+  const [records, setRecords] = useState<{ sets: Map<string, RecordKind[]>; volume: VolumeRecord[]; sameLoad: SameLoadRecord[] }>(() => ({ sets: new Map(), volume: [], sameLoad: [] }));
+  // A manually opened exercise takes precedence over automatic progression.
   const [selectedEntryId, setSelectedEntryId] = useState<string | null>(null);
   // Expanding a set only updates state when the exercise changes: the ref answers "same one again" without a render.
   const selectedRef = useRef<string | null>(null);
@@ -238,7 +235,7 @@ export default function WorkoutScreen() {
     return workout.exercises.find((exercise) => exercise.entryId === next) ?? null;
   }, [workout, lastDoneExercise]);
   const autoHandExercise = useMemo(
-    () => supersetNextExercise ?? workout?.exercises.find((exercise) => exercise.sets.length > 0 && !exerciseFinished(exercise.sets)) ?? null,
+    () => supersetNextExercise ?? workout?.exercises.find((exercise) => exercise.sets.some((set) => !set.completedAt)) ?? null,
     [workout, supersetNextExercise],
   );
   const handExercise = selectedExercise ?? autoHandExercise;
@@ -264,8 +261,10 @@ export default function WorkoutScreen() {
   const [setSheet, setSetSheet] = useState<{ exercise: SessionExercise; setId: string; view?: 'bands' | 'note' | 'rest' } | null>(null);
   // Set that just got completed and is waiting for an optional RPE tap.
   // RPE chips under every working set; Profile can hide them.
+  const showRatings = readBooleanPreference(SET_RATINGS_KEY, true);
   const [showRpe] = useState(() => readBooleanPreference(RPE_PROMPT_KEY, true));
   const [loadNotice, setLoadNotice] = useState<string | null>(null);
+  const [footerHeight, setFooterHeight] = useState(0);
 
 
   const previousKey = useRef<string | null>(null);
@@ -273,32 +272,16 @@ export default function WorkoutScreen() {
     const next = await getActiveWorkout(workoutId);
     setWorkout(next);
     if (!next) return;
-    const before = completionState.current;
-    const completed = new Map(next.exercises.map((exercise) => [exercise.entryId, exerciseFinished(exercise.sets)] as const));
-    const initial = !loadedOnce.current;
-    loadedOnce.current = true;
-    // Exercises start folded; see nextFolded for what keeps or changes that. One that has just been
-    // finished folds after a short pause, so it does not vanish under the finger that rated its last set.
-    const justFinished = initial ? [] : [...completed].filter(([entryId, done]) => done && before.get(entryId) === false).map(([entryId]) => entryId);
-    setCollapsedEntries((current) => {
-      const folded = nextFolded(completed, before, current, initial);
-      for (const entryId of justFinished) folded.set(entryId, current.get(entryId) ?? false);
-      return folded;
-    });
-    completionState.current = completed;
-    if (justFinished.length > 0) {
-      setTimeout(() => setCollapsedEntries((current) => {
-        const ready = justFinished.filter((entryId) => completionState.current.get(entryId) && !current.get(entryId));
-        return ready.length === 0 ? current : new Map([...current, ...ready.map((entryId) => [entryId, true] as const)]);
-      }), FOLD_DELAY_MS);
-    }
     // "Last time" only changes when the exercises change, so it is not re-read after every set.
     const exerciseKey = `${next.id}:${next.exercises.map((exercise) => `${exercise.exerciseId}@${exercise.apparatusId ?? ''}${exercise.compareWorkoutId ? `#${exercise.compareWorkoutId}` : ''}`).join(',')}`;
     const apparatusOf = new Map(next.exercises.map((exercise) => [exercise.exerciseId, exercise.apparatusId ?? null] as const));
-    const [previousPerformance, found] = await Promise.all([
+    const [previousPerformance, found, timeGoals] = await Promise.all([
       previousKey.current === exerciseKey ? null : getPreviousPerformance(next.exercises.map((exercise) => exercise.exerciseId), next.id, apparatusOf),
       getSessionRecords(next.id).catch(() => null),
+      // Time goals on these exercises move with every set done, so they are read each time.
+      getExerciseGoals(next.exercises.map((exercise) => exercise.exerciseId)).catch(() => new Map<string, ExerciseGoalProgress>()),
     ]);
+    setExerciseGoals(timeGoals);
     if (previousPerformance) { previousKey.current = exerciseKey; setPrevious(previousPerformance); }
     if (!found) return;
     const bySet = new Map<string, RecordKind[]>();
@@ -307,8 +290,7 @@ export default function WorkoutScreen() {
     // Celebrate a new record, but not the ones already there when the workout is reopened.
     if (recordCount.current !== null && count > recordCount.current) tapFeedback('success');
     recordCount.current = count;
-    const sameLoad = new Map(found.sameLoad.map((record) => [record.exerciseId, { loadKg: record.loadKg, sets: record.sets, gain: record.value - record.previous }] as const));
-    setRecords({ sets: bySet, volume: new Set(found.volume.map((record) => record.exerciseId)), sameLoad });
+    setRecords({ sets: bySet, volume: found.volume, sameLoad: found.sameLoad });
   }, []);
 
   useEffect(() => {
@@ -349,6 +331,11 @@ export default function WorkoutScreen() {
       setEmomNotice(t('emom.finished', { count: plan.rounds }));
     },
   });
+  const timed = useTimedMethod(id && id !== 'new' ? id : undefined, {
+    onRecorded: () => { if (id) void refresh(id); },
+    onSaveError: () => Alert.alert(t('history.saveError')),
+  });
+  const closeTimedStage = useCallback(() => setTimedStage(false), []);
   const emomEntryId = emom.plan?.entryId ?? null;
   const closeEmomStage = useCallback(() => setEmomStage(false), []);
   // Stable: the toast restarts its timer when onHide changes, and the EMOM clock re-renders the screen four times a second.
@@ -409,11 +396,6 @@ export default function WorkoutScreen() {
     return () => clearInterval(timer);
   }, []);
 
-  const supersetLetters = new Map<string, string>();
-  for (const exercise of workout?.exercises ?? []) {
-    if (exercise.groupId && !supersetLetters.has(exercise.groupId)) supersetLetters.set(exercise.groupId, String.fromCharCode(65 + supersetLetters.size));
-  }
-
   const completedCount = workout?.exercises.reduce((total, exercise) => total + completedSetCount(exercise.sets), 0) ?? 0;
   // A workout of one set in under three minutes is most likely a test or a slip: finishing offers to discard it.
   const tiny = completedCount === 1 && clockNow !== null && workout !== null && clockNow - workout.startedAt.getTime() < 3 * 60_000;
@@ -427,12 +409,10 @@ export default function WorkoutScreen() {
   // The set whose rest is running and its total so far: the +/- steps are saved on that set as its rest.
   const restOf = useRef<{ setId: string; total: number } | null>(null);
   const startRestTimer = (seconds: number, setId?: string) => {
-    // A new rest shows its full timer again, even if the last one was minimised.
-    setDockOpen(true);
     if (setId) restOf.current = { setId, total: Math.floor(seconds) };
     setFreeRest(null);
     const duration = Math.max(1, Math.floor(seconds));
-    const endsAt = Date.now() + duration * 1000;
+    const endsAt = nowMs() + duration * 1000;
     setRestEndsAt(endsAt);
     if (id) runningRests.set(id, endsAt);
     void scheduleRestFinishedNotification(duration, {
@@ -508,6 +488,7 @@ export default function WorkoutScreen() {
   const switchTo = async (exercise: SessionExercise, id: string, name: string) => {
     if (!workout) return;
     setOptionsFor(null);
+    if (exercise.entryId === timed.plan?.entryId && !await timed.stop()) return;
     if (exercise.entryId === emomEntryId) await emom.stop();
     if (hold.active) hold.stop();
     try {
@@ -545,17 +526,53 @@ export default function WorkoutScreen() {
   };
 
   const scrollRef = useRef<ScrollHandle>(null);
-  const cardTops = useRef(new Map<string, number>());
-  const listTop = useRef(0);
+  const showOverview = useCallback(() => {
+    setOpenExerciseId(null);
+    selectedRef.current = null;
+    setSelectedEntryId(null);
+    scrollRef.current?.scrollTo({ y: 0, animated: false });
+  }, []);
+  const openExerciseById = useCallback((entryId: string) => {
+    setOpenExerciseId(entryId);
+    selectEntry(entryId);
+    scrollRef.current?.scrollTo({ y: 0, animated: false });
+  }, [selectEntry]);
+  const swipeToExercise = useCallback((entryId: string) => {
+    tapFeedback();
+    openExerciseById(entryId);
+  }, [openExerciseById]);
+  const openExercise = (exercise: SessionExercise) => openExerciseById(exercise.entryId);
+  const exerciseOpen = workout?.exercises.some((entry) => entry.entryId === openExerciseId) ?? false;
+  useFocusEffect(useCallback(() => {
+    if (!exerciseOpen || (emomStage && emom.plan) || (timedStage && timed.plan)) return;
+    const back = BackHandler.addEventListener('hardwareBackPress', () => {
+      showOverview();
+      return true;
+    });
+    return () => back.remove();
+  }, [emom.plan, emomStage, timed.plan, timedStage, exerciseOpen, showOverview]));
+  const openExerciseNote = (exercise: SessionExercise) => setNoteTarget({
+    kind: 'exerciseNote', id: exercise.entryId, context: t('liveWorkout.exerciseNoteContext', { name: exercise.name }), value: exercise.notes,
+  });
+  const openSetOptions = (exercise: SessionExercise, set: SessionSet, view?: 'bands' | 'note' | 'rest') => {
+    if (view !== 'note') { setSetSheet({ exercise, setId: set.id, view }); return; }
+    const sets = groupSets(exercise.sets.filter((entry) => entry.kind === set.kind));
+    const index = sets.findIndex((group) => group.some((entry) => entry.id === set.id)) + 1;
+    const side = set.side === 'left' ? t('logger.sideLeft') : set.side === 'right' ? t('logger.sideRight') : null;
+    const name = set.kind === 'warmup' ? `${exercise.name} · ${t('ledger.warmup')}` : exercise.name;
+    const context = t('liveWorkout.setNoteContext', { name, number: index });
+    setNoteTarget({ kind: 'setNote', id: set.id, context: side ? `${context} · ${side}` : context, value: set.note });
+  };
 
   /**
-   * Starts the right rest after a set and, in a superset, scrolls to the exercise that comes next:
+   * Starts the right rest after a set and opens the next exercise in a superset:
    * no rest (or the short one) between exercises, the full rest at the end of the round.
    */
   const afterSetDone = async (setId: string) => {
     const exercise = workout?.exercises.find((item) => item.sets.some((set) => set.id === setId));
     // While an EMOM runs its clock is the rest: no rest timer on top of it.
-    if (emomEntryId) return;
+    // While an EMOM or a timed method runs, its clock is the rest: no rest timer on top of it.
+    if (emomEntryId || timed.plan) return;
     // A total goal: self-regulated rest (a clock counting up), and the next set until the total is reached.
     if (exercise?.totalTarget != null) {
       setRestEndsAt(null);
@@ -564,20 +581,14 @@ export default function WorkoutScreen() {
       await continueTotalGoal(exercise, setId);
       return;
     }
-    const marked = workout?.exercises.map((item) => ({ ...item, sets: item.sets.map((set) => set.id === setId ? { ...set, completedAt: new Date() } : set) })) ?? [];
-    const finished = exercise?.sets.find((s) => s.id === setId);
-    if (finished?.pairId && exercise?.sets.some((s) => s.pairId === finished.pairId && s.id !== setId && !s.completedAt)) {
-      if (exercise.unilateralRestMode === 'side') startRestTimer(restAfter(setId), setId);
-      else skipRest();
-      return;
-    }
-    const step = exercise ? supersetStep(marked, exercise.entryId) : null;
-    if (!step || step.endOfRound) startRestTimer(restAfter(setId), setId);
-    else if (step.mode === 'between' && step.betweenSec > 0) startRestTimer(step.betweenSec, setId);
+    const set = exercise?.sets.find((item) => item.id === setId);
+    if (!workout || !exercise || !set) return;
+    const recovery = recoveryAfterSet(workout, exercise, set);
+    if (recovery.seconds > 0) startRestTimer(recovery.seconds, setId);
     else skipRest();
-    // A working set still to be rated keeps the screen where it is; rating it moves on (see saveFormRating).
-    const rated = finished?.kind !== 'working' || finished.formRating !== null || !!emomEntryId;
-    if (rated) scrollToNextExercise(setId);
+    if (recovery.nextEntryId && recovery.nextEntryId !== exercise.entryId) {
+      setOpenExerciseId((open) => open === exercise.entryId ? recovery.nextEntryId : open);
+    }
   };
 
   /** Under a total goal, adds the next set (the last value, at most what is left) once every set is done and the total is not reached. */
@@ -595,22 +606,12 @@ export default function WorkoutScreen() {
     } catch { /* The set can still be added by hand. */ }
   };
 
-  /** In a superset, scrolls to the exercise that comes after the one this set belongs to. */
-  const scrollToNextExercise = (setId: string) => {
-    const exercise = workout?.exercises.find((item) => item.sets.some((set) => set.id === setId));
-    const marked = workout?.exercises.map((item) => ({ ...item, sets: item.sets.map((set) => set.id === setId ? { ...set, completedAt: set.completedAt ?? new Date() } : set) })) ?? [];
-    const step = exercise ? supersetStep(marked, exercise.entryId) : null;
-    const top = step?.nextEntryId && step.nextEntryId !== exercise?.entryId ? cardTops.current.get(step.nextEntryId) : undefined;
-    if (top !== undefined) scrollRef.current?.scrollTo({ y: Math.max(0, top - 16), animated: true });
-  };
-
-
   // Sets whose done state is being saved, and when each last changed: a second tap while saving, or a
   // double tap, would otherwise undo the first one.
   const settling = useRef(new Set<string>());
   const lastToggle = useRef(new Map<string, number>());
   const settle = async (setId: string, work: () => Promise<void>) => {
-    const now = Date.now();
+    const now = nowMs();
     if (settling.current.has(setId) || now - (lastToggle.current.get(setId) ?? 0) < DOUBLE_TAP_MS) return;
     settling.current.add(setId);
     lastToggle.current.set(setId, now);
@@ -654,13 +655,6 @@ export default function WorkoutScreen() {
     tapFeedback();
     patchSet(set.id, { formRating: rating });
     await setSetFormRating(set.id, rating);
-    if (rating !== null && set.formRating === null && set.completedAt) scrollToNextExercise(set.id);
-    if (workout) await refresh(workout.id);
-  };
-
-  const saveNote = async (set: SessionSet, note: string) => {
-    patchSet(set.id, { note: note.trim() || null });
-    await updateSetNote(set.id, note);
     if (workout) await refresh(workout.id);
   };
 
@@ -703,16 +697,9 @@ export default function WorkoutScreen() {
   };
 
   const startHoldFor = (set: SessionSet) => {
-    if (hold.active || emom.plan) return;
+    if (hold.active || emom.plan || timed.plan) return;
     skipRest();
     hold.start(set.id, holdModeFor(set.id), set.durationSec ?? 30);
-  };
-
-  const [swipeHint, setSwipeHint] = useState(() => !readBooleanPreference(SWIPE_HINT_KEY, false));
-  const markSwiped = () => {
-    if (!swipeHint) return;
-    setSwipeHint(false);
-    writePreference(SWIPE_HINT_KEY, 'true');
   };
 
   const offerUndo = (message: string, removed: RemovedRows | null) => {
@@ -730,7 +717,6 @@ export default function WorkoutScreen() {
     await refresh(workout.id);
   };
 
-  const [syncOffer, setSyncOffer] = useState<{ match: PrescribedMatch; exercises: SessionExercise[]; workoutId: string } | null>(null);
   const confirmFinish = async () => {
     if (!workout) return;
     setFinishOpen(false);
@@ -738,6 +724,7 @@ export default function WorkoutScreen() {
     if (incompletePairs(workout.exercises).length > 0) { setPairsOpen(true); return; }
     void Speech.stop();
     void cancelRestFinishedNotification().catch(() => undefined);
+    if (!await timed.stop()) return;
     if (emom.plan) await emom.stop();
     try { await finishWorkout(workout.id); }
     catch (error) {
@@ -745,17 +732,7 @@ export default function WorkoutScreen() {
       else Alert.alert(t('history.saveError'), error instanceof Error ? error.message : String(error));
       return;
     }
-    // A workout from a program whose structure changed offers to update the prescribed workout; then the summary.
-    const summary = () => router.replace({ pathname: '/workout/summary/[id]', params: { id: workout.id } });
-    try {
-      const match = findPrescribedWorkout(await listUserPrograms(), workout.name);
-      const trained = trainedExercises(workout.exercises);
-      if (match && trained.length > 0 && hasStructureChange(prescriptionChanges(match.session, trained))) {
-        setSyncOffer({ match, exercises: trained, workoutId: workout.id });
-        return;
-      }
-    } catch { /* the offer is optional: go on to the summary */ }
-    summary();
+    router.replace({ pathname: '/workout/summary/[id]', params: { id: workout.id } });
   };
 
   const confirmDiscard = async () => {
@@ -764,9 +741,8 @@ export default function WorkoutScreen() {
     hold.stop();
     skipRest();
     void Speech.stop();
-    clearEmomPlan(workout.id);
     try {
-      await deleteWorkout(workout.id);
+      await discardActiveWorkout(workout.id);
     } catch {
       Alert.alert(t('history.deleteError'));
       return;
@@ -777,6 +753,7 @@ export default function WorkoutScreen() {
   const removeExercise = async (exercise: SessionExercise) => {
     setRemoveExerciseFor(null);
     if (!workout) return;
+    if (exercise.entryId === timed.plan?.entryId && !await timed.stop()) return;
     if (exercise.entryId === emomEntryId) await emom.stop();
     await removeExerciseEntry(exercise.entryId);
     await refresh(workout.id);
@@ -787,6 +764,7 @@ export default function WorkoutScreen() {
     setOptionsFor(null);
     if (!workout) return;
     if (exercise.sets.some((set) => set.clipCount > 0)) { setRemoveExerciseFor(exercise); return; }
+    if (exercise.entryId === timed.plan?.entryId && !await timed.stop()) return;
     if (exercise.entryId === emomEntryId) await emom.stop();
     offerUndo(t('logger.removedExercise', { name: exercise.name }), await removeExerciseEntryWithUndo(exercise.entryId));
     await refresh(workout.id);
@@ -799,14 +777,16 @@ export default function WorkoutScreen() {
     if (!workout) return;
     const targets = scope ? [scope.exercise] : workout.exercises;
     if (hold.active) hold.stop();
+    if (targets.some((exercise) => exercise.entryId === timed.plan?.entryId) && !await timed.stop()) return;
     if (targets.some((exercise) => exercise.entryId === emomEntryId)) await emom.stop();
     const count = targets.reduce((sum, exercise) => sum + exercise.sets.length, 0);
     offerUndo(t('logger.clearedSets', { count }), await clearSetsWithUndo(scope ? { entryId: scope.exercise.entryId } : { workoutId: workout.id }));
     await refresh(workout.id);
   };
 
-  const createExercise = (name: string) => {
+  const createExercise = async (name: string) => {
     if (!workout) return;
+    if (replacing && replacing.entryId === timed.plan?.entryId && !await timed.stop()) return;
     setPickerOpen(false);
     router.push({ pathname: '/exercise/new', params: { addTo: workout.id, ...(replacing ? { replaceEntry: replacing.entryId } : {}), ...(name ? { name } : {}) } });
     setReplacing(null);
@@ -819,61 +799,38 @@ export default function WorkoutScreen() {
   if (loadFailed) return <Screen><LoadError onRetry={() => { setLoading(true); setLoadAttempt((count) => count + 1); }} /></Screen>;
   if (!workout) return <Screen><PageHeading title={t('workout.unavailable')} subtitle={t('workout.finished')} /><ActionButton label={t('workout.backToToday')} onPress={() => router.replace('/(tabs)/today')} /></Screen>;
 
-  const allSets = workout.exercises.flatMap((exercise) => exercise.sets);
-  // Narration needs open sets; it works for any exercise (timed or rep-based).
-  const openExercises = workout.exercises.filter((exercise) => exercise.sets.some((set) => !set.completedAt));
-  const narratable = openExercises.length > 0;
-  const allCollapsed = workout.exercises.every((exercise) => collapsedEntries.get(exercise.entryId) ?? exercise.entryId !== currentEntryId);
-  const totalSets = groupSets(allSets).length;
-  const showBlocks = usesBlocks(workout.exercises);
-  const volumeKg = allSets.reduce((sum, set) => (set.completedAt && set.kind === 'working' && set.reps && set.addedLoadKg > 0 ? sum + set.reps * set.addedLoadKg : sum), 0);
-  const readinessCount = [workout.sleep, workout.energy, workout.soreness].filter((value) => value !== null).length;
-  // The exercise in hand: the first one with sets still to do.
-  const currentEntryId = workout.exercises.find((exercise) => exercise.sets.length > 0 && !exerciseFinished(exercise.sets))?.entryId ?? null;
-  // Live feedback of the exercise in hand; one line while a timer runs, at large text and on short screens, so it never crowds the footer.
-  const telemetryCompact = largeText || windowHeight < 700 || hold.active !== null || restEndsAt !== null || Boolean(emom.plan);
-  // Ledger: each set completes from its own row, so the footer carries no Complete button.
-  // Focus mode: Add and Finish live in a Workout rail next to a Telemetry rail, under the fixed main action; one panel open at a time.
-  // Rails stay while the workout has exercises, even when none has sets left (all removed or all done): Discard lives there.
-  const railsMode = focusMode && workout.exercises.length > 0;
-  const telemetryInline = windowHeight >= 880 && !largeText;
-  const exercisePosition = handExercise ? workout.exercises.findIndex((exercise) => exercise.entryId === handExercise.entryId) + 1 : 1;
-  const railsTop = railsMode ? (
-    <>
-      {dockPanel === 'telemetry' && telemetryInline ? (telemetry ? <TelemetryPanel view={telemetry} /> : <Card><Body>{t('telemetry.empty')}</Body></Card>) : null}
-      {dockPanel === 'workout' ? (
-        <WorkoutDockPanel
-          title={t('dock.workoutPanel', { current: exercisePosition, total: workout.exercises.length })}
-          options={[
-            { id: 'add', icon: 'add', label: t('workout.addExercise'), hint: t('dock.addHint'), tone: 'normal', onPress: () => { setDockPanel(null); setPickerOpen(true); } },
-            { id: 'finish', icon: 'flag-outline', label: t('workout.finish'), hint: t('dock.finishHint'), tone: 'primary', onPress: () => { setDockPanel(null); setFinishOpen(true); } },
-            { id: 'discard', icon: 'close-circle-outline', label: t('workout.discard'), hint: t('dock.discardHint'), tone: 'danger', onPress: () => { setDockPanel(null); setDiscardOpen(true); } },
-          ]}
-        />
-      ) : null}
-      <DockRails rails={[
-        ...(telemetryOn ? [{
-          id: 'telemetry' as const,
-          label: t('dock.telemetry'),
-          summary: `● ${t('telemetry.live')}`, // the same short text while the reference loads: the rail never changes height
-          open: dockPanel === 'telemetry' && telemetryInline,
-          onPress: () => { if (telemetryInline) setDockPanel(dockPanel === 'telemetry' ? null : 'telemetry'); else { setDockPanel(null); setTelemetrySheet(true); } },
-        }] : []),
-        {
-          id: 'workout' as const,
-          label: t('dock.workout'),
-          summary: t('dock.position', { current: exercisePosition, total: workout.exercises.length }),
-          open: dockPanel === 'workout',
-          onPress: () => setDockPanel(dockPanel === 'workout' ? null : 'workout'),
-        },
-      ]} />
-    </>
-  ) : null;
-  const telemetryDock = !railsMode && telemetryOn && telemetryExercise ? <ExerciseTelemetryDock view={telemetry} compact={telemetryCompact} /> : null;
-  // The blue "Now" card is the exercise the telemetry analyses (the exercise in hand when the telemetry is off or has nothing yet).
-  const nowEntryId = selectedExercise?.entryId ?? (telemetryOn ? telemetryExercise?.entryId : null) ?? currentEntryId;
-  const nowIndex = workout.exercises.findIndex((exercise) => exercise.entryId === nowEntryId);
-  const timerRunning = hold.active !== null || restEndsAt !== null || Boolean(emom.plan && emom.phase);
+  const totalSets = workout.exercises.reduce((total, exercise) => total + groupSets(exercise.sets).length, 0);
+  const workoutName = displayWorkoutName(workout.name, t('log.pastName'));
+  const focused = workout.exercises.find((exercise) => exercise.entryId === openExerciseId);
+  const next = handExercise;
+  const exercisePosition = focused ? workout.exercises.indexOf(focused) + 1 : 0;
+  const previousExercise = focused ? workout.exercises[exercisePosition - 2] : undefined;
+  const followingExercise = focused ? workout.exercises[exercisePosition] : undefined;
+  const background = mode === 'light' ? '#eaeff2' : palette.background;
+  const footerColor = mode === 'light' ? '#f5f7f9' : palette.background;
+  const nextOther = next && next.entryId !== focused?.entryId ? next
+    : workout.exercises.slice(exercisePosition).find((entry) => entry.sets.some((set) => !set.completedAt));
+  // The set the footer logs: the first one still to do of the exercise in hand.
+  const focusedOpenSet = focused?.sets.find((set) => !set.completedAt) ?? null;
+  const setLabelOf = (exercise: SessionExercise, set: SessionSet) => {
+    const number = groupSets(exercise.sets.filter((item) => item.kind === set.kind && item.index <= set.index)).length;
+    const name = set.kind === 'warmup' ? t('ledger.warmup') : t('simple.setNumber', { number });
+    return set.side === 'left' ? `${name} · ${t('logger.sideLeft')}` : set.side === 'right' ? `${name} · ${t('logger.sideRight')}` : name;
+  };
+  const focusedOpenLabel = focused && focusedOpenSet ? setLabelOf(focused, focusedOpenSet) : '';
+  // While resting, the last working set done can be rated from the footer.
+  const rateTarget = (() => {
+    let best: { exercise: SessionExercise; set: SessionSet } | null = null;
+    for (const exercise of workout.exercises) for (const set of exercise.sets) {
+      if (set.completedAt && set.kind === 'working' && (!best || set.completedAt > best.set.completedAt!)) best = { exercise, set };
+    }
+    return best ? { ...best, label: setLabelOf(best.exercise, best.set).replace(/ · .*$/, '') } : null;
+  })();
+  const timedExercise = timed.plan ? workout.exercises.find((item) => item.entryId === timed.plan?.entryId) ?? null : null;
+  // The first hold can already count before the first completed cycle reaches the database.
+  const hasTimedHolds = finishOpen && timed.plan && timed.phase && timed.phase.phase !== 'countdown' &&
+    (timed.phase.phase !== 'hold' || timed.phase.round > 1 || timed.phase.secondsLeft < timed.plan.holdSec);
+  const timedView = timed.plan && timed.phase ? { exercise: timedExercise?.name ?? '', phase: timed.phase } : null;
   const emomExercise = emom.plan ? workout.exercises.find((item) => item.entryId === emom.plan?.entryId) ?? null : null;
   const emomView: EmomView | null = emom.plan && emom.phase ? {
     exercise: emomExercise?.name ?? '',
@@ -886,189 +843,282 @@ export default function WorkoutScreen() {
     canAddRound: emom.phase.phase !== 'done' && !(emom.phase.phase === 'running' && emom.phase.round >= emom.plan.rounds),
   } : null;
   const lowReadiness = (workout.sleep !== null && workout.sleep <= 2) || (workout.energy !== null && workout.energy <= 2) || (workout.soreness !== null && workout.soreness >= 4);
+  const toastOffset = footerHeight + 8;
+  const resumeExercise = next?.sets.some((set) => !set.completedAt) ? next : autoHandExercise;
+  function canMove(exercise: SessionExercise, offset: -1 | 1) {
+    const entries = workout?.exercises ?? [];
+    const candidate = entries[entries.findIndex((entry) => entry.entryId === exercise.entryId) + offset];
+    return Boolean(candidate && candidate.groupId === exercise.groupId &&
+      (workout?.groupLayout ? candidate.workoutGroupId === exercise.workoutGroupId : candidate.block === exercise.block));
+  }
+  const addExerciseAction = <OverviewButton label={t('workout.addExercise')} icon="add" accent grow onPress={() => setPickerOpen(true)} />;
+  const actions = (
+    <View style={[styles.footerRow, largeText && styles.footerStacked]}>
+      {resumeExercise ? <OverviewButton label={t(completedCount === 0 ? 'liveWorkout.startExercise' : 'liveWorkout.resumeExercise', { name: resumeExercise.name })} icon="play" accent grow onPress={() => openExercise(resumeExercise)} /> : addExerciseAction}
+      <OverviewButton label={t('liveWorkout.finish')} grow={largeText} onPress={() => setFinishOpen(true)} />
+    </View>
+  );
+  const renderExercise = (exercise: SessionExercise) => {
+    const copyable = copyableSets(exercise, previous.get(exercise.exerciseId));
+    return (
+      <ExerciseCard
+        key={exercise.entryId}
+        focus
+        liveLayout={focusMode ? 'standalone' : 'inline'}
+        footerAction={focusMode}
+        wrapSetEditor={(editor) => (
+          <ExerciseSwipeArea previousId={previousExercise?.entryId} nextId={followingExercise?.entryId} onNavigate={swipeToExercise}>
+            {editor}
+          </ExerciseSwipeArea>
+        )}
+        exerciseNavigation={previousExercise || followingExercise ? (
+          <View style={styles.exerciseNavigation}>
+            <IconButton icon="chevron-back" tone="plain" label={t('liveWorkout.previousMovement')} disabled={!previousExercise}
+              onPress={() => { if (previousExercise) openExercise(previousExercise); }} />
+            <IconButton icon="chevron-forward" tone="plain" label={t('liveWorkout.nextMovement')} disabled={!followingExercise}
+              onPress={() => { if (followingExercise) openExercise(followingExercise); }} />
+          </View>
+        ) : null}
+        onOpenExerciseNote={() => openExerciseNote(exercise)}
+        onSetExpanded={() => selectEntry(exercise.entryId)}
+        exercise={exercise}
+        collapsed={false}
+        onToggleCollapsed={showOverview}
+        previous={previous.get(exercise.exerciseId)}
+        hold={hold.active}
+        onChange={changeSet}
+        onSetValue={(set, field, value) => void (field === 'addedLoadKg' && value !== 0 ? allowLoad(exercise) : Promise.resolve()).then(() => updateSet(set.id, field, value)).then(() => refresh(workout.id))}
+        onComplete={(set) => void completeHoldManually(set)}
+        onStartHold={startHoldFor}
+        onFinishHold={() => void finishCurrentHold()}
+        onAddSet={() => void (exercise.entryId === emomEntryId ? addEmomRound() : addSet(exercise.entryId).then(() => refresh(workout.id)))}
+        showRatings={showRatings}
+        onAddCopies={exercise.entryId === emomEntryId ? undefined : (count) => void addSet(exercise.entryId, undefined, count).then(() => refresh(workout.id))}
+        onAddWarmup={() => void addWarmupSet(exercise.entryId).then(() => refresh(workout.id))}
+        onCopyAllLast={copyable.length > 0 || missingWarmups(exercise, previous.get(exercise.exerciseId)) > 0 ? () => void Promise.all(copyable.map(({ set, values }) => copyValuesToSet(set.id, values)))
+          .then(() => addWarmupsFromLastTime(exercise.entryId, previous.get(exercise.exerciseId)?.warmups ?? []))
+          .then(() => refresh(workout.id)) : undefined}
+        onSetOptions={(set, view) => openSetOptions(exercise, set, view)}
+        onToggleWarmup={(set) => void toggleWarmup(set)}
+        setRecords={records.sets}
+        volumeRecords={records.volume.filter((record) => record.exerciseId === exercise.exerciseId)}
+        sameLoadRecords={records.sameLoad.filter((record) => record.exerciseId === exercise.exerciseId)}
+        timeGoals={exerciseGoals.get(exercise.exerciseId) ?? null}
+        emomLabel={exercise.entryId === emomEntryId && emom.phase ? emomBadge(emom.phase, emom.plan!, t) : null}
+        onUncomplete={(set) => void reopenSet(set)}
+        onRemoveSet={(set) => void removeSetFromRow(exercise, set)}
+        showRpe={showRpe}
+        defaultRest={restForSet(exercise.exerciseId, { kind: 'working', restSec: null })}
+        onFormRating={(set, rating) => void saveFormRating(set, rating)}
+        onRomRating={(set, rating) => void saveRomRating(set, rating)}
+        typeDone
+        apparatusLabel={exercise.apparatusId && catalog ? apparatusName(catalog.apparatus.find((item) => item.id === exercise.apparatusId), t) : null}
+        firstTimeLabel={exercise.apparatusAffectsDifficulty && exercise.apparatusId && catalog ? t('equipment.firstTimeOn', { name: apparatusName(catalog.apparatus.find((item) => item.id === exercise.apparatusId), t) }) : undefined}
+        describeBands={(set) => (bandIndex ? describeSetBands(set, bandIndex, t) : null)}
+        compareBands={compareBands}
+        renderBandsEditor={(set) => <SetBandsField key={set.id} exercise={exercise} set={set} onChanged={() => refresh(workout.id)} />}
+        onRpe={(set, rpe) => void rateSet(set, rpe)}
+        onOptions={() => setOptionsFor(exercise)}
+          />
+    );
+  };
 
   return (
-    <View style={[styles.root, { backgroundColor: palette.background }]}>
+    <View style={[styles.root, { backgroundColor: background }]}>
       <Screen
         scrollRef={scrollRef}
-        // The running clock sits right above Add and Finish, so both stay in reach during rest.
-        footerAccessory={<View style={styles.dockStack}>{railsMode ? railsTop : telemetryDock}{emomView ? (
-          <EmomMiniDock view={emomView} label={emomBadge(emomView.phase, emom.plan!, t)} onOpen={() => setEmomStage(true)} />
-        ) : !dockOpen && (!railsMode || timerRunning) ? (
-          <CollapsedDock restEndsAt={timerRunning ? restEndsAt : null} voiceCues={voiceCues} onRestEnd={endRest} onOpen={() => setDockOpen(true)} />
-        ) : !timerRunning && freeRest ? (
-          <FreeRestBar since={freeRest.since} restSec={freeRest.restSec} onStartRest={() => startRestTimer(freeRest.restSec)} onClose={() => setFreeRest(null)} />
-        ) : timerRunning ? (
-          <TimerBar
-            hold={hold.active}
-            restEndsAt={restEndsAt}
-            voiceCues={voiceCues}
-            onRestEnd={endRest}
-            onFinishHold={() => void finishCurrentHold()}
-            onExtend={() => adjustRest(REST_STEP_SEC)}
-            onReduce={() => adjustRest(-REST_STEP_SEC)}
-            onSkip={skipRest}
-            onCollapse={() => setDockOpen(false)}
-          />
-        ) : undefined}</View>}
-        // Add and Finish stay in reach however long the workout gets.
-        footer={workout.exercises.length > 0 && dockOpen && !railsMode ? (
-          <>
-            <IconButton icon="add" label={t('workout.addExercise')} size={56} onPress={() => setPickerOpen(true)} />
-            <FooterAction icon="flag-outline" label={t('workout.finish')} onPress={() => setFinishOpen(true)} />
-            <IconButton icon="chevron-down" label={t('workout.collapseDock')} size={56} onPress={() => setDockOpen(false)} />
-          </>
-        ) : undefined}
+        backdrop={null}
+        backgroundColor={background}
+        footerColor={footerColor}
+        columnStyle={styles.workoutColumn}
+        footerAccessory={<View style={styles.dockStack} onLayout={(event) => setFooterHeight(event.nativeEvent.layout.height)}>
+          {timedView ? (
+            <TimedMethodMiniDock exercise={timedView.exercise} phase={timedView.phase} onOpen={() => setTimedStage(true)} />
+          ) : emomView ? (
+            <EmomMiniDock view={emomView} label={emomBadge(emomView.phase, emom.plan!, t)} onOpen={() => setEmomStage(true)} />
+          ) : hold.active || restEndsAt !== null ? (
+            <>
+              {restEndsAt !== null && rateTarget && showRatings ? (
+                <RateSetStrip
+                  key={rateTarget.set.id}
+                  setLabel={rateTarget.label}
+                  rpe={rateTarget.set.rpe}
+                  target={rateTarget.set.targetRpe}
+                  form={rateTarget.set.formRating}
+                  showRpe={showRpe}
+                  onRpe={(value) => void saveRpe(rateTarget.set, value)}
+                  onForm={(value) => void saveFormRating(rateTarget.set, value)}
+                  onMore={() => openSetOptions(rateTarget.exercise, rateTarget.set)}
+                />
+              ) : null}
+              <TimerBar
+                hold={hold.active}
+                restEndsAt={restEndsAt}
+                voiceCues={voiceCues}
+                onRestEnd={endRest}
+                onFinishHold={() => void finishCurrentHold()}
+                onExtend={() => adjustRest(REST_STEP_SEC)}
+                onReduce={() => adjustRest(-REST_STEP_SEC)}
+                onSkip={skipRest}
+                nextName={next?.name}
+              />
+            </>
+          ) : freeRest ? (
+            <FreeRestBar since={freeRest.since} restSec={freeRest.restSec} onStartRest={() => startRestTimer(freeRest.restSec)} onClose={() => setFreeRest(null)} />
+          ) : null}
+          {focused ? (hold.active || restEndsAt !== null ? null : (
+            <View style={styles.logAction}>
+              {focusedOpenSet ? (
+                <ActionButton
+                  icon={focused.metric.startsWith('time') && !emom.plan ? 'play' : 'checkmark'}
+                  label={focused.metric.startsWith('time') && !emom.plan ? t('simple.startHold', { set: focusedOpenLabel }) : t('simple.logSet', { set: focusedOpenLabel })}
+                  onPress={() => {
+                    tapFeedback('success');
+                    if (focused.metric.startsWith('time') && !emom.plan) startHoldFor(focusedOpenSet);
+                    else void completeHoldManually(focusedOpenSet);
+                  }}
+                />
+              ) : nextOther ? (
+                <ActionButton icon="arrow-forward" label={t('simple.nextExercise', { name: nextOther.name })} onPress={() => openExercise(nextOther)} />
+              ) : (
+                <ActionButton icon="flag" label={t('workout.finish')} onPress={() => setFinishOpen(true)} />
+              )}
+            </View>
+          )) : actions}
+        </View>}
       >
         <WorkoutHeader
-          title={displayWorkoutName(workout.name, t('log.pastName'))}
+          title={workoutName}
           startedAt={workout.startedAt}
           done={completedCount}
           total={totalSets}
-          volumeKg={volumeKg}
+          onBack={focused ? showOverview : undefined}
           onTitleLongPress={() => setDetailsOpen(true)}
           titleLongPressLabel={t('workoutDetails.editHint')}
           onMenu={() => setMenuOpen(true)}
+          exercises={workout.exercises}
+          currentId={focused?.entryId ?? next?.entryId ?? null}
+          position={focused ? exercisePosition : undefined}
         />
+        {workout.notes ? <WorkoutNote kind="workoutNote" value={workout.notes} onPress={() => setNoteTarget({ kind: 'workoutNote', id: workout.id, context: workoutName, value: workout.notes })} /> : null}
 
-        {workout.notes ? <Body>{workout.notes}</Body> : null}
-
-        {workout.exercises.length > 0 ? <ExerciseSegments exercises={workout.exercises} currentId={currentEntryId} done={completedCount} total={totalSets} /> : null}
-
-        {/* The check-in is asked once, before the first set; afterwards it lives in the menu. */}
-        {completedCount === 0 || readinessOpen ? (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityState={{ expanded: readinessOpen }}
-            onPress={() => setReadinessOpen((open) => !open)}
-            style={styles.readinessToggle}
-          >
-            <Icon name={readinessCount === 3 ? 'checkmark-circle' : 'pulse-outline'} size={20} color={readinessCount === 3 ? palette.success : palette.accentStrong} />
-            <View style={styles.shrink}>
-              <Text style={[styles.readinessTitle, { color: palette.textMuted }]}>{t('workout.readinessTitle')}</Text>
-              {lowReadiness ? <Text style={[styles.readinessHint, { color: palette.warning }]}>{t('workout.readinessSuggestion')}</Text> : null}
-            </View>
-            <Icon name={readinessOpen ? 'chevron-up' : 'chevron-down'} size={18} color={palette.textMuted} />
-          </Pressable>
-        ) : null}
         {readinessOpen ? (
           <Card style={styles.readinessCard}>
+            <View style={styles.readyHeader}>
+              <Text style={styles.readinessTitle}>{t('workout.readinessTitle')}</Text>
+              <IconButton icon="close" tone="plain" label={t('common.close')} onPress={() => setReadinessOpen(false)} />
+            </View>
             <Body>{t('workout.readinessHelp')}</Body>
+            {lowReadiness ? <Text style={[styles.readinessHint, { color: palette.warning }]}>{t('workout.readinessSuggestion')}</Text> : null}
             <ReadinessRow label={t('workout.sleep')} value={workout.sleep} onChange={(value) => void saveReadiness('sleep', value)} />
             <ReadinessRow label={t('workout.energy')} value={workout.energy} onChange={(value) => void saveReadiness('energy', value)} />
             <ReadinessRow label={t('workout.soreness')} value={workout.soreness} onChange={(value) => void saveReadiness('soreness', value)} />
           </Card>
         ) : null}
 
-        {workout.exercises.length === 0 ? (
-          <EmptyState
-            icon="barbell-outline"
-            title={t('workout.addFirst')}
-            body={t('workout.savedDescription')}
-            action={(
-              <View style={styles.emptyAction}>
-                <ActionButton icon="add" label={t('workout.addExercise')} onPress={() => setPickerOpen(true)} />
-                <ActionButton icon="close-circle-outline" label={t('workout.discard')} variant="ghost" onPress={() => setDiscardOpen(true)} />
+
+        {focused ? <>
+          {telemetryOn && telemetry ? (
+            <Pressable accessibilityRole="button" onPress={() => { tapFeedback(); setTelemetrySheet(true); }} style={[styles.telemetryRow, { borderColor: palette.border }]}>
+              <Icon name="speedometer-outline" size={18} color={palette.textMuted} />
+              <Text style={[styles.flex, styles.railLabel]}>{t('telemetry.title')}</Text>
+              <Icon name="chevron-forward" size={16} color={palette.textMuted} />
+            </Pressable>
+          ) : null}
+          {renderExercise(focused)}
+          {nextOther ? <View style={styles.dockStack}>
+            <Label>{t('liveWorkout.nextMovement')}</Label>
+            <WorkoutExerciseRow exercise={nextOther} next={nextOther.entryId === next?.entryId} onPress={() => openExercise(nextOther)} />
+          </View> : null}
+        </> : <>
+          {totalSets > 0 && completedCount === totalSets ? <Body>{t('liveWorkout.readyToFinish')}</Body> : null}
+          <WorkoutOverview editing={editingOverview} onEditing={setEditingOverview}
+            addRow={workout.exercises.length > 0 ? (
+              <Pressable accessibilityRole="button" onPress={() => { tapFeedback(); setPickerOpen(true); }}
+                style={({ pressed }) => [styles.addRow, { borderColor: palette.accentStrong, backgroundColor: pressed ? palette.accentSoft : palette.surface }]}>
+                <Icon name="add" size={18} color={palette.accentStrong} />
+                <Text style={[styles.addRowText, { color: palette.accentStrong }]}>{t('workout.addExercise')}</Text>
+              </Pressable>
+            ) : null}
+            canMove={canMove} onMove={async (exercise, target) => {
+            await changeWorkoutGroups(workout.id, { type: 'dropExercise', id: exercise.entryId, targetId: target.entryId });
+            await refresh(workout.id);
+          }} groups={groups} folded={foldedGroups} nextId={next?.entryId ?? null}
+            onFold={(key) => setFoldedGroups((current) => {
+              const updated = new Set(current);
+              if (updated.has(key)) updated.delete(key); else updated.add(key);
+              return updated;
+            })}
+            onFoldAll={(keys) => { setFoldedGroups(new Set(keys)); if (keys.length) showOverview(); }}
+            onGroupSheet={setGroupSheet}
+            renderExercise={(exercise, marker, wrapDrag = (content) => content) => (
+              <View style={styles.overviewExerciseRow}>
+                {wrapDrag(<View collapsable={false} style={styles.flex}>
+                  <WorkoutExerciseRow exercise={exercise} marker={marker} next={exercise.entryId === next?.entryId} onPress={() => openExercise(exercise)}
+                    onLongPress={editingOverview ? undefined : () => setOptionsFor(exercise)} />
+                </View>)}
+                {editingOverview ? <IconButton icon="close" tone="plain" size={44} color={palette.textMuted}
+                  label={t('liveWorkout.removeNamedExercise', { name: exercise.name })}
+                  onPress={() => void removeExerciseOrConfirm(exercise)} /> : null}
               </View>
             )}
           />
-        ) : null}
-
-        {/* Until the first set is done, or closed: after that it only takes room above the sets. */}
-        {swipeHint && !allSets.some((set) => set.completedAt) && workout.exercises.some((exercise) => exercise.sets.length > 0) ? (
-          <Animated.View exiting={itemExiting} style={[styles.swipeHint, { backgroundColor: palette.accentSoft }]}>
-            <Icon name="swap-horizontal" size={18} color={palette.accentStrong} />
-            <Text style={[styles.swipeHintText, { color: palette.accentStrong }]}>{t('logger.swipeHint')}</Text>
-            <IconButton icon="close" label={t('common.close')} tone="plain" size={40} onPress={markSwiped} />
-          </Animated.View>
-        ) : null}
-        <View onLayout={(event) => { listTop.current = event.nativeEvent.layout.y; }}>
-        <LayoutAnimationConfig skipEntering>
-        <ReorderableList
-          items={workout.exercises}
-          keyOf={(item) => item.entryId}
-          nameOf={(item) => item.name}
-          gap={20}
-          onMove={(from, to) => void moveExerciseEntry(workout.id, workout.exercises[from].entryId, to).then(() => refresh(workout.id))}
-          onRowLayout={(key, top) => { cardTops.current.set(key, listTop.current + top); }}
-          renderRow={(exercise, index, row) => {
-            const copyable = copyableSets(exercise, previous.get(exercise.exerciseId));
-            return (
-            <Animated.View entering={exerciseEntering} exiting={itemExiting}>
-          {showBlocks && (index === 0 || blockOf(workout.exercises[index - 1].block) !== exercise.block) ? (
-            <BlockHeader block={exercise.block} exercises={workout.exercises.filter((item) => item.block === exercise.block)} />
-          ) : null}
-          <ExerciseCard
-            focus={focusMode}
-            onSetExpanded={() => selectEntry(exercise.entryId)}
-            figure={index + 1}
-            nowLabel={exercise.entryId === nowEntryId ? t('workout.now', { position: nowIndex + 1, total: workout.exercises.length }) : null}
-            exercise={exercise}
-            collapsed={collapsedEntries.get(exercise.entryId) ?? exercise.entryId !== currentEntryId}
-            onToggleCollapsed={() => setCollapsedEntries((current) => new Map(current).set(exercise.entryId, !(current.get(exercise.entryId) ?? false)))}
-            handle={workout.exercises.length > 1 ? row.handle : undefined}
-            previous={previous.get(exercise.exerciseId)}
-            hold={hold.active}
-            onChange={changeSet}
-            onSetValue={(set, field, value) => void (field === 'addedLoadKg' && value !== 0 ? allowLoad(exercise) : Promise.resolve()).then(() => updateSet(set.id, field, value)).then(() => refresh(workout.id))}
-            onComplete={(set) => void completeHoldManually(set)}
-            onStartHold={startHoldFor}
-            onFinishHold={() => void finishCurrentHold()}
-            onAddSet={() => void (exercise.entryId === emomEntryId ? addEmomRound() : addSet(exercise.entryId).then(() => refresh(workout.id)))}
-            onAddWarmup={() => void addWarmupSet(exercise.entryId).then(() => refresh(workout.id))}
-            onCopyAllLast={copyable.length > 0 || missingWarmups(exercise, previous.get(exercise.exerciseId)) > 0 ? () => void Promise.all(copyable.map(({ set, values }) => copyValuesToSet(set.id, values)))
-              .then(() => addWarmupsFromLastTime(exercise.entryId, previous.get(exercise.exerciseId)?.warmups ?? []))
-              .then(() => refresh(workout.id)) : undefined}
-            onSetOptions={(set, view) => setSetSheet({ exercise, setId: set.id, view })}
-            onToggleWarmup={(set) => void toggleWarmup(set)}
-            setRecords={records.sets}
-            volumeRecord={records.volume.has(exercise.exerciseId)}
-            sameLoadRecord={records.sameLoad.get(exercise.exerciseId) ?? null}
-            emomLabel={exercise.entryId === emomEntryId && emom.phase ? emomBadge(emom.phase, emom.plan!, t) : null}
-            supersetLabel={exercise.groupId ? t('superset.label', { letter: supersetLetters.get(exercise.groupId) ?? 'A' }) : null}
-            onUncomplete={(set) => void reopenSet(set)}
-            onRemoveSet={(set) => void removeSetFromRow(exercise, set)}
-            onSwiped={markSwiped}
-            showRpe={showRpe}
-            defaultRest={restForSet(exercise.exerciseId, { kind: 'working', restSec: null })}
-            onFormRating={(set, rating) => void saveFormRating(set, rating)}
-            onRomRating={(set, rating) => void saveRomRating(set, rating)}
-            onNote={(set, note) => void saveNote(set, note)}
-            typeDone
-            apparatusLabel={exercise.apparatusId && catalog ? apparatusName(catalog.apparatus.find((item) => item.id === exercise.apparatusId), t) : null}
-            firstTimeLabel={exercise.apparatusAffectsDifficulty && exercise.apparatusId && catalog ? t('equipment.firstTimeOn', { name: apparatusName(catalog.apparatus.find((item) => item.id === exercise.apparatusId), t) }) : undefined}
-            describeBands={(set) => (bandIndex ? describeSetBands(set, bandIndex, t) : null)}
-            compareBands={compareBands}
-            renderBandsEditor={(set) => <SetBandsField key={set.id} exercise={exercise} set={set} onChanged={() => refresh(workout.id)} />}
-            onRpe={(set, rpe) => void rateSet(set, rpe)}
-            onOptions={() => setOptionsFor(exercise)}
-          />
-            </Animated.View>
-            );
-          }}
-        />
-        </LayoutAnimationConfig>
-        </View>
-
+          {workout.exercises.length === 0 ? <EmptyState icon="barbell-outline" title={t('workout.addFirst')} body={t('workout.savedDescription')} /> : null}
+        </>}
       </Screen>
 
-
+      {noteTarget ? <WorkoutNoteSheet key={`${noteTarget.kind}:${noteTarget.id}`} kind={noteTarget.kind} initial={noteTarget.value} context={noteTarget.context}
+        onClose={() => setNoteTarget(null)}
+        onSave={async (value) => {
+          if (noteTarget.kind === 'setNote') await updateSetNote(noteTarget.id, value);
+          else if (noteTarget.kind === 'exerciseNote') await updateEntryNote(noteTarget.id, value);
+          else await updateWorkoutNote(noteTarget.id, value);
+          await refresh(workout.id);
+        }} /> : null}
+      {groupSheet ? <WorkoutGroupSheet
+        key={`${groupSheet.view}:${'group' in groupSheet ? groupSheet.group.id : groupSheet.parent?.id ?? ''}`}
+        sheet={groupSheet} groups={groups} exercises={workout.exercises} onClose={() => setGroupSheet(null)} onChange={setGroupSheet}
+        onSave={async (change) => {
+          await changeWorkoutGroups(workout.id, change);
+          await refresh(workout.id);
+          if (change.type === 'deleteGroup' || change.type === 'deleteSuperset') setFoldedGroups((current) => {
+            const next = new Set(current);
+            next.delete(`group:${change.id}`);
+            next.delete(`superset:${change.id}`);
+            next.delete('group:loose');
+            return next;
+          });
+          if (change.type === 'superset') setFoldedGroups((current) => {
+            const next = new Set(current);
+            next.delete(`group:${change.parentId ?? 'loose'}`);
+            if (change.id) next.delete(`superset:${change.id}`);
+            return next;
+          });
+        }} /> : null}
       <WorkoutMenuSheet
         visible={menuOpen}
         onClose={() => setMenuOpen(false)}
+        subtitle={t('simple.menuSubtitle', { done: completedCount, total: totalSets })}
+        position={focused ? t('simple.position', { current: exercisePosition, total: workout.exercises.length }) : undefined}
+        hasNote={Boolean(workout.notes)}
+        rated={workout.sleep !== null || workout.energy !== null || workout.soreness !== null}
         focusMode={focusMode}
         telemetryOn={telemetryOn}
         voiceCues={voiceCues}
-        canFold={workout.exercises.length > 1}
-        allCollapsed={allCollapsed}
-        canNarrate={narratable}
+        canNarrate={workout.exercises.some((exercise) => exercise.sets.some((set) => !set.completedAt))}
         canClear={workout.exercises.some((exercise) => exercise.sets.length > 0)}
+        canFinish={workout.exercises.length > 0}
+        onFinish={() => setFinishOpen(true)}
         onCheckIn={() => setReadinessOpen(true)}
-        onFocus={() => { tapFeedback(); setFocusMode(!focusMode); writePreference(FOCUS_MODE_KEY, String(!focusMode)); }}
-        onTelemetry={() => { tapFeedback(); setTelemetryOn(!telemetryOn); writePreference(TELEMETRY_ENABLED_KEY, String(!telemetryOn)); }}
+        onFocus={() => { setFocusMode(!focusMode); writePreference(FOCUS_MODE_KEY, String(!focusMode)); }}
+        onTelemetry={() => { setTelemetryOn(!telemetryOn); writePreference(TELEMETRY_ENABLED_KEY, String(!telemetryOn)); }}
         onVoice={toggleVoiceCues}
-        onNarrate={() => router.push({ pathname: '/workout/narrate/[id]', params: { id: workout.id } })}
-        onFoldAll={() => { tapFeedback(); setCollapsedEntries(new Map(workout.exercises.map((exercise) => [exercise.entryId, !allCollapsed]))); }}
+        onNarrate={async () => {
+          if (await timed.stop()) router.push({ pathname: '/workout/narrate/[id]', params: { id: workout.id } });
+        }}
+        onOverview={focused ? showOverview : undefined}
+        onDiscard={() => setDiscardOpen(true)}
+        onDetails={() => setDetailsOpen(true)}
         onSave={() => setSaveOpen(true)}
         onClear={() => setClearAllOpen(true)}
       />
@@ -1078,10 +1128,11 @@ export default function WorkoutScreen() {
         onClose={() => setPairsOpen(false)}
         onGo={(pair: IncompletePair) => {
           setPairsOpen(false);
-          setCollapsedEntries((current) => new Map(current).set(pair.entryId, false));
-          selectEntry(pair.entryId);
-          const top = cardTops.current.get(pair.entryId);
-          if (top !== undefined) scrollRef.current?.scrollTo({ y: Math.max(0, top - 16), animated: true });
+          const exercise = workout.exercises.find((entry) => entry.entryId === pair.entryId);
+          if (exercise) {
+            setFoldedGroups(new Set());
+            openExercise(exercise);
+          }
         }}
       />
       <Sheet visible={telemetrySheet} onClose={() => setTelemetrySheet(false)} title={t('telemetry.title')}>
@@ -1096,9 +1147,21 @@ export default function WorkoutScreen() {
           if (undo?.switched) void undoSwitch(undo.switched).then(() => refresh(workout.id));
         }}
         onHide={hideUndo}
-        bottomOffset={emom.plan ? 180 : hold.active || restEndsAt !== null ? 110 : 0}
+        bottomOffset={toastOffset}
       />
-      {emomView && emomStage ? (
+      {timedView && timed.plan && timedStage ? (
+        <TimedMethodStage
+          exercise={timedView.exercise}
+          plan={timed.plan}
+          phase={timedView.phase}
+          onSkipRecovery={timed.skipRecovery}
+          onStartTest={timed.startTest}
+          onFinishTest={() => void timed.finishTest()}
+          onStop={() => void timed.stop()}
+          onClose={closeTimedStage}
+        />
+      ) : null}
+      {emomView && emomStage && !timedView ? (
         <EmomStage
           view={emomView}
           onChange={(delta) => emom.setValue((emom.plan?.value ?? 0) + delta * (emom.plan?.field === 'durationSec' ? 5 : 1))}
@@ -1114,19 +1177,36 @@ export default function WorkoutScreen() {
           actionLabel={t('emom.undo')}
           onAction={() => void undoEmomRound()}
           onHide={hideEmomAdded}
-          bottomOffset={emomView && emomStage ? 160 : 72}
+          bottomOffset={emomView && emomStage ? 160 : toastOffset}
         />
       </View>
-      <Toast message={emomNotice} onHide={() => setEmomNotice(null)} />
-      <Toast message={loadNotice} onHide={() => setLoadNotice(null)} />
+      <Toast bottomOffset={toastOffset} message={emomNotice} onHide={() => setEmomNotice(null)} />
+      <Toast bottomOffset={toastOffset} message={loadNotice} onHide={() => setLoadNotice(null)} />
 
+      <TimedMethodSetupSheet
+        exercise={timedSetupFor}
+        onClose={() => setTimedSetupFor(null)}
+        onStart={async (config) => {
+          if (!await timed.stop()) return;
+          if (emom.plan) await emom.stop();
+          setTimedSetupFor(null);
+          setFoldedGroups(new Set());
+          setOpenExerciseId(config.entryId);
+          hold.stop();
+          skipRest();
+          setTimedStage(true);
+          timed.start(config);
+        }}
+      />
       <EmomSetupSheet
         exercise={emomSetupFor}
         onClose={() => setEmomSetupFor(null)}
-        onStart={(config) => {
+        onStart={async (config) => {
+          if (!await timed.stop()) return;
           setEmomSetupFor(null);
           // The rounds fill this exercise's sets: show them.
-          setCollapsedEntries((current) => new Map(current).set(config.entryId, false));
+          setFoldedGroups(new Set());
+          setOpenExerciseId(config.entryId);
           hold.stop();
           skipRest();
           setEmomStage(true);
@@ -1134,16 +1214,10 @@ export default function WorkoutScreen() {
           else emom.start(config);
         }}
       />
-      <PrescriptionSyncSheet
-        visible={syncOffer !== null}
-        match={syncOffer?.match ?? null}
-        exercises={syncOffer?.exercises ?? []}
-        mode="structure"
-        onClose={() => { const target = syncOffer?.workoutId; setSyncOffer(null); if (target) router.replace({ pathname: '/workout/summary/[id]', params: { id: target } }); }}
-      />
       <SaveToProgramSheet
         visible={saveOpen}
         defaultName={workout.name}
+        workoutId={workout.id}
         exercises={workout.exercises}
         onClose={() => setSaveOpen(false)}
         onSaved={(program) => { setSaveOpen(false); setSavedTo({ id: program.id, name: program.name }); }}
@@ -1153,18 +1227,18 @@ export default function WorkoutScreen() {
         actionLabel={t('saveToProgram.open')}
         onAction={() => { if (savedTo) router.push({ pathname: '/program/user/[id]', params: { id: savedTo.id } }); }}
         onHide={() => setSavedTo(null)}
-        bottomOffset={hold.active || restEndsAt !== null ? 110 : 0}
+        bottomOffset={toastOffset}
       />
 
       <Sheet
         visible={finishOpen}
         onClose={() => setFinishOpen(false)}
         title={t('logger.finishTitle')}
-        body={completedCount > 0 ? `${t('logger.finishBody', { count: completedCount })}${tiny ? `\n\n${t('logger.tinyWorkout')}` : ''}` : t('logger.noCompleted')}
+        body={hasTimedHolds ? t('timedMethod.finishWorkout') : completedCount > 0 ? `${t('logger.finishBody', { count: completedCount })}${tiny ? `\n\n${t('logger.tinyWorkout')}` : ''}` : t('logger.noCompleted')}
       >
-        {workout.exercises.some((e) => e.sets.some((s) => s.completedAt)) ? <ActionButton icon="flag" label={t('workout.finish')} onPress={() => void confirmFinish()} /> : null}
+        {hasTimedHolds || workout.exercises.some((e) => e.sets.some((s) => s.completedAt)) ? <ActionButton icon="flag" label={t('workout.finish')} onPress={() => void confirmFinish()} /> : null}
         <ActionButton label={t('logger.keepGoing')} secondary onPress={() => setFinishOpen(false)} />
-        {completedCount === 0 || tiny ? (
+        {!hasTimedHolds && (completedCount === 0 || tiny) ? (
           <ActionButton icon="close-circle-outline" label={t('workout.discard')} variant="danger" onPress={() => { setFinishOpen(false); setDiscardOpen(true); }} />
         ) : null}
       </Sheet>
@@ -1189,38 +1263,14 @@ export default function WorkoutScreen() {
         onSave={async (details) => { await updateWorkoutDetails(workout.id, details); await refresh(workout.id); setDetailsOpen(false); }}
       />
 
-      <Sheet visible={optionsFor !== null} onClose={() => setOptionsFor(null)} title={optionsFor?.name ?? t('logger.options')}>
+      <Sheet visible={optionsFor !== null} onClose={closeOptions} title={optionsFor?.name ?? t('logger.options')}
+        subtitle={optionsFor ? t('simple.exercisePosition', { current: workout.exercises.indexOf(optionsFor) + 1, total: workout.exercises.length }) : undefined}>
         {optionsFor ? (
-          <>
-            <SwitchSection key={`switch-${optionsFor.entryId}-${optionsFor.exerciseId}`} exercise={optionsFor} onSwitch={(id, name) => void switchTo(optionsFor, id, name)} onOther={() => { setReplacing(optionsFor); setOptionsFor(null); setPickerOpen(true); }} />
-            <ExerciseNoteField key={optionsFor.entryId} entryId={optionsFor.entryId} initial={optionsFor.notes} onSaved={() => void refresh(workout.id)} />
-            {catalog && (optionsFor.apparatusIds?.length ?? 0) > 0 ? (
-              <MenuGroup title={t('equipment.apparatusInWorkout')}>
-                <View style={styles.choiceRow}>
-                  {optionsFor.apparatusIds!.map((apparatusId) => (
-                    <Chip
-                      key={apparatusId}
-                      label={apparatusName(catalog.apparatus.find((item) => item.id === apparatusId), t)}
-                      selected={optionsFor.apparatusId === apparatusId}
-                      onPress={() => { const entryId = optionsFor.entryId; setOptionsFor(null); void setEntryApparatus(entryId, apparatusId).then(() => refresh(workout.id)); }}
-                    />
-                  ))}
-                </View>
-                {optionsFor.apparatusAffectsDifficulty ? <Label>{t('equipment.apparatusCompareHint')}</Label> : null}
-              </MenuGroup>
-            ) : null}
-            <ExerciseCompareField key={`compare-${optionsFor.entryId}`} exercise={optionsFor} workoutId={workout.id} workoutName={workout.name} onChanged={() => void refresh(workout.id)} />
-            <ExerciseAveragesField key={`averages-${optionsFor.entryId}`} exercise={optionsFor} onChanged={() => void refresh(workout.id)} />
-            <ExerciseBlockField key={`block-${optionsFor.entryId}-${optionsFor.block}`} entryId={optionsFor.entryId} value={optionsFor.block} onChanged={() => { setOptionsFor(null); void refresh(workout.id); }} />
-            <SupersetSettings key={`superset-${optionsFor.entryId}-${optionsFor.groupId ?? ''}`} exercise={optionsFor} />
-            <ExerciseRestFields key={`rest-${optionsFor.entryId}`} exercise={optionsFor} onSaved={() => void refresh(workout.id)} />
-            <MenuGrid>
-              <SupersetActions
-                key={`superset-actions-${optionsFor.entryId}-${optionsFor.groupId ?? ''}`}
-                exercise={optionsFor}
-                hasNext={workout.exercises.findIndex((item) => item.entryId === optionsFor.entryId) < workout.exercises.length - 1}
-                onChanged={() => { setOptionsFor(null); void refresh(workout.id); }}
-              />
+          <View key={`${optionsFor.entryId}-${optionsView ?? 'main'}`} style={styles.dockStack}>
+            {optionsView === null ? <>
+              {/* The four things done most often, then one flat row per setting with its value, then removal apart. */}
+              <MenuGrid>
+                <MenuTile icon="swap-horizontal" label={t('simple.replace')} onPress={() => setOptionsView('replace')} />
               {emomFieldFor(optionsFor.metric) ? (
                 <MenuTile
                   icon="timer-outline"
@@ -1233,24 +1283,89 @@ export default function WorkoutScreen() {
                   }}
                 />
               ) : null}
-              <MenuTile icon="flag-outline" label={optionsFor.totalTarget != null ? t('totalGoal.edit') : t('totalGoal.set')} onPress={() => { setTotalFor(optionsFor); setOptionsFor(null); }} />
-              <MenuTile icon="swap-horizontal" label={t('logger.replaceExercise')} onPress={() => { setReplacing(optionsFor); setOptionsFor(null); setPickerOpen(true); }} />
-              <MenuTile
-                icon="construct-outline"
-                label={t('logger.editExercise')}
-                onPress={() => {
-                  const exerciseId = optionsFor.exerciseId;
+                {timedMethodFits(optionsFor.metric) ? <MenuTile icon="hourglass-outline" label={t('timedMethod.menu')} onPress={() => { const exercise = optionsFor; setOptionsFor(null); setTimedSetupFor(exercise); }} /> : null}
+                <MenuTile icon="flag-outline" label={optionsFor.totalTarget != null ? t('totalGoal.edit') : t('totalGoal.set')} onPress={() => { setTotalFor(optionsFor); setOptionsFor(null); }} />
+                <MenuTile icon="flame-outline" label={t('simple.addWarmups')} onPress={() => {
+                  const exercise = optionsFor;
+                  const warmups = previous.get(exercise.exerciseId)?.warmups ?? [];
                   setOptionsFor(null);
-                  router.push({ pathname: '/exercise/new', params: { edit: exerciseId } });
-                }}
-              />
-              <MenuTile icon={optionsFor.demoUrl ? 'create-outline' : 'link'} label={optionsFor.demoUrl ? t('logger.reference') : t('exercise.addReference')} onPress={() => { setReferenceFor(optionsFor); setOptionsFor(null); }} />
-            </MenuGrid>
-            <MenuList>
-              {optionsFor.sets.length > 0 ? <MenuRow tone="danger" icon="remove-circle-outline" label={t('logger.clearSets')} onPress={() => void clearSets({ exercise: optionsFor })} /> : null}
-              <MenuRow tone="danger" icon="trash-outline" label={t('logger.removeExercise')} onPress={() => void removeExerciseOrConfirm(optionsFor)} />
-            </MenuList>
-          </>
+                  void (warmups.length > 0 ? addWarmupsFromLastTime(exercise.entryId, warmups) : addWarmupSet(exercise.entryId)).then(() => refresh(workout.id));
+                }} />
+              </MenuGrid>
+              <MenuList>
+                <MenuRow label={t('logger.restGroup')} value={t('simple.restValue', { working: readExerciseRest(optionsFor.exerciseId, 'working'), warmup: readExerciseRest(optionsFor.exerciseId, 'warmup') })} chevron onPress={() => setOptionsView('rest')} />
+                <MenuRow label={t('logger.noteLabel')} value={optionsFor.notes ? optionsFor.notes : t('simple.add')} chevron onPress={() => { setOptionsFor(null); openExerciseNote(optionsFor); }} />
+                {catalog && (optionsFor.apparatusIds?.length ?? 0) > 0 ? <MenuRow label={t('equipment.apparatusInWorkout')} value={apparatusName(catalog.apparatus.find((item) => item.id === optionsFor.apparatusId), t)} chevron onPress={() => setOptionsView('setup')} /> : null}
+                <MenuRow label={t('simple.moveGroup')} value={groups.find((group) => group.exercises.some((entry) => entry.entryId === optionsFor.entryId))?.name} chevron onPress={() => setOptionsView('setup')} />
+                <MenuRow label={t('simple.historyCompare')} chevron onPress={() => setOptionsView('history')} />
+                <MenuRow label={t('simple.exercisePage')} chevron onPress={() => setOptionsView('library')} />
+              </MenuList>
+              <MenuList>
+                {optionsFor.sets.length > 0 ? <MenuRow tone="danger" icon="remove-circle-outline" label={t('logger.clearSets')} onPress={() => void clearSets({ exercise: optionsFor })} /> : null}
+                <MenuRow tone="danger" icon="trash-outline" label={t('logger.removeExercise')} onPress={() => void removeExerciseOrConfirm(optionsFor)} />
+              </MenuList>
+            </> : <>
+              {optionsView === 'rest' ? <ExerciseRestFields key={`rest-${optionsFor.entryId}`} exercise={optionsFor} onSaved={() => void refresh(workout.id)} /> : null}
+              {optionsView === 'replace' ? <>
+              <SwitchSection key={`switch-${optionsFor.entryId}-${optionsFor.exerciseId}`} exercise={optionsFor} onSwitch={(id, name) => void switchTo(optionsFor, id, name)} onOther={() => { setReplacing(optionsFor); setOptionsFor(null); setPickerOpen(true); }} />
+              </> : null}
+              {optionsView === 'setup' ? <>
+              {catalog && (optionsFor.apparatusIds?.length ?? 0) > 0 ? (
+                <MenuGroup title={t('equipment.apparatusInWorkout')}>
+                  <View style={styles.choiceRow}>
+                    {optionsFor.apparatusIds!.map((apparatusId) => (
+                      <Chip
+                        key={apparatusId}
+                        label={apparatusName(catalog.apparatus.find((item) => item.id === apparatusId), t)}
+                        selected={optionsFor.apparatusId === apparatusId}
+                        onPress={() => { const entryId = optionsFor.entryId; setOptionsFor(null); void setEntryApparatus(entryId, apparatusId).then(() => refresh(workout.id)); }}
+                      />
+                    ))}
+                  </View>
+                  {optionsFor.apparatusAffectsDifficulty ? <Label>{t('equipment.apparatusCompareHint')}</Label> : null}
+                </MenuGroup>
+              ) : null}
+              {!workout.groupLayout ? <ExerciseBlockField key={`block-${optionsFor.entryId}-${optionsFor.block}`} entryId={optionsFor.entryId} value={optionsFor.block} onChanged={() => { setOptionsFor(null); void refresh(workout.id); }} /> : null}
+              <SupersetSettings key={`superset-${optionsFor.entryId}-${optionsFor.groupId ?? ''}`} exercise={optionsFor} />
+                <MenuGrid>
+                <SupersetActions
+                  key={`superset-actions-${optionsFor.entryId}-${optionsFor.groupId ?? ''}`}
+                  exercise={optionsFor}
+                  hasNext={(() => {
+                    const candidate = workout.exercises[workout.exercises.findIndex((item) => item.entryId === optionsFor.entryId) + 1];
+                    return Boolean(candidate && (workout.groupLayout ? candidate.workoutGroupId === optionsFor.workoutGroupId : candidate.block === optionsFor.block));
+                  })()}
+                  onChanged={() => { setOptionsFor(null); void refresh(workout.id); }}
+                />
+                {([-1, 1] as const).map((offset) => {
+                  if (!canMove(optionsFor, offset)) return null;
+                  return <MenuTile key={offset} icon={offset < 0 ? 'arrow-up' : 'arrow-down'} label={t(offset < 0 ? 'liveWorkout.moveUp' : 'liveWorkout.moveDown')}
+                    onPress={() => { setOptionsFor(null); void changeWorkoutGroups(workout.id, { type: 'moveExercise', id: optionsFor.entryId, offset }).then(() => refresh(workout.id)); }} />;
+                })}
+                </MenuGrid>
+              </> : null}
+              {optionsView === 'history' ? <>
+              <ExerciseCompareField key={`compare-${optionsFor.entryId}`} exercise={optionsFor} workoutId={workout.id} workoutName={workout.name} onChanged={() => void refresh(workout.id)} />
+              <ExerciseAveragesField key={`averages-${optionsFor.entryId}`} exercise={optionsFor} onChanged={() => void refresh(workout.id)} />
+              </> : null}
+              {optionsView === 'library' ? <>
+                <MenuGrid>
+                <MenuTile
+                  icon="construct-outline"
+                  label={t('logger.editExercise')}
+                  onPress={() => {
+                    const exerciseId = optionsFor.exerciseId;
+                    setOptionsFor(null);
+                    router.push({ pathname: '/exercise/new', params: { edit: exerciseId } });
+                  }}
+                />
+                <MenuTile icon={optionsFor.demoUrl ? 'create-outline' : 'link'} label={optionsFor.demoUrl ? t('logger.reference') : t('exercise.addReference')} onPress={() => { setReferenceFor(optionsFor); setOptionsFor(null); }} />
+                </MenuGrid>
+                <ListRow icon="open-outline" title={t('logger.openExercise')} onPress={() => { const exerciseId = optionsFor.exerciseId; setOptionsFor(null); openExercisePage(exerciseId); }} />
+              </> : null}
+              <ActionButton icon="arrow-back" secondary label={t('bands.back')} onPress={() => setOptionsView(null)} />
+            </>}
+          </View>
         ) : null}
       </Sheet>
 
@@ -1300,6 +1415,8 @@ export default function WorkoutScreen() {
         <SetSheet
           key={`${sheetSet.id}:${setSheet?.view ?? ''}`}
           initialView={setSheet?.view}
+          onOpenNote={() => { setSetSheet(null); openSetOptions(sheetExercise, sheetSet, 'note'); }}
+          onToggleWarmup={sheetExercise.entryId === emomEntryId ? undefined : () => { setSetSheet(null); void toggleWarmup(sheetSet); }}
           exercise={sheetExercise}
           set={sheetSet}
           holdMode={holdModeFor(sheetSet.id)}
@@ -1325,28 +1442,26 @@ export default function WorkoutScreen() {
   );
 }
 
-/** Names a block of the workout and shows how much of it is done; drawn above its first exercise. */
-function BlockHeader({ block, exercises }: { block: Block; exercises: SessionExercise[] }) {
-  const styles = useScaledStyles(baseStyles);
-  const { t } = useTranslation();
-  const { palette } = useTheme();
-  const ink = useInk();
-  const done = exercises.reduce((sum, exercise) => sum + completedSetCount(exercise.sets), 0);
-  const total = exercises.reduce((sum, exercise) => sum + groupSets(exercise.sets).length, 0);
-  return (
-    <View accessibilityRole="header" accessibilityLabel={`${t(`workout.blocks.${block}`)}, ${t('logger.setsProgress', { done, total })}`} style={[styles.blockHeader, { borderBottomColor: ink }]}>
-      <Tag color={palette.text}>{t(`workout.blocks.${block}`)}</Tag>
-      <Text style={[styles.blockCount, { color: palette.textMuted }]}>{`${done}/${total}`}</Text>
-    </View>
-  );
-}
-
 /** The current time, read inside event handlers only. */
 const nowMs = () => Date.now();
 
 /** Rest end times by workout id, so leaving and reopening the workout keeps the same countdown. */
 const runningRests = new Map<string, number>();
 
+
+/** Used by the rest preview and the timer that actually runs after recording the set. */
+function recoveryAfterSet(workout: ActiveWorkout, exercise: SessionExercise, set: SessionSet) {
+  const normal = restForSet(exercise.exerciseId, set);
+  const otherSidePending = set.pairId && exercise.sets.some((row) => row.pairId === set.pairId && row.id !== set.id && !row.completedAt);
+  if (otherSidePending) return { seconds: exercise.unilateralRestMode === 'side' ? normal : 0, nextEntryId: exercise.entryId };
+  if (!exercise.groupId) return { seconds: normal, nextEntryId: null };
+  const marked = workout.exercises.map((entry) => entry.entryId === exercise.entryId
+    ? { ...entry, sets: entry.sets.map((row) => row.id === set.id ? { ...row, completedAt: workout.startedAt } : row) }
+    : entry);
+  const step = supersetStep(marked, exercise.entryId);
+  const seconds = !step || step.endOfRound ? normal : step.mode === 'between' ? step.betweenSec : 0;
+  return { seconds, nextEntryId: step?.nextEntryId ?? null };
+}
 
 /** Last time's working set at the same position as `set` (same side for L/R pairs), or null. */
 function lastTimeFor(exercise: SessionExercise, set: SessionSet, previous: PreviousPerformance | undefined): PreviousSetValues | null {
@@ -1387,7 +1502,7 @@ function emomBadge(phase: EmomPhase, plan: EmomPlan, t: (key: string, options?: 
   return t('emom.badgeReady', { rounds: plan.rounds });
 }
 
-function TimerBar({ hold, restEndsAt, voiceCues, onRestEnd, onFinishHold, onExtend, onReduce, onSkip, onCollapse }: {
+function TimerBar({ hold, restEndsAt, voiceCues, onRestEnd, onFinishHold, onExtend, onReduce, onSkip, nextName }: {
   hold: ActiveHold | null;
   /** When the running rest ends; the bar counts it down and calls onRestEnd at zero. */
   restEndsAt: number | null;
@@ -1397,7 +1512,7 @@ function TimerBar({ hold, restEndsAt, voiceCues, onRestEnd, onFinishHold, onExte
   onExtend: () => void;
   onReduce: () => void;
   onSkip: () => void;
-  onCollapse: () => void;
+  nextName?: string;
 }) {
   const styles = useScaledStyles(baseStyles);
   const { t } = useTranslation();
@@ -1406,7 +1521,7 @@ function TimerBar({ hold, restEndsAt, voiceCues, onRestEnd, onFinishHold, onExte
   const holding = hold !== null;
   const countingDown = hold?.phase.phase === 'countdown';
   const label = !hold
-    ? t('logger.resting')
+    ? nextName ? t('liveWorkout.restingNext', { name: nextName }) : t('logger.resting')
     : countingDown
       ? t('logger.getReady')
       : hold.mode === 'target'
@@ -1414,45 +1529,27 @@ function TimerBar({ hold, restEndsAt, voiceCues, onRestEnd, onFinishHold, onExte
         : t('logger.holding');
   return (
     <View style={[styles.timerBar, { backgroundColor: palette.hero }]}>
-      <View style={[styles.timerInner, !largeText && styles.timerInnerLine]}>
-      <IconButton icon="chevron-down" label={t('workout.collapseDock')} tone="plain" size={40} color={palette.heroText} onPress={onCollapse} />
-      <View style={styles.timerReadout}>
-        <Text style={[styles.timerLabel, { color: palette.heroText }]}>{label}</Text>
-        {hold || restEndsAt === null
-          ? <Text style={[styles.timerValue, { color: palette.heroText }]}>{hold ? holdDisplay(hold) : ''}</Text>
-          : <RestCountdown key={restEndsAt} endsAt={restEndsAt} voiceCues={voiceCues} onEnd={onRestEnd} />}
-      </View>
-      {holding ? (
-        <TimerAction label={countingDown ? t('common.cancel') : t('logger.doneHold')} filled onPress={onFinishHold} />
-      ) : (
-        <View style={styles.timerActions}>
-          <TimerAction label={t('logger.subtractTime')} onPress={onReduce} />
-          <TimerAction label={t('logger.addTime')} onPress={onExtend} />
-          <TimerAction label={t('logger.skip')} filled onPress={onSkip} />
+      <View style={[styles.timerInner, largeText && styles.timerInnerStacked]}>
+        <View style={styles.timerReadout}>
+          <Text numberOfLines={largeText ? undefined : 2} style={[styles.timerLabel, { color: palette.heroText }]}>{label}</Text>
+          {hold || restEndsAt === null
+            ? <Text style={[styles.timerValue, { color: palette.heroText }]}>{hold ? holdDisplay(hold) : ''}</Text>
+            : <RestCountdown key={restEndsAt} endsAt={restEndsAt} voiceCues={voiceCues} onEnd={onRestEnd} />}
         </View>
-      )}
+        {holding ? (
+          <TimerAction label={countingDown ? t('common.cancel') : t('logger.doneHold')} filled onPress={onFinishHold} />
+        ) : (
+          <View style={styles.timerActions}>
+            <TimerAction label={t('logger.subtractTime')} onPress={onReduce} />
+            <TimerAction label={t('logger.addTime')} onPress={onExtend} />
+            <TimerAction label={t('logger.skip')} filled onPress={onSkip} />
+          </View>
+        )}
       </View>
     </View>
   );
 }
 
-/** The dock folded to one strip: the rest countdown when one runs, and a control to open it again. */
-function CollapsedDock({ restEndsAt, voiceCues, onRestEnd, onOpen }: { restEndsAt: number | null; voiceCues: boolean; onRestEnd: () => void; onOpen: () => void }) {
-  const styles = useScaledStyles(baseStyles);
-  const { t } = useTranslation();
-  const { palette } = useTheme();
-  return (
-    <View style={[styles.collapsed, { backgroundColor: palette.hero }]}>
-      {restEndsAt === null ? null : <RestCountdown key={restEndsAt} endsAt={restEndsAt} voiceCues={voiceCues} onEnd={onRestEnd} />}
-      <IconButton icon="chevron-up" label={t('workout.expandDock')} tone="plain" size={48} color={palette.heroText} onPress={onOpen} />
-    </View>
-  );
-}
-
-/**
- * The seconds left of a rest. It ticks on its own, so the workout screen does not re-render every
- * second; screen readers hear 10 seconds left and the end, not every tick.
- */
 function RestCountdown({ endsAt, voiceCues, onEnd }: { endsAt: number; voiceCues: boolean; onEnd: () => void }) {
   const styles = useScaledStyles(baseStyles);
   const { t, i18n } = useTranslation();
@@ -1492,7 +1589,7 @@ function TimerAction({ label, filled = false, accessibilityLabel, onPress }: { l
       onPress={() => { tapFeedback(); onPress(); }}
       style={({ pressed }) => [styles.timerAction, { backgroundColor: filled ? palette.heroText : palette.heroOverlay, opacity: pressed ? 0.8 : 1 }]}
     >
-      <Text style={[styles.timerActionText, label.length === 1 && styles.timerActionSymbol, { color: filled ? palette.hero : palette.heroText }]}>{label}</Text>
+      <Text style={[styles.timerActionText, { color: filled ? palette.hero : palette.heroText }]}>{label}</Text>
     </Pressable>
   );
 }
@@ -1523,49 +1620,48 @@ function ReadinessRow({ label, value, onChange }: { label: string; value: number
 
 
 const baseStyles = StyleSheet.create({
+  telemetryRow: { minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12, borderWidth: 1, borderRadius: radii.control },
+  logAction: { paddingTop: 4 },
+  addRow: { minHeight: 52, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 14, borderWidth: 1, borderStyle: 'dashed', borderRadius: radii.control },
+  addRowText: { fontFamily: fonts.monoSemibold, fontSize: 12, letterSpacing: 0.7, textTransform: 'uppercase' },
   // The blocks of the lower dock (panel, main action, rails, timer) never touch: one step of the spacing scale between them.
   overStage: { zIndex: 30, elevation: 30 },
   dockStack: { gap: spacing.md },
-  // Its own row under check-in and fold all: the chips sit side by side, left-aligned.
-  headingActions: { width: '100%', flexDirection: 'row', flexWrap: 'wrap', gap: 8, justifyContent: 'flex-start' },
+  workoutColumn: { gap: spacing.lg },
+  footerStacked: { flexDirection: 'column', alignItems: 'stretch' },
+  plannedRest: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 10, minHeight: 64, borderWidth: 1, borderRadius: 4 },
+  plannedLabel: { fontSize: 12 },
+  plannedValue: { fontFamily: fonts.monoBold, fontSize: 27, lineHeight: 31 },
+  exerciseNavigation: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', gap: spacing.sm },
+  overviewExerciseRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  optionSection: { borderWidth: 1, borderRadius: 8, overflow: 'hidden' },
+  optionHeading: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12, minHeight: 48 },
+  optionBody: { gap: spacing.md, padding: spacing.md, paddingTop: spacing.xs },
+  optionHidden: { display: 'none' },
+  railsRow: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', gap: 8 },
+  rail: { flexShrink: 1, flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 44, paddingHorizontal: 4 },
+  railLabel: { fontFamily: fonts.semibold, fontSize: 13, flexShrink: 1 },
+  readyHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
   choiceRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   root: { flex: 1 },
   flex: { flex: 1 },
-  readinessToggle: { flexGrow: 1, flexShrink: 1, flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: MIN_TOUCH_TARGET },
   shrink: { flexShrink: 1 },
   readinessTitle: { fontFamily: fonts.medium, fontSize: 15 },
   readinessHint: { fontFamily: fonts.body, fontSize: 13, marginTop: 2 },
-  readinessCard: { gap: 10, marginTop: -10 },
-  readinessRow: { minHeight: 40, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
-  readinessLabel: { flex: 1, fontFamily: fonts.medium, fontSize: 14 },
-  readinessOptions: { flexDirection: 'row', gap: 6 },
+  readinessCard: { gap: spacing.md, paddingVertical: spacing.md },
+  readinessRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: spacing.sm },
+  readinessLabel: { flexGrow: 1, flexBasis: 64, fontFamily: fonts.medium, fontSize: 14 },
+  readinessOptions: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, maxWidth: '100%' },
   readinessOption: { width: 44, height: MIN_TOUCH_TARGET, borderRadius: radii.control, alignItems: 'center', justifyContent: 'center' },
   readinessValue: { fontFamily: fonts.display, fontSize: 18 },
-  emptyAction: { alignSelf: 'stretch', marginTop: 6, gap: 8 },
-  blockHeader: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: 12, paddingBottom: 6, marginBottom: 10, borderBottomWidth: 1 },
-  blockCount: { fontFamily: fonts.monoSemibold, fontSize: 12 },
-  toolbar: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', columnGap: 8, rowGap: 12 },
-  foldAll: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: MIN_TOUCH_TARGET, paddingHorizontal: 8 },
-  foldAllText: { fontFamily: fonts.semibold, fontSize: 14 },
-  headingTools: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  footerRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-  // Long labels: side by side only when each gets room for one line.
-  footerCellWide: { flex: 1, minWidth: 220 },
-  swipeHint: { flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: radii.control, paddingHorizontal: 14, paddingVertical: 10 },
-  swipeHintText: { flex: 1, fontFamily: fonts.medium, fontSize: 14 },
-  footerActions: { gap: 10, marginTop: 4 },
-  timerBar: { borderRadius: instrument.radius, paddingHorizontal: 8, paddingVertical: 6 },
-  collapsed: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderRadius: instrument.radius, paddingLeft: 16, paddingRight: 4, minHeight: 48 },
+  footerRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 8 },
+  timerBar: { borderRadius: instrument.radius, padding: spacing.md },
   timerInner: { width: '100%', maxWidth: 640, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
   timerLabel: { fontFamily: fonts.medium, fontSize: 12, lineHeight: 14, opacity: 0.85 },
   timerValue: { fontFamily: fonts.monoBold, fontSize: 24, lineHeight: 28, fontVariant: ['tabular-nums'] },
-  // Normal text: chevron, clock and the three actions on one line.
-  timerInnerLine: { flexWrap: 'nowrap' },
-  timerReadout: { flexGrow: 1, flexShrink: 0 },
-  timerActions: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  // No wrapping here: a wrapping column lays the two rows side by side and squeezes the labels to nothing.
-  timerAction: { minWidth: 44, minHeight: 40, borderRadius: instrument.radius, paddingHorizontal: 8, paddingVertical: 6, alignItems: 'center', justifyContent: 'center' },
-  timerActionText: { fontFamily: fonts.semibold, fontSize: 15 },
-  timerActionSymbol: { fontSize: 26, lineHeight: 30 },
-  // The surrounding box carries the border, so the browser focus outline is replaced by it.
+  timerInnerStacked: { flexDirection: 'column', flexWrap: 'nowrap', alignItems: 'stretch' },
+  timerReadout: { flexGrow: 1, flexShrink: 1, minWidth: 100, minHeight: MIN_TOUCH_TARGET, justifyContent: 'center', gap: spacing.xs },
+  timerActions: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: spacing.sm, maxWidth: '100%' },
+  timerAction: { minWidth: MIN_TOUCH_TARGET, minHeight: MIN_TOUCH_TARGET, borderRadius: instrument.radius, paddingHorizontal: 8, paddingVertical: 6, alignItems: 'center', justifyContent: 'center' },
+  timerActionText: { fontFamily: fonts.semibold, fontSize: 12 },
 });

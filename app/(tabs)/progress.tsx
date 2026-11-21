@@ -103,7 +103,7 @@ export default function ProgressScreen() {
         <Card>
           <SectionTitle title={t('progress.bests')} />
           {snapshot.personalBests.length ? snapshot.personalBests.map((best) => (
-            <BestRow key={`${best.exerciseId}-${best.side ?? ''}-${best.kind}`} best={best} label={t(`progress.bestKind.${best.kind}`)} palette={palette} />
+            <BestRow key={`${best.exerciseId}-${best.side ?? ''}-${best.kind}-${best.withBands ?? ''}`} best={best} label={t(`progress.bestKind.${best.kind}`)} palette={palette} />
           )) : <View style={styles.empty}>
             <Heading>{t('progress.emptyTitle')}</Heading>
             <Body>{t('progress.emptyBody')}</Body>
@@ -243,7 +243,7 @@ function BestRow({ best, label, palette }: { best: PersonalBest; label: string; 
     <View ref={cardRef} collapsable={false} style={[styles.bestShareCard, { backgroundColor: palette.surfaceMuted }]}>
       <Text style={[styles.bestBrand, { color: palette.accentStrong }]}>TRACKITBETTER</Text>
       <Text numberOfLines={1} style={[styles.exerciseName, { color: palette.text }]}>{personalBestName(best, t)}</Text>
-      <Body>{label} · {date}</Body>
+      <Body>{[label, best.withBands === undefined ? null : t(best.withBands ? 'records.withBands' : 'records.withoutBands'), date].filter(Boolean).join(' · ')}</Body>
       <Text style={[styles.bestValue, { color: palette.accentStrong }]}>{formatBestValue(best)}</Text>
     </View>
     <View style={styles.shareControl}>

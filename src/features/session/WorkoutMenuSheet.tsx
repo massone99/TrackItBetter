@@ -1,42 +1,71 @@
 import { useTranslation } from 'react-i18next';
-import { MenuList, MenuRow, Sheet } from '../../shared/components/ui';
+import { StyleSheet, View } from 'react-native';
+import { ActionButton, Label, MenuList, MenuRow, MenuSwitchRow, Sheet } from '../../shared/components/ui';
+import { spacing } from '../../shared/theme/tokens';
 
-/** What the workout screen used to scatter around its top and bottom: settings, bulk actions and the destructive ones. */
-export function WorkoutMenuSheet({ visible, onClose, focusMode, telemetryOn, voiceCues, canFold, allCollapsed, canNarrate, canClear, onCheckIn, onFocus, onTelemetry, onVoice, onNarrate, onFoldAll, onSave, onClear }: {
+/**
+ * The workout's one menu: Finish first, then actions on this workout, then display and sound switches with their
+ * state, and the destructive actions apart at the end.
+ */
+export function WorkoutMenuSheet({ visible, onClose, subtitle, position, hasNote, rated, focusMode, telemetryOn, voiceCues, canNarrate, canClear, canFinish, onFinish, onCheckIn, onFocus, onTelemetry, onVoice, onNarrate, onDetails, onSave, onClear, onOverview, onDiscard }: {
   visible: boolean;
   onClose: () => void;
+  /** Program, elapsed time and sets, under the title. */
+  subtitle?: string;
+  /** "1 of 7", shown on the All exercises row. */
+  position?: string;
+  hasNote: boolean;
+  rated: boolean;
   focusMode: boolean;
   telemetryOn: boolean;
   voiceCues: boolean;
-  canFold: boolean;
-  allCollapsed: boolean;
   canNarrate: boolean;
   canClear: boolean;
+  canFinish: boolean;
+  onFinish: () => void;
   onCheckIn: () => void;
   onFocus: () => void;
   onTelemetry: () => void;
   onVoice: () => void;
   onNarrate: () => void;
-  onFoldAll: () => void;
+  onDetails: () => void;
   onSave: () => void;
   onClear: () => void;
+  onOverview?: () => void;
+  onDiscard: () => void;
 }) {
   const { t } = useTranslation();
-  const state = (on: boolean) => t(on ? 'workout.menuOn' : 'workout.menuOff');
   // Each row closes the menu first, so the sheet it opens is not stacked on this one.
   const row = (action: () => void) => () => { onClose(); action(); };
   return (
-    <Sheet visible={visible} onClose={onClose} title={t('workout.menu')}>
+    <Sheet visible={visible} onClose={onClose} title={t('simple.workoutMenuTitle')} subtitle={subtitle}>
+      {canFinish ? <ActionButton icon="flag" label={t('workout.finish')} onPress={row(onFinish)} /> : null}
+      <View style={styles.group}>
+        <Label>{t('simple.thisWorkout')}</Label>
+        <MenuList>
+          {onOverview ? <MenuRow label={t('simple.allExercises')} value={position} chevron onPress={row(onOverview)} /> : null}
+          <MenuRow label={t('workoutDetails.editAction')} value={hasNote ? undefined : t('simple.noNote')} chevron onPress={row(onDetails)} />
+          <MenuRow label={t('workout.readinessTitle')} value={rated ? undefined : t('simple.notRated')} chevron onPress={row(onCheckIn)} />
+          {canNarrate ? <MenuRow label={t('narration.start')} chevron onPress={row(onNarrate)} /> : null}
+          <MenuRow label={t('saveToProgram.action')} chevron onPress={row(onSave)} />
+        </MenuList>
+      </View>
+      <View style={styles.group}>
+        <Label>{t('simple.displaySound')}</Label>
+        <MenuList>
+          <MenuSwitchRow label={t('simple.oneAtATime')} value={focusMode} onChange={onFocus} />
+          <MenuSwitchRow label={t('telemetry.title')} value={telemetryOn} onChange={onTelemetry} />
+          <MenuSwitchRow label={t('logger.voiceChip')} value={voiceCues} onChange={onVoice} />
+        </MenuList>
+      </View>
       <MenuList>
-        <MenuRow icon="pulse-outline" label={t('workout.readinessTitle')} onPress={row(onCheckIn)} />
-        <MenuRow icon="scan-outline" label={`${t('logger.focusChip')} · ${state(focusMode)}`} onPress={row(onFocus)} />
-        <MenuRow icon="speedometer-outline" label={`${t('telemetry.title')} · ${state(telemetryOn)}`} onPress={row(onTelemetry)} />
-        <MenuRow icon={voiceCues ? 'volume-high' : 'volume-mute-outline'} label={`${t('logger.voiceChip')} · ${state(voiceCues)}`} onPress={row(onVoice)} />
-        {canNarrate ? <MenuRow icon="mic-outline" label={t('narration.start')} onPress={row(onNarrate)} /> : null}
-        {canFold ? <MenuRow icon={allCollapsed ? 'chevron-down' : 'chevron-up'} label={t(allCollapsed ? 'common.expandAll' : 'common.collapseAll')} onPress={row(onFoldAll)} /> : null}
-        <MenuRow icon="bookmark-outline" label={t('saveToProgram.action')} onPress={row(onSave)} />
+        <MenuRow icon="close-circle-outline" label={t('workout.discard')} tone="danger" onPress={row(onDiscard)} />
         {canClear ? <MenuRow icon="remove-circle-outline" label={t('logger.clearAllSets')} tone="danger" onPress={row(onClear)} /> : null}
       </MenuList>
     </Sheet>
   );
 }
+
+const styles = StyleSheet.create({
+  group: { gap: spacing.sm },
+});

@@ -100,6 +100,7 @@ const workoutSchema = z.object({
   startedAt: timestamp,
   endedAt: nullableTimestamp,
   notes: nullableString,
+  groupLayout: nullableString.optional(),
   sleep: z.number().int().nullable(),
   energy: z.number().int().nullable(),
   soreness: z.number().int().nullable(),
@@ -114,6 +115,7 @@ const entrySchema = z.object({
   order: z.number().int(),
   groupId: nullableString,
   groupType: nullableString,
+  workoutGroupId: nullableString.optional(),
   notes: nullableString,
   // Added in schema v10; null means the exercise preference applies.
   unilateralRestMode: z.enum(['side', 'pair']).nullable().default(null),

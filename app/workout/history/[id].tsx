@@ -12,6 +12,7 @@ import {
   addSetToCompletedWorkout,
   setSetFormRating,
   setSetRomRating,
+  updateEntryNote,
   updateSetNote,
   setSetKind,
   deleteWorkout,
@@ -33,7 +34,7 @@ import { PrescriptionSyncSheet } from "../../../src/features/programs/Prescripti
 import { listUserPrograms } from "../../../src/features/programs/userPrograms";
 import { findPrescribedWorkout, trainedExercises, type PrescribedMatch } from "../../../src/domain/prescriptionSync";
 import { SaveToProgramSheet } from "../../../src/features/programs/SaveToProgramSheet";
-import { WorkoutInProgressSheet } from "../../../src/features/session/WorkoutInProgressSheet";
+import { useStartGuard } from "../../../src/features/session/useStartGuard";
 import type {
   CompletedWorkout,
   RemovedRows,
@@ -54,6 +55,7 @@ import {
   FooterAction,
   Icon,
   IconButton,
+  ListRow,
   PageHeading,
   Screen,
   Sheet,
@@ -85,7 +87,7 @@ export default function PastWorkoutScreen() {
   const [loading, setLoading] = useState(true);
   const [mobilitySeconds, setMobilitySeconds] = useState(0);
   const [error, setError] = useState<string | null>(null);
-  const [blockedBy, setBlockedBy] = useState<{ id: string; name: string } | null>(null);
+  const { block, sheet } = useStartGuard();
   const [loadError, setLoadError] = useState(false);
   const [setFor, setSetFor] = useState<(SetTarget & { view?: 'bands' | 'note' | 'rest' | 'rest' }) | null>(null);
   const [pairFor, setPairFor] = useState<(SetTarget & { pairedSet: SessionSet | null }) | null>(
@@ -207,7 +209,7 @@ export default function PastWorkoutScreen() {
     void repeatWorkoutIfIdle(id)
       .then((result) => {
         if ("workoutId" in result) router.push({ pathname: "/workout/[id]", params: { id: result.workoutId } });
-        else setBlockedBy(result.active);
+        else block(result.active, repeat);
       })
       .catch(() => setError(t("history.repeatError")));
 
@@ -309,7 +311,9 @@ export default function PastWorkoutScreen() {
           />
         }
       />
-      {workout.notes ? <Body>{workout.notes}</Body> : null}
+      {workout.notes ? (
+        <ListRow icon="document-text-outline" title={t("workoutDetails.notes")} subtitle={workout.notes} onPress={() => setDetailsOpen(true)} />
+      ) : null}
       {mobilitySeconds > 0 ? (
         <View style={[styles.mobility, { backgroundColor: palette.accentSoft }]}>
           <Icon name="body-outline" size={16} color={palette.accentStrong} />
@@ -318,7 +322,7 @@ export default function PastWorkoutScreen() {
           </Text>
         </View>
       ) : null}
-      <WorkoutInProgressSheet active={blockedBy} onClose={() => setBlockedBy(null)} />
+      {sheet}
       {error ? (
         <Text accessibilityLiveRegion="polite" style={[styles.error, { color: palette.warning }]}>
           {error}
@@ -371,6 +375,7 @@ export default function PastWorkoutScreen() {
             }}
             editDone
             compare={false}
+            onEntryNote={(note) => void edit(() => updateEntryNote(exercise.entryId, note))}
             showRpe={showRpe}
             onChange={async (set, field, delta) => step(set, field, delta)}
             onSetValue={(set, field, value) => void adjust(set.id, field, value)}
@@ -646,7 +651,7 @@ function ExerciseSheet({
   );
 }
 
-/** Name, day, start time and length of a finished workout, edited with steppers. */
+/** Name, notes and timing of a finished workout. */
 function DetailsSheet({
   workout,
   locale,
@@ -656,18 +661,21 @@ function DetailsSheet({
   workout: CompletedWorkout;
   locale: string;
   onClose: () => void;
-  onSave: (details: { name: string; startedAt: Date; endedAt: Date }) => Promise<void>;
+  onSave: (details: { name: string; notes: string; startedAt: Date; endedAt: Date }) => Promise<void>;
 }) {
   const { t } = useTranslation();
   const [name, setName] = useState(workout.name);
+  const [notes, setNotes] = useState(workout.notes ?? "");
+  const [saving, setSaving] = useState(false);
   const [start, setStart] = useState(workout.startedAt.getTime());
-  const [minutes, setMinutes] = useState(
-    Math.max(1, Math.round((workout.endedAt.getTime() - workout.startedAt.getTime()) / 60_000)),
-  );
+  const originalDuration = workout.endedAt.getTime() - workout.startedAt.getTime();
+  const originalMinutes = Math.max(1, Math.round(originalDuration / 60_000));
+  const [minutes, setMinutes] = useState(originalMinutes);
   const [error, setError] = useState<string | null>(null);
   const startDate = new Date(start);
 
   const save = async () => {
+    if (saving) return;
     if (!name.trim()) {
       setError(t("history.nameRequired"));
       return;
@@ -677,10 +685,15 @@ function DetailsSheet({
       setError(t("history.futureStart"));
       return;
     }
+    setSaving(true);
+    setError(null);
     try {
-      await onSave({ name, startedAt, endedAt: new Date(start + minutes * 60_000) });
+      const duration = minutes === originalMinutes ? originalDuration : minutes * 60_000;
+      await onSave({ name, notes, startedAt, endedAt: new Date(start + duration) });
     } catch {
       setError(t("history.saveError"));
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -695,6 +708,7 @@ function DetailsSheet({
         }}
         maxLength={WORKOUT_NAME_MAX}
       />
+      <TextField label={t("workoutDetails.notes")} value={notes} onChangeText={setNotes} multiline maxLength={1000} />
       <DateField
         label={t("history.day")}
         value={startDate}
@@ -731,7 +745,7 @@ function DetailsSheet({
         onChange={setMinutes}
       />
       {error ? <Body accessibilityLiveRegion="polite">{error}</Body> : null}
-      <ActionButton icon="checkmark" label={t("common.save")} onPress={() => void save()} />
+      <ActionButton icon="checkmark" label={t("common.save")} disabled={saving} onPress={() => void save()} />
       <ActionButton label={t("common.cancel")} secondary onPress={onClose} />
     </Sheet>
   );

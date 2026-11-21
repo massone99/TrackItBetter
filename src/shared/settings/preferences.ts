@@ -27,6 +27,8 @@ export function readBooleanPreference(key: string, fallback: boolean): boolean {
   return value === null ? fallback : value === "true";
 }
 
+export const SET_RATINGS_KEY = "set.ratings";
+
 /** Asks for RPE right after a set is completed (on by default). */
 export const RPE_PROMPT_KEY = "workout.rpePrompt";
 

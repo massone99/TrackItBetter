@@ -64,4 +64,28 @@ describe('weekly goals', () => {
     expect((await week.list()).find((goal) => goal.id === derived.id)!.target).toBe(2400);
     expect(a).toBeDefined();
   });
+
+  it('counts only completed working seconds of the selected exercise in each period', async () => {
+    const now = new Date(2026, 10, 18, 15);
+    const day = goalsOf('day');
+    const week = goalsOf('week');
+    const target = { scope: 'exercise', key: 'tuck-planche', measure: 'minutes', target: 60 } as const;
+    const daily = await day.put(target);
+    const weekly = await week.put({ ...target, target: 120 });
+    await expect(day.put({ ...target, measure: 'reps' })).rejects.toThrow(RangeError);
+    const workoutId = await startWorkout('Holds');
+    const entryId = await addExerciseToWorkout(workoutId, target.key, false);
+    const otherId = await addExerciseToWorkout(workoutId, 'advanced-tuck-planche', false);
+    const { id: setId } = real.sqlite.prepare('SELECT id FROM training_set WHERE entry_id = ?').get(entryId) as { id: string };
+    const update = real.sqlite.prepare('UPDATE training_set SET completed_at = ?, duration_sec = ? WHERE entry_id = ?');
+    update.run(now.getTime(), 45, entryId);
+    update.run(now.getTime(), 90, otherId);
+    expect((await day.snapshot(now)).progress.find(({ goal }) => goal.id === daily.id))
+      .toMatchObject({ done: 45, goal: { label: 'Tuck Planche' } });
+    update.run(new Date(2026, 10, 16, 15).getTime(), 45, entryId);
+    expect((await day.snapshot(now)).progress.find(({ goal }) => goal.id === daily.id)?.done).toBe(0);
+    expect((await week.snapshot(now)).progress.find(({ goal }) => goal.id === weekly.id)?.done).toBe(45);
+    real.sqlite.prepare("UPDATE training_set SET kind = 'warmup' WHERE id = ?").run(setId);
+    expect((await week.snapshot(now)).progress.find(({ goal }) => goal.id === weekly.id)?.done).toBe(0);
+  });
 });

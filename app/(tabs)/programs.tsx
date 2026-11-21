@@ -2,17 +2,18 @@ import { LoadError } from '../../src/shared/components/LoadError';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { getActiveWorkout, listRecentWorkoutNames } from '../../src/features/session/repository';
-import { WorkoutInProgressSheet } from '../../src/features/session/WorkoutInProgressSheet';
-import { disciplineCounts } from '../../src/features/programs/list/derive';
+import { useStartGuard } from '../../src/features/session/useStartGuard';
 import { ProgramsView as MyPrograms } from '../../src/features/programs/list/ProgramsView';
 import { startUserProgramSession } from '../../src/features/programs/startUserSession';
 import { LibraryView } from '../../src/features/exercises/LibraryView';
 import { programTemplates } from '../../src/features/programs/catalog';
 import { listHiddenTemplates, setHiddenTemplates } from '../../src/features/programs/hiddenTemplates';
 import { listProgramClusters, listUserPrograms, type UserProgram } from '../../src/features/programs/userPrograms';
-import { ActionButton, EmptyState, Icon, IconButton, ListGroup, ListRow, PageHeading, Screen, SectionTitle, SegmentedControl, Tag, Text, Toast, tapFeedback } from '../../src/shared/components/ui';
+import { ActionButton, EmptyState, IconButton, Label, ListGroup, ListRow, PageHeading, Screen, SegmentedControl, Sheet, Text, Toast, tapFeedback } from '../../src/shared/components/ui';
+import { useInk } from '../../src/shared/theme/ink';
+import { radii, spacing } from '../../src/shared/theme/tokens';
 import i18n from '../../src/shared/i18n';
 import { useTheme } from '../../src/shared/theme/ThemeProvider';
 import { fonts } from '../../src/shared/theme/typography';
@@ -20,11 +21,17 @@ import { useScaledStyles } from '../../src/shared/theme/useScaledStyles';
 
 type ProgramsView = 'programs' | 'exercises';
 
+/** Distinct workouts of a template (a 3-day plan that repeats Workout A counts it once). */
+function uniqueSessions(template: (typeof programTemplates)[number]): number {
+  return new Set(template.sessions.map((session) => session.name.en)).size;
+}
+
 /** Training plans and the exercise library: everything used to prepare a session. */
 export default function ProgramsTab() {
   const styles = useScaledStyles(baseStyles);
   const { t } = useTranslation();
   const { palette } = useTheme();
+  const ink = useInk();
   const params = useLocalSearchParams<{ view?: string }>();
   // The view lives in the URL, so a link (e.g. back from an exercise) can open either one.
   const view: ProgramsView = params.view === 'exercises' ? 'exercises' : 'programs';
@@ -35,9 +42,11 @@ export default function ProgramsTab() {
   const [recentNames, setRecentNames] = useState<string[]>([]);
   const [undo, setUndo] = useState<{ message: string; previous: string[] | null } | null>(null);
   const [active, setActive] = useState<{ id: string; name: string } | null>(null);
-  const [blockedBy, setBlockedBy] = useState<{ id: string; name: string } | null>(null);
+  const { block, sheet } = useStartGuard();
   const [starting, setStarting] = useState(false);
   const [showTemplates, setShowTemplates] = useState(false);
+  const [createOpen, setCreateOpen] = useState(false);
+  const go = (action: () => void) => { setCreateOpen(false); action(); };
   const hideUndo = useCallback(() => setUndo(null), []);
   const language = i18n.language.startsWith('it') ? 'it' : 'en';
 
@@ -68,9 +77,10 @@ export default function ProgramsTab() {
     void setHiddenTemplates(next);
   };
 
-  const startHero = async (program: UserProgram, sessionId: string) => {
+  // `force` skips the check of the open workout once the user has discarded it (`active` is only reloaded later).
+  const startHero = async (program: UserProgram, sessionId: string, force = false) => {
     if (starting) return;
-    if (active) { setBlockedBy(active); return; }
+    if (active && !force) { block(active, () => void startHero(program, sessionId, true)); return; }
     const session = program.sessions.find((item) => item.id === sessionId);
     if (!session) return;
     setStarting(true);
@@ -100,10 +110,8 @@ export default function ProgramsTab() {
     >
       <PageHeading
         title={t('programsTab.title')}
-        subtitle={view === 'programs' ? t('programsTab.subtitle') : t('library.subtitle')}
-        action={view === 'programs'
-          ? <IconButton icon="add" tone="accent" label={t('userProgram.create')} onPress={() => router.push('/program-builder')} />
-          : <IconButton icon="add" tone="accent" label={t('library.createCustom')} onPress={() => router.push('/exercise/new')} />}
+        subtitle={view === 'programs' ? undefined : t('library.subtitle')}
+        action={<IconButton icon="add" tone="accent" label={t('simple.createTitle')} onPress={() => setCreateOpen(true)} />}
       />
       <SegmentedControl<ProgramsView>
         value={view}
@@ -120,7 +128,6 @@ export default function ProgramsTab() {
         </>
       ) : (
         <>
-          <SectionTitle title={t('userProgram.myPrograms')} />
           {loadFailed ? <LoadError onRetry={() => void load()} /> : null}
           {mine === null && !loadFailed ? <ActivityIndicator color={palette.accentStrong} /> : null}
           {mine && mine.length === 0 ? (
@@ -133,25 +140,6 @@ export default function ProgramsTab() {
           ) : null}
           {mine && mine.length > 0 ? (
             <>
-              {(() => {
-                const counts = disciplineCounts(mine);
-                return (
-                  <ListGroup>
-                    <ListRow
-                      icon="barbell-outline"
-                      title={t('programDiscipline.strengthPage')}
-                      subtitle={t('programDiscipline.strengthPageBody', { count: counts.strength })}
-                      onPress={() => router.push('/programs/strength')}
-                    />
-                    <ListRow
-                      icon="body-outline"
-                      title={t('programDiscipline.mobilityPage')}
-                      subtitle={t('programDiscipline.mobilityPageBody', { count: counts.mobility })}
-                      onPress={() => router.push('/programs/mobility')}
-                    />
-                  </ListGroup>
-                );
-              })()}
               <MyPrograms
                 programs={mine}
                 savedClusters={savedClusters}
@@ -164,18 +152,27 @@ export default function ProgramsTab() {
             </>
           ) : null}
 
-          <ActionButton icon="document-outline" variant="ghost" label={t('importJson.programsAction')} onPress={() => router.push('/import-json')} />
-
-          <Pressable
-            accessibilityRole="button"
-            accessibilityState={{ expanded: showTemplates }}
-            accessibilityLabel={t('programsList.templates', { count: programTemplates.length })}
-            onPress={() => { tapFeedback(); setShowTemplates(!showTemplates); }}
-            style={[styles.templatesLink, { borderTopColor: palette.border }]}
-          >
-            <Tag color={palette.textMuted}>{t('programsList.templates', { count: programTemplates.length })}</Tag>
-            <Icon name={showTemplates ? 'chevron-down' : 'arrow-forward'} size={16} color={palette.textMuted} />
-          </Pressable>
+          <View style={styles.shelfHeader}>
+            <Label style={[styles.flex, { color: palette.text }]}>{t('simple.templates')}</Label>
+            <Pressable accessibilityRole="button" accessibilityState={{ expanded: showTemplates }} onPress={() => { tapFeedback(); setShowTemplates(!showTemplates); }} style={styles.shelfLink}>
+              <Text style={[styles.shelfLinkText, { color: palette.accentStrong }]}>{showTemplates ? t('simple.hideTemplates') : t('simple.allTemplates', { count: programTemplates.length })}</Text>
+            </Pressable>
+          </View>
+          {!showTemplates && templates.length > 0 ? (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.shelf}>
+              {templates.map((template) => (
+                <Pressable
+                  key={template.id}
+                  accessibilityRole="button"
+                  onPress={() => { tapFeedback(); router.push({ pathname: '/program/[id]', params: { id: template.id } }); }}
+                  style={({ pressed }) => [styles.templateCard, { borderColor: ink, backgroundColor: pressed ? palette.surfaceMuted : palette.surface }]}
+                >
+                  <Text style={[styles.templateName, { color: palette.text }]}>{template.name[language]}</Text>
+                  <Label>{t('programsList.workouts', { count: uniqueSessions(template) })}</Label>
+                </Pressable>
+              ))}
+            </ScrollView>
+          ) : null}
           {showTemplates && templates.length > 0 ? (
             <ListGroup>
               {templates.map((template) => (
@@ -211,13 +208,32 @@ export default function ProgramsTab() {
           ) : null}
         </>
       )}
-      <WorkoutInProgressSheet active={blockedBy} onClose={() => setBlockedBy(null)} />
+      <Sheet visible={createOpen} onClose={() => setCreateOpen(false)} title={t('simple.createTitle')}>
+        <Label>{t('simple.programGroup')}</Label>
+        <ListGroup>
+          <ListRow icon="add" title={t('simple.buildProgram')} subtitle={t('simple.buildProgramBody')} onPress={() => go(() => router.push('/program-builder'))} />
+          <ListRow icon="copy-outline" title={t('simple.fromTemplate')} subtitle={t('simple.fromTemplateBody', { count: programTemplates.length })} onPress={() => go(() => { router.setParams({ view: 'programs' }); setShowTemplates(true); })} />
+          <ListRow icon="document-outline" title={t('simple.importJson')} subtitle={t('simple.importJsonBody')} onPress={() => go(() => router.push('/import-json'))} />
+        </ListGroup>
+        <Label>{t('simple.libraryGroup')}</Label>
+        <ListGroup>
+          <ListRow icon="barbell-outline" title={t('simple.newExercise')} subtitle={t('simple.newExerciseBody')} onPress={() => go(() => router.push('/exercise/new'))} />
+          <ListRow icon="git-network-outline" title={t('simple.newChain')} subtitle={t('simple.newChainBody')} onPress={() => go(() => router.push('/progressions'))} />
+        </ListGroup>
+      </Sheet>
+      {sheet}
     </Screen>
   );
 }
 
 const baseStyles = StyleSheet.create({
   emptyAction: { alignSelf: 'stretch', marginTop: 6 },
-  templatesLink: { minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, borderTopWidth: StyleSheet.hairlineWidth },
+  flex: { flex: 1 },
+  shelfHeader: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginBottom: -6 },
+  shelfLink: { minHeight: 48, justifyContent: 'center', paddingLeft: spacing.sm },
+  shelfLinkText: { fontFamily: fonts.monoSemibold, fontSize: 12, letterSpacing: 0.7, textTransform: 'uppercase' },
+  shelf: { gap: spacing.sm, paddingRight: spacing.lg },
+  templateCard: { width: 150, minHeight: 96, padding: spacing.md, borderWidth: 1, borderRadius: radii.surface, justifyContent: 'space-between', gap: spacing.sm },
+  templateName: { fontFamily: fonts.semibold, fontSize: 15, lineHeight: 20 },
   muted: { fontFamily: fonts.body, fontSize: 14 },
 });

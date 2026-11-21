@@ -31,7 +31,7 @@ export function BandsPicker({ bands, onChange, children }: { bands: readonly Set
   const [bandSetId, setBandSetId] = useState<string | null>(null);
   if (!catalog) return null;
   const byId = bandsById(catalog);
-  const sets = catalog.bandSets.filter((item) => !item.archived && item.bands.length > 0);
+  const sets = catalog.bandSets.filter((item) => !item.archived).map((item) => ({ ...item, bands: item.bands.filter((band) => !band.archived) })).filter((item) => item.bands.length > 0);
   const assist = setAssistKg(bands, byId);
   const save = onChange;
 

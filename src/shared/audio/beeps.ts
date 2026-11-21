@@ -1,4 +1,5 @@
 import { createAudioPlayer, setAudioModeAsync, type AudioPlayer } from 'expo-audio';
+import { Asset } from 'expo-asset';
 import { Platform } from 'react-native';
 import { tapFeedback } from '../components/ui';
 
@@ -11,6 +12,7 @@ const SOURCES: Record<Beep, number> = {
   done: require('../../../assets/sounds/done.wav'),
 };
 
+const browserSounds = new Map<Beep, HTMLAudioElement>();
 let players: Record<Beep, AudioPlayer> | null = null;
 
 function load(): Record<Beep, AudioPlayer> | null {
@@ -31,7 +33,14 @@ function load(): Record<Beep, AudioPlayer> | null {
  */
 export function playBeep(kind: Beep): void {
   tapFeedback(kind === 'tick' ? 'light' : 'success');
-  if (Platform.OS === 'web') return;
+  if (Platform.OS === 'web') {
+    if (typeof Audio === 'undefined') return;
+    const sound = browserSounds.get(kind) ?? new Audio(Asset.fromModule(SOURCES[kind]).uri);
+    browserSounds.set(kind, sound);
+    sound.currentTime = 0;
+    void sound.play().catch(() => undefined);
+    return;
+  }
   const player = load()?.[kind];
   if (!player) return;
   try {

@@ -1,11 +1,12 @@
 import { router } from 'expo-router';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 import { filterPrograms, UNSET_FILTER, type ProgramStatus } from '../../../domain/programStructure';
-import { type UserProgram } from '../../../domain/userProgram';
+import { disciplineOf, type ProgramDiscipline, type UserProgram } from '../../../domain/userProgram';
 import { usePaged, ShowMore } from '../../../shared/components/paging';
-import { Chip, EmptyState, Label, ListGroup, SectionTitle, TextField } from '../../../shared/components/ui';
+import { Chip, EmptyState, Icon, Label, ListGroup, SectionTitle, Sheet, Text, TextField, tapFeedback } from '../../../shared/components/ui';
+import { fonts } from '../../../shared/theme/typography';
 import { PROGRAMS_BAREBONE_KEY, PROGRAMS_SORT_KEY, readPreference, writePreference } from '../../../shared/settings/preferences';
 import { useBooleanPreference } from '../../../shared/settings/useBooleanPreference';
 import { useInk } from '../../../shared/theme/ink';
@@ -18,7 +19,7 @@ import { ProgramClustersSheet } from '../ProgramClustersSheet';
 import { type ProgramMetaKind } from '../ProgramMetaField';
 import { ProgramMetaSheet } from '../ProgramMetaSheet';
 import { createProgramCluster, deleteProgramCluster, deleteUserProgram, duplicateUserProgram, renameProgramAuthor, renameProgramCategory, renameProgramCluster, updateUserProgram } from '../userPrograms';
-import { authorCounts, categoryCounts, clusterCounts, groupProgramsByCluster, isProgramSort, pickHero, programAuthors, programCategories, programClusters, sortPrograms, statusCounts, statusOf, visibleStatuses, type ProgramSort } from './derive';
+import { disciplineCounts, authorCounts, categoryCounts, clusterCounts, groupProgramsByCluster, isProgramSort, pickHero, programAuthors, programCategories, programClusters, sortPrograms, statusCounts, statusOf, visibleStatuses, type ProgramSort } from './derive';
 import { ProgramActionsSheet, type ProgramAction } from './ProgramActionsSheet';
 import { ProgramHero } from './ProgramHero';
 import { ProgramRow } from './ProgramRow';
@@ -60,6 +61,8 @@ export function ProgramsView({ programs, savedClusters = [], recentNames, starti
   const [cluster, setCluster] = useState<string | null>(null);
   const [groupByCluster, setGroupByCluster] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
+  const [viewOpen, setViewOpen] = useState(false);
+  const [discipline, setDiscipline] = useState<ProgramDiscipline | null>(null);
   const [sort, setSort] = useState<ProgramSort>(readInitialSort);
   const [sortOpen, setSortOpen] = useState(false);
   const [barebone, toggleBarebone] = useBooleanPreference(PROGRAMS_BAREBONE_KEY, false);
@@ -100,9 +103,10 @@ export function ProgramsView({ programs, savedClusters = [], recentNames, starti
   const searching = programs.length >= SEARCH_FROM;
   const hasMatchesFilter = Boolean((searching && query.trim()) || shownCategory || shownAuthor || shownCluster);
   const filtered = filterPrograms(programs, searching ? query : '', shownStatus, shownCategory, shownAuthor, shownCluster);
-  const rows = sortPrograms(filtered, sort, recentNames);
+  const rows = sortPrograms(discipline ? filtered.filter((program) => disciplineOf(program) === discipline) : filtered, sort, recentNames);
+  const disciplines = disciplineCounts(programs);
   const clusterGroups = groupByCluster ? groupProgramsByCluster(rows, allClusters) : [];
-  const page = usePaged(rows, PAGE, `${shownStatus}|${shownCategory ?? ''}|${shownAuthor ?? ''}|${shownCluster ?? ''}|${sort}|${query}`);
+  const page = usePaged(rows, PAGE, `${discipline ?? ''}|${shownStatus}|${shownCategory ?? ''}|${shownAuthor ?? ''}|${shownCluster ?? ''}|${sort}|${query}`);
   const hero = barebone || hasMatchesFilter || showFilters || groupByCluster ? null : pickHero(programs, recentNames);
   const now = new Date();
 
@@ -199,6 +203,21 @@ export function ProgramsView({ programs, savedClusters = [], recentNames, starti
         />
       ) : null}
 
+      <View style={styles.listHeader}>
+        <Label style={[styles.listTitle, { color: palette.text }]}>{t('userProgram.myPrograms')}</Label>
+        <Pressable accessibilityRole="button" onPress={() => { tapFeedback(); setViewOpen(true); }} style={styles.viewButton}>
+          <Icon name="options-outline" size={18} color={palette.accentStrong} />
+          <Text style={[styles.viewText, { color: palette.accentStrong }]}>{t('simple.view')}</Text>
+        </Pressable>
+      </View>
+      <View style={styles.chips}>
+        <Chip label={t('simple.all')} selected={discipline === null} onPress={() => setDiscipline(null)} />
+        <Chip label={`${t('programDiscipline.strength')} ${disciplines.strength}`} selected={discipline === 'strength'} onPress={() => setDiscipline('strength')} />
+        <Chip label={`${t('programDiscipline.mobility')} ${disciplines.mobility}`} selected={discipline === 'mobility'} onPress={() => setDiscipline('mobility')} />
+      </View>
+
+      {/* Status, filters, sort, names only and clusters: one tap away, out of the list's way. */}
+      <Sheet visible={viewOpen} onClose={() => setViewOpen(false)} title={t('simple.view')}>
       <View style={styles.chips}>
         {chips.map((item) => (
           <Chip key={item} label={`${t(`programsList.status.${item}`)} ${counts[item]}`} selected={item === shownStatus} onPress={() => setStatus(item)} />
@@ -218,7 +237,7 @@ export function ProgramsView({ programs, savedClusters = [], recentNames, starti
           icon="swap-vertical-outline"
           label={`${t('programsList.sort')}: ${t(`programsList.sortOptions.${sort}`)}`}
           selected={sort !== 'recent'}
-          onPress={() => setSortOpen(true)}
+          onPress={() => { setViewOpen(false); setSortOpen(true); }}
         />
         <Chip
           icon="list-outline"
@@ -235,7 +254,7 @@ export function ProgramsView({ programs, savedClusters = [], recentNames, starti
         <Chip
           icon="create-outline"
           label={t('programCluster.manageTitle')}
-          onPress={() => setManagingClusters(true)}
+          onPress={() => { setViewOpen(false); setManagingClusters(true); }}
         />
       </View>
 
@@ -262,6 +281,8 @@ export function ProgramsView({ programs, savedClusters = [], recentNames, starti
           ))}
         </View>
       ) : null}
+
+      </Sheet>
 
       {rows.length > 0 ? (
         groupByCluster ? (
@@ -453,6 +474,10 @@ export function ProgramsView({ programs, savedClusters = [], recentNames, starti
 }
 
 const baseStyles = StyleSheet.create({
+  listHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: -6 },
+  listTitle: { flex: 1 },
+  viewButton: { minHeight: 48, minWidth: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingLeft: 8 },
+  viewText: { fontFamily: fonts.monoSemibold, fontSize: 12, letterSpacing: 0.7, textTransform: 'uppercase' },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   filterBox: { borderWidth: 1, borderRadius: radii.surface, padding: 12, gap: 12 },
   filterGroup: { gap: 6 },

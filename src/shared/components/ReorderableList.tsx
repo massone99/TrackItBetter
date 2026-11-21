@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactElement, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { StyleSheet, useWindowDimensions, View, type LayoutChangeEvent } from 'react-native';
+import { Platform, StyleSheet, useWindowDimensions, View, type LayoutChangeEvent } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withTiming, type SharedValue } from 'react-native-reanimated';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { useTheme } from '../theme/ThemeProvider';
@@ -14,14 +14,14 @@ const EDGE_BOTTOM = 170;
 const MAX_SPEED = 18;
 
 /** What a row gets to place in its header: the grip that starts the drag. */
-export interface ReorderRow { handle: ReactNode; dragging: boolean }
+export interface ReorderRow { handle: ReactNode; dragging: boolean; wrapDrag: (content: ReactElement) => ReactElement }
 
 /**
  * A vertical list whose rows are reordered by dragging their grip. Only the grip drags (after a
  * brief hold), so a row keeps its own tap and long-press behaviour and the page still scrolls.
  * Screen readers get move up / move down actions on the grip instead.
  */
-export function ReorderableList<T>({ items, keyOf, nameOf, gap = 12, onMove, onRowLayout, renderRow }: {
+export function ReorderableList<T>({ items: currentItems, keyOf, nameOf, gap = 12, onMove, onRowLayout, renderRow }: {
   items: readonly T[];
   keyOf: (item: T) => string;
   nameOf: (item: T) => string;
@@ -37,6 +37,8 @@ export function ReorderableList<T>({ items, keyOf, nameOf, gap = 12, onMove, onR
   // Only which row is lifted is React state; the finger's travel and the neighbours' shifts are
   // shared values, so a drag frame moves views on the UI thread instead of re-rendering every row.
   const [lifted, setLifted] = useState<number | null>(null);
+  const [landingItems, setLandingItems] = useState<readonly T[] | null>(null);
+  const items = landingItems ?? currentItems;
   const motion = {
     from: useSharedValue(-1),
     over: useSharedValue(-1),
@@ -50,9 +52,21 @@ export function ReorderableList<T>({ items, keyOf, nameOf, gap = 12, onMove, onR
   const shiftMs = duration(140);
   // What the finger is doing and where the page was when the grab began; the row follows both.
   const pointer = useRef({ translation: 0, absoluteY: 0, startScroll: 0, from: -1, over: -1 });
+  const landing = useRef<ReturnType<typeof setTimeout> | null>(null);
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
   const stop = () => { if (timer.current) { clearInterval(timer.current); timer.current = null; } };
-  useEffect(() => stop, []);
+  useEffect(() => () => { stop(); if (landing.current) clearTimeout(landing.current); }, []);
+
+  // Keep native web scrolling until the hold activates. After pickup, the browser
+  // must leave the pointer stream with the pan handler until the finger lifts.
+  useEffect(() => {
+    if (Platform.OS !== 'web') return;
+    const trackMove = (event: TouchEvent) => {
+      if (pointer.current.from >= 0 && event.cancelable) event.preventDefault();
+    };
+    document.addEventListener('touchmove', trackMove, { passive: false });
+    return () => document.removeEventListener('touchmove', trackMove);
+  }, []);
 
   /** The row's offset from its slot: the finger's travel plus how far the page has scrolled since the grab. */
   const follow = () => {
@@ -63,9 +77,10 @@ export function ReorderableList<T>({ items, keyOf, nameOf, gap = 12, onMove, onR
     motion.offset.value = offset;
     if (motion.over.value !== over) motion.over.value = over;
   };
-  const start = (index: number) => {
+  const start = (index: number, absoluteY: number) => {
+    if (landing.current !== null) return;
     tapFeedback();
-    pointer.current = { translation: 0, absoluteY: 0, startScroll: scroll?.getOffset() ?? 0, from: index, over: index };
+    pointer.current = { translation: 0, absoluteY, startScroll: scroll?.getOffset() ?? 0, from: index, over: index };
     motion.travel.value = heightOf(keyOf(items[index])) + gap;
     motion.offset.value = 0;
     motion.over.value = index;
@@ -83,16 +98,32 @@ export function ReorderableList<T>({ items, keyOf, nameOf, gap = 12, onMove, onR
       follow();
     }, 16);
   };
-  const finish = () => {
+  const finish = (commit: boolean) => {
     stop();
     const { from, over } = pointer.current;
     if (from < 0) return;
     pointer.current.from = -1;
-    motion.from.value = -1;
-    motion.over.value = -1;
-    motion.offset.value = 0;
-    setLifted(null);
-    if (over !== from) { tapFeedback('success'); onMove(from, over); }
+    const destination = commit ? over : from;
+    motion.over.value = destination;
+    const crossedRows = destination > from ? items.slice(from + 1, destination + 1) : items.slice(destination, from);
+    const distance = crossedRows.reduce((sum, item) => sum + heightOf(keyOf(item)) + gap, 0);
+    const land = () => {
+      landing.current = null;
+      motion.from.value = -1;
+      motion.over.value = -1;
+      motion.offset.value = 0;
+      setLandingItems(null);
+      setLifted(null);
+    };
+    if (destination !== from) {
+      // Commit on release; retain the previous layout until the lifted row reaches its new slot.
+      if (shiftMs > 0) setLandingItems(items);
+      tapFeedback('success');
+      onMove(from, destination);
+    }
+    if (shiftMs === 0) { land(); return; }
+    motion.offset.value = withTiming(Math.sign(destination - from) * distance, { duration: shiftMs });
+    landing.current = setTimeout(land, shiftMs);
   };
 
   /** The position the dragged row's centre has reached. */
@@ -105,14 +136,25 @@ export function ReorderableList<T>({ items, keyOf, nameOf, gap = 12, onMove, onR
       if (centre >= positions[index] && centre <= positions[index] + heightOf(keyOf(item)) + gap) over = index;
     });
     if (centre < 0) over = 0;
+    if (centre >= top) over = items.length - 1;
     return over;
   };
 
   return (
     <View style={{ gap }}>
+      {/* Gesture callbacks read the pointer ref only after a touch event. */}
+      {/* eslint-disable-next-line react-hooks/refs */}
       {items.map((item, index) => {
         const key = keyOf(item);
         const dragged = lifted === index;
+        const pan = (delay: number) => createDragGesture(delay, (y) => start(index, y),
+          (translation, y) => {
+            if (pointer.current.from !== index) return;
+            pointer.current.translation = translation;
+            pointer.current.absoluteY = y;
+            follow();
+          },
+          (success) => { if (pointer.current.from === index) finish(success); });
         return (
           <Row
             key={key}
@@ -129,15 +171,14 @@ export function ReorderableList<T>({ items, keyOf, nameOf, gap = 12, onMove, onR
           >
             {renderRow(item, index, {
               dragging: dragged,
+              wrapDrag: (content) => <GestureDetector gesture={pan(360)} touchAction="pan-y">{content}</GestureDetector>,
               handle: (
                 <Grip
                   name={nameOf(item)}
                   active={dragged}
                   canUp={index > 0}
                   canDown={index < items.length - 1}
-                  onStart={() => start(index)}
-                  onUpdate={(translation, absoluteY) => { pointer.current.translation = translation; pointer.current.absoluteY = absoluteY; follow(); }}
-                  onEnd={finish}
+                  pan={pan(140)}
                   onNudge={(delta) => onMove(index, index + delta)}
                 />
               ),
@@ -147,6 +188,13 @@ export function ReorderableList<T>({ items, keyOf, nameOf, gap = 12, onMove, onR
       })}
     </View>
   );
+}
+
+function createDragGesture(delay: number, start: (y: number) => void, update: (translation: number, y: number) => void, finish: (success: boolean) => void) {
+  return Gesture.Pan().runOnJS(true).activateAfterLongPress(delay)
+    .onStart((event) => start(event.absoluteY))
+    .onUpdate((event) => update(event.translationY, event.absoluteY))
+    .onFinalize((_event, success) => finish(success));
 }
 
 interface Motion { from: SharedValue<number>; over: SharedValue<number>; offset: SharedValue<number>; travel: SharedValue<number> }
@@ -188,25 +236,16 @@ function GripDots({ color }: { color: string }) {
   );
 }
 
-function Grip({ name, active, canUp, canDown, onStart, onUpdate, onEnd, onNudge }: {
+function Grip({ name, active, canUp, canDown, pan, onNudge }: {
   name: string;
   active: boolean;
   canUp: boolean;
   canDown: boolean;
-  onStart: () => void;
-  onUpdate: (translation: number, absoluteY: number) => void;
-  onEnd: () => void;
+  pan: ReturnType<typeof Gesture.Pan>;
   onNudge: (delta: -1 | 1) => void;
 }) {
   const { t } = useTranslation();
   const { palette } = useTheme();
-  const pan = Gesture.Pan()
-    .runOnJS(true)
-    .activateAfterLongPress(140)
-    .onStart(onStart)
-    .onUpdate((event) => onUpdate(event.translationY, event.absoluteY))
-    .onEnd(onEnd)
-    .onFinalize((_event, success) => { if (!success) onEnd(); });
   return (
     <GestureDetector gesture={pan}>
       <View

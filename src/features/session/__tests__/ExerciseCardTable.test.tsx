@@ -91,6 +91,25 @@ describe('ExerciseCard table rows', () => {
     expect(screen.getAllByLabelText('Complete set')).toHaveLength(2);
   });
 
+  it('projects open and completed working sets even without a total goal', () => {
+    show([set(1, { completedAt: new Date() }), set(2, { reps: 7 }), set(3, { kind: 'warmup' })]);
+    expect(screen.getByText(/Planned total · 15/)).toBeTruthy();
+  });
+
+  it('omits the recorded rating from the folded set when ratings are hidden', () => {
+    show([set(1, { completedAt: new Date(), rpe: 8, formRating: 4 }), set(2)], { showRatings: false });
+    expect(screen.getByRole('button', { name: /^Set 1 ·/ }).props.accessibilityLabel).not.toMatch(/RPE|form/i);
+  });
+
+  it('passes the entered number of copies in one action', () => {
+    const addCopies = jest.fn();
+    show([set(1)], { onAddWarmup: jest.fn(), onAddCopies: addCopies });
+    fireEvent.press(screen.getByLabelText(i18n.t('logger.addMore')));
+    fireEvent.changeText(screen.getByLabelText(i18n.t('logger.copies')), '6');
+    fireEvent.press(screen.getByText(i18n.t('logger.addCopies')));
+    expect(addCopies).toHaveBeenCalledWith(6);
+  });
+
   it('opens and closes a row on tap', () => {
     show([set(1, { completedAt: new Date(), rpe: 8, formRating: 4 }), set(2), set(3)]);
     fireEvent.press(screen.getByRole('button', { name: /^Set 3 ·/ }));

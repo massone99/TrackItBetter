@@ -76,12 +76,12 @@ export default function EquipmentScreen() {
       ) : (
         <ListGroup>
           {bandSets.map((set) => (
-            <ListRow key={set.id} icon="git-commit-outline" title={set.name} subtitle={t('equipment.bandCount', { count: set.bands.length })} onPress={() => router.push({ pathname: '/band-set/[id]', params: { id: set.id } })} />
+            <ListRow key={set.id} icon="git-commit-outline" title={set.name} subtitle={t('equipment.bandCount', { count: set.bands.filter((band) => !band.archived).length })} onPress={() => router.push({ pathname: '/band-set/[id]', params: { id: set.id } })} />
           ))}
         </ListGroup>
       )}
       <ActionButton icon="add" label={t('equipment.addBandSet')} secondary onPress={createBandSet} />
-      {bandSets.reduce((sum, set) => sum + set.bands.length, 0) > 1 ? (
+      {bandSets.reduce((sum, set) => sum + set.bands.filter((band) => !band.archived).length, 0) > 1 ? (
         <ListGroup>
           <ListRow icon="swap-vertical-outline" title={t('equipment.orderTitle')} subtitle={t('equipment.orderRowHint')} onPress={() => router.push('/band-order')} />
         </ListGroup>

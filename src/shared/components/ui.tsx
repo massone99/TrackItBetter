@@ -37,9 +37,12 @@ export const useScrollControl = () => useContext(ScrollControlContext);
  * pins the page's main actions to the bottom, so they never need a scroll to the end; it steps
  * aside while the keyboard is open so it never covers the field being typed in.
  */
-export function Screen({ children, contentContainerStyle, overlay, footer, footerAccessory, scrollRef, backdrop }: PropsWithChildren<{
+export function Screen({ children, contentContainerStyle, overlay, footer, footerAccessory, scrollRef, backdrop, backgroundColor, footerColor, columnStyle }: PropsWithChildren<{
   /** Drawn behind the scrolling content; the dot grid by default, `null` for a plain page. */
   backdrop?: ReactNode;
+  backgroundColor?: string;
+  footerColor?: string;
+  columnStyle?: ViewProps["style"];
   contentContainerStyle?: ViewProps["style"];
   overlay?: ReactNode;
   footer?: ReactNode;
@@ -50,6 +53,7 @@ export function Screen({ children, contentContainerStyle, overlay, footer, foote
   const styles = useScaledStyles(baseStyles);
   const { palette, largeText } = useTheme();
   const { height: windowHeight } = useWindowDimensions();
+  const background = backgroundColor ?? palette.background;
   const insets = useAppInsets();
   const keyboardVisible = useKeyboardVisible();
   const showFooter = Boolean(footer || footerAccessory) && !keyboardVisible;
@@ -62,33 +66,33 @@ export function Screen({ children, contentContainerStyle, overlay, footer, foote
   // The page's own handle (scroll to the next superset exercise) and the drag auto-scroll share one scroll view.
   useImperativeHandle(scrollRef, () => ({ scrollTo: (options) => inner.current?.scrollTo(options) }), []);
   return (
-    <View style={[styles.flexFill, { backgroundColor: palette.background }]}>
+    <View style={[styles.flexFill, { backgroundColor: background }]}>
       {backdrop === null ? null : <View pointerEvents="none" style={StyleSheet.absoluteFill}>{backdrop ?? <DotGrid />}</View>}
       <KeyboardScroll
         scrollRef={inner}
         scrollEventThrottle={16}
         onScroll={(event) => { offset.current = event.nativeEvent.contentOffset.y; }}
-        style={{ backgroundColor: backdrop === null ? palette.background : 'transparent' }}
+        style={{ backgroundColor: backdrop === null ? background : 'transparent' }}
         contentContainerStyle={[styles.screen, { paddingTop: Math.max(insets.top, 14) + 6, paddingBottom: footer ? spacing.xl : insets.bottom + 32 }, contentContainerStyle]}
         showsVerticalScrollIndicator={false}
       >
-        <ScrollControlContext.Provider value={control}><View style={styles.column}>{children}</View></ScrollControlContext.Provider>
+        <ScrollControlContext.Provider value={control}><View style={[styles.column, columnStyle]}>{children}</View></ScrollControlContext.Provider>
       </KeyboardScroll>
       {showFooter ? (
-        <View style={[styles.footer, { backgroundColor: palette.background, borderTopColor: palette.border, paddingBottom: insets.bottom + spacing.md, maxHeight: Math.round(windowHeight * FOOTER_MAX_SHARE) }]}>
+        <View style={[styles.footer, { backgroundColor: footerColor ?? background, borderTopColor: palette.border, paddingBottom: insets.bottom + spacing.md, maxHeight: Math.round(windowHeight * FOOTER_MAX_SHARE) }]}>
           {/* With very large text the footer could outgrow the screen: it never takes more than about
               half of it, and scrolls inside, so every action (e.g. Finish) stays reachable. */}
           <ScrollView style={styles.footerScroll} contentContainerStyle={styles.footerContent} showsVerticalScrollIndicator={largeText} bounces={false}>
             {/* Large text: the actions come first, so Finish shows even when a rest timer fills the rest. */}
             {/* Large text: one action per line, a long label ("Repeat workout") no longer runs past the screen edge. */}
             {largeText && footer ? <View style={[styles.footerColumn, styles.footerColumnStacked, footerAccessory ? styles.footerColumnFirst : null]}>{footer}</View> : null}
-            {footerAccessory ? <View style={[styles.footerAccessory, largeText ? styles.footerAccessoryLast : null]}>{footerAccessory}</View> : null}
+            {footerAccessory ? <View style={[styles.footerAccessory, !footer || largeText ? styles.footerAccessoryLast : null]}>{footerAccessory}</View> : null}
             {!largeText && footer ? <View style={styles.footerColumn}>{footer}</View> : null}
           </ScrollView>
         </View>
       ) : null}
       {/* The status bar is transparent: this strip keeps scrolled content from showing under its icons. */}
-      <View pointerEvents="none" style={[styles.statusScrim, { height: insets.top, backgroundColor: palette.background }]} />
+      <View pointerEvents="none" style={[styles.statusScrim, { height: insets.top, backgroundColor: background }]} />
       {overlay}
     </View>
   );
@@ -238,11 +242,12 @@ export function ProgressMeter({ value, total, label, tone = "accent" }: { value:
 
 type ButtonVariant = "primary" | "secondary" | "ghost" | "danger" | "inverse";
 
-export function ActionButton({ label, onPress, secondary = false, variant, icon, disabled = false }: {
+export function ActionButton({ label, onPress, secondary = false, variant, icon, disabled = false, compact = false }: {
   label: string;
   onPress?: () => void;
   secondary?: boolean;
   variant?: ButtonVariant;
+  compact?: boolean;
   icon?: IconName;
   disabled?: boolean;
 }) {
@@ -262,10 +267,11 @@ export function ActionButton({ label, onPress, secondary = false, variant, icon,
       style={({ pressed }) => [
         styles.button,
         largeText && styles.buttonStacked,
+        compact && styles.compactButton,
         { minHeight: Math.max(MIN_TOUCH_TARGET, styles.button.minHeight) },
-        { backgroundColor: background, opacity: disabled ? 0.45 : pressed ? 0.8 : 1 },
+        { backgroundColor: compact && kind === "secondary" ? palette.surface : background, opacity: disabled ? 0.45 : pressed ? 0.8 : 1 },
         pressScale(pressed),
-        kind !== "ghost" && { borderWidth: 1, borderColor: kind === "danger" ? palette.warning : ink },
+        kind !== "ghost" && { borderWidth: 1, borderColor: kind === "danger" ? palette.warning : compact ? (kind === "primary" ? palette.accent : palette.border) : ink },
       ]}
     >
       {icon ? <Icon name={icon} size={19} color={color} /> : null}
@@ -273,7 +279,7 @@ export function ActionButton({ label, onPress, secondary = false, variant, icon,
           narrower), so long Italian words still fit the button. */}
       {/* A long word ("all'allenamento") in a half-width footer button: the label shrinks until each
           word fits its line rather than being cut. */}
-      <Text numberOfLines={largeText ? 4 : 2} adjustsFontSizeToFit minimumFontScale={0.6} style={[styles.buttonText, largeText && styles.buttonTextLarge, { color }]}>{label}</Text>
+      <Text numberOfLines={largeText ? 4 : 2} adjustsFontSizeToFit minimumFontScale={0.6} style={[styles.buttonText, compact && styles.compactButtonText, largeText && styles.buttonTextLarge, { color }]}>{label}</Text>
     </Pressable>
   );
 }
@@ -347,8 +353,10 @@ export function PageHeading({ title, subtitle, action, onTitleLongPress, titleLo
   );
 }
 
-export function ListRow({ icon, title, subtitle, onPress, onLongPress, longPressLabel, trailing, tint, selected }: {
+export function ListRow({ icon, title, subtitle, value, onPress, onLongPress, longPressLabel, trailing, tint, selected }: {
   icon?: IconName;
+  /** Current value, muted on the right inside the row (before the chevron). */
+  value?: string;
   title: string;
   subtitle?: string;
   onPress?: () => void;
@@ -374,7 +382,10 @@ export function ListRow({ icon, title, subtitle, onPress, onLongPress, longPress
       <View style={styles.listCopy}>
         <Text style={[styles.listTitle, { color: selected ? palette.accentStrong : palette.text }, selected ? styles.listTitleSelected : null]}>{title}</Text>
         {subtitle ? <Text style={[styles.listSubtitle, { color: palette.textMuted }]}>{subtitle}</Text> : null}
+        {/* Large text: the value goes under the title, so the title keeps the row's width. */}
+        {value && largeText ? <Text style={[styles.listSubtitle, { color: palette.textMuted }]}>{value}</Text> : null}
       </View>
+      {value && !largeText ? <Text style={[styles.listValue, { color: palette.textMuted }]}>{value}</Text> : null}
       {selected !== undefined ? (
         <View style={styles.listCheck}>{selected ? <Icon name="checkmark-circle" size={22} color={palette.accentStrong} /> : null}</View>
       ) : !trailing && onPress ? <Icon name="chevron-forward" size={18} color={palette.textMuted} /> : null}
@@ -386,7 +397,7 @@ export function ListRow({ icon, title, subtitle, onPress, onLongPress, longPress
       {onPress ? (
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel={subtitle ? `${title}, ${subtitle}` : title}
+          accessibilityLabel={[title, subtitle, value].filter(Boolean).join(", ")}
           accessibilityState={selected !== undefined ? { selected } : undefined}
           onPress={() => { tapFeedback(); onPress(); }}
           onLongPress={onLongPress}
@@ -672,19 +683,46 @@ export function MenuList({ children }: PropsWithChildren) {
   return <View style={[styles.menuList, { borderColor: palette.border, backgroundColor: palette.border }]}>{children}</View>;
 }
 
-export function MenuRow({ icon, label, onPress, tone = "default" }: { icon: IconName; label: string; onPress: () => void; tone?: "default" | "danger" }) {
+export function MenuRow({ icon, label, onPress, tone = "default", value, chevron = false }: { icon?: IconName; label: string; onPress: () => void; tone?: "default" | "danger"; /** Current value, shown muted on the right. */ value?: string; /** A trailing chevron: the row opens another view. */ chevron?: boolean }) {
   const styles = useScaledStyles(baseStyles);
-  const { palette } = useTheme();
+  const { palette, largeText } = useTheme();
   const color = tone === "danger" ? palette.warning : palette.text;
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={label}
+      accessibilityLabel={value ? `${label}, ${value}` : label}
       onPress={() => { tapFeedback(); onPress(); }}
       style={({ pressed }) => [styles.menuRow, { minHeight: Math.max(MIN_TOUCH_TARGET, styles.menuRow.minHeight), backgroundColor: pressed ? palette.surfaceMuted : palette.surface }]}
     >
-      <Icon name={icon} size={20} color={tone === "danger" ? palette.warning : palette.accentStrong} />
-      <Text style={[styles.menuRowLabel, { color }]}>{label}</Text>
+      {icon ? <Icon name={icon} size={20} color={tone === "danger" ? palette.warning : palette.accentStrong} /> : null}
+      {value && largeText ? (
+        <View style={styles.menuRowLabel}>
+          <Text style={[styles.menuRowLabelText, { color }]}>{label}</Text>
+          <Text style={[styles.menuRowValueStacked, { color: palette.textMuted }]}>{value}</Text>
+        </View>
+      ) : <Text style={[styles.menuRowLabel, { color }]}>{label}</Text>}
+      {value && !largeText ? <Text style={[styles.menuRowValue, { color: palette.textMuted }]}>{value}</Text> : null}
+      {chevron ? <Icon name="chevron-forward" size={18} color={palette.textMuted} /> : null}
+    </Pressable>
+  );
+}
+
+/** A menu row with an on/off switch; the whole row toggles it. */
+export function MenuSwitchRow({ label, value, onChange }: { label: string; value: boolean; onChange: (value: boolean) => void }) {
+  const styles = useScaledStyles(baseStyles);
+  const { palette } = useTheme();
+  return (
+    <Pressable
+      accessibilityRole="switch"
+      accessibilityLabel={label}
+      accessibilityState={{ checked: value }}
+      onPress={() => { tapFeedback(); onChange(!value); }}
+      style={({ pressed }) => [styles.menuRow, { minHeight: Math.max(MIN_TOUCH_TARGET, styles.menuRow.minHeight), backgroundColor: pressed ? palette.surfaceMuted : palette.surface }]}
+    >
+      <Text style={[styles.menuRowLabel, { color: palette.text }]}>{label}</Text>
+      <View style={[styles.menuSwitch, { backgroundColor: value ? palette.accent : palette.textMuted }]}>
+        <View style={[styles.menuSwitchKnob, { backgroundColor: palette.surface, alignSelf: value ? "flex-end" : "flex-start" }]} />
+      </View>
     </Pressable>
   );
 }
@@ -713,7 +751,7 @@ export function MenuTile({ icon, label, onPress }: { icon: IconName; label: stri
 }
 
 /** Bottom sheet for confirmations and short choices; works the same on web and native. */
-export function Sheet({ visible, onClose, title, subtitle, headerAction, body, children }: PropsWithChildren<{ visible: boolean; onClose: () => void; title: string; /** A quiet line under the title (mono, muted). */ subtitle?: string; /** One control beside the close button (e.g. a "more" menu). */ headerAction?: ReactNode; body?: string }>) {
+export function Sheet({ visible, onClose, title, subtitle, headerAction, body, children, compact = false }: PropsWithChildren<{ compact?: boolean; visible: boolean; onClose: () => void; title: string; /** A quiet line under the title (mono, muted). */ subtitle?: string; /** One control beside the close button (e.g. a "more" menu). */ headerAction?: ReactNode; body?: string }>) {
   const styles = useScaledStyles(baseStyles);
   const { t } = useTranslation();
   const { palette } = useTheme();
@@ -724,19 +762,19 @@ export function Sheet({ visible, onClose, title, subtitle, headerAction, body, c
     // Translucent bars give the keyboard controller correct coordinates inside an edge-to-edge Modal.
     <Modal visible={visible} transparent animationType={reducedMotion || speed === "off" ? "none" : speed === "fast" ? "fade" : "slide"} onRequestClose={onClose} statusBarTranslucent navigationBarTranslucent>
       <KeyboardLift style={styles.flexFill}>
-        <View style={[styles.sheetBackdrop, { paddingTop: insets.top + 12 }]}>
+        <View style={[styles.sheetBackdrop, compact && styles.compactSheetBackdrop, { paddingTop: insets.top + 12 }]}>
           {/* A sibling of the sheet, not its parent: content inside a button breaks screen readers and web. */}
           <Pressable accessibilityRole="button" accessibilityLabel={t("common.close")} style={StyleSheet.absoluteFill} onPress={onClose} />
           <View style={[styles.sheet, { backgroundColor: palette.surface, borderTopColor: ink, paddingBottom: insets.bottom + 20, maxHeight: "100%" }]}>
-            <View style={[styles.sheetHandle, { backgroundColor: palette.border }]} />
+            {compact ? null : <View style={[styles.sheetHandle, { backgroundColor: palette.border }]} />}
             <ScrollView bounces={false} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} contentContainerStyle={styles.sheetContent}>
               <View style={styles.sheetHeading}>
                 <View style={styles.sheetTitleBlock}>
-                  <Heading style={styles.sheetTitle}>{title}</Heading>
-                  {subtitle ? <Text style={[styles.sheetSubtitle, { color: palette.textMuted }]}>{subtitle}</Text> : null}
+                  <Heading style={[styles.sheetTitle, compact && styles.compactSheetTitle]}>{title}</Heading>
+                  {subtitle ? <Text style={[styles.sheetSubtitle, compact && styles.compactSheetSubtitle, { color: palette.textMuted }]}>{subtitle}</Text> : null}
                 </View>
                 {headerAction}
-                <IconButton icon="close" label={t("common.close")} tone="plain" onPress={onClose} />
+                {compact ? null : <IconButton icon="close" label={t("common.close")} tone="plain" onPress={onClose} />}
               </View>
               {body ? <Body>{body}</Body> : null}
               <View style={styles.sheetActions}>{children}</View>
@@ -1017,6 +1055,11 @@ const baseStyles = StyleSheet.create({
   input: { minHeight: 48, borderRadius: radii.control, borderWidth: 1.5, paddingHorizontal: 14, paddingVertical: 10, fontFamily: fonts.body, fontSize: 16, outlineWidth: 0 },
   inputMultiline: { minHeight: 72, paddingTop: 10, paddingBottom: 10 },
   fieldNote: { fontFamily: fonts.body, fontSize: 13, lineHeight: 18 },
+  compactButton: { borderRadius: 4, paddingHorizontal: 12 },
+  compactButtonText: { textTransform: "none", letterSpacing: 0, fontFamily: fonts.semibold, fontSize: 14 },
+  compactSheetBackdrop: { backgroundColor: "rgba(17, 31, 43, 0.40)" },
+  compactSheetTitle: { textTransform: "none", fontSize: 27, lineHeight: 31 },
+  compactSheetSubtitle: { textTransform: "none", letterSpacing: 0, fontFamily: fonts.body, fontSize: 13 },
   sheetBackdrop: { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(10, 18, 26, 0.6)" },
   sheet: { borderTopLeftRadius: radii.sheet, borderTopRightRadius: radii.sheet, borderTopWidth: 1, paddingHorizontal: spacing.page, paddingTop: 12, gap: 10, width: "100%", maxWidth: 640, alignSelf: "center" },
   sheetHandle: { width: 40, height: 4, borderRadius: 2, alignSelf: "center", marginBottom: 8 },
@@ -1029,6 +1072,12 @@ const baseStyles = StyleSheet.create({
   menuList: { borderRadius: radii.surface, borderWidth: StyleSheet.hairlineWidth, overflow: "hidden", gap: StyleSheet.hairlineWidth },
   menuRow: { minHeight: MIN_TOUCH_TARGET, flexDirection: "row", alignItems: "center", gap: spacing.md, paddingHorizontal: spacing.lg, paddingVertical: spacing.sm },
   menuRowLabel: { flex: 1, fontFamily: fonts.medium, fontSize: 16, lineHeight: 22 },
+  listValue: { flexShrink: 1, maxWidth: "45%", textAlign: "right", fontFamily: fonts.body, fontSize: 13, lineHeight: 18 },
+  menuRowLabelText: { fontFamily: fonts.medium, fontSize: 16, lineHeight: 22 },
+  menuRowValueStacked: { fontFamily: fonts.body, fontSize: 14, lineHeight: 20 },
+  menuRowValue: { flexShrink: 1, maxWidth: "45%", textAlign: "right", fontFamily: fonts.body, fontSize: 14, lineHeight: 20 },
+  menuSwitch: { width: 44, height: 26, borderRadius: radii.control, padding: 3, justifyContent: "center" },
+  menuSwitchKnob: { width: 20, height: 20, borderRadius: radii.small },
   menuGrid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
   menuTile: { flexGrow: 0, flexBasis: "31.5%", minHeight: 64, borderRadius: radii.surface, paddingHorizontal: spacing.sm, paddingVertical: spacing.sm, alignItems: "center", justifyContent: "center", gap: spacing.xs },
   menuTileLarge: { flexBasis: "48%" },

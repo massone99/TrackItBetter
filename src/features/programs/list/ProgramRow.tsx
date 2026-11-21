@@ -1,7 +1,8 @@
 import { useTranslation } from 'react-i18next';
 import { Pressable, StyleSheet, View } from 'react-native';
-import { type UserProgram } from '../../../domain/userProgram';
-import { IconButton, Tag, Text, tapFeedback } from '../../../shared/components/ui';
+import { nextSessionInRotation, type UserProgram } from '../../../domain/userProgram';
+import { Icon, Tag, Text, tapFeedback } from '../../../shared/components/ui';
+import { radii } from '../../../shared/theme/tokens';
 import { useTheme } from '../../../shared/theme/ThemeProvider';
 import { fonts } from '../../../shared/theme/typography';
 import { useScaledStyles } from '../../../shared/theme/useScaledStyles';
@@ -29,9 +30,11 @@ export function ProgramRow({ program, recentNames, now, barebone = false, onOpen
   const { palette } = useTheme();
   const progress = programDone(program, recentNames);
   const status = statusOf(program);
+  const next = nextSessionInRotation(program, recentNames);
+  const nextIndex = next ? program.sessions.findIndex((session) => session.id === next.id) : -1;
   const meta = [
     program.author || null,
-    t('programsList.workouts', { count: program.sessions.length }),
+    next ? t('userProgram.nextShort', { name: next.name }) : t('programsList.workouts', { count: program.sessions.length }),
     lastUsedText(t, program.lastUsedAt, now),
   ].filter(Boolean).join(' · ');
 
@@ -75,21 +78,30 @@ export function ProgramRow({ program, recentNames, now, barebone = false, onOpen
             </View>
           ) : null}
         </View>
-        <Text style={[styles.count, { color: palette.textMuted }]}>{progress.done}/{progress.total}</Text>
+        {program.sessions.length <= 8 ? (
+          // One square per workout of the rotation; the filled one is up next.
+          <View accessible accessibilityLabel={`${progress.done}/${progress.total}`} style={styles.rotation}>
+            {program.sessions.map((session, index) => (
+              <View key={session.id} style={[styles.square, index === nextIndex ? { backgroundColor: palette.accentStrong } : { borderWidth: 1, borderColor: palette.textMuted }]} />
+            ))}
+          </View>
+        ) : <Text style={[styles.count, { color: palette.textMuted }]}>{progress.done}/{progress.total}</Text>}
+        <Icon name="chevron-forward" size={18} color={palette.textMuted} />
       </Pressable>
-      <IconButton icon="ellipsis-vertical" tone="plain" size={48} label={t('programsList.actionsFor', { name: program.name })} onPress={onActions} />
     </View>
   );
 }
 
 const baseStyles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center' },
-  main: { flex: 1, minHeight: 52, flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 6, paddingLeft: 12 },
+  main: { flex: 1, minHeight: 52, flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 8, paddingLeft: 14, paddingRight: 8 },
   barebone: { minHeight: 48, justifyContent: 'center', paddingVertical: 10, paddingHorizontal: 12 },
   bareboneName: { fontFamily: fonts.semibold, fontSize: 15 },
   copy: { flex: 1, minWidth: 0, gap: 2, alignItems: 'flex-start' },
   tags: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 2 },
-  name: { fontFamily: fonts.semibold, fontSize: 16 },
+  name: { fontFamily: fonts.semibold, fontSize: 17 },
   meta: { fontFamily: fonts.body, fontSize: 13 },
   count: { fontFamily: fonts.mono, fontSize: 13 },
+  rotation: { flexDirection: 'row', gap: 3 },
+  square: { width: 10, height: 10, borderRadius: radii.small },
 });

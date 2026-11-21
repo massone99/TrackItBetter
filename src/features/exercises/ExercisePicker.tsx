@@ -47,7 +47,7 @@ export function ExercisePicker({ visible, title, subtitle, initialCategory = nul
 }) {
   const styles = useScaledStyles(baseStyles);
   const { t } = useTranslation();
-  const { palette } = useTheme();
+  const { palette, largeText } = useTheme();
   const insets = useAppInsets();
   const { speed, reducedMotion } = useAnimationSettings();
   const [query, setQuery] = useState(visible ? initialQuery : '');
@@ -78,32 +78,39 @@ export function ExercisePicker({ visible, title, subtitle, initialCategory = nul
   const describe = (exercise: ExerciseChoice) => [t(`library.category.${exercise.category}`), t(`metric.${exercise.metric}`), exercise.level ? t('progression.level', { number: exercise.level }) : null, exerciseMovementTags(exercise).map((tag) => movementTagLabel(tag, t)).join(', ')].filter(Boolean).join(' · ');
   const page = usePagedSections(sections, 40, `${query}:${category}:${JSON.stringify(grouping)}:${visible}`);
 
+  const filters = (
+    <>
+      <View style={styles.header}>
+        <View style={styles.flex}>
+          <Heading style={styles.title}>{title}</Heading>
+          {subtitle ? <Body>{subtitle}</Body> : null}
+        </View>
+        <IconButton icon="close" label={t('workout.close')} onPress={leave(onClose)} />
+      </View>
+      <View style={[styles.searchBox, { backgroundColor: palette.surface, borderColor: palette.border }]}>
+        <Icon name="search" size={18} color={palette.textMuted} />
+        <TextInput maxFontSizeMultiplier={MAX_FONT_SCALE}
+          accessibilityLabel={t('workout.search')}
+          placeholder={t('workout.search')}
+          placeholderTextColor={palette.textMuted}
+          value={query}
+          onChangeText={setQuery}
+          style={[styles.searchInput, { color: palette.text }]}
+        />
+      </View>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipScroll} contentContainerStyle={styles.chips}>
+        <Chip label={t('logger.filterAll')} selected={category === null} onPress={() => setCategory(null)} />
+        {CATEGORIES.map((item) => <Chip key={item} label={t(`library.category.${item}`)} selected={category === item} onPress={() => setCategory(item)} />)}
+      </ScrollView>
+    </>
+  );
+
   return (
     <Modal visible={visible} animationType={reducedMotion || speed === 'off' ? 'none' : speed === 'fast' ? 'fade' : 'slide'} onRequestClose={leave(onClose)} statusBarTranslucent navigationBarTranslucent>
       <View style={[styles.root, { backgroundColor: palette.background, paddingTop: Math.max(insets.top, 14) + 10 }]}>
-        <View style={styles.header}>
-          <View style={styles.flex}>
-            <Heading style={styles.title}>{title}</Heading>
-            {subtitle ? <Body>{subtitle}</Body> : null}
-          </View>
-          <IconButton icon="close" label={t('workout.close')} onPress={leave(onClose)} />
-        </View>
-        <View style={[styles.searchBox, { backgroundColor: palette.surface, borderColor: palette.border }]}>
-          <Icon name="search" size={18} color={palette.textMuted} />
-          <TextInput maxFontSizeMultiplier={MAX_FONT_SCALE}
-            accessibilityLabel={t('workout.search')}
-            placeholder={t('workout.search')}
-            placeholderTextColor={palette.textMuted}
-            value={query}
-            onChangeText={setQuery}
-            style={[styles.searchInput, { color: palette.text }]}
-          />
-        </View>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipScroll} contentContainerStyle={styles.chips}>
-          <Chip label={t('logger.filterAll')} selected={category === null} onPress={() => setCategory(null)} />
-          {CATEGORIES.map((item) => <Chip key={item} label={t(`library.category.${item}`)} selected={category === item} onPress={() => setCategory(item)} />)}
-        </ScrollView>
-        <KeyboardScroll contentContainerStyle={[styles.list, { paddingBottom: insets.bottom + 24 }]}>
+        {largeText ? null : filters}
+        <KeyboardScroll style={styles.flex} contentContainerStyle={[styles.list, { paddingBottom: insets.bottom + 24 }]}>
+          {largeText ? filters : null}
           {onCreate ? <ListRow icon="create-outline" title={query.trim() ? t('logger.createNamed', { name: query.trim() }) : t('logger.createExercise')} subtitle={query.trim() ? t('logger.createNamedHint') : undefined} onPress={() => { const typed = query.trim(); leave(() => onCreate(typed))(); }} /> : null}
           <View style={styles.controls}>
             <ExerciseGroupingControls />

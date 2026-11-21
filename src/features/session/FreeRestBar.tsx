@@ -6,7 +6,7 @@ import { useTheme } from '../../shared/theme/ThemeProvider';
 import { fonts } from '../../shared/theme/typography';
 import { useScaledStyles } from '../../shared/theme/useScaledStyles';
 import { formatClock } from '../../shared/utils/format';
-import { radii } from '../../shared/theme/tokens';
+import { radii, spacing } from '../../shared/theme/tokens';
 
 /**
  * Self-regulated rest after a set under a total goal: a clock counting up from the set, with the
@@ -35,9 +35,9 @@ export function FreeRestBar({ since, restSec, onStartRest, onClose }: { since: n
 }
 
 const baseStyles = StyleSheet.create({
-  bar: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8, borderRadius: radii.control, borderWidth: 1, paddingVertical: 8, paddingLeft: 16, paddingRight: 4 },
-  copy: { flexGrow: 1, minWidth: 96 },
+  bar: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: spacing.sm, borderRadius: radii.control, borderWidth: 1, padding: spacing.md },
+  copy: { flexGrow: 1, flexShrink: 1, flexBasis: 96 },
   label: { fontFamily: fonts.medium, fontSize: 13 },
   value: { fontFamily: fonts.display, fontSize: 32, lineHeight: 36, fontVariant: ['tabular-nums'] },
-  action: { flexShrink: 1 },
+  action: { flexShrink: 1, maxWidth: '100%' },
 });

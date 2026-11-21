@@ -1,7 +1,5 @@
 import { useTranslation } from 'react-i18next';
 import { StyleSheet, View } from 'react-native';
-import { completedSetCount, groupSets } from '../../domain/setPairs';
-import { exerciseFinished } from '../../domain/folding';
 import { useTheme } from '../../shared/theme/ThemeProvider';
 import type { SessionExercise } from './repository';
 
@@ -17,12 +15,13 @@ export function ExerciseSegments({ exercises, currentId, done, total }: { exerci
       style={styles.row}
     >
       {exercises.map((exercise) => {
-        const finished = exerciseFinished(exercise.sets);
-        const count = groupSets(exercise.sets).length;
-        const share = count > 0 ? completedSetCount(exercise.sets) / count : 0;
+        // Each side of an L/R set counts, so the bar moves with every set logged.
+        const count = exercise.sets.length;
+        const share = count > 0 ? exercise.sets.filter((set) => set.completedAt).length / count : 0;
+        const finished = share === 1;
         return (
-          <View key={exercise.entryId} style={[styles.segment, { backgroundColor: palette.surfaceMuted }]}>
-            <View style={[styles.fill, { width: `${finished ? 100 : share * 100}%`, backgroundColor: finished ? palette.success : palette.accentStrong, opacity: finished || exercise.entryId === currentId || share > 0 ? 1 : 0 }]} />
+          <View key={exercise.entryId} style={[styles.segment, { backgroundColor: palette.border }, exercise.entryId === currentId && share === 0 && { borderWidth: 1, borderColor: palette.accentStrong }]}>
+            <View style={[styles.fill, { width: `${finished ? 100 : share * 100}%`, backgroundColor: finished ? palette.success : palette.accentStrong, opacity: share > 0 ? 1 : 0 }]} />
           </View>
         );
       })}
@@ -31,7 +30,7 @@ export function ExerciseSegments({ exercises, currentId, done, total }: { exerci
 }
 
 const styles = StyleSheet.create({
-  row: { flexDirection: 'row', gap: 2 },
-  segment: { flex: 1, minWidth: 6, height: 8, overflow: 'hidden' },
-  fill: { height: 8 },
+  row: { flexDirection: 'row', gap: 4 },
+  segment: { flex: 1, minWidth: 6, height: 6, borderRadius: 2, overflow: 'hidden' },
+  fill: { height: '100%' },
 });

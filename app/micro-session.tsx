@@ -3,7 +3,7 @@ import { useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { StyleSheet, View } from 'react-native';
 import { ExercisePicker, type ExerciseChoice } from '../src/features/exercises/ExercisePicker';
-import { WorkoutInProgressSheet } from '../src/features/session/WorkoutInProgressSheet';
+import { useStartGuard } from '../src/features/session/useStartGuard';
 import { listMicroSessionExercises, listRecentMicroSessionExerciseIds, pickRecent, startMicroSession } from '../src/features/session/microSession';
 import { ActionButton, Body, Chip, EmptyState, FooterAction, Label, PageHeading, Screen, tapFeedback } from '../src/shared/components/ui';
 import { useTheme } from '../src/shared/theme/ThemeProvider';
@@ -23,7 +23,7 @@ export default function MicroSessionScreen() {
   const [picked, setPicked] = useState<Picked[]>([]);
   const [recent, setRecent] = useState<Exercise[]>([]);
   const [pickerOpen, setPickerOpen] = useState(false);
-  const [blockedBy, setBlockedBy] = useState<{ id: string; name: string } | null>(null);
+  const { block, sheet } = useStartGuard();
   const [starting, setStarting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -45,7 +45,7 @@ export default function MicroSessionScreen() {
     setError(null);
     try {
       const result = await startMicroSession(picked.map((exercise) => exercise.id));
-      if ('active' in result) { setBlockedBy(result.active); return; }
+      if ('active' in result) { block(result.active, () => void start()); return; }
       router.replace({ pathname: '/workout/[id]', params: { id: result.workoutId } });
     } catch (reason) {
       setError(`${t('micro.error')} (${reason instanceof Error ? reason.message : String(reason)})`);
@@ -63,7 +63,7 @@ export default function MicroSessionScreen() {
         </>
       }
     >
-      <WorkoutInProgressSheet active={blockedBy} onClose={() => setBlockedBy(null)} />
+      {sheet}
       <PageHeading title={t('micro.title')} subtitle={t('micro.subtitle')} />
       {error ? <Body style={{ color: palette.warning }}>{error}</Body> : null}
       {picked.length === 0 ? (

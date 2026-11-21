@@ -1,139 +1,72 @@
-import { router } from "expo-router";
-import { Fragment, useState } from "react";
+import { router, useFocusEffect } from "expo-router";
+import { useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { StyleSheet, View } from "react-native";
 import Constants from "expo-constants";
-import { Body, Card, Icon, Label, ListGroup, ListRow, PageHeading, Screen, SectionTitle, SegmentedControl, SwitchRow, Text } from "../../src/shared/components/ui";
+import { Icon, Label, ListGroup, ListRow, PageHeading, Screen, Text } from "../../src/shared/components/ui";
 import { fonts } from "../../src/shared/theme/typography";
-import { DurationField } from "../../src/shared/components/DateTimePickers";
-import { MAX_NARRATION_PREP_SEC, readNarrationPrepSec, writeNarrationPrepSec } from "../../src/features/narration/settings";
-import { readDefaultRest, writeDefaultRest } from "../../src/features/session/restDefaults";
-import { COMPARE_MODE_KEY, readBooleanPreference, readCompareMode, RPE_PROMPT_KEY, writePreference, type CompareMode } from "../../src/shared/settings/preferences";
-import { UI_SCALES, type TextScaleMode, type UiScale } from "../../src/shared/theme/scale";
-import i18n, { setAppLanguage } from "../../src/shared/i18n";
+import { getGoalSnapshot } from "../../src/features/goals/repository";
+import { loadReminderSettings } from "../../src/features/reminders/notifications";
+import { readDefaultRest } from "../../src/features/session/restDefaults";
+import { readBooleanPreference, RPE_PROMPT_KEY } from "../../src/shared/settings/preferences";
 import { useTheme } from "../../src/shared/theme/ThemeProvider";
 import { useScaledStyles } from "../../src/shared/theme/useScaledStyles";
-import { useAnimationSettings } from "../../src/shared/settings/AnimationProvider";
-import { SetLayoutSettings } from "../../src/shared/settings/SetLayoutSettings";
-import { FontSettings } from "../../src/shared/settings/FontSettings";
+import { spacing } from "../../src/shared/theme/tokens";
 
+/** You: a short index of four groups, each row showing its current value. The settings live one tap away. */
 export default function ProfileScreen() {
   const styles = useScaledStyles(baseStyles);
   const { t } = useTranslation();
-  const { preference, setMode, palette, scale, setScale, textScaleMode, setTextScaleMode, layoutScale, fontScale } = useTheme();
-  const { speed, setSpeed, reducedMotion } = useAnimationSettings();
-  const [rpePrompt, setRpePrompt] = useState(() => readBooleanPreference(RPE_PROMPT_KEY, true));
-  const [compareMode, setCompareMode] = useState<CompareMode>(readCompareMode);
-  const [prepSec, setPrepSec] = useState(readNarrationPrepSec);
-  const [rest, setRest] = useState(() => ({ working: readDefaultRest("working"), warmup: readDefaultRest("warmup") }));
-  const changeRest = (kind: "working" | "warmup", seconds: number) => { setRest((current) => ({ ...current, [kind]: seconds })); writeDefaultRest(kind, seconds); };
-  const language = i18n.language.startsWith("it") ? "it" : "en";
+  const { preference, scale, palette } = useTheme();
+  const [weekly, setWeekly] = useState<number | null>(null);
+  const [reminders, setReminders] = useState<boolean | null>(null);
+  const [defaults, setDefaults] = useState(() => ({ rest: readDefaultRest("working"), rpe: readBooleanPreference(RPE_PROMPT_KEY, true) }));
+  useFocusEffect(useCallback(() => {
+    let active = true;
+    getGoalSnapshot().then((goals) => { if (active) setWeekly(goals.weeklyTarget); }, () => undefined);
+    loadReminderSettings().then((settings) => { if (active) setReminders(settings.enabled); }, () => undefined);
+    setDefaults({ rest: readDefaultRest("working"), rpe: readBooleanPreference(RPE_PROMPT_KEY, true) });
+    return () => { active = false; };
+  }, []));
+  const theme = t(preference === "light" ? "profile.light" : preference === "dark" ? "profile.dark" : "profile.system");
   return (
     <Screen>
-      {/* A new size rebuilds the settings from scratch, so no row keeps the layout measured at the previous size. */}
-      <Fragment key={`${layoutScale}-${fontScale}`}>
-      <PageHeading title={t("profile.title")} subtitle={t("profile.subtitle")} />
+      <PageHeading title={t("tabs.profile")} />
 
-      <SectionTitle title={t("profile.training")} />
-      <ListGroup>
-        <ListRow icon="flag-outline" title={t("profile.goals")} onPress={() => router.push("/goals")} />
-        <ListRow icon="notifications-outline" title={t("profile.reminders")} onPress={() => router.push("/reminders")} />
-        <ListRow icon="barbell-outline" title={t("profile.equipment")} onPress={() => router.push("/equipment")} />
-      </ListGroup>
+      <View style={styles.group}>
+        <Label>{t("profile.training")}</Label>
+        <ListGroup>
+          <ListRow icon="flag-outline" title={t("simple.goals")} value={weekly !== null ? t("simple.perWeek", { count: weekly }) : undefined} onPress={() => router.push("/goals")} />
+          <ListRow icon="notifications-outline" title={t("simple.reminders")} value={reminders !== null ? t(reminders ? "workout.menuOn" : "workout.menuOff") : undefined} onPress={() => router.push("/reminders")} />
+          <ListRow icon="barbell-outline" title={t("profile.equipment")} value={t("simple.equipmentValue")} onPress={() => router.push("/equipment")} />
+          <ListRow icon="timer-outline" title={t("simple.workoutDefaults")} value={t("simple.defaultsValue", { seconds: defaults.rest, rpe: t(defaults.rpe ? "workout.menuOn" : "workout.menuOff") })} onPress={() => router.push("/settings/training")} />
+        </ListGroup>
+      </View>
 
-      <SectionTitle title={t("profile.body")} />
-      <ListGroup>
-        <ListRow icon="scale-outline" title={t("profile.bodyweight")} onPress={() => router.push("/bodyweight")} />
-        <ListRow icon="images-outline" title={t("profile.photos")} onPress={() => router.push("/photos")} />
-        <ListRow icon="resize-outline" title={t("profile.measurements")} onPress={() => router.push("/measurements")} />
-        <ListRow icon="body-outline" title={t("profile.mobility")} onPress={() => router.push("/mobility")} />
-      </ListGroup>
+      <View style={styles.group}>
+        <Label>{t("profile.body")}</Label>
+        <ListGroup>
+          <ListRow icon="scale-outline" title={t("profile.bodyweight")} onPress={() => router.push("/bodyweight")} />
+          <ListRow icon="images-outline" title={t("profile.photos")} onPress={() => router.push("/photos")} />
+          <ListRow icon="resize-outline" title={t("profile.measurements")} onPress={() => router.push("/measurements")} />
+          <ListRow icon="body-outline" title={t("profile.mobility")} onPress={() => router.push("/mobility")} />
+        </ListGroup>
+      </View>
 
-      <SectionTitle title={t("profile.preferences")} />
-      <Card>
-        <Label>{t("profile.appearance")}</Label>
-        <SegmentedControl<"light" | "dark" | "system"> value={preference} onChange={setMode} options={[{ value: "light", label: t("profile.light") }, { value: "dark", label: t("profile.dark") }, { value: "system", label: t("profile.system") }]} />
-        <Label style={styles.spaced}>{t("profile.language")}</Label>
-        <SegmentedControl value={language} onChange={(next) => void setAppLanguage(next)} options={[{ value: "en", label: "English" }, { value: "it", label: "Italiano" }]} />
-        <Label style={styles.spaced}>{t("profile.interfaceSize")}</Label>
-        <SegmentedControl<string>
-          value={String(scale)}
-          onChange={(next) => setScale(Number(next) as UiScale)}
-          options={UI_SCALES.map((value) => ({ value: String(value), label: `${Math.round(value * 100)}%` }))}
-        />
-        <Body>{t("profile.interfaceSizeHint")}</Body>
-        <Label style={styles.spaced}>{t("profile.textScale")}</Label>
-        <SegmentedControl<TextScaleMode>
-          value={textScaleMode}
-          onChange={setTextScaleMode}
-          options={[{ value: "full", label: t("profile.textScaleFull") }, { value: "limited", label: t("profile.textScaleLimited") }]}
-        />
-        <Body>{t("profile.textScaleHint")}</Body>
-        <Label style={styles.spaced}>{t("profile.animation")}</Label>
-        <SegmentedControl<string>
-          value={speed}
-          onChange={(next) => setSpeed(next as "normal" | "fast" | "off")}
-          options={[
-            { value: "normal", label: t("profile.animationNormal") },
-            { value: "fast", label: t("profile.animationFast") },
-            { value: "off", label: t("profile.animationOff") },
-          ]}
-        />
-        {reducedMotion ? <Body>{t("profile.animationReducedMotion")}</Body> : null}
-      </Card>
-      <SectionTitle title={t("profile.fontTitle")} />
-      <FontSettings />
-      <SectionTitle title={t("profile.setsTitle")} />
-      <SetLayoutSettings />
-      <ListGroup>
-        <SwitchRow
-          icon="speedometer-outline"
-          title={t("profile.rpePrompt")}
-          subtitle={t("profile.rpePromptHint")}
-          value={rpePrompt}
-          onChange={(next) => { setRpePrompt(next); writePreference(RPE_PROMPT_KEY, String(next)); }}
-        />
-      </ListGroup>
-      <SectionTitle title={t("compare.profileTitle")} />
-      <Card>
-        <SegmentedControl
-          value={compareMode}
-          onChange={(next) => { setCompareMode(next); writePreference(COMPARE_MODE_KEY, next); }}
-          options={[
-            { value: "session", label: t("compare.modeSession") },
-            { value: "any", label: t("compare.modeAny") },
-          ]}
-        />
-        <Body>{t("compare.profileHint")}</Body>
-      </Card>
-      <SectionTitle title={t("profile.restTitle")} />
-      <Card>
-        <DurationField label={t("logger.restWorking")} value={rest.working} max={600} presets={[30, 60, 90, 120, 180]} format={(seconds) => t("userProgram.secondsValue", { value: seconds })} onChange={(value) => changeRest("working", value)} />
-        <DurationField label={t("logger.restWarmup")} value={rest.warmup} max={600} presets={[30, 60, 90, 120, 180]} format={(seconds) => t("userProgram.secondsValue", { value: seconds })} onChange={(value) => changeRest("warmup", value)} />
-        <Body>{t("profile.restHint")}</Body>
-      </Card>
+      <View style={styles.group}>
+        <Label>{t("simple.app")}</Label>
+        <ListGroup>
+          <ListRow icon="text-outline" title={t("simple.appearance")} value={`${theme} · ${Math.round(scale * 100)} %`} onPress={() => router.push("/settings/appearance")} />
+          <ListRow icon="cloud-download-outline" title={t("simple.backup")} onPress={() => router.push("/data")} />
+        </ListGroup>
+      </View>
 
-      <SectionTitle title={t("narration.title")} />
-      <Card>
-        <DurationField label={t("narration.prep")} value={prepSec} min={0} max={MAX_NARRATION_PREP_SEC} step={1} presets={[0, 3, 5, 10]} format={(seconds) => seconds === 0 ? t("narration.prepOff") : t("userProgram.secondsValue", { value: seconds })} onChange={(value) => { setPrepSec(value); writeNarrationPrepSec(value); }} />
-        <Body>{t("narration.prepHint")}</Body>
-      </Card>
-
-      <SectionTitle title={t("profile.data")} />
-      <ListGroup>
-        <ListRow icon="cloud-download-outline" title={t("profile.backup")} onPress={() => router.push("/data")} />
-      </ListGroup>
-
-      <Card style={styles.about}>
-        <Icon name="shield-checkmark-outline" size={24} color={palette.success} />
-        <View style={styles.aboutCopy}>
-          <Label>{t("profile.about")}</Label>
-          <Body>{t("profile.aboutBody")}</Body>
-          {/* The installed version, to tell which release is on the phone. */}
-          {config?.version ? <Text selectable style={[styles.version, { color: palette.textMuted }]}>{config.android?.versionCode ? t("profile.version", { version: config.version, build: config.android.versionCode }) : t("profile.versionShort", { version: config.version })}</Text> : null}
-        </View>
-      </Card>
-      </Fragment>
+      <View style={styles.about}>
+        <Icon name="shield-checkmark-outline" size={16} color={palette.success} />
+        <Text style={[styles.aboutText, { color: palette.textMuted }]}>{t("simple.local")}</Text>
+      </View>
+      {/* The installed version, to tell which release is on the phone. */}
+      {config?.version ? <Text selectable style={[styles.version, { color: palette.textMuted }]}>{config.android?.versionCode ? t("profile.version", { version: config.version, build: config.android.versionCode }) : t("profile.versionShort", { version: config.version })}</Text> : null}
     </Screen>
   );
 }
@@ -141,8 +74,8 @@ export default function ProfileScreen() {
 const config = Constants.expoConfig;
 
 const baseStyles = StyleSheet.create({
-  spaced: { marginTop: 6 },
-  about: { flexDirection: "row", alignItems: "flex-start", gap: 12 },
-  aboutCopy: { flex: 1, gap: 4 },
-  version: { fontFamily: fonts.medium, fontSize: 13, marginTop: 4 },
+  group: { gap: spacing.sm },
+  about: { flexDirection: "row", alignItems: "center", gap: spacing.sm, flexWrap: "wrap" },
+  aboutText: { flex: 1, fontFamily: fonts.body, fontSize: 13, lineHeight: 18 },
+  version: { fontFamily: fonts.medium, fontSize: 13 },
 });

@@ -2,6 +2,93 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.76.0 - 2026-11-20
+
+- Configure preparation, countdown warnings, and phase beeps for the timed method.
+- Save each hold as a separate set, including the measured portion of a hold when stopped early.
+
+## 0.75.1 - 2026-11-20
+
+- Separate countdown settings from voice switches in Narrated mode and give duration shortcuts more room at larger text sizes.
+- Space out set controls, the copy form, ratings and timers in active workouts. Controls wrap on narrow screens and the workout title has room to stay legible.
+
+## 0.75.0 - 2026-11-20
+
+- Hide set ratings from workout defaults. Saved effort, form and range-of-motion ratings are kept.
+- Drag exercises to reorder them. The lifted row slides into its destination on release.
+- See how much the planned working sets add up to and compare that total with the exercise goal.
+- Add multiple copies of the last set at once, preserving left and right values for unilateral exercises.
+- Configure the preparation countdown and maximum wait for speech. Choose spoken cues or beeps separately for preparation and the start of each set.
+
+## 0.74.0 - 2026-11-20
+
+- Timed method for exercises measured in time: a block of repeated holds and rests (for example 3 minutes of 10 s hold, 10 s rest), a recovery, then one long hold. Each part is saved as a set with its format in the note.
+- The recovery and final hold are optional: switch them off in the setup, or finish without them during the recovery.
+
+## 0.73.0 - 2026-11-20
+
+- Log a set from one big button at the bottom of the exercise. The set in hand opens inside the list, with chips for load, bands, rest, note and video; load appears only when used.
+- Rate effort and form with one tap while the rest timer runs.
+- The progress bar at the top opens all exercises; the workout menu groups actions, display switches and destructive actions, with Finish first.
+- Exercise menu: four quick actions, then one row per setting with its current value.
+- Workout overview: tap Edit to reorder, group or remove exercises; hold an exercise for its menu.
+- Programs: next workout on top, templates in view, sorting and filters behind View, and one + for programs, templates, import, exercises and chains. Program details, view mode and delete move to the program menu.
+- You: a short index with four groups; appearance and text have their own page with a live preview.
+
+## 0.72.6 - 2026-11-20
+
+- Keep notes, rest, EMOM and session goals within reach in the exercise options panel. Expand individual sections for replacement, equipment and grouping, history, library settings, and removal.
+
+## 0.72.5 - 2026-11-19
+
+- Hold an exercise row and drag it to reorder within its group or superset. Neighbouring rows slide into place as you move.
+- Remove an exercise using the compact × beside its name.
+
+## 0.72.4 - 2026-11-19
+
+- Remove exercises directly from the ongoing workout overview. Tap Restore to undo, or confirm removal when an exercise contains video clips.
+
+## 0.72.3 - 2026-11-19
+
+- Reorder neighbouring exercises from the ongoing workout overview, including exercises within a superset.
+- Start or continue the suggested exercise from the overview, return with the workout button, and see when all sets are logged.
+
+## 0.72.2 - 2026-11-19
+
+- Improve touch recognition when swiping between exercises during a workout.
+- Android Back now returns from the exercise view to the ongoing workout overview.
+
+## 0.72.1 - 2026-11-19
+
+- Swipe the exercise card or use the arrows to move between exercises in an ongoing workout. Rest keeps counting while you switch, and set rows keep their own swipe actions.
+
+## 0.72.0 - 2026-11-19
+
+- Workout in progress: see session progress, the next exercise and a fixed rest timer from the overview.
+- Create, rename and remove groups and supersets. Collapse or expand them individually or all at once. Removing a group keeps its exercises, sets and notes.
+- Choose a focused set editor or a compact log. Repetitions, added load and band assistance are clearly labelled, including at large text sizes.
+- Edit workout, exercise and set notes from their own sheets and see previews as you train.
+
+## 0.71.0 - 2026-11-19
+
+- Workout: copied prescriptions stay separate, finishing opens the summary, and workout notes can be edited from the workout menu or history.
+- Bands: reorder resistance within a band set, archive and restore individual bands, and see separate assisted and unassisted records.
+- Workout and goals: keep load and repetitions labelled and give goal totals and workout actions more space at large text sizes.
+- JSON import: preview additions, reused items and partial updates by name. An interrupted import reports what was saved.
+
+## 0.70.0 - 2026-11-18
+
+- Workout in progress: starting another workout while one is open now offers "Discard and start new" (after a confirmation) next to Resume, from every start point. Today's repeat and planned start also check for an open workout.
+- Exercise note: always visible on the exercise card, one tap to edit in place, saved by itself; an "Add note" row when empty and a one-line preview on folded cards.
+- Save as program workout: it never overwrites its original unless asked. When the name matches an existing workout it offers "Save as new" (the default, under a free name) or "Replace the original"; after saving, finishing the workout no longer offers to update the original.
+- Time goals on one exercise, daily and weekly: set from the exercise page or the goal sheet (new "Exercise" scope, timed exercises only); they show in Today, the goal lists and history, and on the exercise card in the workout. Deleting an exercise removes its goals, moving its history moves them. Older app versions ignore them.
+
+## 0.69.2 - 2026-11-16
+
+- Records: a set with bands of unknown kg never beats the same work without bands (e.g. a 20 s banded advanced tuck front lever is no longer a record over 10 s without a band). Such sets are compared only with sets done with the same bands ("same bands" in mini-PRs and session volume), give no 1RM estimate and stay out of the best hold and best session; without bands always counts as less help.
+- Progressions: for now, sets helped by bands do not count towards a step.
+- Storage: the app no longer keeps temporary copies forever. Picked photos and videos are removed from the cache once stored (form-check clips are moved, not copied), and old exports, share cards and analysis frames are cleared at startup.
+
 ## 0.69.0 - 2026-11-12
 
 - Switch to: an exercise in a chain shows the whole chain as a ladder, so any step is one tap away (not only the nearest two). It marks where you are, the steps reached and the one your sets suggest; with several chains, a chip picks which one.

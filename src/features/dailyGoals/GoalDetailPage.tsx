@@ -14,7 +14,7 @@ import { listExercises } from '../exercises/repository';
 import { exerciseMovementTags } from '../exercises/movementCatalog';
 import { openExercisePage } from '../exercises/openExercise';
 import { startMicroSession } from '../session/microSession';
-import { WorkoutInProgressSheet } from '../session/WorkoutInProgressSheet';
+import { useStartGuard } from '../session/useStartGuard';
 import { Body, Chip, EmptyState, FooterAction, IconButton, Label, ListGroup, ListRow, PageHeading, ProgressMeter, Screen, SectionTitle, Text } from '../../shared/components/ui';
 import { ShowMore, usePaged } from '../../shared/components/paging';
 import { useTheme } from '../../shared/theme/ThemeProvider';
@@ -37,7 +37,7 @@ export function GoalDetailPage({ period }: { period: GoalPeriod }) {
   const [allGoals, setAllGoals] = useState<DailyGoal[]>([]);
   const [picked, setPicked] = useState<string[]>([]);
   const [editing, setEditing] = useState(false);
-  const [blockedBy, setBlockedBy] = useState<{ id: string; name: string } | null>(null);
+  const { block, sheet } = useStartGuard();
   const [starting, setStarting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -50,7 +50,7 @@ export function GoalDetailPage({ period }: { period: GoalPeriod }) {
       // Exercises used today for this goal first, then favourites, then the rest by name.
       const usedToday = new Set(found.contributions.map((item) => item.exerciseId));
       const matching = all.filter((exercise) => goalMatches(found.goal, {
-        categories: rowCategories(exercise), group: exercise.movementGroup, tags: exerciseMovementTags(exercise), mobilityMode: exercise.mobilityMode,
+        exerciseId: exercise.id, categories: rowCategories(exercise), group: exercise.movementGroup, tags: exerciseMovementTags(exercise), mobilityMode: exercise.mobilityMode,
       }));
       matching.sort((a, b) => Number(usedToday.has(b.id)) - Number(usedToday.has(a.id)) || Number(b.favourite) - Number(a.favourite) || a.name.localeCompare(b.name));
       setChoices(matching.map((exercise) => ({ id: exercise.id, name: exercise.name })));
@@ -68,7 +68,7 @@ export function GoalDetailPage({ period }: { period: GoalPeriod }) {
     setStarting(true);
     try {
       const result = await startMicroSession(picked);
-      if ('active' in result) { setBlockedBy(result.active); return; }
+      if ('active' in result) { block(result.active, () => void start()); return; }
       router.push({ pathname: '/workout/[id]', params: { id: result.workoutId } });
     } catch (reason) {
       setError(`${t('micro.error')} (${reason instanceof Error ? reason.message : String(reason)})`);
@@ -91,7 +91,7 @@ export function GoalDetailPage({ period }: { period: GoalPeriod }) {
     <Screen
       footer={<FooterAction icon="flash-outline" label={starting ? t('programBuilder.starting') : picked.length === 0 ? t('dailyGoals.miniSession') : t('dailyGoals.startFor', { count: picked.length })} disabled={starting} onPress={() => (picked.length === 0 ? router.push('/micro-session') : void start())} />}
     >
-      <WorkoutInProgressSheet active={blockedBy} onClose={() => setBlockedBy(null)} />
+      {sheet}
       <PageHeading
         title={text.name}
         subtitle={text.kind}

@@ -16,6 +16,7 @@ import { aggregatePairs } from '../../domain/setPairs';
 import { describeSets } from '../exercises/describeSets';
 import { ActionButton, Body, FooterAction, Icon, IconButton, Label, ListGroup, ListRow, Numeral, Screen, SectionTitle, tapFeedback, Text, Title } from '../../shared/components/ui';
 import { LoadError } from '../../shared/components/LoadError';
+import { useStartGuard } from './useStartGuard';
 import { Arrive } from '../../shared/components/Arrive';
 import { useTheme } from '../../shared/theme/ThemeProvider';
 import { fonts } from '../../shared/theme/typography';
@@ -45,6 +46,7 @@ export function WorkoutRecap({ mode }: { mode: 'finish' | 'log' }) {
   const [previous, setPrevious] = useState<Map<string, PreviousPerformance>>(new Map());
   const [compareBands, setCompareBands] = useState<((a: readonly SetBand[], b: readonly SetBand[]) => -1 | 0 | 1 | null) | undefined>(undefined);
   const [notice, setNotice] = useState<string | null>(null);
+  const { block, sheet: inProgressSheet } = useStartGuard();
 
   useEffect(() => {
     let mounted = true;
@@ -79,7 +81,7 @@ export function WorkoutRecap({ mode }: { mode: 'finish' | 'log' }) {
   const repeat = () => void repeatWorkoutIfIdle(id)
     .then((result) => {
       if ('workoutId' in result) router.push({ pathname: '/workout/[id]', params: { id: result.workoutId } });
-      else setNotice(t('workout.inProgressBody', { name: result.active.name }));
+      else block(result.active, repeat);
     })
     .catch(() => setNotice(t('history.repeatError')));
 
@@ -102,15 +104,18 @@ export function WorkoutRecap({ mode }: { mode: 'finish' | 'log' }) {
   const avgForm = forms.length ? Math.round((forms.reduce((sum, value) => sum + value, 0) / forms.length) * 10) / 10 : null;
   // One line per exercise and record kind: the best of the session (shortest, for rest).
   const bestPrs = new Map<string, SetRecord>();
+  const recordKey = (record: SetRecord) => `${record.exerciseId}:${record.kind}:${Boolean(record.withBands)}`;
   for (const record of prs.sets) {
-    const key = `${record.exerciseId}:${record.kind}`;
+    const key = recordKey(record);
     const current = bestPrs.get(key);
-    const better = !current || (record.kind === 'shorterRest' ? record.value < current.value : record.value > current.value);
+    const lowerIsBetter = record.kind === 'shorterRest' || record.kind === 'lessAssist';
+    const knownValue = (value: number) => record.kind === 'lessAssist' && value < 0 ? Infinity : value;
+    const better = !current || (lowerIsBetter ? knownValue(record.value) < knownValue(current.value) : record.value > current.value);
     if (better) bestPrs.set(key, record);
   }
   const prLines = [
-    ...[...bestPrs.values()].map((record) => ({ key: `${record.exerciseId}:${record.kind}`, exerciseId: record.exerciseId, kind: record.kind, value: record.value, previous: record.previous })),
-    ...prs.volume.map((record) => ({ key: `${record.exerciseId}:volume`, exerciseId: record.exerciseId, kind: 'volume' as const, value: record.value, previous: record.previous })),
+    ...[...bestPrs.values()].map((record) => ({ key: recordKey(record), withBands: record.withBands, exerciseId: record.exerciseId, kind: record.kind, value: record.value, previous: record.previous })),
+    ...prs.volume.map((record, index) => ({ key: `${record.exerciseId}:volume:${index}`, withBands: record.withBands, exerciseId: record.exerciseId, kind: 'volume' as const, value: record.value, previous: record.previous })),
   ];
   const recordExercises = new Set([...prLines.map((line) => line.exerciseId), ...records.map((record) => record.exerciseId)]);
   // Mini PRs against last time: more in total, less rest, better form, the same work at a lower RPE.
@@ -215,7 +220,7 @@ export function WorkoutRecap({ mode }: { mode: 'finish' | 'log' }) {
                   <Icon name={line.kind === 'volume' ? 'trophy-outline' : 'trophy'} size={20} color={palette.record} />
                   <View style={[styles.recordCopy, largeText && styles.recordCopyLarge]}>
                     <Text style={styles.recordName}>{exercise?.name ?? ''}</Text>
-                    <Label>{t(`records.kinds.${line.kind}`)} · {t('summary.previous', { value: formatRecordValue(line.kind, line.previous, metric, t) })}</Label>
+                    <Label>{t(`records.kinds.${line.kind}`)} · {t(line.withBands ? 'records.withBands' : 'records.withoutBands')} · {t('summary.previous', { value: formatRecordValue(line.kind, line.previous, metric, t, true) })}</Label>
                   </View>
                   <Text style={[styles.recordValue, { color: palette.record }]}>{formatRecordValue(line.kind, line.value, metric, t)}</Text>
                 </View>
@@ -293,6 +298,7 @@ export function WorkoutRecap({ mode }: { mode: 'finish' | 'log' }) {
           <ListRow icon="create-outline" title={t('summary.details')} onPress={edit} />
         </ListGroup>
       ) : null}
+      {inProgressSheet}
     </Screen>
   );
 }

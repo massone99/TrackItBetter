@@ -53,6 +53,10 @@ import ProgressionsScreen from '../../app/progressions';
 import RemindersScreen from '../../app/reminders';
 import ResetScreen from '../../app/reset';
 import SkillChainidScreen from '../../app/skill/[chainId]';
+import SettingsAppearanceScreen from '../../app/settings/appearance';
+import SettingsFontScreen from '../../app/settings/font';
+import SettingsSetsScreen from '../../app/settings/sets';
+import SettingsTrainingScreen from '../../app/settings/training';
 import StatsScreen from '../../app/stats';
 import TrainingStatsScreen from '../../app/training-stats';
 import WeeklyGoalIdScreen from '../../app/weekly-goal/[id]';
@@ -217,6 +221,10 @@ export const uiAuditRegistry: AuditScreenDefinition[] = [
   { id: 'progressions', render: () => wrap(<ProgressionsScreen />), states },
   { id: 'reminders', render: () => wrap(<RemindersScreen />), states },
   { id: 'reset', render: () => wrap(<ResetScreen />), states },
+  { id: 'settings-appearance', render: () => wrap(<SettingsAppearanceScreen />), states },
+  { id: 'settings-font', render: () => wrap(<SettingsFontScreen />), states },
+  { id: 'settings-sets', render: () => wrap(<SettingsSetsScreen />), states },
+  { id: 'settings-training', render: () => wrap(<SettingsTrainingScreen />), states },
   { id: 'skill-chainId', render: () => wrap(<SkillChainidScreen />), states: withParams((ids) => ({ chainId: ids.chain })) },
   { id: 'stats', render: () => wrap(<StatsScreen />), states },
   { id: 'training-stats', render: () => wrap(<TrainingStatsScreen />), states },

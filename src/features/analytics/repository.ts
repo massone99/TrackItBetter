@@ -7,7 +7,7 @@ import { buildExerciseEstimate, buildOneRepMaxEstimate, type ExerciseEstimate, t
 import type { ExploreData } from './explore';
 import { buildProgressSnapshot, detectWorkoutRecords, type CompletedSetRow, type CompletedWorkoutRow, type ProgressSnapshot, type WorkoutRecord } from './summary';
 import type { StatsSetRow } from './trainingStats';
-import { detectSameLoadRecords, detectSetRecords, detectVolumeRecords, exerciseRecordSummary, type BandHelpComparer, type ExerciseRecordSummary, type RecordRow, type SameLoadRecord, type SetRecord, type VolumeRecord } from './records';
+import { detectSameLoadRecords, detectSetRecords, detectVolumeRecords, exerciseRecordSummary, type BandHelpComparer, type ExerciseRecordBreakdown, type RecordRow, type SameLoadRecord, type SetRecord, type VolumeRecord } from './records';
 import { getEffectiveLoad } from './summary';
 import { aggregatePairs, groupSets, type PairScope } from '../../domain/setPairs';
 import { bandRanks, compareBandHelp, parseSetBands, type SetBand } from '../../domain/equipment';
@@ -212,7 +212,7 @@ async function readRecordRows(onlyWorkoutId?: string): Promise<RecordRow[]> {
     .innerJoin(exercises, eq(exerciseEntries.exerciseId, exercises.id))
     .innerJoin(workouts, eq(exerciseEntries.workoutId, workouts.id))
     .where(and(workoutFilter, isNotNull(trainingSets.completedAt)))
-    .orderBy(asc(workouts.startedAt), asc(exerciseEntries.order), asc(trainingSets.index));
+    .orderBy(asc(workouts.startedAt), asc(workouts.id), asc(exerciseEntries.order), asc(trainingSets.index));
   const result: RecordRow[] = [];
   let previous: (typeof rows)[number] | null = null;
   for (const group of groupSets(rows)) {
@@ -223,14 +223,15 @@ async function readRecordRows(onlyWorkoutId?: string): Promise<RecordRow[]> {
     if (row.kind !== 'working') continue;
     // Band assistance counts as negative load, so an assisted set is compared at its real load.
     const addedLoadKg = row.addedLoadKg - (row.assistKg ?? 0);
-    const effectiveLoadKg = getEffectiveLoad({ ...row, addedLoadKg, assistKg: null, bandCount: 0, distanceM: null, completedAt: null } as never) ?? null;
+    const bands = parseSetBands(row.bands);
+    const effectiveLoadKg = getEffectiveLoad({ ...row, bandCount: bands.length }) ?? null;
     const apparatus = row.apparatusAffectsDifficulty ? row.apparatusId ?? row.defaultApparatusId : null;
     result.push({
       pairId: row.pairId, side: row.side,
       setId: row.setId, workoutId: row.workoutId, exerciseId: row.exerciseId, metric: row.metric,
       compareKey: apparatus ? `${row.exerciseId}@${apparatus}` : row.exerciseId,
-      reps: row.reps, durationSec: row.durationSec, addedLoadKg, effectiveLoadKg, restBeforeSec,
-      bands: parseSetBands(row.bands), assistKg: row.assistKg,
+      reps: row.reps, durationSec: row.durationSec, addedLoadKg, loggedLoadKg: row.addedLoadKg, effectiveLoadKg, restBeforeSec,
+      bands, assistKg: row.assistKg,
     });
     }
     previous = group.at(-1) ?? null;
@@ -240,7 +241,10 @@ async function readRecordRows(onlyWorkoutId?: string): Promise<RecordRow[]> {
 
 /** PRs and volume mini PRs of a workout, in progress or finished. */
 export async function getSessionRecords(workoutId: string): Promise<{ sets: SetRecord[]; volume: VolumeRecord[]; sameLoad: SameLoadRecord[] }> {
-  const rows = await loadRecordRows(workoutId);
+  const history = await loadRecordRows(workoutId);
+  let end = history.length;
+  while (end > 0 && history[end - 1].workoutId !== workoutId) end -= 1;
+  const rows = history.slice(0, end);
   const catalog = await getEquipment();
   const ranks = bandRanks(catalog.bandSets, catalog.bandOrder);
   const compareBands: BandHelpComparer = (a, b) => compareBandHelp(a, b, ranks);
@@ -257,7 +261,7 @@ export async function getExerciseRepsAtLoad(exerciseId: string, scope: PairScope
   return repsAtLoadFromRows(rows, new Map(names.map((row) => [row.id, row.name])));
 }
 
-export async function getExerciseRecordSummary(exerciseId: string, scope: PairScope = 'average'): Promise<ExerciseRecordSummary> {
+export async function getExerciseRecordSummary(exerciseId: string, scope: PairScope = 'average'): Promise<ExerciseRecordBreakdown> {
   return exerciseRecordSummary(await loadRecordRows(), exerciseId, scope);
 }
 

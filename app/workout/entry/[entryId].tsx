@@ -200,13 +200,13 @@ export default function WorkoutEntryScreen() {
         <>
           <SectionTitle title={t('entryRecap.records')} />
           <View style={styles.records}>
-            {[...exerciseRecords.map((record) => ({ key: `${record.setId}:${record.kind}`, kind: record.kind, value: record.value, previous: record.previous })),
-              ...volumeRecords.map((record) => ({ key: 'volume', kind: 'volume' as const, value: record.value, previous: record.previous }))].map((line) => (
+            {[...exerciseRecords.map((record) => ({ key: `${record.setId}:${record.kind}`, kind: record.kind, withBands: record.withBands, value: record.value, previous: record.previous })),
+              ...volumeRecords.map((record, index) => ({ key: `volume:${index}`, kind: 'volume' as const, withBands: record.withBands, value: record.value, previous: record.previous }))].map((line) => (
               <View key={line.key} style={[styles.record, { backgroundColor: palette.recordSoft }]}>
                 <Icon name={line.kind === 'volume' ? 'trophy-outline' : 'trophy'} size={20} color={palette.record} />
                 <View style={[styles.recordCopy, largeText && styles.recordCopyLarge]}>
-                  <Text style={[styles.recordName, { color: palette.text }]}>{t(`records.kinds.${line.kind}`)}</Text>
-                  <Label>{t('summary.previous', { value: formatRecordValue(line.kind, line.previous, metric, t) })}</Label>
+                  <Text style={[styles.recordName, { color: palette.text }]}>{t(`records.kinds.${line.kind}`)} · {t(line.withBands ? 'records.withBands' : 'records.withoutBands')}</Text>
+                  <Label>{t('summary.previous', { value: formatRecordValue(line.kind, line.previous, metric, t, true) })}</Label>
                 </View>
                 <Text style={[styles.recordValue, { color: palette.record }]}>{formatRecordValue(line.kind, line.value, metric, t)}</Text>
               </View>

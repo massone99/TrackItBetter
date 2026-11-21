@@ -8,7 +8,7 @@ import { ProgramsView } from './list/ProgramsView';
 import { programTemplates } from './catalog';
 import { startUserProgramSession } from './startUserSession';
 import { listProgramClusters, listUserPrograms } from './userPrograms';
-import { WorkoutInProgressSheet } from '../session/WorkoutInProgressSheet';
+import { useStartGuard } from '../session/useStartGuard';
 import { getActiveWorkout, listRecentWorkoutNames } from '../session/repository';
 import { LoadError } from '../../shared/components/LoadError';
 import {
@@ -40,7 +40,7 @@ export function ProgramsDisciplineScreen({ discipline }: { discipline: ProgramDi
   const [savedClusters, setSavedClusters] = useState<string[]>([]);
   const [recentNames, setRecentNames] = useState<string[]>([]);
   const [active, setActive] = useState<{ id: string; name: string } | null>(null);
-  const [blockedBy, setBlockedBy] = useState<{ id: string; name: string } | null>(null);
+  const { block, sheet } = useStartGuard();
   const [starting, setStarting] = useState(false);
   const [loadFailed, setLoadFailed] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
@@ -72,9 +72,10 @@ export function ProgramsDisciplineScreen({ discipline }: { discipline: ProgramDi
     void load();
   }, [load]));
 
-  const startHero = async (program: UserProgram, sessionId: string) => {
+  // `force` skips the check of the open workout once the user has discarded it (`active` is only reloaded later).
+  const startHero = async (program: UserProgram, sessionId: string, force = false) => {
     if (starting) return;
-    if (active) { setBlockedBy(active); return; }
+    if (active && !force) { block(active, () => void startHero(program, sessionId, true)); return; }
     const session = program.sessions.find((item) => item.id === sessionId);
     if (!session) return;
     setStarting(true);
@@ -215,7 +216,7 @@ export function ProgramsDisciplineScreen({ discipline }: { discipline: ProgramDi
         </>
       )}
 
-      <WorkoutInProgressSheet active={blockedBy} onClose={() => setBlockedBy(null)} />
+      {sheet}
     </Screen>
   );
 }

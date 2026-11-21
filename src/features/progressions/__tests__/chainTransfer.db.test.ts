@@ -1,7 +1,8 @@
 import { migrateDatabase } from '../../../db/migrations';
 import { seedCatalogIfEmpty } from '../../../db/seed/import';
+import { listExercises } from '../../exercises/repository';
 import { createCustomExercise } from '../../exercises/customRepository';
-import { ImportError, importJson } from '../../data/importJson';
+import { ImportError, importJson, planImport, previewImport } from '../../data/importJson';
 import { addLink, createChain, getChain, listChains, listLinks } from '../chains';
 import { buildChainsFile } from '../exportChains';
 import example from '../../../../docs/import-examples/example-chains.json';
@@ -80,15 +81,20 @@ describe('chains in import and export files', () => {
   it('adds only the missing steps to a chain with the same name, and refuses a file that would make a loop', async () => {
     const before = (await listChains()).find((item) => item.name === 'My planche path')!;
     const addendum = { format: 'trackitbetter-import', version: 1, chains: [{ name: 'my planche PATH', steps: [{ exercise: 'tuck-planche' }, { exercise: 'push-up', criteria: { sets: 3, reps: 10 } }] }] };
+    const known = await listExercises();
+    expect((await previewImport(planImport(JSON.stringify(addendum), known), known)).chains).toEqual([
+      { name: 'my planche PATH', exists: true, added: ['Push-up'], skipped: ['Tuck Planche'] },
+    ]);
     expect(await importJson(JSON.stringify(addendum))).toMatchObject({ chainsCreated: 0, stepsAdded: 1 });
     const after = (await getChain(before.id))!;
     expect(after.steps.map((step) => step.exerciseId).slice(-1)).toEqual(['push-up']);
     expect(after.steps.at(-1)!.criteria).toEqual({ sets: 3, reps: 10, requiredSessions: 1 });
 
-    const loop = { format: 'trackitbetter-import', version: 1, links: [{ from: 'push-up', to: 'tuck-planche', kind: 'progression' }] };
+    const loop = { format: 'trackitbetter-import', version: 1, exercises: [{ key: 'unused', name: 'Unwritten Hold', metric: 'time', category: 'skill' }], links: [{ from: 'push-up', to: 'tuck-planche', kind: 'progression' }] };
     await expect(importJson(JSON.stringify(loop))).rejects.toThrow(ImportError);
     await expect(importJson(JSON.stringify(loop))).rejects.toThrow(/cycle: Tuck Planche → Push-up → Tuck Planche|cycle: Push-up → Tuck Planche → Push-up/);
     expect(await listLinks('push-up')).toHaveLength(1);
+    expect((await listExercises()).some((exercise) => exercise.name === 'Unwritten Hold')).toBe(false);
   });
 
   it('keeps chains and relations through a backup, and rebuilds the catalog chains from an older backup', async () => {
