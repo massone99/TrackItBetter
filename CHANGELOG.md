@@ -2,6 +2,16 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.77.0 - 2026-11-21
+
+- Every screen works at every size, from 70 % interface to 130 % interface with 200 % system text: nothing runs off screen, rows wrap instead of squeezing text, and long words are never cut.
+- Text grows at most to twice its size overall; past that the interface size enlarges spacing and controls, not the words. Titles and big numbers grow only a little.
+- Every control is at least 48 dp to touch, also at the 70 % interface size: calendars, weekday buttons, presets, chips, switches (the whole row now toggles) and chart bars.
+- Charts with many weeks scroll sideways and start at the latest one; axis labels stay inside the chart.
+- Buttons and numbers shrink to fit rather than breaking a word; a footer button with a long word takes the whole row.
+- Fixes: Today's week row at large sizes, the mobility routine editor (actions on their own row), the hour wheel at large text, the share card keeping its size, and many rows on goals, reminders, recap, programs and settings.
+- New for development: `npm run ui:audit`, a layout check of every screen at three sizes.
+
 ## 0.76.0 - 2026-11-20
 
 - Configure preparation, countdown warnings, and phase beeps for the timed method.
