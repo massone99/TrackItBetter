@@ -129,10 +129,11 @@ const baseStyles = StyleSheet.create({
   group: { borderRadius: radii.control, borderWidth: StyleSheet.hairlineWidth, overflow: 'hidden' },
   header: { minHeight: 60, flexDirection: 'row', alignItems: 'center', gap: 13, paddingHorizontal: 16, paddingVertical: 11 },
   icon: { width: 34, height: 34, borderRadius: radii.control, alignItems: 'center', justifyContent: 'center' },
-  copy: { flex: 1, gap: 2 },
+  copy: { flexGrow: 1, flexShrink: 1, flexBasis: 140, gap: 2 },
   title: { fontFamily: fonts.semibold, fontSize: 16 },
   names: { fontFamily: fonts.body, fontSize: 13 },
-  picker: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12 },
-  change: { paddingHorizontal: 14, height: 38, borderRadius: radii.control, justifyContent: 'center' },
+  // The Change button wraps under the name when both do not fit on one line.
+  picker: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 12, paddingVertical: 12 },
+  change: { paddingHorizontal: 14, minHeight: 48, borderRadius: radii.control, justifyContent: 'center' },
   changeText: { fontFamily: fonts.semibold, fontSize: 15 },
 });

@@ -145,8 +145,9 @@ export function TimeField({ label, hour, minute, locale, minuteStep = 5, default
 }
 
 const baseStyles = StyleSheet.create({
-  row: { minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
-  rowLabel: { flex: 1, fontFamily: fonts.medium, fontSize: 15 },
+  // The value wraps under the label when both do not fit on one line (long Italian labels, large text).
+  row: { minHeight: 48, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
+  rowLabel: { flexGrow: 1, flexShrink: 1, flexBasis: 160, fontFamily: fonts.medium, fontSize: 15 },
   rowValue: { flexDirection: 'row', alignItems: 'center', flexShrink: 0, gap: 8, paddingHorizontal: 12, paddingVertical: 8, minHeight: 48, borderRadius: radii.control },
   rowValueText: { fontFamily: fonts.semibold, fontSize: 16, fontVariant: ['tabular-nums'] },
   panel: { borderWidth: StyleSheet.hairlineWidth, borderRadius: radii.control, padding: 12, gap: 8, marginBottom: 6 },
@@ -160,7 +161,8 @@ const baseStyles = StyleSheet.create({
   wheels: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4 },
   presets: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingBottom: 8 },
   // Quick values in an even grid, four to a row, instead of a ragged line.
-  presetCell: { flexGrow: 1, flexBasis: 56 },
+  // Each preset is as wide as its label ("30 s") and the row wraps; never squeezed below its text.
+  presetCell: { flexGrow: 1 },
   colon: { fontFamily: fonts.display, fontSize: 26 },
   durationInputs: { flexDirection: 'row', gap: 12 },
   durationInput: { flex: 1 },

@@ -97,12 +97,19 @@ export function Screen({ children, contentContainerStyle, overlay, footer, foote
 /** Largest share of the screen height the footer (actions and live status) may take. */
 const FOOTER_MAX_SHARE = 0.5;
 
-/** One action in a `Screen` footer; cells share the row equally. */
+/** Longest word of a footer label that still fits a half-width button in capitals on a 360 dp phone. */
+const HALF_WIDTH_WORD = 9;
+
+/**
+ * One action in a `Screen` footer; cells share the row equally. A label with a long word
+ * ("allenamento") takes the whole row instead, and the row wraps, so the word is never cut.
+ */
 export function FooterAction(props: Parameters<typeof ActionButton>[0]) {
   const styles = useScaledStyles(baseStyles);
   const { largeText } = useTheme();
+  const longWord = Math.max(...props.label.split(/\s+/).map((word) => word.length)) > HALF_WIDTH_WORD;
   // Stacked (large text) cells take their own height; flex: 1 would size them from zero in a column.
-  return <View style={largeText ? null : styles.footerCell}><ActionButton {...props} /></View>;
+  return <View style={largeText ? null : longWord ? styles.footerCellFull : styles.footerCell}><ActionButton {...props} /></View>;
 }
 
 /** Small supporting label in sentence case. */
@@ -125,8 +132,8 @@ export function RegistrationMarks() {
   const ink = useInk();
   return (
     <>
-      <Text accessible={false} importantForAccessibility="no" style={[styles.mark, styles.markStart, { color: ink }]}>+</Text>
-      <Text accessible={false} importantForAccessibility="no" style={[styles.mark, styles.markEnd, { color: ink }]}>+</Text>
+      <Text testID="decor-mark" accessible={false} importantForAccessibility="no" style={[styles.mark, styles.markStart, { color: ink }]}>+</Text>
+      <Text testID="decor-mark" accessible={false} importantForAccessibility="no" style={[styles.mark, styles.markEnd, { color: ink }]}>+</Text>
     </>
   );
 }
@@ -136,6 +143,7 @@ export function DotGrid() {
   const { palette } = useTheme();
   return (
     <Image
+      testID="decor-dotgrid"
       accessible={false}
       importantForAccessibility="no"
       source={require("../../../assets/images/dot-grid.png")}
@@ -167,7 +175,8 @@ export function Body({ children, style, ...props }: TextProps) {
 export function Numeral({ children, style, ...props }: TextProps) {
   const styles = useScaledStyles(baseStyles);
   const { palette } = useTheme();
-  return <Text {...props} style={[styles.numeral, { color: palette.text }, style]}>{children}</Text>;
+  // A number never wraps or breaks: in a narrow tile it shrinks to fit its one line instead.
+  return <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.5} {...props} style={[styles.numeral, { color: palette.text }, style]}>{children}</Text>;
 }
 
 /** Surfaces are flat in both themes: thin ink lines, no shadow. Kept so call sites need no change. */
@@ -238,7 +247,7 @@ export function ActionButton({ label, onPress, secondary = false, variant, icon,
   disabled?: boolean;
 }) {
   const styles = useScaledStyles(baseStyles);
-  const { palette } = useTheme();
+  const { palette, largeText } = useTheme();
   const kind: ButtonVariant = variant ?? (secondary ? "secondary" : "primary");
   const pressScale = usePressScale(0.98);
   const ink = useInk();
@@ -252,6 +261,7 @@ export function ActionButton({ label, onPress, secondary = false, variant, icon,
       onPress={() => { tapFeedback(); onPress?.(); }}
       style={({ pressed }) => [
         styles.button,
+        largeText && styles.buttonStacked,
         { minHeight: Math.max(MIN_TOUCH_TARGET, styles.button.minHeight) },
         { backgroundColor: background, opacity: disabled ? 0.45 : pressed ? 0.8 : 1 },
         pressScale(pressed),
@@ -259,7 +269,11 @@ export function ActionButton({ label, onPress, secondary = false, variant, icon,
       ]}
     >
       {icon ? <Icon name={icon} size={19} color={color} /> : null}
-      <Text style={[styles.buttonText, { color }]}>{label}</Text>
+      {/* Large text: the icon goes above the label, which drops capitals and tracking (about a quarter
+          narrower), so long Italian words still fit the button. */}
+      {/* A long word ("all'allenamento") in a half-width footer button: the label shrinks until each
+          word fits its line rather than being cut. */}
+      <Text numberOfLines={largeText ? 4 : 2} adjustsFontSizeToFit minimumFontScale={0.6} style={[styles.buttonText, largeText && styles.buttonTextLarge, { color }]}>{label}</Text>
     </Pressable>
   );
 }
@@ -347,11 +361,12 @@ export function ListRow({ icon, title, subtitle, onPress, onLongPress, longPress
   selected?: boolean;
 }) {
   const styles = useScaledStyles(baseStyles);
-  const { palette } = useTheme();
+  const { palette, largeText } = useTheme();
   const ink = useInk();
+  // Large text: the decorative icon gives its width to the title (the title says the same thing).
   const content = (
     <>
-      {icon ? (
+      {icon && !largeText ? (
         <View style={[styles.listIcon, { backgroundColor: tint ? `${tint}22` : palette.accentSoft, borderColor: ink }]}>
           <Icon name={icon} size={18} color={tint ?? palette.accentStrong} />
         </View>
@@ -480,25 +495,42 @@ export function Stepper({ label, value, display, step = 1, min = 0, max = 999, l
   );
 }
 
-/** List row with an on/off switch. */
+/**
+ * List row with an on/off switch. The whole row is the touch target (the native switch alone is
+ * shorter than 48 dp) and one control for screen readers: the row has the switch role and state.
+ */
 export function SwitchRow({ icon, title, subtitle, value, onChange }: { icon?: IconName; title: string; subtitle?: string; value: boolean; onChange: (value: boolean) => void }) {
-  const { palette } = useTheme();
+  const styles = useScaledStyles(baseStyles);
+  const { palette, largeText } = useTheme();
+  const ink = useInk();
+  const toggle = (next: boolean) => { tapFeedback(); onChange(next); };
   return (
-    <ListRow
-      icon={icon}
-      title={title}
-      subtitle={subtitle}
-      trailing={
-        <Switch
-          accessibilityLabel={title}
-          value={value}
-          onValueChange={(next) => { tapFeedback(); onChange(next); }}
-          trackColor={{ false: palette.surfaceMuted, true: palette.accent }}
-          thumbColor="#FFFFFF"
-          ios_backgroundColor={palette.surfaceMuted}
-        />
-      }
-    />
+    <Pressable
+      accessibilityRole="switch"
+      accessibilityLabel={subtitle ? `${title}, ${subtitle}` : title}
+      accessibilityState={{ checked: value }}
+      onPress={() => toggle(!value)}
+      style={({ pressed }) => [styles.listRow, { minHeight: Math.max(MIN_TOUCH_TARGET, styles.listRow.minHeight), backgroundColor: pressed ? palette.surfaceMuted : "transparent" }]}
+    >
+      {icon && !largeText ? (
+        <View style={[styles.listIcon, { backgroundColor: palette.accentSoft, borderColor: ink }]}>
+          <Icon name={icon} size={18} color={palette.accentStrong} />
+        </View>
+      ) : null}
+      <View style={styles.listCopy}>
+        <Text style={[styles.listTitle, { color: palette.text }]}>{title}</Text>
+        {subtitle ? <Text style={[styles.listSubtitle, { color: palette.textMuted }]}>{subtitle}</Text> : null}
+      </View>
+      <Switch
+        accessible={false}
+        importantForAccessibility="no-hide-descendants"
+        value={value}
+        onValueChange={toggle}
+        trackColor={{ false: palette.surfaceMuted, true: palette.accent }}
+        thumbColor="#FFFFFF"
+        ios_backgroundColor={palette.surfaceMuted}
+      />
+    </Pressable>
   );
 }
 
@@ -512,7 +544,7 @@ export function CheckRow({ icon, title, subtitle, checked, onChange, tint }: {
   tint?: string;
 }) {
   const styles = useScaledStyles(baseStyles);
-  const { palette } = useTheme();
+  const { palette, largeText } = useTheme();
   const accent = tint ?? palette.accent;
   return (
     <Pressable
@@ -522,7 +554,7 @@ export function CheckRow({ icon, title, subtitle, checked, onChange, tint }: {
       onPress={() => { tapFeedback(); onChange(!checked); }}
       style={({ pressed }) => [styles.listRow, { minHeight: Math.max(MIN_TOUCH_TARGET, styles.listRow.minHeight), backgroundColor: pressed ? palette.surfaceMuted : "transparent" }]}
     >
-      {icon ? (
+      {icon && !largeText ? (
         <View style={[styles.listIcon, { backgroundColor: tint ? `${tint}22` : palette.accentSoft }]}>
           <Icon name={icon} size={18} color={tint ?? palette.accentStrong} />
         </View>
@@ -597,7 +629,9 @@ export function SegmentedControl<T extends string>({ value, options, onChange }:
   const styles = useScaledStyles(baseStyles);
   const { palette, largeText } = useTheme();
   // Large text: options wrap two per row (or one per row when only two) and their labels may wrap too.
-  const stacked = largeText && options.length > 1;
+  // More than five options never fit one row at 48 dp each: they wrap four per row at any size.
+  const many = options.length > 5;
+  const stacked = (largeText && options.length > 1) || many;
   const ink = useInk();
   return (
     <View style={[styles.segment, stacked && styles.segmentWrap, { backgroundColor: palette.surfaceMuted, borderColor: ink }]}>
@@ -609,7 +643,7 @@ export function SegmentedControl<T extends string>({ value, options, onChange }:
             accessibilityRole="button"
             accessibilityState={{ selected }}
             onPress={() => { tapFeedback(); onChange(option.value); }}
-            style={({ pressed }) => [styles.segmentOption, stacked && (options.length === 2 ? styles.segmentFull : styles.segmentHalf), { minHeight: MIN_TOUCH_TARGET, opacity: pressed ? 0.75 : 1 }, selected && { backgroundColor: ink }]}
+            style={({ pressed }) => [styles.segmentOption, stacked && (options.length === 2 ? styles.segmentFull : many && !largeText ? styles.segmentQuarter : styles.segmentHalf), { minHeight: MIN_TOUCH_TARGET, opacity: pressed ? 0.75 : 1 }, selected && { backgroundColor: ink }]}
           >
             <Text numberOfLines={stacked ? 2 : 1} adjustsFontSizeToFit={!stacked} minimumFontScale={0.7} style={[styles.segmentText, { color: selected ? palette.surface : palette.textMuted }]}>{option.label}</Text>
           </Pressable>
@@ -837,6 +871,8 @@ export function NumberEdit({ value, display, label, onCommit, onLongPress, initi
       onPress={() => { tapFeedback(); setDraft(initialDraft ?? (clock ? clockDigits(value) : String(value))); }}
       onLongPress={onLongPress}
       delayLongPress={450}
+      // The value is the touch target: at least 48 dp tall whatever its text size (hitSlop adds the width).
+      style={styles.numberEditTarget}
     >
       <Text style={style}>{display}</Text>
     </Pressable>
@@ -956,10 +992,12 @@ const baseStyles = StyleSheet.create({
   toastActionText: { fontFamily: fonts.semibold, fontSize: 15 },
   numberInput: { minWidth: 64, minHeight: 40, borderRadius: radii.control, borderWidth: 2, textAlign: "center", fontFamily: fonts.display, fontSize: 22, paddingHorizontal: 6, paddingVertical: 0 },
   statusScrim: { position: "absolute", top: 0, left: 0, right: 0 },
+  numberEditTarget: { minHeight: MIN_TOUCH_TARGET, justifyContent: "center" },
   footer: { borderTopWidth: StyleSheet.hairlineWidth, paddingTop: spacing.md, paddingHorizontal: spacing.page, alignItems: "center" },
-  footerColumn: { width: "100%", maxWidth: 640, flexDirection: "row", gap: spacing.md },
+  footerColumn: { width: "100%", maxWidth: 640, flexDirection: "row", flexWrap: "wrap", gap: spacing.md },
   footerColumnStacked: { flexDirection: "column" },
-  footerCell: { flex: 1 },
+  footerCell: { flexGrow: 1, flexShrink: 1, flexBasis: 120 },
+  footerCellFull: { flexBasis: "100%" },
   footerScroll: { width: "100%", flexGrow: 0 },
   footerColumnFirst: { marginBottom: spacing.md },
   footerAccessoryLast: { marginBottom: 0 },
@@ -1009,18 +1047,22 @@ const baseStyles = StyleSheet.create({
   pageSubtitle: { fontSize: 15, lineHeight: 22 },
   title: { fontFamily: fonts.display, ...typeScale.title, textTransform: "uppercase" },
   heading: { fontFamily: fonts.display, ...typeScale.heading, textTransform: "uppercase" },
-  label: { fontFamily: fonts.medium, ...typeScale.label },
+  label: { flexShrink: 1, fontFamily: fonts.medium, ...typeScale.label },
   body: { fontFamily: fonts.body, ...typeScale.body },
   numeral: { fontFamily: fonts.monoBold, ...typeScale.metric, fontVariant: ["tabular-nums"] },
-  metric: { flex: 1, gap: spacing.xs },
+  // Metrics share a row and wrap one per line when their labels would not fit side by side.
+  metric: { flexGrow: 1, flexShrink: 1, flexBasis: 120, gap: spacing.xs },
   metricValue: { fontSize: 32, lineHeight: 36 },
   progressTrack: { height: 12, borderRadius: radii.pill, borderWidth: 1, overflow: "hidden" },
   progressTick: { position: "absolute", top: 0, bottom: 0, width: StyleSheet.hairlineWidth },
   progressFill: { height: "100%", borderRadius: radii.pill },
   card: { borderWidth: 1, borderRadius: radii.surface, paddingHorizontal: spacing.lg, paddingVertical: spacing.sm, gap: spacing.sm },
-  sectionTitle: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: spacing.md, marginTop: spacing.xs, paddingBottom: spacing.xs, borderBottomWidth: 1 },
-  sectionHeading: { flex: 1, fontFamily: fonts.monoSemibold, fontSize: 13, lineHeight: 20, letterSpacing: 1.4, textTransform: "uppercase" },
+  // An action that does not fit beside the heading wraps under it.
+  sectionTitle: { flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between", alignItems: "center", gap: spacing.md, marginTop: spacing.xs, paddingBottom: spacing.xs, borderBottomWidth: 1 },
+  sectionHeading: { flexGrow: 1, flexShrink: 1, flexBasis: 160, fontFamily: fonts.monoSemibold, fontSize: 13, lineHeight: 20, letterSpacing: 1.4, textTransform: "uppercase" },
   button: { minHeight: 48, borderRadius: radii.control, paddingHorizontal: spacing.lg, paddingVertical: spacing.sm, flexDirection: "row", justifyContent: "center", alignItems: "center", gap: 9 },
+  buttonStacked: { flexDirection: "column", gap: 4 },
+  buttonTextLarge: { textTransform: "none", letterSpacing: 0, alignSelf: "stretch" },
   buttonText: { flexShrink: 1, textAlign: "center", fontFamily: fonts.display, fontSize: 17, lineHeight: 20, letterSpacing: 1.2, textTransform: "uppercase" },
   iconButton: { alignItems: "center", justifyContent: "center" },
   listGroup: { borderRadius: radii.surface, borderWidth: 1 },
@@ -1043,8 +1085,9 @@ const baseStyles = StyleSheet.create({
   segmentOption: { flex: 1, minWidth: 0, minHeight: 44, paddingHorizontal: 6, paddingVertical: 10, alignItems: "center", justifyContent: "center", borderRadius: radii.control },
   segmentWrap: { flexWrap: "wrap" },
   segmentHalf: { flexBasis: "47%", flexGrow: 1 },
+  segmentQuarter: { flexBasis: "22%", flexGrow: 1 },
   segmentFull: { flexBasis: "100%" },
-  tag: { fontFamily: fonts.monoSemibold, fontSize: 12, letterSpacing: 1.2, textTransform: "uppercase" },
+  tag: { flexShrink: 1, fontFamily: fonts.monoSemibold, fontSize: 12, letterSpacing: 1.2, textTransform: "uppercase" },
   mark: { position: "absolute", fontFamily: fonts.monoSemibold, fontSize: 14, lineHeight: 14 },
   markStart: { left: -instrument.mark, top: -instrument.mark - 1 },
   markEnd: { right: -instrument.mark, bottom: -instrument.mark - 1 },

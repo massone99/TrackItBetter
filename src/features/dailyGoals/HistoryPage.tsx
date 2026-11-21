@@ -148,7 +148,7 @@ export function HistoryPage({ initialPeriod }: { initialPeriod: GoalPeriod }) {
                         accessibilityLabel={label}
                         accessibilityState={{ selected: isSelected }}
                         disabled={!result || result.future}
-                        hitSlop={2}
+                        hitSlop={4}
                         onPress={() => { tapFeedback(); setSelected(isSelected ? null : cell); }}
                         style={[styles.day, {
                           backgroundColor: filled ? palette.success : partial ? palette.accentSoft : 'transparent',
@@ -156,8 +156,8 @@ export function HistoryPage({ initialPeriod }: { initialPeriod: GoalPeriod }) {
                           opacity: !result || result.future ? 0.35 : 1,
                         }]}
                       >
-                        <Text style={[styles.dayNumber, { color: filled ? palette.successText : partial ? palette.accentStrong : palette.text }]}>{cell.getDate()}</Text>
-                        {filled ? <Icon name="checkmark" size={12} color={palette.successText} /> : partial && result ? <Text style={[styles.dayCount, { color: palette.accentStrong }]}>{`${result.reached}/${result.total}`}</Text> : null}
+                        <Text numberOfLines={1} adjustsFontSizeToFit style={[styles.dayNumber, { color: filled ? palette.successText : partial ? palette.accentStrong : palette.text }]}>{cell.getDate()}</Text>
+                        {filled ? <Icon name="checkmark" size={12} color={palette.successText} /> : partial && result ? <Text numberOfLines={1} adjustsFontSizeToFit style={[styles.dayCount, { color: palette.accentStrong }]}>{`${result.reached}/${result.total}`}</Text> : null}
                       </Pressable>
                     </View>
                   );
@@ -238,6 +238,7 @@ const baseStyles = StyleSheet.create({
   monthText: { fontSize: 18, fontFamily: fonts.bold, textTransform: 'capitalize' },
   grid: { flexDirection: 'row', flexWrap: 'wrap' },
   weekday: { width: `${100 / 7}%`, textAlign: 'center', fontSize: 12, fontFamily: fonts.semibold, paddingBottom: 4 },
+  // hitSlop 4 covers the 2 dp padding on each side and a little more: a 48 dp target in a 7-column grid.
   cell: { width: `${100 / 7}%`, padding: 2, alignItems: 'center' },
   day: { width: '100%', minHeight: MIN_TOUCH_TARGET, borderRadius: radii.control, borderWidth: 2, alignItems: 'center', justifyContent: 'center', paddingVertical: 2 },
   dayNumber: { fontSize: 15, fontFamily: fonts.semibold },

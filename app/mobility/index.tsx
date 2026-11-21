@@ -1,6 +1,7 @@
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Platform, Pressable, StyleSheet, View } from 'react-native';
 import { estimateRoutineSeconds } from '../../src/domain/mobilityPlan';
 import { groupRoutinesByProgram, type GroupProgram } from '../../src/domain/mobilityGroups';
@@ -27,7 +28,8 @@ interface ProgramChoice { id: string; name: string; own: boolean }
 export default function MobilityHubScreen() {
   const styles = useScaledStyles(baseStyles);
   const { t, i18n } = useTranslation();
-  const { palette } = useTheme();
+  const { palette, largeText } = useTheme();
+  const insets = useSafeAreaInsets();
   const lang = i18n.language.toLowerCase().startsWith('it') ? 'it' : 'en';
   const [routines, setRoutines] = useState<MobilityRoutine[] | null>(null);
   const [programs, setPrograms] = useState<ProgramChoice[]>([]);
@@ -114,9 +116,10 @@ export default function MobilityHubScreen() {
   return (
     <Screen
       overlay={(
-        <View pointerEvents="box-none" style={styles.fabLayer}>
+        // The button floats over the list (the list ends with room for it) and above the navigation bar.
+        <View pointerEvents="box-none" style={[styles.fabLayer, { paddingBottom: styles.fabLayer.padding + insets.bottom }]}>
           {createOpen ? (
-            <View style={[styles.createMenu, { backgroundColor: palette.surfaceMuted, borderColor: palette.border }]}>
+            <View testID="fab-create-menu" style={[styles.createMenu, { backgroundColor: palette.surfaceMuted, borderColor: palette.border }]}>
               {createItems.map((item) => (
                 <Pressable key={item.label} accessibilityRole="button" onPress={() => { closeCreate(); item.go(); }} style={styles.createItem}>
                   <Icon name={item.icon} size={20} color={palette.accentStrong} />
@@ -126,6 +129,7 @@ export default function MobilityHubScreen() {
             </View>
           ) : null}
           <Pressable
+            testID="fab-create"
             accessibilityRole="button"
             accessibilityState={{ expanded: createOpen }}
             accessibilityLabel={t('mobilityHub.create')}
@@ -141,8 +145,9 @@ export default function MobilityHubScreen() {
       <PageHeading title={t('mobility.title')} subtitle={t('mobility.subtitle')} />
 
       {recommended ? (
-        <View style={[styles.suggested, { backgroundColor: palette.hero }]}>
-          <View style={styles.suggestedCopy}>
+        <View style={[styles.suggested, largeText && styles.wrap, { backgroundColor: palette.hero }]}>
+          {/* Large text: the copy takes the whole width and the play button goes below it. */}
+          <View style={[styles.suggestedCopy, largeText && styles.fullRow]}>
             <Text style={[styles.suggestedLabel, { color: palette.heroTextMuted }]}>{t('mobilityHub.recommended')}</Text>
             <Text style={[styles.suggestedName, { color: palette.heroText }]}>{recommended.name}</Text>
             <Text style={[styles.suggestedMeta, { color: palette.heroTextMuted }]}>
@@ -231,7 +236,7 @@ export default function MobilityHubScreen() {
             >
               <Icon name={open ? 'chevron-down' : 'chevron-forward'} size={20} color={palette.textMuted} />
               <Text style={styles.groupName}>{name}</Text>
-              <Text style={[styles.meta, { color: palette.textMuted }]}>{t('mobilityHub.groupMeta', { count: group.routines.length, time: formatMinutes(seconds) })}</Text>
+              <Text style={[styles.meta, styles.groupMeta, { color: palette.textMuted }]}>{t('mobilityHub.groupMeta', { count: group.routines.length, time: formatMinutes(seconds) })}</Text>
             </Pressable>
             {open ? (
               <View style={[styles.rows, { backgroundColor: palette.surface, borderColor: palette.border }]}>
@@ -391,8 +396,12 @@ const baseStyles = StyleSheet.create({
   textActionText: { fontFamily: fonts.semibold, fontSize: 15 },
   meta: { fontFamily: fonts.body, fontSize: 14, lineHeight: 20 },
   group: { gap: 4 },
-  groupHead: { minHeight: 56, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 4 },
-  groupName: { flex: 1, fontFamily: fonts.semibold, fontSize: 17, lineHeight: 22 },
+  // The count and time wrap under the name when both do not fit on one line.
+  groupHead: { minHeight: 56, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8, paddingHorizontal: 4 },
+  groupName: { flexGrow: 1, flexShrink: 1, flexBasis: 140, fontFamily: fonts.semibold, fontSize: 17, lineHeight: 22 },
+  groupMeta: { flexShrink: 1 },
+  wrap: { flexWrap: 'wrap' },
+  fullRow: { flexBasis: '100%' },
   rows: { borderRadius: radii.control, borderWidth: 1, overflow: 'hidden' },
   row: { flexDirection: 'row', alignItems: 'center', paddingLeft: 16, paddingRight: 4, paddingVertical: 4, minHeight: 64 },
   rowCopy: { flex: 1, minHeight: 48, justifyContent: 'center', gap: 1, paddingRight: 4 },

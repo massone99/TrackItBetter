@@ -85,7 +85,7 @@ export default function StatsScreen() {
       {mainScope === 'mobility' && <View style={styles.quietToggle}>
         {(['all', 'active', 'passive'] as const).map((kind, index) => <View key={kind} style={styles.quietItem}>
           {index > 0 && <Text style={{ color: palette.textMuted }}>·</Text>}
-          <Pressable accessibilityRole="button" accessibilityState={{ selected: mobilityKind === kind }} hitSlop={10} onPress={() => remember<MobilityKind>('stats.mobilityKind', setMobilityKind)(kind)}>
+          <Pressable accessibilityRole="button" accessibilityState={{ selected: mobilityKind === kind }} hitSlop={10} style={styles.quietTarget} onPress={() => remember<MobilityKind>('stats.mobilityKind', setMobilityKind)(kind)}>
             <Text style={[styles.quietText, { color: mobilityKind === kind ? palette.text : palette.textMuted, fontFamily: mobilityKind === kind ? fonts.semibold : undefined }]}>{kind === 'all' ? t('trainingStats.modeAll') : kind === 'active' ? t('trainingStats.modeActive') : t('trainingStats.modePassive')}</Text>
           </Pressable>
         </View>)}
@@ -94,7 +94,7 @@ export default function StatsScreen() {
       {view === 'pattern' && <View style={styles.quietToggle}>
         {(['group', 'tag'] as const).map((kind, index) => <View key={kind} style={styles.quietItem}>
           {index > 0 && <Text style={{ color: palette.textMuted }}>·</Text>}
-          <Pressable accessibilityRole="button" accessibilityState={{ selected: patternKind === kind }} hitSlop={10} onPress={() => remember<PatternKind>('stats.patternKind', setPatternKind)(kind)}>
+          <Pressable accessibilityRole="button" accessibilityState={{ selected: patternKind === kind }} hitSlop={10} style={styles.quietTarget} onPress={() => remember<PatternKind>('stats.patternKind', setPatternKind)(kind)}>
             <Text style={[styles.quietText, { color: patternKind === kind ? palette.text : palette.textMuted, fontFamily: patternKind === kind ? fonts.semibold : undefined }]}>{kind === 'group' ? t('trainingStats.groups') : t('trainingStats.tags')}</Text>
           </Pressable>
         </View>)}
@@ -165,6 +165,8 @@ const baseStyles = StyleSheet.create({
   chipRow: { gap: 8, paddingRight: 4 },
   quietToggle: { flexDirection: 'row', justifyContent: 'center', gap: 8 },
   quietItem: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  // At least 48 dp wide even for a short word ("Tag"), at every interface size.
+  quietTarget: { minWidth: 48, alignItems: 'center' },
   quietText: { fontSize: 14, paddingVertical: 12 },
   loadingCard: { minHeight: 120, alignItems: 'center', justifyContent: 'center', gap: 10 },
   navigator: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 },

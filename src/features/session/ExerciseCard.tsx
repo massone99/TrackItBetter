@@ -293,7 +293,9 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
           style={styles.flex}
         >
                     <View style={styles.nameRow}>
-            <Heading style={[styles.exerciseName, table && styles.exerciseNameCard, styles.flex]}>{exercise.name}</Heading>
+            {/* Long English names ("Counterbalanced") in capitals beside three buttons: the text shrinks
+                until every word fits its line, up to three lines. */}
+            <Heading numberOfLines={3} adjustsFontSizeToFit minimumFontScale={0.4} style={[styles.exerciseName, table && styles.exerciseNameCard, styles.flex]}>{exercise.name}</Heading>
           </View>
           <View style={styles.progressRow}>
             <Icon name={allDone ? 'checkmark-circle' : 'ellipse-outline'} size={14} color={allDone ? palette.success : palette.textMuted} />
@@ -338,7 +340,8 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
           {exercise.notes ? <Text numberOfLines={3} style={[styles.exerciseNote, { color: palette.textMuted }]}>{exercise.notes}</Text> : null}
         </Pressable>
         {/* The collapse chevron sits with the buttons, so all three share one row and one centre line. */}
-        <IconButton icon={collapsed ? 'chevron-down' : 'chevron-up'} label={t(collapsed ? 'logger.expand' : 'logger.collapse', { name: exercise.name })} tone="plain" onPress={onToggleCollapsed} />
+        {/* Large text: the name itself opens and closes the card, so the chevron gives its width to the name. */}
+        {textIsLarge ? null : <IconButton icon={collapsed ? 'chevron-down' : 'chevron-up'} label={t(collapsed ? 'logger.expand' : 'logger.collapse', { name: exercise.name })} tone="plain" onPress={onToggleCollapsed} />}
         {exercise.demoUrl ? (
           <IconButton icon="play-circle-outline" label={t('logger.referenceOpen')} tone="plain" onPress={() => openReferenceVideo(exercise.demoUrl!)} />
         ) : null}

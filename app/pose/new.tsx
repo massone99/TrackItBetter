@@ -66,7 +66,7 @@ export default function NewPoseCheckScreen() {
     void getExerciseById(exerciseId).then((found) => { if (mounted && found) setLink({ exerciseId: found.id, exerciseName: found.name, set: null }); });
     return () => { mounted = false; };
   }, [exerciseId, setId]);
-  const { palette } = useTheme();
+  const { palette, largeText } = useTheme();
   const { width: windowWidth } = useWindowDimensions();
   const [positionId, setPositionId] = useState<PositionId>((findPosition(initial ?? '')?.id) ?? 'front_split');
   const [side, setSide] = useState<PoseSide>('left');
@@ -260,7 +260,8 @@ export default function NewPoseCheckScreen() {
       ) : (
         <>
           <JointPicker position={position} selected={jointIds} onChange={setJointIds} />
-          <View style={styles.sources}>
+          {/* Large text: the three sources stack, one per line, so their labels are not squeezed into thirds. */}
+          <View style={[styles.sources, largeText && styles.sourcesStacked]}>
             <SourceButton icon="camera-outline" label={t('pose.takePhoto')} onPress={() => void pick('camera')} />
             <SourceButton icon="image-outline" label={t('pose.choosePhoto')} onPress={() => void pick('photo')} />
             <SourceButton icon="film-outline" label={t('pose.chooseVideo')} onPress={() => void pick('video')} />
@@ -398,9 +399,9 @@ function atDay(day: Date): Date {
 
 function SourceButton({ icon, label, onPress }: { icon: 'camera-outline' | 'image-outline' | 'film-outline'; label: string; onPress: () => void }) {
   const styles = useScaledStyles(baseStyles);
-  const { palette } = useTheme();
+  const { palette, largeText } = useTheme();
   return (
-    <Pressable accessibilityRole="button" onPress={onPress} style={({ pressed }) => [styles.source, { backgroundColor: palette.surface, borderColor: palette.border, opacity: pressed ? 0.7 : 1 }]}>
+    <Pressable accessibilityRole="button" onPress={onPress} style={({ pressed }) => [styles.source, largeText && styles.sourceStacked, { backgroundColor: palette.surface, borderColor: palette.border, opacity: pressed ? 0.7 : 1 }]}>
       <View style={[styles.iconCircle, { backgroundColor: palette.accentSoft }]}><Icon name={icon} size={22} color={palette.accentStrong} /></View>
       <Text style={styles.sourceLabel}>{label}</Text>
     </Pressable>
@@ -418,6 +419,8 @@ const baseStyles = StyleSheet.create({
   frameCount: { fontFamily: fonts.medium, fontSize: 13 },
   saveBar: { position: 'absolute', left: 0, right: 0, bottom: 0, paddingTop: 12, paddingHorizontal: 20, borderTopWidth: StyleSheet.hairlineWidth },
   sources: { flexDirection: 'row', gap: 10 },
+  sourcesStacked: { flexDirection: 'column' },
+  sourceStacked: { flex: 0 },
   source: { flex: 1, alignItems: 'center', gap: 10, paddingVertical: 16, paddingHorizontal: 6, borderRadius: radii.control, borderWidth: 1 },
   sourceLabel: { fontFamily: fonts.semibold, fontSize: 14, lineHeight: 20, textAlign: 'center' },
   iconCircle: { width: 44, height: 44, borderRadius: radii.control, alignItems: 'center', justifyContent: 'center' },

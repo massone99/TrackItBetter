@@ -14,6 +14,8 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "test": "jest --passWithNoTests",
+    "ui:audit": "node ./tools/ui-audit/run",
+    "ui:audit:test": "node --test ./tools/ui-audit/lint_layout.test.mjs",
     "db:generate": "drizzle-kit generate",
     "postinstall": "patch-package",
     "build:apk": "bash scripts/build-apk.sh",

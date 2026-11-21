@@ -56,7 +56,8 @@ export function WorkoutHeader({ title, startedAt, done, total, volumeKg, onTitle
             delayLongPress={500}
             style={styles.titleTap}
           >
-            <Text style={[styles.title, { color: palette.text }]}>{title}</Text>
+            {/* Between the back and menu buttons a long word in capitals may not fit: it shrinks to fit, up to three lines. */}
+            <Text numberOfLines={3} adjustsFontSizeToFit minimumFontScale={0.6} style={[styles.title, { color: palette.text }]}>{title}</Text>
           </Pressable>
           {largeText ? null : summary}
         </View>

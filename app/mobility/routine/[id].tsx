@@ -246,6 +246,9 @@ export default function RoutineBuilderScreen() {
               <Text style={styles.stepName} numberOfLines={2}>{exerciseInfo.get(step.exerciseId)?.name ?? '…'}</Text>
               {expanded === step.id ? null : <Text style={[styles.stepSummary, { color: palette.textMuted }]}>{drillSummary(step)}</Text>}
             </Pressable>
+          </View>
+          {/* The four actions get their own row, so the drill name keeps the card's full width. */}
+          <View style={styles.stepActions}>
             <IconButton icon="chevron-up" label={t('mobility.moveUp')} tone="plain" size={34} onPress={() => { if (index > 0) moveStep(index, -1); }} />
             <IconButton icon="chevron-down" label={t('mobility.moveDown')} tone="plain" size={34} onPress={() => { if (index < steps.length - 1) moveStep(index, 1); }} />
             <IconButton icon="copy-outline" label={t('mobilityHub.duplicateDrill')} tone="plain" size={34} onPress={() => duplicateStep(index)} />
@@ -318,7 +321,8 @@ const baseStyles = StyleSheet.create({
   prepHint: { fontSize: 13, lineHeight: 18, marginTop: -4 },
   stepCard: { gap: 16, paddingBottom: 12 },
   stepHeader: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  stepNumber: { width: 28, height: 28, borderRadius: radii.control, alignItems: 'center', justifyContent: 'center', marginRight: 4 },
+  stepActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 8, marginTop: -8 },
+  stepNumber: { minWidth: 28, minHeight: 28, paddingHorizontal: 4, borderRadius: radii.control, alignItems: 'center', justifyContent: 'center', marginRight: 4 },
   stepNumberText: { fontFamily: fonts.display, fontSize: 16 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   stepTitle: { flex: 1, minHeight: 48, justifyContent: 'center' },

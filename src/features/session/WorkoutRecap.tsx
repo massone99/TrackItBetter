@@ -168,7 +168,7 @@ export function WorkoutRecap({ mode }: { mode: 'finish' | 'log' }) {
         </View>
       ) : (
         <View style={styles.logHeader}>
-          <View style={styles.topBar}>
+          <View testID="bleed-topbar" style={styles.topBar}>
             <IconButton icon="arrow-back" tone="plain" label={t('common.back')} onPress={() => (router.canGoBack() ? router.back() : router.replace('/(tabs)/log'))} />
             <IconButton icon="share-outline" tone="plain" label={t('summary.share')} onPress={() => router.push({ pathname: '/workout/share/[id]', params: { id: workout.id } })} />
           </View>
@@ -275,7 +275,7 @@ export function WorkoutRecap({ mode }: { mode: 'finish' | 'log' }) {
               onPress={() => { tapFeedback(); router.push({ pathname: '/workout/entry/[entryId]', params: { entryId: exercise.entryId, workout: workout.id, exercise: exercise.exerciseId } }); }}
               style={({ pressed }) => [styles.exerciseRow, index > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: palette.border }, pressed && { backgroundColor: palette.surfaceMuted }]}
             >
-              <View style={styles.exerciseCopy}>
+              <View style={[styles.exerciseCopy, largeText && styles.fullRow]}>
                 <Text style={[styles.exerciseName, { color: palette.text }]}>{exercise.name}</Text>
                 <Text style={[styles.exerciseDetail, { color: palette.textMuted }]}>{detail}</Text>
               </View>
@@ -318,8 +318,10 @@ const baseStyles = StyleSheet.create({
   recordValue: { fontFamily: fonts.display, fontSize: 26, lineHeight: 30, fontVariant: ['tabular-nums'] },
   noRecords: { textAlign: 'center', paddingHorizontal: 12 },
   exerciseList: { borderRadius: radii.control, overflow: 'hidden' },
-  exerciseRow: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 64, paddingVertical: 10, paddingHorizontal: 16 },
-  exerciseCopy: { flex: 1, gap: 2 },
+  // The trailing values wrap under the name when both do not fit on one line (long names, large text).
+  exerciseRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 10, minHeight: 64, paddingVertical: 10, paddingHorizontal: 16 },
+  exerciseCopy: { flexGrow: 1, flexShrink: 1, flexBasis: 180, gap: 2 },
+  fullRow: { flexBasis: '100%' },
   exerciseName: { fontFamily: fonts.semibold, fontSize: 16 },
   exerciseDetail: { fontFamily: fonts.body, fontSize: 14, lineHeight: 19 },
   trend: { fontFamily: fonts.semibold, fontSize: 14 },

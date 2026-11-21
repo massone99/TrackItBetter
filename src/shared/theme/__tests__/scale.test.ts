@@ -1,4 +1,4 @@
-import { FONT_KEYS, MAX_FONT_SCALE, scaleStyle, scaleStyles, TEXT_SCALE_CAPS, textGrowth, toUiScale } from '../scale';
+import { cappedTextGrowth, FONT_KEYS, MAX_FONT_SCALE, scaleStyle, scaleStyles, TEXT_SCALE_CAPS, textGrowth, toUiScale } from '../scale';
 
 describe('scaleStyle', () => {
   it('scales layout sizes and leaves fonts, colors and percentages alone', () => {
@@ -8,6 +8,11 @@ describe('scaleStyle', () => {
 
   it('can scale font metrics when asked', () => {
     expect(scaleStyle({ fontSize: 20, lineHeight: 24 }, 1.1, FONT_KEYS)).toEqual({ fontSize: 22, lineHeight: 26.4 });
+  });
+
+  it('keeps touch targets designed at 48 dp or more at least 48 dp at small sizes', () => {
+    expect(scaleStyle({ minHeight: 48, width: 56, height: 36, padding: 48 }, 0.7)).toEqual({ minHeight: 48, width: 48, height: 25.2, padding: 33.6 });
+    expect(scaleStyle({ minHeight: 48 }, 1.3)).toEqual({ minHeight: 62.4 });
   });
 
   it('returns the same objects at 100 %', () => {
@@ -44,6 +49,14 @@ describe('textGrowth', () => {
     expect(textGrowth(16, 1)).toBe(1);
     expect(textGrowth(16, 2)).toBe(2);
     expect(textGrowth(22, 2)).toBeCloseTo(1.7);
-    expect(textGrowth(104, 2)).toBeCloseTo(1.4);
+    expect(textGrowth(30, 2)).toBeCloseTo(1.1);
+    expect(textGrowth(104, 2)).toBeCloseTo(1.1);
+  });
+
+  it('keeps text within 200 % overall when the interface size is larger too', () => {
+    expect(cappedTextGrowth(16, 2, 1)).toBe(2);
+    expect(cappedTextGrowth(16 * 1.3, 2, 1.3)).toBeCloseTo(2 / 1.3);
+    expect(cappedTextGrowth(16 * 1.3, 1, 1.3)).toBe(1);
+    expect(cappedTextGrowth(16 * 0.7, 2, 0.7)).toBe(2);
   });
 });

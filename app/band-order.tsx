@@ -17,7 +17,7 @@ import { radii } from '../src/shared/theme/tokens';
 /** Every band of every band set in one strength order, lightest first; it compares assistance when kg are unknown. */
 export default function BandOrderScreen() {
   const { t } = useTranslation();
-  const { palette } = useTheme();
+  const { palette, largeText } = useTheme();
   const styles = useScaledStyles(baseStyles);
   const { catalog, reload } = useEquipment();
   const [error, setError] = useState<string | null>(null);
@@ -50,9 +50,16 @@ export default function BandOrderScreen() {
         renderRow={(band, index, row) => (
           <Card style={styles.row}>
             {row.handle}
-            <Text style={[styles.rank, { color: palette.textMuted }]}>{index + 1}</Text>
-            <View style={[styles.swatch, { backgroundColor: band.color, borderColor: palette.border }]} />
+            {/* Large text: the rank and colour go on a line above the name, which keeps the row's width. */}
+            {largeText ? null : <Text style={[styles.rank, { color: palette.textMuted }]}>{index + 1}</Text>}
+            {largeText ? null : <View style={[styles.swatch, { backgroundColor: band.color, borderColor: palette.border }]} />}
             <View style={styles.flex}>
+              {largeText ? (
+                <View style={styles.rankLine}>
+                  <Text style={[styles.rank, { color: palette.textMuted }]}>{index + 1}</Text>
+                  <View style={[styles.swatch, { backgroundColor: band.color, borderColor: palette.border }]} />
+                </View>
+              ) : null}
               <Text style={styles.name}>{band.name}</Text>
               <Text style={[styles.meta, { color: palette.textMuted }]}>{[band.setName, bandRange(band) || t('equipment.kgUnknown')].join(' · ')}</Text>
             </View>
@@ -70,6 +77,7 @@ const baseStyles = StyleSheet.create({
   rank: { fontFamily: fonts.semibold, fontSize: 14, minWidth: 20, textAlign: 'right', fontVariant: ['tabular-nums'] },
   swatch: { width: 24, height: 24, borderRadius: radii.control, borderWidth: 1 },
   flex: { flex: 1, gap: 2 },
+  rankLine: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   name: { fontFamily: fonts.semibold, fontSize: 16 },
   meta: { fontFamily: fonts.medium, fontSize: 13 },
 });

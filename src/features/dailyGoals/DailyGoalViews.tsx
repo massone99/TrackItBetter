@@ -229,8 +229,9 @@ const baseStyles = StyleSheet.create({
   connector: { position: 'absolute', left: 14, top: 0, height: 28, width: 10, borderLeftWidth: 2, borderBottomWidth: 2, borderBottomLeftRadius: 8 },
   groupHeader: { minHeight: 44, paddingHorizontal: 14, paddingTop: 12, paddingBottom: 4, justifyContent: 'center' },
   row: { minHeight: 56, paddingHorizontal: 14, paddingVertical: 10, gap: 8, justifyContent: 'center' },
-  rowHead: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  rowCopy: { flex: 1, minWidth: 0 },
+  // The trailing values wrap under the name when both do not fit on one line (long names, large text).
+  rowHead: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 10 },
+  rowCopy: { flexGrow: 1, flexShrink: 1, flexBasis: 160, minWidth: 0 },
   name: { fontSize: 16, fontFamily: fonts.semibold },
   kind: { fontSize: 13 },
   rowAmount: { alignItems: 'flex-end', flexShrink: 0, maxWidth: '45%' },

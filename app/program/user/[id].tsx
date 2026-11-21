@@ -289,7 +289,7 @@ export default function UserProgramScreen() {
         <SectionTitle
           title={t('userProgram.daysTitle')}
           action={program.sessions.length > 1 ? (
-            <Pressable accessibilityRole="button" hitSlop={8} onPress={() => { tapFeedback(); setOpened(allCollapsed ? new Set(program.sessions.map((session) => session.id)) : new Set()); }}>
+            <Pressable accessibilityRole="button" hitSlop={8} style={styles.toggleAllTarget} onPress={() => { tapFeedback(); setOpened(allCollapsed ? new Set(program.sessions.map((session) => session.id)) : new Set()); }}>
               <Text style={[styles.toggleAll, { color: palette.accentStrong }]}>{allCollapsed ? t('userProgram.expandAll') : t('userProgram.collapseAll')}</Text>
             </Pressable>
           ) : undefined}
@@ -449,6 +449,7 @@ const baseStyles = StyleSheet.create({
   actions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   categoryRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   emptyAction: { alignSelf: 'stretch', marginTop: 6 },
+  toggleAllTarget: { minHeight: 48, justifyContent: 'center' },
   toggleAll: { fontFamily: fonts.semibold, fontSize: 14, paddingVertical: 12 },
   error: { fontFamily: fonts.medium, fontSize: 14 },
 });

@@ -136,8 +136,9 @@ function catalogExerciseName(id: string, language: "en" | "it"): string {
 const baseStyles = StyleSheet.create({
   intro: { padding: 20 },
   session: { gap: 14 },
-  sessionHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 },
-  sessionTitle: { gap: 6, flex: 1 },
+  // The exercise count and chevron wrap under the day and name when they do not fit beside them.
+  sessionHead: { minHeight: 48, flexDirection: "row", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: 8 },
+  sessionTitle: { gap: 6, flexGrow: 1, flexShrink: 1, flexBasis: 160 },
   exerciseRow: { minHeight: 52, paddingVertical: 10, borderTopWidth: StyleSheet.hairlineWidth, flexDirection: "row", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: 10 },
   exerciseName: { fontSize: 15, lineHeight: 21, fontWeight: "600", flex: 1 },
   target: { flexShrink: 1, fontSize: 14, lineHeight: 20, fontWeight: "600", textAlign: "right" },

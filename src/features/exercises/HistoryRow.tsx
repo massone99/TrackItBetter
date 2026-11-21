@@ -42,7 +42,7 @@ export function HistoryRow({ session, older, metric, locale, first, exerciseId, 
         <Text style={[styles.historyDay, { color: palette.text }]}>{session.startedAt.getDate()}</Text>
         <Text style={[styles.historyMonth, { color: palette.textMuted }]}>{session.startedAt.toLocaleDateString(locale, { month: 'short' })}</Text>
       </View>
-      <View style={styles.flex}>
+      <View style={styles.copy}>
         <Text numberOfLines={1} style={[styles.historyWorkout, { color: palette.textMuted }]}>{session.workoutName}</Text>
         <Text style={[styles.historySets, { color: palette.text }]}>{describeSets(session.sets.map(({ bandCount: _bands, ...set }) => set), metric)}</Text>
         {banded.length > 0 ? (
@@ -60,8 +60,9 @@ export function HistoryRow({ session, older, metric, locale, first, exerciseId, 
 
 
 const baseStyles = StyleSheet.create({
-  flex: { flex: 1 },
-  historyRow: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingHorizontal: 16, paddingVertical: 16, minHeight: 72 },
+  copy: { flexGrow: 1, flexShrink: 1, flexBasis: 160 },
+  // The trailing values wrap under the name when both do not fit on one line (long names, large text).
+  historyRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 14, paddingHorizontal: 16, paddingVertical: 16, minHeight: 72 },
   historyDate: { width: 40, alignItems: 'center' },
   historyDay: { fontFamily: fonts.display, fontSize: 22, lineHeight: 24, fontVariant: ['tabular-nums'] },
   historyMonth: { fontFamily: fonts.medium, fontSize: 12, textTransform: 'uppercase', letterSpacing: 0.4 },

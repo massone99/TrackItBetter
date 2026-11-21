@@ -1,0 +1,121 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ui-audit.local/schema.json",
+  "title": "UI Layout Audit Snapshot",
+  "description": "Platform-agnostic geometric layout tree snapshot produced by React Native, Jetpack Compose, Flutter, or SwiftUI extractors and consumed by lint_layout.mjs.",
+  "type": "object",
+  "required": ["screen", "state", "viewport", "nodes"],
+  "additionalProperties": true,
+  "properties": {
+    "screen": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Unique screen identifier (e.g. 'recipes', 'checkout')."
+    },
+    "state": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Rendered fixture state (commonly 'default' | 'empty' | 'long_text' | 'error')."
+    },
+    "profile": {
+      "type": "string",
+      "description": "Render profile name (e.g. 'compact', 'standard', 'a11y_large_text')."
+    },
+    "viewport": {
+      "type": "object",
+      "required": ["width", "height", "fontScale", "safeArea"],
+      "additionalProperties": false,
+      "properties": {
+        "width": { "type": "number", "exclusiveMinimum": 0 },
+        "height": { "type": "number", "exclusiveMinimum": 0 },
+        "fontScale": { "type": "number", "exclusiveMinimum": 0 },
+        "safeArea": {
+          "type": "object",
+          "required": ["top", "bottom", "left", "right"],
+          "additionalProperties": false,
+          "properties": {
+            "top": { "type": "number", "minimum": 0 },
+            "bottom": { "type": "number", "minimum": 0 },
+            "left": { "type": "number", "minimum": 0 },
+            "right": { "type": "number", "minimum": 0 }
+          }
+        }
+      }
+    },
+    "nodes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "testId",
+          "parentId",
+          "role",
+          "text",
+          "bounds",
+          "interactive",
+          "visible",
+          "scrollable",
+          "clipped",
+          "textTruncated",
+          "zLayer"
+        ],
+        "additionalProperties": true,
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "testId": { "type": ["string", "null"] },
+          "label": { "type": ["string", "null"] },
+          "parentId": { "type": ["string", "null"] },
+          "role": {
+            "type": "string",
+            "enum": [
+              "text",
+              "button",
+              "input",
+              "image",
+              "container",
+              "scroll_container",
+              "icon",
+              "overlay",
+              "other"
+            ]
+          },
+          "text": { "type": ["string", "null"] },
+          "bounds": {
+            "type": "object",
+            "required": ["x", "y", "width", "height"],
+            "additionalProperties": false,
+            "properties": {
+              "x": { "type": "number" },
+              "y": { "type": "number" },
+              "width": { "type": "number", "minimum": 0 },
+              "height": { "type": "number", "minimum": 0 }
+            }
+          },
+          "interactive": { "type": "boolean" },
+          "visible": { "type": "boolean" },
+          "scrollable": { "type": "boolean" },
+          "scrollAxis": {
+            "type": ["string", "null"],
+            "enum": ["vertical", "horizontal", "both", null],
+            "description": "Optional scroll axis for scroll_container nodes (defaults to 'vertical' when scrollable=true)."
+          },
+          "hitSlop": {
+            "type": ["object", "null"],
+            "description": "Optional touch-target expansion (e.g. React Native hitSlop) applied when evaluating minimum touch target size.",
+            "properties": {
+              "top": { "type": "number", "minimum": 0 },
+              "bottom": { "type": "number", "minimum": 0 },
+              "left": { "type": "number", "minimum": 0 },
+              "right": { "type": "number", "minimum": 0 }
+            }
+          },
+          "clipped": { "type": "boolean" },
+          "textTruncated": { "type": "boolean" },
+          "textOverflow": { "type": ["string", "null"], "enum": ["word", null] },
+          "zLayer": { "type": "integer" }
+        }
+      }
+    }
+  }
+}

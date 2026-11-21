@@ -108,6 +108,39 @@ workout, versioned): `docs/LANGUAGE.md`; use it in UI strings, code and answers.
 - Tests that render components need `jest.mock('react-native-keyboard-controller', () =>
   jest.requireActual('react-native-keyboard-controller/jest'))`.
 
+## Layout audit (headless, ported from RatatouilleRevamp)
+
+- `npm run ui:audit` (`tools/ui-audit/run`) renders every route in `app/` (53, listed in `src/audit/uiAuditRegistry.tsx`)
+  with Jest on a real in-memory database, solves the Flexbox layout and lints it: overlap, clipping, off-screen,
+  touch targets under 48 dp, words that do not fit their line, spacing off the 4 dp grid. Profiles: `smallest`
+  (interface 70 %), `standard`, `largest` (130 % and text 200 %), all at 360 x 780; states `empty`, `default`,
+  `long_text` (Italian; screens that open one item get their ids from the seeded data and have no `empty`).
+  About 1 min for everything, JSON on stdout, exit 1 on errors. A screen that throws is listed in `renderErrors`
+  and the others still run. Native modules (video, audio, speech, Skia, view-shot) are mocked in
+  `src/audit/extractSnapshots.audit.tsx`; add a mock there when a new one breaks the import.
+- Checked against Expo web (Playwright, Nov 2026): box sizes match to the pixel at standard size, and the text
+  problems it reports at 200 % were real on web. Text width is estimated per character class, so a word overflow
+  at the edge of the limit can still be wrong. Ellipses from `numberOfLines` are warnings (`text_truncated`), a
+  word wider than its line is an error. `UI_AUDIT_DUMP=1` also writes the rendered tree (`.tree`, props and
+  styles) next to each snapshot, to see why a node got its size.
+- Fast loop: `npm run ui:audit -- --screen today --profile largest` (`--state`, `--strict`, `--lint-only`).
+  Violations name nodes by `testID`, else `n_12"accessibility label"`. Snapshots go to `.ui-audit/` (ignored).
+- Run it first for geometry, then look at the screen (Expo web / phone) for what it cannot see: colours,
+  contrast, real fonts (text width is estimated), animations, keyboard. Its solver is approximate, so a
+  surprising violation can be a solver limit: check before "fixing" it.
+- New screen: add it to the registry. Intentional overlaps carry a `testID` prefix with an allowlist entry and a
+  reason in `tools/ui-audit/audit.config.json` (`decor-*` marks and dot grid, `fab-*` floating button, `bleed-*`
+  top bars reaching into the margin; an entry covers the node's children). Never allowlist a real bug.
+- The harness replays `onLayout` with the solved boxes and solves again, so charts that measure themselves are
+  checked at their real width. `adjustsFontSizeToFit` is honoured (Android shrinks until the text fits).
+- Layout rules that keep it green (Nov 2026): text grows at most 200 % overall (`cappedTextGrowth`: interface
+  size times system text; titles and numbers of 28 dp and up barely grow); a row with a text column and something
+  beside it wraps (`flexWrap: 'wrap'` on the row, `flexGrow: 1, flexShrink: 1, flexBasis: 140–180` on the text);
+  sizes of 48 dp or more never scale below 48 (`scaleStyle`); `Numeral` and button labels shrink to fit instead
+  of breaking a word; dense charts scroll sideways with 48 dp columns; 7-column calendars reach into the card
+  padding with a small `hitSlop`; `SwitchRow` is one row-sized switch.
+- Linter self-tests: `npm run ui:audit:test`. The audit file (`*.audit.tsx`) is not part of `npm test`.
+
 ## UI checks on every change (recurring problems)
 
 Every UI change is checked at three sizes before release: smallest (interface size 70 %, text 100 %), middle

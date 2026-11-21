@@ -1,6 +1,6 @@
 import { Text as NativeText, StyleSheet, TextProps } from "react-native";
 import { useTheme } from "../theme/ThemeProvider";
-import { FONT_KEYS, scaleStyle, textGrowth } from "../theme/scale";
+import { cappedTextGrowth, FONT_KEYS, scaleStyle } from "../theme/scale";
 import { resolveFont } from "../theme/fontChoices";
 import { bodyFamilyForWeight } from "../theme/typography";
 
@@ -8,7 +8,7 @@ import { bodyFamilyForWeight } from "../theme/typography";
  * App-wide Text: applies the IBM Plex family for the requested weight, a themed default color, the
  * interface scale chosen in settings and the phone's font size (the one place font sizes are scaled).
  * The system scaling is applied here rather than by the OS, so it can be capped by the setting and
- * eased for large sizes (see textGrowth).
+ * eased for large sizes and capped at 200 % overall (see cappedTextGrowth).
  */
 export function Text({ style, maxFontSizeMultiplier, fixedFont = false, ...props }: TextProps & { /** Keep the family the style names, whatever the user chose (the font samples in settings). */ fixedFont?: boolean }) {
   const { palette, layoutScale: scale, fontScale, fontSelection } = useTheme();
@@ -16,7 +16,7 @@ export function Text({ style, maxFontSizeMultiplier, fixedFont = false, ...props
   const { fontWeight, fontFamily, ...rest } = flat;
   const sized = scaleStyle({ fontSize: 14, ...rest }, scale, FONT_KEYS);
   // A caller's maxFontSizeMultiplier still caps the growth (e.g. tab labels in a fixed-height bar).
-  const grow = Math.min(textGrowth(sized.fontSize ?? 14, fontScale), maxFontSizeMultiplier ?? Infinity);
+  const grow = Math.min(cappedTextGrowth(sized.fontSize ?? 14, fontScale, scale), maxFontSizeMultiplier ?? Infinity);
   const grown = grow === 1 ? sized : {
     ...sized,
     fontSize: Math.round((sized.fontSize ?? 14) * grow * 10) / 10,

@@ -153,6 +153,7 @@ const baseStyles = StyleSheet.create({
   statusRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   statusText: { flex: 1, gap: 5 },
   statusDot: { width: 13, height: 13, borderRadius: radii.control, marginLeft: 12 },
-  dayRow: { flexDirection: "row", justifyContent: "space-between", gap: 5 },
-  day: { flex: 1, minWidth: 0, minHeight: 48, alignItems: "center", justifyContent: "center", borderRadius: radii.control, borderWidth: 1 },
+  // Seven days do not fit one row at 48 dp each on a phone: four on the first row, three on the second.
+  dayRow: { flexDirection: "row", flexWrap: "wrap", gap: 5 },
+  day: { flexBasis: "22%", flexGrow: 1, minHeight: 48, alignItems: "center", justifyContent: "center", borderRadius: radii.control, borderWidth: 1 },
 });

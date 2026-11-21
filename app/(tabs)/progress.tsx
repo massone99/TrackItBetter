@@ -23,7 +23,7 @@ import { radii } from '../../src/shared/theme/tokens';
 export default function ProgressScreen() {
   const styles = useScaledStyles(baseStyles);
   const { t, i18n } = useTranslation();
-  const { palette } = useTheme();
+  const { palette, largeText } = useTheme();
   const [snapshot, setSnapshot] = useState<ProgressSnapshot | null>(null);
   const [failed, setFailed] = useState(false);
   const [trendChoice, setTrendChoice] = useState(readTrendChoice);
@@ -53,7 +53,7 @@ export default function ProgressScreen() {
         <SectionTitle title={t('progress.week')} />
         <View style={styles.metrics}>
           <Metric label={t('progress.sessions')} value={snapshot.weekSessions} />
-          <View style={[styles.metricDivider, { backgroundColor: palette.border }]} />
+          {largeText ? null : <View style={[styles.metricDivider, { backgroundColor: palette.border }]} />}
           <Metric label={t('progress.sets')} value={snapshot.weekSets} />
         </View>
       </Card> : null}
@@ -162,7 +162,10 @@ function TrendLine({ values, estimate, color, estimateColor, muted }: { values: 
   const { palette } = useTheme();
   const [width, setWidth] = useState(280);
   const height = 58;
-  const inset = 5;
+  // Points follow the interface size: centre them on their radius and keep the outermost ones inside.
+  const pointRadius = Number(styles.chartPoint.width) / 2;
+  const estimateRadius = Number(styles.chartEstimatePoint.width) / 2;
+  const inset = Math.ceil(pointRadius) + 1;
   const all = [...values, ...(estimate ?? []).filter((value): value is number => value != null)];
   const min = Math.min(...all);
   const max = Math.max(...all);
@@ -184,9 +187,9 @@ function TrendLine({ values, estimate, color, estimateColor, muted }: { values: 
   return <View onLayout={(event) => setWidth(Math.max(120, event.nativeEvent.layout.width))} style={[styles.chart, { height }]}>
     <View style={[styles.chartBase, { backgroundColor: muted }]} />
     {segments(estimatePoints, estimateColor, 'estimate', true)}
-    {estimatePoints.map((point, index) => <View key={`estimate-point-${index}`} style={[styles.chartEstimatePoint, { left: point.x - 3, top: point.y - 3, backgroundColor: estimateColor }]} />)}
+    {estimatePoints.map((point, index) => <View key={`estimate-point-${index}`} style={[styles.chartEstimatePoint, { left: point.x - estimateRadius, top: point.y - estimateRadius, backgroundColor: estimateColor }]} />)}
     {segments(points, color, 'line')}
-    {points.map((point, index) => <View key={`point-${index}`} style={[styles.chartPoint, { left: point.x - 4, top: point.y - 4, borderColor: color, backgroundColor: palette.surface }]} />)}
+    {points.map((point, index) => <View key={`point-${index}`} style={[styles.chartPoint, { left: point.x - pointRadius, top: point.y - pointRadius, borderColor: color, backgroundColor: palette.surface }]} />)}
   </View>;
 }
 
@@ -251,7 +254,7 @@ function BestRow({ best, label, palette }: { best: PersonalBest; label: string; 
 }
 
 const baseStyles = StyleSheet.create({
-  metrics: { flexDirection: 'row', gap: 16 },
+  metrics: { flexDirection: 'row', flexWrap: 'wrap', gap: 16 },
   metricDivider: { width: StyleSheet.hairlineWidth },
   customize: { flexDirection: 'row', alignItems: 'center', gap: 5, minHeight: 48 },
   customizeText: { fontWeight: '700', fontSize: 14 },
@@ -260,10 +263,11 @@ const baseStyles = StyleSheet.create({
   volumeItem: { width: '48%', minHeight: 76, justifyContent: 'center', gap: 4 },
   volumeValue: { fontFamily: fonts.display, fontSize: 26, lineHeight: 32, fontVariant: ['tabular-nums'] },
   volumeLabel: { fontSize: 14, lineHeight: 20 },
-  balanceRow: { minHeight: 48, borderTopWidth: StyleSheet.hairlineWidth, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
-  balanceLabel: { flex: 1, fontSize: 13 },
+  // The ratio and count wrap under the pattern pair when the three do not fit on one line.
+  balanceRow: { minHeight: 48, borderTopWidth: StyleSheet.hairlineWidth, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
+  balanceLabel: { flexGrow: 1, flexShrink: 1, flexBasis: 150, fontSize: 13 },
   balanceValue: { minWidth: 54, textAlign: 'right', fontSize: 15, fontWeight: '800' },
-  balanceCount: { width: 52, textAlign: 'right', fontSize: 12 },
+  balanceCount: { minWidth: 52, textAlign: 'right', fontSize: 12 },
   legsNudge: { marginTop: 8, fontSize: 13, lineHeight: 19 },
   bestRow: { borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 10, gap: 7 },
   bestShareCard: { padding: 14, borderRadius: radii.control, gap: 4 },
@@ -271,7 +275,8 @@ const baseStyles = StyleSheet.create({
   shareControl: { gap: 4 },
   shareBestButton: { minHeight: 48, borderRadius: radii.control, alignItems: 'center', justifyContent: 'center' },
   trendCard: { borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 12, paddingBottom: 8, gap: 8 },
-  trendHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
+  // The value wraps under the exercise name when both do not fit on one line.
+  trendHeader: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
   trendLatest: { alignItems: 'flex-end' },
   trendDelta: { fontSize: 12, fontWeight: '700' },
   chart: { position: 'relative', width: '100%', overflow: 'hidden' },
@@ -283,7 +288,7 @@ const baseStyles = StyleSheet.create({
   chartPoint: { position: 'absolute', width: 8, height: 8, borderRadius: 4, borderWidth: 2 },
   trendDates: { flexDirection: 'row', justifyContent: 'space-between' },
   trendDate: { fontSize: 12 },
-  bestText: { flex: 1, gap: 3 },
+  bestText: { flexGrow: 1, flexShrink: 1, flexBasis: 160, gap: 3 },
   exerciseName: { fontSize: 15, fontWeight: '700' },
   bestValue: { fontFamily: fonts.display, fontSize: 24, lineHeight: 30, fontVariant: ['tabular-nums'] },
   empty: { gap: 6, paddingVertical: 10 },

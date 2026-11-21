@@ -66,9 +66,9 @@ export default function ShareWorkoutScreen() {
     <Screen>
       <PageHeading title={t('shareCard.title')} subtitle={t('shareCard.help')} />
       <View ref={cardRef} collapsable={false} style={[styles.shareCanvas, { backgroundColor: palette.background }]}>
-        <View style={[styles.brandMark, { backgroundColor: palette.accent }]}><Text style={[styles.brandText, { color: palette.accentText }]}>TRACKITBETTER</Text></View>
-        <Text style={[styles.cardTitle, { color: palette.text }]}>{workout.name}</Text>
-        <Text style={[styles.cardDate, { color: palette.textMuted }]}>{workout.startedAt.toLocaleDateString(locale, { dateStyle: 'long' })}</Text>
+        <View style={[styles.brandMark, { backgroundColor: palette.accent }]}><Text {...CARD_TEXT} style={[styles.brandText, { color: palette.accentText }]}>TRACKITBETTER</Text></View>
+        <Text {...CARD_TEXT} style={[styles.cardTitle, { color: palette.text }]}>{workout.name}</Text>
+        <Text {...CARD_TEXT} style={[styles.cardDate, { color: palette.textMuted }]}>{workout.startedAt.toLocaleDateString(locale, { dateStyle: 'long' })}</Text>
         <View style={styles.stats}>
           <Stat value={`${completedSets}`} label={t('shareCard.sets')} palette={palette} />
           <Stat value={`${movements.length}`} label={t('shareCard.movements')} palette={palette} />
@@ -78,12 +78,12 @@ export default function ShareWorkoutScreen() {
         {movements.slice(0, 5).map((exercise) => {
           const count = completedSetCount(exercise.sets);
           return <View key={exercise.entryId} style={styles.movementRow}>
-            <Text numberOfLines={1} style={[styles.movementName, { color: palette.text }]}>{exercise.name}</Text>
-            <Text style={[styles.movementCount, { color: palette.accentStrong }]}>{count} {t('shareCard.sets')}</Text>
+            <Text {...CARD_TEXT} numberOfLines={1} style={[styles.movementName, { color: palette.text }]}>{exercise.name}</Text>
+            <Text {...CARD_TEXT} style={[styles.movementCount, { color: palette.accentStrong }]}>{count} {t('shareCard.sets')}</Text>
           </View>;
         })}
-        {movements.length > 5 ? <Text style={[styles.more, { color: palette.textMuted }]}>{t('shareCard.more', { count: movements.length - 5 })}</Text> : null}
-        <Text style={[styles.footer, { color: palette.textMuted }]}>{t('shareCard.footer')}</Text>
+        {movements.length > 5 ? <Text {...CARD_TEXT} style={[styles.more, { color: palette.textMuted }]}>{t('shareCard.more', { count: movements.length - 5 })}</Text> : null}
+        <Text {...CARD_TEXT} style={[styles.footer, { color: palette.textMuted }]}>{t('shareCard.footer')}</Text>
       </View>
       {error ? <Text accessibilityRole="alert" style={{ color: palette.warning }}>{error}</Text> : null}
       <ActionButton label={t(sharing ? 'shareCard.sharing' : 'shareCard.action')} onPress={() => { if (!sharing) void share(); }} />
@@ -94,8 +94,11 @@ export default function ShareWorkoutScreen() {
 
 function Stat({ value, label, palette }: { value: string; label: string; palette: ReturnType<typeof useTheme>['palette'] }) {
   const styles = useScaledStyles(baseStyles);
-  return <View style={styles.stat}><Text style={[styles.statValue, { color: palette.accentStrong }]}>{value}</Text><Label style={styles.statLabel}>{label}</Label></View>;
+  return <View style={styles.stat}><Text {...CARD_TEXT} style={[styles.statValue, { color: palette.accentStrong }]}>{value}</Text><Label {...CARD_TEXT} style={styles.statLabel}>{label}</Label></View>;
 }
+
+/** The card is an image for other people: its text keeps the same size whatever this phone's font size is. */
+const CARD_TEXT = { maxFontSizeMultiplier: 1 };
 
 const baseStyles = StyleSheet.create({
   shareCanvas: { width: '100%', padding: 24, borderRadius: radii.control, gap: 14 },

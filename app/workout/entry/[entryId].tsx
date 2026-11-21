@@ -109,7 +109,7 @@ export default function WorkoutEntryScreen() {
       </>
     )}>
       <View style={styles.header}>
-        <View style={styles.topBar}>
+        <View testID="bleed-topbar" style={styles.topBar}>
           <IconButton icon="arrow-back" tone="plain" label={t('common.back')} onPress={back} />
           {position >= 0 ? (
             <View style={styles.stepper}>

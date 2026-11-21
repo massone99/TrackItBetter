@@ -9,7 +9,7 @@ import { startUserProgramSession } from '../features/programs/startUserSession';
 import { programSessionWorkoutName } from '../domain/userProgram';
 import { addExerciseToWorkout, getCompletedWorkout, logCompletedWorkout, setSetFormRating, startWorkout } from '../features/session/repository';
 
-async function seed(count = 40, active = false, from = 0, total = count): Promise<void> {
+export async function seed(count = 40, active = false, from = 0, total = count): Promise<void> {
   const library = (await listExercises()).filter((exercise) => exercise.metric === 'reps');
   const pick = (start: number) => library.slice(start, start + 5);
   const program = (name: string, sessions: string[]) => saveUserProgram({

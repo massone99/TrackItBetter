@@ -15,3 +15,6 @@ build/
 expo-env.d.ts
 # @end expo-cli
 PERFORMANCE_ISSUES.md
+
+# UI layout audit snapshots
+.ui-audit/

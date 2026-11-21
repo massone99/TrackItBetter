@@ -180,8 +180,9 @@ function Badge({ compatibility }: { compatibility: ImportCompatibility }) {
 const baseStyles = StyleSheet.create({
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   row: { borderRadius: radii.control, padding: 16, gap: 6, minHeight: 48 },
-  rowHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
-  rowName: { flex: 1, fontFamily: fonts.semibold, fontSize: 17, lineHeight: 22 },
+  // The compatibility badge wraps under the name when both do not fit on one line.
+  rowHead: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
+  rowName: { flexGrow: 1, flexShrink: 1, flexBasis: 140, fontFamily: fonts.semibold, fontSize: 17, lineHeight: 22 },
   rowMeta: { fontFamily: fonts.body, fontSize: 14, lineHeight: 20 },
   badge: { paddingHorizontal: 10, minHeight: 26, borderRadius: radii.pill, justifyContent: 'center' },
   badgeText: { fontFamily: fonts.semibold, fontSize: 13 },

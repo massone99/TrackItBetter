@@ -1,0 +1,143 @@
+#!/usr/bin/env node
+/**
+ * Portable single-command UI Layout Audit runner (extract -> lint).
+ *
+ * Works identically across React Native, Jetpack Compose, Flutter, and SwiftUI
+ * by executing `extractorCommand` from `tools/ui-audit/audit.config.json` and
+ * then running `tools/ui-audit/lint_layout.mjs`.
+ *
+ * Usage:
+ *   ./tools/ui-audit/run
+ *   ./tools/ui-audit/run --screen today
+ *   ./tools/ui-audit/run --screen today --state long_text --profile largest
+ *   ./tools/ui-audit/run --lint-only
+ *   ./tools/ui-audit/run --strict
+ */
+
+import fs from 'node:fs';
+import path from 'node:path';
+import { spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+function parseArgs(argv) {
+  const opts = {
+    screen: '',
+    state: '',
+    profile: '',
+    strict: false,
+    pretty: false,
+    lintOnly: false,
+    snapshotsDir: '.ui-audit/snapshots',
+    configPath: path.join(__dirname, 'audit.config.json'),
+  };
+
+  for (let i = 0; i < argv.length; i++) {
+    const a = argv[i];
+    if (a === '--screen' && argv[i + 1]) opts.screen = argv[++i];
+    else if (a === '--state' && argv[i + 1]) opts.state = argv[++i];
+    else if (a === '--profile' && argv[i + 1]) opts.profile = argv[++i];
+    else if (a === '--snapshots-dir' && argv[i + 1]) opts.snapshotsDir = argv[++i];
+    else if (a === '--config' && argv[i + 1]) opts.configPath = argv[++i];
+    else if (a === '--strict') opts.strict = true;
+    else if (a === '--pretty') opts.pretty = true;
+    else if (a === '--lint-only') opts.lintOnly = true;
+    else if (a === '--help' || a === '-h') {
+      console.log(
+        [
+          'Usage: ./tools/ui-audit/run [options]',
+          '  --screen <id>           Filter to a single screen id',
+          '  --state <state>         Filter to a single state (default|empty|long_text|error)',
+          '  --profile <profile>     Filter to a single profile (smallest|standard|largest)',
+          '  --strict                Exit non-zero on warnings as well as errors',
+          '  --pretty                Pretty-print JSON output',
+          '  --lint-only             Skip extraction and lint existing snapshots',
+          '  --snapshots-dir <dir>   Snapshot directory (default: .ui-audit/snapshots)',
+          '  --config <path>         Config path (default: tools/ui-audit/audit.config.json)',
+        ].join('\n')
+      );
+      process.exit(0);
+    }
+  }
+  return opts;
+}
+
+const opts = parseArgs(process.argv.slice(2));
+const config = fs.existsSync(opts.configPath)
+  ? JSON.parse(fs.readFileSync(opts.configPath, 'utf8'))
+  : {};
+
+if (!opts.lintOnly) {
+  const extractorCmd = config.extractorCommand;
+  if (!extractorCmd) {
+    console.error(
+      JSON.stringify({
+        error: `Missing "extractorCommand" in ${opts.configPath}. Configure an extractor or pass --lint-only.`,
+      })
+    );
+    process.exit(2);
+  }
+
+  const env = {
+    ...process.env,
+    UI_AUDIT_OUT_DIR: opts.snapshotsDir,
+    ...(opts.screen ? { UI_AUDIT_SCREEN: opts.screen } : {}),
+    ...(opts.state ? { UI_AUDIT_STATE: opts.state } : {}),
+    ...(opts.profile ? { UI_AUDIT_PROFILE: opts.profile } : {}),
+  };
+
+  const extractRes = spawnSync(extractorCmd, {
+    shell: true,
+    env,
+    stdio: ['ignore', 'pipe', 'pipe'],
+    encoding: 'utf8',
+  });
+
+  if (extractRes.status !== 0) {
+    console.error(
+      JSON.stringify({
+        error: 'Snapshot extraction failed',
+        exitCode: extractRes.status,
+        stderr: (extractRes.stderr || '').slice(-1500),
+        stdout: (extractRes.stdout || '').slice(-1500),
+      })
+    );
+    process.exit(extractRes.status || 2);
+  }
+}
+
+const lintScript = path.join(__dirname, 'lint_layout.mjs');
+const lintArgs = [
+  lintScript,
+  '--snapshots-dir',
+  opts.snapshotsDir,
+  '--config',
+  opts.configPath,
+];
+if (opts.screen) lintArgs.push('--screen', opts.screen);
+if (opts.state) lintArgs.push('--state', opts.state);
+if (opts.profile) lintArgs.push('--profile', opts.profile);
+if (opts.strict) lintArgs.push('--strict');
+if (opts.pretty) lintArgs.push('--pretty');
+
+// Screens the extractor could not render (written by the adapter, if it supports it) fail the run too.
+const errorsPath = path.join(path.dirname(path.resolve(opts.snapshotsDir)), 'render-errors.json');
+const renderErrors = !opts.lintOnly && fs.existsSync(errorsPath) ? JSON.parse(fs.readFileSync(errorsPath, 'utf8')) : [];
+if (renderErrors.length === 0) {
+  const lintRes = spawnSync(process.execPath, lintArgs, { stdio: 'inherit' });
+  process.exit(lintRes.status ?? 1);
+}
+const lintRes = spawnSync(process.execPath, lintArgs, { stdio: ['ignore', 'pipe', 'inherit'], encoding: 'utf8', maxBuffer: 256 * 1024 * 1024 });
+let report;
+try {
+  report = JSON.parse(lintRes.stdout);
+} catch {
+  process.stdout.write(lintRes.stdout || '');
+  report = {};
+}
+report.status = 'FAIL';
+report.renderErrors = renderErrors;
+process.stdout.write(JSON.stringify(report, null, opts.pretty ? 2 : 0) + '\n');
+process.exitCode = 1;

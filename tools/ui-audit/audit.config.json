@@ -1,0 +1,52 @@
+{
+  "gridUnit": 4,
+  "gridTolerancePx": 1,
+  "minTouchTarget": 48,
+  "overlapTolerancePx": 1.5,
+  "parentClipTolerancePx": 2,
+  "nearMissRangePx": [
+    1,
+    6
+  ],
+  "spacingVarianceTolerancePx": 1,
+  "maxViolationsPerScreen": 20,
+  "extractorCommand": "npx -y node@22 node_modules/.bin/jest --silent --runInBand --testMatch \"<rootDir>/src/audit/**/*.audit.tsx\"",
+  "ignore": [
+    {
+      "screen": "*",
+      "rule": "parent_clipping",
+      "nodePattern": "decor-mark",
+      "reason": "RegistrationMarks: the two '+' marks sit outside the card border on purpose"
+    },
+    {
+      "screen": "*",
+      "rule": "sibling_overlap",
+      "nodePattern": "decor-mark",
+      "reason": "RegistrationMarks overlap the card corner on purpose"
+    },
+    {
+      "screen": "*",
+      "rule": "off_grid_spacing",
+      "nodePattern": "decor-mark",
+      "reason": "RegistrationMarks offsets follow the border, not the spacing scale"
+    },
+    {
+      "screen": "*",
+      "rule": "sibling_overlap",
+      "nodePattern": "decor-dotgrid",
+      "reason": "DotGrid is the page background, drawn behind all content"
+    },
+    {
+      "screen": "*",
+      "rule": "sibling_overlap",
+      "nodePattern": "fab-*",
+      "reason": "Floating action button and its menu float over the scrolling list by design; the list ends with empty room so its last row scrolls clear of them"
+    },
+    {
+      "screen": "*",
+      "rule": "parent_clipping",
+      "nodePattern": "bleed-*",
+      "reason": "Top bars of icon buttons reach 8 dp into the page margin so the icons line up with the text edge; the parent does not clip and the buttons stay on screen"
+    }
+  ]
+}

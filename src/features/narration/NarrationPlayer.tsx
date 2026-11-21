@@ -419,7 +419,8 @@ const baseStyles = StyleSheet.create({
   reference: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 48, paddingVertical: 10 },
   referenceText: { fontFamily: fonts.semibold, fontSize: 15, textDecorationLine: 'underline' },
   nextUp: { textAlign: 'center', fontFamily: fonts.medium, fontSize: 15, marginBottom: 18 },
-  controls: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 24 },
+  // Gap kept small enough that the three buttons fit a 360 dp phone at the 130 % interface size.
+  controls: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 16 },
   mainButton: { width: 84, height: 84, borderRadius: radii.control, alignItems: 'center', justifyContent: 'center' },
   sideButton: { width: 58, height: 58, borderRadius: radii.control, alignItems: 'center', justifyContent: 'center' },
   addTen: { alignSelf: 'center', minHeight: 48, justifyContent: 'center', paddingVertical: 12, paddingHorizontal: 20 },

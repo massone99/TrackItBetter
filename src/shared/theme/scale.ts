@@ -11,7 +11,7 @@ const LAYOUT_KEYS = new Set([
   "width", "height", "minWidth", "minHeight", "maxWidth", "maxHeight",
   "padding", "paddingTop", "paddingBottom", "paddingLeft", "paddingRight", "paddingHorizontal", "paddingVertical",
   "margin", "marginTop", "marginBottom", "marginLeft", "marginRight", "marginHorizontal", "marginVertical",
-  "gap", "rowGap", "columnGap",
+  "gap", "rowGap", "columnGap", "flexBasis",
   "borderRadius", "borderTopLeftRadius", "borderTopRightRadius", "borderBottomLeftRadius", "borderBottomRightRadius",
   "top", "bottom", "left", "right",
 ]);
@@ -34,8 +34,22 @@ export const STACK_TEXT_SCALE = 1.25;
  */
 export function textGrowth(fontSize: number, fontScale: number): number {
   if (fontScale <= 1) return 1;
-  const share = fontSize >= 28 ? 0.4 : fontSize >= 20 ? 0.7 : 1;
+  // Titles, timers and big numbers (28 dp and up) barely grow: they are already readable.
+  const share = fontSize >= 28 ? 0.1 : fontSize >= 20 ? 0.7 : 1;
   return 1 + (fontScale - 1) * share;
+}
+
+/**
+ * Most text grows overall (interface size times the phone's font size): 200 %, what WCAG asks for.
+ * Past it the interface size still enlarges spacing and controls, but no longer the text, so a
+ * 130 % interface with 200 % system text does not put 2.6 times larger words into a 360 dp screen.
+ */
+export const MAX_TEXT_ZOOM = 2;
+
+/** Growth for one (already interface-scaled) text size, kept within MAX_TEXT_ZOOM overall. */
+export function cappedTextGrowth(fontSize: number, fontScale: number, layoutScale: number): number {
+  const grow = textGrowth(fontSize, fontScale);
+  return Math.max(1, Math.min(grow, MAX_TEXT_ZOOM / Math.max(layoutScale, 0.01)));
 }
 
 /**
@@ -49,12 +63,25 @@ export function effectiveScale(scale: number, windowWidth: number): number {
 
 export const FONT_KEYS = new Set(["fontSize", "lineHeight", "letterSpacing"]);
 
-/** Multiplies numeric layout sizes of one style object; strings (percentages) and other keys are kept. */
+/** Smallest touch target (dp); kept here so the scale helpers do not depend on the tokens module. */
+const TOUCH_TARGET = 48;
+/** Sizes that make a touch target: one designed at 48 dp or more never shrinks below 48 at a small interface size. */
+const TARGET_KEYS = new Set(["width", "height", "minWidth", "minHeight"]);
+
+/**
+ * Multiplies numeric layout sizes of one style object; strings (percentages) and other keys are kept.
+ * Widths and heights of 48 dp or more stay at least 48 dp, so touch targets survive the 70 % interface size.
+ */
 export function scaleStyle<T extends object>(style: T, scale: number, keys: Set<string> = LAYOUT_KEYS): T {
   if (scale === 1) return style;
   const result: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(style)) {
-    result[key] = typeof value === "number" && keys.has(key) ? Math.round(value * scale * 10) / 10 : value;
+    if (typeof value !== "number" || !keys.has(key)) {
+      result[key] = value;
+      continue;
+    }
+    const scaled = Math.round(value * scale * 10) / 10;
+    result[key] = TARGET_KEYS.has(key) && value >= TOUCH_TARGET ? Math.max(scaled, TOUCH_TARGET) : scaled;
   }
   return result as T;
 }

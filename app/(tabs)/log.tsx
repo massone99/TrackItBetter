@@ -22,7 +22,7 @@ const PAGE_SIZE = 30;
 export default function LogScreen() {
   const styles = useScaledStyles(baseStyles);
   const { t, i18n } = useTranslation();
-  const { palette } = useTheme();
+  const { palette, largeText } = useTheme();
   const [workouts, setWorkouts] = useState<WorkoutHistoryItem[]>([]);
   const [hasMore, setHasMore] = useState(false);
   const [activeWorkoutId, setActiveWorkoutId] = useState<string | null>(null);
@@ -118,7 +118,7 @@ export default function LogScreen() {
               <IconButton icon="chevron-forward" label={monthOpen ? t('log.nextMonth') : t('log.nextWeek')} onPress={() => step(1)} />
             </View>
             <View style={styles.calendarGrid}>
-              {weekdayLabels.map((day) => <Text key={day} style={[styles.weekday, { color: palette.textMuted }]}>{t(`log.weekdays.${day}`)}</Text>)}
+              {weekdayLabels.map((day) => <Text key={day} numberOfLines={1} adjustsFontSizeToFit style={[styles.weekday, { color: palette.textMuted }]}>{largeText ? t(`log.weekdays.${day}`).charAt(0) : t(`log.weekdays.${day}`)}</Text>)}
               {calendarDays.map((date) => {
                 const key = dateKey(date);
                 const count = counts.get(key) ?? 0;
@@ -131,9 +131,10 @@ export default function LogScreen() {
                     accessibilityLabel={t('log.calendarDayLabel', { date: date.toLocaleDateString(locale), count })}
                     accessibilityState={{ selected }}
                     onPress={() => setSelectedDate(selected ? null : key)}
+                    hitSlop={DAY_HIT_SLOP}
                     style={[styles.day, selected && { backgroundColor: palette.accent }, key === todayKey && !selected && { borderWidth: 1, borderColor: palette.border }]}
                   >
-                    <Text style={[styles.dayNumber, { color: selected ? palette.accentText : inMonth ? palette.text : palette.textMuted }]}>{date.getDate()}</Text>
+                    <Text numberOfLines={1} adjustsFontSizeToFit style={[styles.dayNumber, { color: selected ? palette.accentText : inMonth ? palette.text : palette.textMuted }]}>{date.getDate()}</Text>
                     <View style={[styles.dayDot, { backgroundColor: count > 0 ? (selected ? palette.accentText : palette.accentStrong) : 'transparent' }]} />
                   </Pressable>
                 );
@@ -168,6 +169,8 @@ export default function LogScreen() {
   );
 }
 
+const DAY_HIT_SLOP = { left: 3, right: 3 };
+
 const baseStyles = StyleSheet.create({
   actions: { gap: 8 },
   center: { textAlign: 'center' },
@@ -176,7 +179,9 @@ const baseStyles = StyleSheet.create({
   monthToggle: { flex: 1, alignItems: 'center', minHeight: 48, justifyContent: 'center' },
   monthTitle: { textAlign: 'center', textTransform: 'capitalize', fontSize: 18 },
   monthHint: { fontFamily: fonts.semibold, fontSize: 12 },
-  calendarGrid: { flexDirection: 'row', flexWrap: 'wrap' },
+  // The grid reaches into the card's padding so each of the seven columns is as wide as possible;
+  // DAY_HIT_SLOP brings every day to a 48 dp target even at the largest interface size.
+  calendarGrid: { flexDirection: 'row', flexWrap: 'wrap', marginHorizontal: -12 },
   weekday: { width: '14.2857%', minHeight: 24, textAlign: 'center', textAlignVertical: 'center', fontSize: 12, fontFamily: fonts.semibold },
   day: { width: '14.2857%', minHeight: 48, alignItems: 'center', justifyContent: 'center', borderRadius: radii.control },
   dayNumber: { fontFamily: fonts.medium, fontSize: 15 },

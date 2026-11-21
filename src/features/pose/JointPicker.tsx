@@ -111,7 +111,7 @@ const baseStyles = StyleSheet.create({
   root: { gap: 8 },
   // Chips wrap so every joint is visible without scrolling sideways.
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  chip: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 44, paddingHorizontal: 14, borderRadius: radii.pill },
+  chip: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 48, paddingHorizontal: 14, borderRadius: radii.pill },
   dot: { width: 10, height: 10, borderRadius: radii.control },
   name: { fontFamily: fonts.medium, fontSize: 15 },
   value: { fontFamily: fonts.display, fontSize: 18 },

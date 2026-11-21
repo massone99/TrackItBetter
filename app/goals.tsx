@@ -15,7 +15,7 @@ const ACHIEVEMENTS = ['first-session', 'five-sessions', 'ten-sessions', 'week-go
 export default function GoalsScreen() {
   const styles = useScaledStyles(baseStyles);
   const { t } = useTranslation();
-  const { palette } = useTheme();
+  const { palette, largeText } = useTheme();
   const weekdays = t('goals.weekdayInitials').split(' ');
   const [snapshot, setSnapshot] = useState<GoalSnapshot | null>(null);
   const [failed, setFailed] = useState(false);
@@ -49,20 +49,32 @@ export default function GoalsScreen() {
     }
   };
 
+  const decrease = snapshot ? <Pressable accessibilityRole="button" accessibilityLabel={t('goals.decreaseTarget')} accessibilityState={{ disabled: snapshot.weeklyTarget <= 1 || saving }} disabled={snapshot.weeklyTarget <= 1 || saving} onPress={() => void changeTarget(-1)} style={[styles.adjustButton, { backgroundColor: palette.surfaceMuted, opacity: snapshot.weeklyTarget <= 1 ? 0.45 : 1 }]}><Text style={[styles.adjustText, { color: palette.text }]}>−</Text></Pressable> : null;
+  const increase = snapshot ? <Pressable accessibilityRole="button" accessibilityLabel={t('goals.increaseTarget')} accessibilityState={{ disabled: snapshot.weeklyTarget >= 7 || saving }} disabled={snapshot.weeklyTarget >= 7 || saving} onPress={() => void changeTarget(1)} style={[styles.adjustButton, { backgroundColor: palette.surfaceMuted, opacity: snapshot.weeklyTarget >= 7 ? 0.45 : 1 }]}><Text style={[styles.adjustText, { color: palette.text }]}>+</Text></Pressable> : null;
+
   return (
     <Screen>
       <PageHeading title={t('goals.title')} subtitle={t('goals.subtitle')} />
       {snapshot ? <>
         <Card>
           <SectionTitle title={t('goals.weeklyGoal')} />
-          <View style={styles.targetRow}>
-            <Pressable accessibilityRole="button" accessibilityLabel={t('goals.decreaseTarget')} accessibilityState={{ disabled: snapshot.weeklyTarget <= 1 || saving }} disabled={snapshot.weeklyTarget <= 1 || saving} onPress={() => void changeTarget(-1)} style={[styles.adjustButton, { backgroundColor: palette.surfaceMuted, opacity: snapshot.weeklyTarget <= 1 ? 0.45 : 1 }]}><Text style={[styles.adjustText, { color: palette.text }]}>−</Text></Pressable>
+          {/* Large text: the target gets the whole width and the − + buttons go below it. */}
+          {largeText ? <>
             <View style={styles.targetText}>
               <Heading>{t('goals.target', { count: snapshot.weeklyTarget })}</Heading>
               <Body>{t('goals.progress', { done: Math.min(snapshot.thisWeekSessions, snapshot.weeklyTarget), target: snapshot.weeklyTarget })}</Body>
             </View>
-            <Pressable accessibilityRole="button" accessibilityLabel={t('goals.increaseTarget')} accessibilityState={{ disabled: snapshot.weeklyTarget >= 7 || saving }} disabled={snapshot.weeklyTarget >= 7 || saving} onPress={() => void changeTarget(1)} style={[styles.adjustButton, { backgroundColor: palette.surfaceMuted, opacity: snapshot.weeklyTarget >= 7 ? 0.45 : 1 }]}><Text style={[styles.adjustText, { color: palette.text }]}>+</Text></Pressable>
+            <View style={styles.targetRow}>{decrease}{increase}</View>
+          </> : (
+          <View style={styles.targetRow}>
+            {decrease}
+            <View style={styles.targetText}>
+              <Heading>{t('goals.target', { count: snapshot.weeklyTarget })}</Heading>
+              <Body>{t('goals.progress', { done: Math.min(snapshot.thisWeekSessions, snapshot.weeklyTarget), target: snapshot.weeklyTarget })}</Body>
+            </View>
+            {increase}
           </View>
+          )}
           <ProgressMeter value={snapshot.thisWeekSessions} total={snapshot.weeklyTarget} label={t('goals.weeklyGoal')} tone={snapshot.thisWeekSessions >= snapshot.weeklyTarget ? 'success' : 'accent'} />
           {snapshot.thisWeekSessions >= snapshot.weeklyTarget ? <Body style={{ color: palette.success }}>{t('goals.reached')}</Body> : null}
         </Card>
@@ -109,13 +121,13 @@ export default function GoalsScreen() {
             const description = !known ? achievement.description : achievement.id === 'week-goal'
               ? t('goals.achievement.week-goal.body', { count: achievement.target })
               : t(`goals.achievement.${achievement.id}.body`);
-            return <View key={achievement.id} style={[styles.achievementRow, { borderTopColor: palette.border }]}>
+            return <View key={achievement.id} style={[styles.achievementRow, largeText && styles.achievementRowWrap, { borderTopColor: palette.border }]}>
               <View style={[styles.badge, { backgroundColor: achievement.unlocked ? palette.accent : palette.surfaceMuted }]}><Icon name={achievement.unlocked ? 'ribbon' : 'lock-closed-outline'} size={16} color={achievement.unlocked ? palette.accentText : palette.textMuted} /></View>
               <View style={styles.achievementText}>
                 <Text style={[styles.achievementTitle, { color: palette.text }]}>{title}</Text>
                 <Body>{description}</Body>
               </View>
-              <Text style={[styles.achievementProgress, { color: achievement.unlocked ? palette.accentStrong : palette.textMuted }]}>{achievement.unlocked ? t('goals.unlocked') : t('goals.locked', { progress: achievement.progress, target: achievement.target })}</Text>
+              <Text style={[styles.achievementProgress, largeText && styles.achievementProgressBelow, { color: achievement.unlocked ? palette.accentStrong : palette.textMuted }]}>{achievement.unlocked ? t('goals.unlocked') : t('goals.locked', { progress: achievement.progress, target: achievement.target })}</Text>
             </View>;
           })}
         </Card>
@@ -147,7 +159,8 @@ const baseStyles = StyleSheet.create({
   recapRow: { flexDirection: 'row', gap: 12 },
   streakMetric: { flex: 1, minHeight: 110, backgroundColor: 'transparent', alignItems: 'center', justifyContent: 'center', gap: 3 },
   streakValue: { fontFamily: fonts.display, fontSize: 40, lineHeight: 44, fontVariant: ['tabular-nums'] },
-  streakDays: { marginTop: -5, fontSize: 13, fontWeight: '700' },
+  // Pulled up by the column gap only, so the unit sits right under the number without overlapping it.
+  streakDays: { marginTop: -3, fontSize: 13, fontWeight: '700' },
   heatmapRows: { flexDirection: 'row', gap: 6, alignItems: 'stretch' },
   heatmap: { flex: 1, gap: 4 },
   heatmapRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 4 },
@@ -160,6 +173,9 @@ const baseStyles = StyleSheet.create({
   badge: { width: 36, height: 36, borderRadius: radii.control, alignItems: 'center', justifyContent: 'center' },
   badgeText: { fontSize: 20, fontWeight: '900' },
   achievementText: { flex: 1, gap: 2 },
+  // Large text: the status ("Unlocked", "3/5") moves under the description instead of squeezing it.
+  achievementRowWrap: { flexWrap: 'wrap' },
+  achievementProgressBelow: { flexBasis: '100%', maxWidth: '100%', textAlign: 'left' },
   achievementTitle: { fontSize: 16, lineHeight: 22, fontWeight: '600' },
   achievementProgress: { flexShrink: 1, maxWidth: '30%', fontSize: 13, lineHeight: 19, fontWeight: '600', textAlign: 'right' },
 });

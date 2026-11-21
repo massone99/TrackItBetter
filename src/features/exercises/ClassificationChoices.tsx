@@ -7,7 +7,7 @@ import { useTheme } from '../../shared/theme/ThemeProvider';
 import { useScaledStyles } from '../../shared/theme/useScaledStyles';
 import { MOVEMENT_GROUPS, MOVEMENT_TAG_SECTIONS, type MovementGroupId } from './movementCatalog';
 import { MAX_FONT_SCALE } from '../../shared/theme/scale';
-import { radii } from '../../shared/theme/tokens';
+import { MIN_TOUCH_TARGET, radii } from '../../shared/theme/tokens';
 
 export function movementTagLabel(tag: string, translate: (key: string, options: { defaultValue: string }) => string): string {
   const key = tag.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
@@ -114,5 +114,5 @@ const baseStyles = StyleSheet.create({
   field: { gap: 8 },
   choices: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   tags: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, borderWidth: 1, borderRadius: radii.control, padding: 10 },
-  search: { minHeight: 42, borderWidth: 1, borderRadius: radii.control, paddingHorizontal: 12, fontSize: 15 },
+  search: { minHeight: MIN_TOUCH_TARGET, borderWidth: 1, borderRadius: radii.control, paddingHorizontal: 12, fontSize: 15 },
 });

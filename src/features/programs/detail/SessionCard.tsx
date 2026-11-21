@@ -33,7 +33,7 @@ export interface SessionViewProps {
 export function SessionCard({ session, number, isNext, open, starting, info, metricById, onToggle, onMenu, onStart, onLogPast, handle }: SessionViewProps & { handle?: ReactNode }) {
   const styles = useScaledStyles(baseStyles);
   const { t } = useTranslation();
-  const { palette } = useTheme();
+  const { palette, largeText } = useTheme();
   const nameOf = (exerciseId: string) => info.get(exerciseId)?.name ?? t('userProgram.exerciseMissing');
   return (
     <Card style={[styles.session, isNext && { borderColor: palette.accentStrong }]}>
@@ -58,9 +58,12 @@ export function SessionCard({ session, number, isNext, open, starting, info, met
             {/* Under the name, not beside it: the name keeps the whole width and never breaks mid-word. */}
             <Label>{t('userProgram.daySummary', { count: sessionSetCount(session), minutes: formatMinutes(estimateSessionSeconds(session, metricById, readDefaultRest('working'))) })}</Label>
           </View>
-          <View style={styles.headMeta}>
-            <Icon name={open ? 'chevron-up' : 'chevron-down'} size={20} color={palette.textMuted} />
-          </View>
+          {/* Large text: the chevron gives its width to the name (the row still says "Show" / "Hide"). */}
+          {largeText ? null : (
+            <View style={styles.headMeta}>
+              <Icon name={open ? 'chevron-up' : 'chevron-down'} size={20} color={palette.textMuted} />
+            </View>
+          )}
         </Pressable>
         {open ? null : (
           <IconButton icon="play" tone={isNext ? 'accent' : 'muted'} label={`${t('userProgram.start')} ${session.name}`} disabled={starting !== null} onPress={onStart} />

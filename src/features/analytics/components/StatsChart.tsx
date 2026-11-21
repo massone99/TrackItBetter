@@ -1,8 +1,9 @@
-import { useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { useRef, useState } from 'react';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { Text } from '../../../shared/components/Text';
 import { useTheme } from '../../../shared/theme/ThemeProvider';
 import { useScaledStyles } from '../../../shared/theme/useScaledStyles';
+import { MIN_TOUCH_TARGET } from '../../../shared/theme/tokens';
 
 export interface StatsChartProps {
   /** Primary metric per bucket, drawn as bars. */
@@ -33,7 +34,12 @@ const LABEL_COUNT = 5;
 export function StatsChart({ values, secondary, labels, selected, onSelect, formatPrimary, zeroBased = true, formatSecondary, accessibilityLabel, comparison, sharedScale = false }: StatsChartProps) {
   const styles = useScaledStyles(baseStyles);
   const { palette } = useTheme();
-  const [width, setWidth] = useState(300);
+  // Visible width; the plot is at least one 48 dp touch target per period wide and scrolls sideways
+  // when that is wider than the screen, starting at the latest periods (the end).
+  const [viewport, setViewport] = useState(300);
+  const scroll = useRef<ScrollView>(null);
+  const width = Math.max(viewport, values.length * MIN_TOUCH_TARGET);
+  const scrolls = width > viewport + 0.5;
   const present = values.filter((value): value is number => value != null && value > 0);
   const primaryMax = Math.max(0, ...present);
   const primaryMin = present.length ? Math.min(...present) : 0;
@@ -76,38 +82,60 @@ export function StatsChart({ values, secondary, labels, selected, onSelect, form
         <Text style={[styles.scale, { color: palette.accentStrong }]}>{chartMax > 0 ? formatPrimary(chartMax) : ''}</Text>
         {secondary && formatSecondary && secondaryMax > 0 && !sharedScale ? <Text style={[styles.scale, { color: palette.record }]}>{formatSecondary(secondaryMax)}</Text> : null}
       </View>
-      <View onLayout={(event) => setWidth(Math.max(120, event.nativeEvent.layout.width))} style={[styles.plot, { height: HEIGHT, borderBottomColor: palette.border }]}>
-        <View style={[styles.gridLine, { top: 0, backgroundColor: palette.border }]} />
-        <View style={[styles.gridLine, { top: HEIGHT / 2, backgroundColor: palette.border }]} />
-        <View style={styles.bars}>
-          {values.map((value, index) => {
-            const height = value && chartMax > 0 && !comparison ? Math.max(3, ((value - base) / (chartMax - base)) * (HEIGHT - 8)) : 0;
-            const active = selected === index;
-            return (
-              <Pressable
-                key={index}
-                accessibilityRole="button"
-                accessibilityState={{ selected: active }}
-                accessibilityLabel={accessibilityLabel(index)}
-                onPress={() => onSelect(index)}
-                style={[styles.slot, active && { backgroundColor: palette.accentSoft }]}
-              >
-                <View style={[styles.bar, { height, backgroundColor: active || selected == null ? palette.accent : palette.accentStrong, opacity: active || selected == null ? 1 : 0.55 }]} />
-              </Pressable>
-            );
-          })}
-        </View>
-        <View pointerEvents="none" style={StyleSheet.absoluteFill}>
-          {comparison ? line(leftPoints, palette.record, 'left') : line(linePoints, palette.record, 'secondary')}
-          {comparison ? line(rightPoints, palette.accentStrong, 'right') : null}
-        </View>
-      </View>
-      <View style={styles.labels}>
-        {labels.map((label, index) => (
-          <Text key={index} numberOfLines={1} style={[styles.label, { width: slot * labelEvery, left: slot * index + slot / 2 - (slot * labelEvery) / 2, color: palette.textMuted }]}>
-            {index % labelEvery === (labels.length - 1) % labelEvery ? label : ''}
-          </Text>
-        ))}
+      <View onLayout={(event) => setViewport(Math.max(120, event.nativeEvent.layout.width))}>
+        <ScrollView
+          ref={scroll}
+          horizontal
+          scrollEnabled={scrolls}
+          showsHorizontalScrollIndicator={scrolls}
+          onContentSizeChange={() => { if (scrolls) scroll.current?.scrollToEnd({ animated: false }); }}
+        >
+          <View>
+            <View style={[styles.plot, { width, height: HEIGHT, borderBottomColor: palette.border }]}>
+              <View style={[styles.gridLine, { top: 0, backgroundColor: palette.border }]} />
+              <View style={[styles.gridLine, { top: HEIGHT / 2, backgroundColor: palette.border }]} />
+              <View style={styles.bars}>
+                {values.map((value, index) => {
+                  const height = value && chartMax > 0 && !comparison ? Math.max(3, ((value - base) / (chartMax - base)) * (HEIGHT - 8)) : 0;
+                  const active = selected === index;
+                  return (
+                    <Pressable
+                      key={index}
+                      accessibilityRole="button"
+                      accessibilityState={{ selected: active }}
+                      accessibilityLabel={accessibilityLabel(index)}
+                      onPress={() => onSelect(index)}
+                      style={[styles.slot, active && { backgroundColor: palette.accentSoft }]}
+                    >
+                      <View style={[styles.bar, { height, backgroundColor: active || selected == null ? palette.accent : palette.accentStrong, opacity: active || selected == null ? 1 : 0.55 }]} />
+                    </Pressable>
+                  );
+                })}
+              </View>
+              <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+                {comparison ? line(leftPoints, palette.record, 'left') : line(linePoints, palette.record, 'secondary')}
+                {comparison ? line(rightPoints, palette.accentStrong, 'right') : null}
+              </View>
+            </View>
+            <View style={[styles.labels, { width }]}>
+              {labels.map((label, index) => {
+                if (index % labelEvery !== (labels.length - 1) % labelEvery) return null;
+                // Each label is centred under its period; at the two ends its box is cut at the plot's edge
+                // and the text aligned to it, so labels stay inside the plot and never overlap.
+                const center = slot * index + slot / 2;
+                const half = (slot * labelEvery) / 2;
+                const left = Math.max(0, center - half);
+                const right = Math.min(width, center + half);
+                const align = center - half < 0 ? 'left' : center + half > width ? 'right' : 'center';
+                return (
+                  <Text key={index} numberOfLines={1} style={[styles.label, { width: right - left, left, textAlign: align, color: palette.textMuted }]}>
+                    {label}
+                  </Text>
+                );
+              })}
+            </View>
+          </View>
+        </ScrollView>
       </View>
     </View>
   );

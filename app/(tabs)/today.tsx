@@ -342,9 +342,10 @@ const baseStyles = StyleSheet.create({
   weekTitle: { fontSize: 14 },
   weekCount: { flexDirection: "row", alignItems: "center", gap: 4 },
   weekCountText: { fontFamily: fonts.semibold, fontSize: 15 },
-  days: { flexDirection: "row", justifyContent: "space-between" },
-  day: { alignItems: "center", gap: 6 },
-  dayDot: { width: 36, height: 36, borderRadius: radii.control, borderWidth: 2, alignItems: "center", justifyContent: "center" },
+  // Seven equal columns: at a large interface size the squares shrink to fit instead of running off the card.
+  days: { flexDirection: "row", gap: 4 },
+  day: { flex: 1, minWidth: 0, alignItems: "center", gap: 6 },
+  dayDot: { width: "100%", maxWidth: 36, aspectRatio: 1, borderRadius: radii.control, borderWidth: 2, alignItems: "center", justifyContent: "center" },
   dayLabel: { fontFamily: fonts.semibold, fontSize: 12, textTransform: "capitalize" },
   bestValue: { fontFamily: fonts.display, fontSize: 22 },
 });
