@@ -56,14 +56,59 @@ export default function ProgressScreen() {
           {largeText ? null : <View style={[styles.metricDivider, { backgroundColor: palette.border }]} />}
           <Metric label={t('progress.sets')} value={snapshot.weekSets} />
         </View>
+        {snapshot.weeklyZones.total > 0 ? (
+          <View style={[styles.zoneRow, { borderTopColor: palette.border }]}>
+            <Label>{t('progress.stimulusZones')}</Label>
+            <View style={styles.zoneItems}>
+              <Text style={[styles.zoneText, { color: palette.textMuted }]}>{`${t('progress.zoneStrength')} ${snapshot.weeklyZones.strength}`}</Text>
+              <Text style={[styles.zoneText, { color: palette.textMuted }]}>{`${t('progress.zoneHypertrophy')} ${snapshot.weeklyZones.hypertrophy}`}</Text>
+              <Text style={[styles.zoneText, { color: palette.textMuted }]}>{`${t('progress.zoneEndurance')} ${snapshot.weeklyZones.endurance}`}</Text>
+            </View>
+          </View>
+        ) : null}
       </Card> : null}
+      {snapshot?.mesocycle ? (
+        <Card style={snapshot.mesocycle.state === 'deload_window' ? { borderColor: palette.warning } : undefined}>
+          <SectionTitle
+            title={t('progress.mesocycleTitle')}
+            action={(
+              <Pressable accessibilityRole="button" hitSlop={10} onPress={() => router.push({ pathname: '/principles', params: { section: 'fatigue' } })} style={styles.customize}>
+                <Icon name="book-outline" size={16} color={palette.accentStrong} />
+                <Text style={[styles.customizeText, { color: palette.accentStrong }]}>{t('principles.shortLink')}</Text>
+              </Pressable>
+            )}
+          />
+          <Text style={[styles.mesocycleHeadline, { color: snapshot.mesocycle.state === 'deload_window' ? palette.warning : palette.text }]}>
+            {snapshot.mesocycle.state === 'deloaded'
+              ? t('progress.mesocycleDeloaded')
+              : snapshot.mesocycle.state === 'deload_window'
+                ? t('progress.mesocycleDeload', { count: snapshot.mesocycle.consecutiveHardWeeks })
+                : t('progress.mesocycleBuilding', { count: snapshot.mesocycle.consecutiveHardWeeks })}
+          </Text>
+          <Body>
+            {snapshot.mesocycle.state === 'deloaded'
+              ? t('progress.mesocycleDeloadedBody')
+              : snapshot.mesocycle.state === 'deload_window'
+                ? t(snapshot.mesocycle.elevatedFatigue ? 'progress.mesocycleDeloadFatigueBody' : 'progress.mesocycleDeloadBody')
+                : t('progress.mesocycleBuildingBody')}
+          </Body>
+        </Card>
+      ) : null}
       <ListGroup>
         <ListRow icon="stats-chart-outline" title={t('stats.open')} subtitle={t('stats.openBody')} onPress={() => router.push('/stats')} />
         <ListRow icon="bar-chart-outline" title={t('progress.stats')} onPress={() => router.push('/training-stats')} />
       </ListGroup>
       {snapshot ? <>
         {snapshot.weeklyBalance.totalSets > 0 && <Card>
-          <SectionTitle title={t('progress.balance')} />
+          <SectionTitle
+            title={t('progress.balance')}
+            action={(
+              <Pressable accessibilityRole="button" hitSlop={10} onPress={() => router.push({ pathname: '/principles', params: { section: 'balance' } })} style={styles.customize}>
+                <Icon name="book-outline" size={16} color={palette.accentStrong} />
+                <Text style={[styles.customizeText, { color: palette.accentStrong }]}>{t('principles.shortLink')}</Text>
+              </Pressable>
+            )}
+          />
           <BalanceMetric label={t('progress.pushPull')} first={snapshot.weeklyBalance.pushSets} second={snapshot.weeklyBalance.pullSets} palette={palette} />
           {(snapshot.weeklyBalance.horizontalPushSets + snapshot.weeklyBalance.horizontalPullSets) > 0 && <BalanceMetric label={t('progress.horizontal')} first={snapshot.weeklyBalance.horizontalPushSets} second={snapshot.weeklyBalance.horizontalPullSets} palette={palette} />}
           {(snapshot.weeklyBalance.verticalPushSets + snapshot.weeklyBalance.verticalPullSets) > 0 && <BalanceMetric label={t('progress.vertical')} first={snapshot.weeklyBalance.verticalPushSets} second={snapshot.weeklyBalance.verticalPullSets} palette={palette} />}
@@ -256,6 +301,10 @@ function BestRow({ best, label, palette }: { best: PersonalBest; label: string; 
 const baseStyles = StyleSheet.create({
   metrics: { flexDirection: 'row', flexWrap: 'wrap', gap: 16 },
   metricDivider: { width: StyleSheet.hairlineWidth },
+  zoneRow: { borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 10, gap: 6 },
+  zoneItems: { flexDirection: 'row', flexWrap: 'wrap', columnGap: 14, rowGap: 4 },
+  zoneText: { fontFamily: fonts.mono, fontSize: 13 },
+  mesocycleHeadline: { fontFamily: fonts.semibold, fontSize: 15, lineHeight: 20 },
   customize: { flexDirection: 'row', alignItems: 'center', gap: 5, minHeight: 48 },
   customizeText: { fontWeight: '700', fontSize: 14 },
   pendingTrend: { borderTopWidth: StyleSheet.hairlineWidth, paddingVertical: 12, gap: 2 },

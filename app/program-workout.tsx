@@ -16,6 +16,7 @@ import {
 import { ExercisePicker } from '../src/features/exercises/ExercisePicker';
 import { openExercisePage } from '../src/features/exercises/openExercise';
 import { listExercises } from '../src/features/exercises/repository';
+import type { MovementGroupId } from '../src/features/exercises/movementCatalog';
 import { applyBulk, categoriesOfRow, volumeOf, type BuilderExercise, type BulkChange } from '../src/features/programs/builder/helpers';
 import { BulkEditSheet } from '../src/features/programs/builder/BulkEditSheet';
 import { QuickAddLine } from '../src/features/programs/builder/QuickAddLine';
@@ -119,7 +120,10 @@ export default function ProgramWorkoutScreen() {
     void (async () => {
       const [exercises, found] = await Promise.all([listExercises(), status === 'loading' ? getUserProgram(programId) : Promise.resolve(null)]);
       if (!mounted) return;
-      const infoById = new Map(exercises.map((exercise): [string, BuilderExercise] => [exercise.id, { id: exercise.id, name: exercise.name, metric: exercise.metric, categories: categoriesOfRow(exercise) }]));
+      const infoById = new Map(exercises.map((exercise): [string, BuilderExercise] => [
+        exercise.id,
+        { id: exercise.id, name: exercise.name, metric: exercise.metric, categories: categoriesOfRow(exercise), movementGroup: exercise.movementGroup as MovementGroupId | null },
+      ]));
       setInfo(infoById);
       if (status === 'loading') {
         const existing = found?.sessions.find((session) => session.id === sid);

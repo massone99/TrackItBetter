@@ -7,3 +7,4 @@ export * from './volume';
 export * from './rpe';
 export * from './mobilityPlan';
 export * from './strengthEstimates';
+export * from './og2Frameworks';

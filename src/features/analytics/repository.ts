@@ -24,7 +24,14 @@ function rowsForScope<T extends { pairId?: string | null; exerciseId: string }>(
 export async function getProgressSnapshot(now = new Date()): Promise<ProgressSnapshot> {
   const rows = await loadCompletedSetRows();
   const completedWorkouts: CompletedWorkoutRow[] = await db
-    .select({ id: workouts.id, startedAt: workouts.startedAt })
+    .select({
+      id: workouts.id,
+      startedAt: workouts.startedAt,
+      sessionRpe: workouts.sessionRpe,
+      sleep: workouts.sleep,
+      energy: workouts.energy,
+      soreness: workouts.soreness,
+    })
     .from(workouts)
     .where(isNotNull(workouts.endedAt))
     .orderBy(desc(workouts.startedAt));

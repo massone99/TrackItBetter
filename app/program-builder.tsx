@@ -28,6 +28,7 @@ import { ProgramClustersSheet } from '../src/features/programs/ProgramClustersSh
 import { ProgramMetaField } from '../src/features/programs/ProgramMetaField';
 import { programAuthors, programCategories, programClusters } from '../src/features/programs/list/derive';
 import { listExercises } from '../src/features/exercises/repository';
+import type { MovementGroupId } from '../src/features/exercises/movementCatalog';
 import { readDefaultRest } from '../src/features/session/restDefaults';
 import { createProgramCluster, getUserProgram, listProgramClusters, listUserPrograms, saveUserProgram } from '../src/features/programs/userPrograms';
 import {
@@ -111,7 +112,10 @@ export default function ProgramEditorScreen() {
         typeof listProgramClusters === 'function' ? listProgramClusters() : Promise.resolve([]),
       ]);
       if (!mounted) return;
-      setExerciseInfo(new Map(exercises.map((exercise) => [exercise.id, { id: exercise.id, name: exercise.name, metric: exercise.metric, categories: categoriesOfRow(exercise) }])));
+      setExerciseInfo(new Map(exercises.map((exercise) => [
+        exercise.id,
+        { id: exercise.id, name: exercise.name, metric: exercise.metric, categories: categoriesOfRow(exercise), movementGroup: exercise.movementGroup as MovementGroupId | null },
+      ])));
       setExistingCategories(programCategories(allPrograms));
       setExistingAuthors(programAuthors(allPrograms));
       setExistingClusters(programClusters(allPrograms, savedClusters));

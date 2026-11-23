@@ -2,6 +2,13 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.79.0 - 2026-11-23
+
+- Estimator: shows the active Repetition & Isometric Continuum adaptation zone, ATP rest range, rep↔hold equivalence (1 rep ≈ 2 s), and—in hold mode—the isometric Prilepin (60–75% max) and 60-second (50% max) prescriptions.
+- Progress: added a compact weekly stimulus split (Strength, Hypertrophy, Endurance) and a Fitness–Fatigue mesocycle & deload status card once 3+ active training weeks are logged.
+- Program and workout builders: added horizontal and vertical push–pull plane totals with quiet, non-blocking structural balance notices.
+- Training principles: added a calm, offline reference guide covering the continuum, fitness–fatigue and deloading, structural balance and tissue adaptation speeds, and level-matched periodization—linked from Profile and contextually from Estimator, Progress, and Program Builder.
+
 ## 0.78.0 - 2026-11-23
 
 - Program week generator: added Overcoming Gravity-inspired mesocycle presets (6-week mesocycle, double progression, set addition, Light / Heavy, and DUP), set-addition progression with an optional set cap, and undulating Heavy / Medium / Light modes with matching rest defaults and live previews.

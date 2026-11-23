@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react';
+import { router } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { StyleSheet, View } from 'react-native';
 import { setAssistKg, type SetBand } from '../src/domain/equipment';
+import { adaptationZone, isometricPrilepin } from '../src/domain/og2Frameworks';
 import { formatRpe } from '../src/domain/rpe';
 import { estimateStrength } from '../src/domain/strengthEstimates';
 import { StatRow, StatTile } from '../src/features/analytics/components/StatTiles';
@@ -54,8 +56,11 @@ export default function EstimatorScreen() {
     mode, amount: mode === 'reps' ? reps : seconds, rpe, addedLoadKg: added, assistKg: assist,
     bodyweightKg: kind === 'body' ? bodyweight : null, bodyShare: kind === 'body' ? sharePercent / 100 : 0,
   });
+  const zone = adaptationZone(mode, mode === 'reps' ? reps : seconds);
+  const prilepin = mode === 'hold' && result.maxHoldSec !== null ? isometricPrilepin(result.maxHoldSec) : null;
   const secondsLabel = (value: number) => formatClock(Math.round(value));
   const signedKg = (value: number) => `${value >= 0 ? '+' : '−'}${formatNumber(Math.abs(value))} kg`;
+  const restWindow = zone ? `${secondsLabel(zone.restMinSec)}–${secondsLabel(zone.restMaxSec)}` : '';
 
   return (
     <Screen>
@@ -106,8 +111,39 @@ export default function EstimatorScreen() {
             {result.vsBodyKg !== null ? (
               <Body>{result.vsBodyKg >= 0 ? t('oneRm.addable', { value: formatNumber(result.vsBodyKg) }) : t('oneRm.needsHelp', { value: formatNumber(-result.vsBodyKg) })}</Body>
             ) : null}
+            {zone ? (
+              <Body>
+                {t('estimator.zoneSummary', {
+                  zone: t(`estimator.zones.${zone.zone}`),
+                  rest: restWindow,
+                })}
+                {zone.equivalent
+                  ? ` · ${zone.equivalent.mode === 'hold'
+                    ? t('estimator.equivHold', { seconds: zone.equivalent.value })
+                    : t('estimator.equivReps', { count: zone.equivalent.value })}`
+                  : ''}
+              </Body>
+            ) : null}
           </>
         )}
+        {prilepin ? (
+          <>
+            <SectionTitle title={t('estimator.isometricTitle')} />
+            <ListGroup>
+              <ListRow
+                icon="timer-outline"
+                title={t('estimator.prilepinTitle', { sets: prilepin.prilepin.sweetSpotSets, seconds: prilepin.prilepin.holdSec })}
+                subtitle={t('estimator.prilepinBody', { min: prilepin.prilepin.minSets, max: prilepin.prilepin.maxSets, total: prilepin.prilepin.totalSec })}
+              />
+              <ListRow
+                icon="shield-checkmark-outline"
+                title={t('estimator.sixtyTitle', { sets: prilepin.sixtySecond.sets, seconds: prilepin.sixtySecond.holdSec })}
+                subtitle={t('estimator.sixtyBody', { total: prilepin.sixtySecond.totalSec })}
+              />
+            </ListGroup>
+            {prilepin.enduranceRange ? <Body>{t('estimator.enduranceNote')}</Body> : null}
+          </>
+        ) : null}
         {result.table.length > 0 ? (
           <>
             <SectionTitle title={t('estimator.tableTitle')} />
@@ -124,6 +160,9 @@ export default function EstimatorScreen() {
             <Body>{t('oneRm.body')}</Body>
           </>
         ) : null}
+        <ListGroup>
+          <ListRow icon="book-outline" title={t('principles.linkContinuum')} onPress={() => router.push({ pathname: '/principles', params: { section: 'continuum' } })} />
+        </ListGroup>
       </View>
     </Screen>
   );

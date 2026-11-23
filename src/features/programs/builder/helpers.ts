@@ -1,7 +1,9 @@
 import { newPrescription, estimateSessionSeconds, fitRpePerSet, isTimedMetric, type UserProgramExercise, type UserProgramSession } from '../../../domain/userProgram';
 import { progressExercise, setsByCategory, lowCategories, type ProgressionRule, type QuickAdd } from '../../../domain/programStructure';
+import { analyzeProgramBalance, type ProgramPlaneBalance } from '../../../domain/og2Frameworks';
+import type { MovementGroupId } from '../../exercises/movementCatalog';
 
-export interface BuilderExercise { id: string; name: string; metric: string; categories: string[] }
+export interface BuilderExercise { id: string; name: string; metric: string; categories: string[]; movementGroup?: MovementGroupId | null }
 
 /** Main category plus the extra ones stored as a JSON array string. */
 export function categoriesOfRow(row: { category: string; extraCategories?: string | null }): string[] {
@@ -50,7 +52,7 @@ export function applyBulk(exercise: UserProgramExercise, change: BulkChange): Us
   return next;
 }
 
-export interface Volume { byCategory: [string, number][]; low: string[]; seconds: number; sets: number }
+export interface Volume { byCategory: [string, number][]; low: string[]; seconds: number; sets: number; balance: ProgramPlaneBalance }
 
 export function volumeOf(
   sessions: readonly UserProgramSession[],
@@ -61,7 +63,8 @@ export function volumeOf(
   const metricById = new Map([...info].map(([id, item]) => [id, item.metric]));
   const seconds = sessions.reduce((sum, session) => sum + estimateSessionSeconds(session, metricById, defaultRest), 0);
   const sets = [...totals.values()].reduce((sum, value) => sum + value, 0);
-  return { byCategory: [...totals].sort((a, b) => b[1] - a[1]), low: lowCategories(totals), seconds, sets };
+  const balance = analyzeProgramBalance(sessions, (id) => info.get(id)?.movementGroup ?? null);
+  return { byCategory: [...totals].sort((a, b) => b[1] - a[1]), low: lowCategories(totals), seconds, sets, balance };
 }
 
 /** What the rule changes for one exercise after a normal week, e.g. "10 reps, 20 kg -> 11 reps, 20 kg". */

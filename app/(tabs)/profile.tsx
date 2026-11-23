@@ -40,6 +40,7 @@ export default function ProfileScreen() {
           <ListRow icon="notifications-outline" title={t("simple.reminders")} value={reminders !== null ? t(reminders ? "workout.menuOn" : "workout.menuOff") : undefined} onPress={() => router.push("/reminders")} />
           <ListRow icon="barbell-outline" title={t("profile.equipment")} value={t("simple.equipmentValue")} onPress={() => router.push("/equipment")} />
           <ListRow icon="timer-outline" title={t("simple.workoutDefaults")} value={t("simple.defaultsValue", { seconds: defaults.rest, rpe: t(defaults.rpe ? "workout.menuOn" : "workout.menuOff") })} onPress={() => router.push("/settings/training")} />
+          <ListRow icon="book-outline" title={t("principles.title")} onPress={() => router.push("/principles")} />
         </ListGroup>
       </View>
 

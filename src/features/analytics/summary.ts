@@ -1,5 +1,6 @@
 import { netLoadKg } from '../../domain/strengthEstimates';
 import { calculateEffectiveLoad, calculateVolume, detectPersonalRecords, estimateOneRepMax } from '../../domain';
+import { classifyWeeklyZones, evaluateMesocycleLoad, type MesocycleStatus, type WeeklyZoneSplit } from '../../domain/og2Frameworks';
 import { setEstimate } from './estimates';
 import { aggregatePairs, pairMean, realMean, recordScope } from '../../domain/setPairs';
 
@@ -110,6 +111,10 @@ export interface ProgressSnapshot {
     totalSets: number;
     showLegsNudge: boolean;
   };
+  /** Weekly non-mobility sets split across OG2 Strength / Hypertrophy / Endurance zones. */
+  weeklyZones: WeeklyZoneSplit;
+  /** Fitness–Fatigue mesocycle status over recent weeks; null until at least 3 active weeks exist. */
+  mesocycle: MesocycleStatus | null;
   volume: {
     reps: number;
     holdSeconds: number;
@@ -124,6 +129,10 @@ export interface ProgressSnapshot {
 export interface CompletedWorkoutRow {
   id: string;
   startedAt: Date;
+  sessionRpe?: number | null;
+  sleep?: number | null;
+  energy?: number | null;
+  soreness?: number | null;
 }
 
 /** Summarize distinct units separately so unlike work is never added together. */
@@ -303,12 +312,17 @@ export function buildProgressSnapshot(
     .filter((trend) => trend.points.length >= 2)
     .sort((a, b) => b.points[b.points.length - 1].date.getTime() - a.points[a.points.length - 1].date.getTime());
 
+  const weeklyZones = classifyWeeklyZones(weeklyRows);
+  const mesocycle = evaluateMesocycleLoad(rows, workouts, now);
+
   return {
     sessions: countedWorkouts.size,
     completedSets: rows.filter((row) => row.completedAt != null).length,
     weekSessions: countedWeekWorkouts.length,
     weekSets: weeklyRows.length,
     weeklyBalance,
+    weeklyZones,
+    mesocycle,
     volume: {
       reps: volume.reps,
       holdSeconds: volume.durationSec,

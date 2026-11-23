@@ -25,6 +25,7 @@ import DailyGoalsScreen from '../../app/daily-goals';
 import DataScreen from '../../app/data';
 import EquipmentScreen from '../../app/equipment';
 import EstimatorScreen from '../../app/estimator';
+import PrinciplesScreen from '../../app/principles';
 import ExerciseIdScreen from '../../app/exercise/[id]';
 import ExerciseHistoryIdScreen from '../../app/exercise/history/[id]';
 import ExerciseNewScreen from '../../app/exercise/new';
@@ -194,6 +195,7 @@ export const uiAuditRegistry: AuditScreenDefinition[] = [
   { id: 'data', render: () => wrap(<DataScreen />), states },
   { id: 'equipment', render: () => wrap(<EquipmentScreen />), states },
   { id: 'estimator', render: () => wrap(<EstimatorScreen />), states },
+  { id: 'principles', render: () => wrap(<PrinciplesScreen />), states: { default: states.default, long_text: states.long_text } },
   { id: 'exercise-id', render: () => wrap(<ExerciseIdScreen />), states: withParams((ids) => ({ id: ids.exercise })) },
   { id: 'exercise-history-id', render: () => wrap(<ExerciseHistoryIdScreen />), states: withParams((ids) => ({ id: ids.exercise })) },
   { id: 'exercise-new', render: () => wrap(<ExerciseNewScreen />), states },

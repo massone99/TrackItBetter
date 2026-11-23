@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { router } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { StyleSheet, View } from 'react-native';
 import {
@@ -13,7 +14,7 @@ import {
   type ProgramGroup,
 } from '../../../domain/programStructure';
 import { isLoadMetric, isTimedMetric, type UserProgramExercise, type UserProgramSession } from '../../../domain/userProgram';
-import { ActionButton, Body, Chip, Label, SegmentedControl, Sheet, Stepper, Text } from '../../../shared/components/ui';
+import { ActionButton, Body, Chip, Label, ListGroup, ListRow, SegmentedControl, Sheet, Stepper, Text } from '../../../shared/components/ui';
 import { useTheme } from '../../../shared/theme/ThemeProvider';
 import { spacing } from '../../../shared/theme/tokens';
 import { fonts } from '../../../shared/theme/typography';
@@ -164,6 +165,13 @@ export function GenerateWeeksSheet({ visible, groups, sessions, info, initialGro
         </View>
       ) : null}
       <ActionButton icon="layers-outline" label={t('builderPlus.generateAction', { count: weeks })} disabled={!sourceId} onPress={() => { if (sourceId) onGenerate(sourceId, weeks, rule); }} />
+      <ListGroup>
+        <ListRow
+          icon="book-outline"
+          title={t('principles.linkPeriodization')}
+          onPress={() => { onClose(); router.push({ pathname: '/principles', params: { section: 'periodization' } }); }}
+        />
+      </ListGroup>
     </Sheet>
   );
 }
