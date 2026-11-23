@@ -5,9 +5,11 @@ import {
   estimateBodyweightInclusiveOneRepMax,
   estimateOneRepMax,
   evaluateProgression,
+  formatNextStepScheme,
   kilogramsToPounds,
   meetsProgressionTarget,
   poundsToKilograms,
+  suggestNextStep,
 } from '..';
 
 describe('unit conversions', () => {
@@ -73,6 +75,50 @@ describe('progression rules', () => {
       { ...successfulSession, sets: [{ reps: 8 }, { reps: 7 }, { reps: 10 }] },
       successfulSession,
     ])).toEqual({ eligible: false, consecutiveSuccessfulSessions: 1, action: null });
+  });
+
+  it('enforces optional minimum form and maximum RPE gates on every counted set', () => {
+    const gated = { sets: 3, reps: 8, minForm: 4, maxRpe: 8.5 };
+    const clean = {
+      completed: true,
+      sets: [
+        { reps: 8, formRating: 4, rpe: 8 },
+        { reps: 8, formRating: 4.5, rpe: 8.5 },
+        { reps: 8, formRating: 4, rpe: 8.5 },
+      ],
+    };
+    const sloppy = { ...clean, sets: [{ reps: 8, formRating: 3.5, rpe: 8 }, clean.sets[1], clean.sets[2]] };
+    const grinding = { ...clean, sets: [clean.sets[0], clean.sets[1], { reps: 8, formRating: 4, rpe: 9 }] };
+    const unrated = { ...clean, sets: [{ reps: 8 }, { reps: 8 }, { reps: 8 }] };
+    expect(meetsProgressionTarget(clean, gated)).toBe(true);
+    expect(meetsProgressionTarget(sloppy, gated)).toBe(false);
+    expect(meetsProgressionTarget(grinding, gated)).toBe(false);
+    expect(meetsProgressionTarget(unrated, gated)).toBe(false);
+  });
+
+  it('suggests OG2 next-step progressions (consolidate, hybrid, assistance, rep addition, linear bump)', () => {
+    expect(suggestNextStep({ metric: 'reps', sets: [{ reps: 5, formRating: 3 }, { reps: 5, formRating: 3 }] }))
+      .toEqual({ kind: 'consolidate_form', avgForm: 3 });
+    expect(suggestNextStep({ metric: 'reps', sets: [{ reps: 5, rpe: 9.5 }, { reps: 5, rpe: 10 }] }))
+      .toEqual({ kind: 'consolidate_rpe', avgRpe: 9.8 });
+    expect(suggestNextStep({ metric: 'reps', sets: [{ reps: 8, formRating: 4, rpe: 8 }], eligible: true, nextExerciseName: 'Ring Dip' }))
+      .toEqual({ kind: 'advance_hybrid', nextExerciseName: 'Ring Dip' });
+    expect(suggestNextStep({ metric: 'reps', sets: [{ reps: 8, rpe: 7.5, assisted: true }, { reps: 8, rpe: 8, assisted: true }] }))
+      .toEqual({ kind: 'less_assistance' });
+    // Even sets at moderate/hard RPE -> Repetition Addition (5-5-5 -> 6-5-5)
+    expect(suggestNextStep({ metric: 'reps', sets: [{ reps: 5, rpe: 8.5 }, { reps: 5, rpe: 8.5 }, { reps: 5, rpe: 8.5 }] }))
+      .toEqual({ kind: 'rep_addition', scheme: [6, 5, 5], unit: 'reps' });
+    // Uneven sets -> bring next lagging set up (6-5-5 -> 6-6-5)
+    expect(suggestNextStep({ metric: 'reps', sets: [{ reps: 6, rpe: 8 }, { reps: 5, rpe: 8 }, { reps: 5, rpe: 8 }] }))
+      .toEqual({ kind: 'rep_addition', scheme: [6, 6, 5], unit: 'reps' });
+    // Easy sets (RPE <= 7.5) -> linear bump across all sets
+    expect(suggestNextStep({ metric: 'reps', sets: [{ reps: 5, rpe: 7 }, { reps: 5, rpe: 7.5 }, { reps: 5, rpe: 7.5 }] }))
+      .toEqual({ kind: 'linear_bump', scheme: [6, 6, 6], unit: 'reps' });
+    // Holds add +2s
+    expect(suggestNextStep({ metric: 'time', sets: [{ durationSec: 10, rpe: 8.5 }, { durationSec: 10, rpe: 8.5 }] }))
+      .toEqual({ kind: 'rep_addition', scheme: [12, 10], unit: 'seconds' });
+    expect(formatNextStepScheme([6, 5, 5], 'reps')).toBe('6-5-5');
+    expect(formatNextStepScheme([12, 10], 'seconds')).toBe('12-10 s');
   });
 });
 

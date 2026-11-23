@@ -56,7 +56,7 @@ export function aggregatePairs<T extends PairFields>(rows: readonly T[], scope: 
     if (group.length !== 2 || !group.some((s) => s.side === 'left') || !group.some((s) => s.side === 'right')) return [];
     if (group.some((s) => 'completedAt' in s && !s.completedAt)) return [];
     const result = { ...first, side: 'average', pairMembers: group };
-    for (const key of ['reps', 'durationSec', 'distanceM', 'addedLoadKg', 'rpe', 'effectiveLoadKg', 'restBeforeSec']) {
+    for (const key of ['reps', 'durationSec', 'distanceM', 'addedLoadKg', 'rpe', 'formRating', 'effectiveLoadKg', 'restBeforeSec']) {
       if (key in first) Object.assign(result, { [key]: pairMean(group, (s) => (s as Record<string, unknown>)[key] as number | null) });
     }
     return [result];

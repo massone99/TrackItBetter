@@ -2,6 +2,12 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.78.0 - 2026-11-23
+
+- Program week generator: added Overcoming Gravity-inspired mesocycle presets (6-week mesocycle, double progression, set addition, Light / Heavy, and DUP), set-addition progression with an optional set cap, and undulating Heavy / Medium / Light modes with matching rest defaults and live previews.
+- Progression chains: added optional minimum form and maximum RPE gates on step criteria so progression advances only on clean, controlled sets (supported in JSON export and import).
+- Next-step coaching: added micro-progression cues (repetition addition, linear bumps, band assistance step-down, form/RPE consolidation, and hybrid-set bridging when ready to advance) in skill progression views and inside the foldable "Vs last time" strip during workouts.
+
 ## 0.77.0 - 2026-11-21
 
 - Every screen works at every size, from 70 % interface to 130 % interface with 200 % system text: nothing runs off screen, rows wrap instead of squeezing text, and long words are never cut.

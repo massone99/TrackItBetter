@@ -82,12 +82,14 @@ const programSchema = z.object({
   })).min(1).max(30),
 });
 
-/** What to reach before moving on: sets of reps or of seconds, over some sessions in a row. */
+/** What to reach before moving on: sets of reps or of seconds, over some sessions in a row, with optional form/RPE gates. */
 const criteriaSchema = z.object({
   sets: count(1, 20),
   reps: count(1, 1000).optional(),
   seconds: count(1, 3600).optional(),
   requiredSessions: count(1, 20).default(1),
+  minForm: z.number().min(1).max(5).optional(),
+  maxRpe: z.number().min(6).max(10).optional(),
 }).refine((value) => (value.reps === undefined) !== (value.seconds === undefined), { message: 'reps or seconds, one of the two' });
 
 const chainSchema = z.object({

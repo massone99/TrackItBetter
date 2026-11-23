@@ -5,7 +5,8 @@ import Animated, { FadeIn, ZoomIn } from 'react-native-reanimated';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { compareWithLast } from '../../domain/lastTime';
 import { formatRpe } from '../../domain/rpe';
-import { completedSetCount, groupSets } from '../../domain/setPairs';
+import { aggregatePairs, completedSetCount, groupSets } from '../../domain/setPairs';
+import { suggestNextStep } from '../../domain/progression';
 import type { RecordKind, SameLoadRecord, VolumeRecord } from '../analytics/records';
 import { openExercisePage } from '../exercises/openExercise';
 import { openReferenceVideo } from '../exercises/ReferenceLinkSheet';
@@ -173,6 +174,19 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
   const results = doneValues && !timed && !distance ? t('logger.resultsReps', { values: doneValues }) : doneValues;
   const previousText = previous ? describePrevious(previous.sets, exercise.metric) : null;
   const comparison = compareWithLast(exercise.sets, previous?.sets ?? null, exercise.metric, { defaultRest, compareBands });
+  const nextStep = previous
+    ? suggestNextStep({
+        metric: exercise.metric,
+        sets: aggregatePairs(previous.sets.map((set) => ({ ...set, side: set.side ?? undefined }))).map((set) => ({
+          reps: set.reps ?? undefined,
+          durationSec: set.durationSec ?? undefined,
+          addedLoadKg: set.addedLoadKg ?? 0,
+          formRating: set.formRating ?? null,
+          rpe: set.rpe ?? null,
+          assisted: (set.bands?.length ?? 0) > 0,
+        })),
+      })
+    : null;
   const hasComparison = Boolean(comparison.total || comparison.rest || comparison.form || comparison.rom || comparison.assist || comparison.assistOrder);
   // Average form of today's rated sets (also when there is nothing to compare it with).
   const ratedForms = exercise.sets.filter((set) => set.completedAt && set.kind === 'working' && set.formRating !== null).map((set) => set.formRating as number);
@@ -1102,6 +1116,7 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
           metric={exercise.metric}
           date={previous.workoutStartedAt.toLocaleDateString(i18n.language, { weekday: 'short', day: 'numeric', month: 'short' })}
           detail={previousText ?? ''}
+          nextStep={nextStep}
         />
       ) : null}
 

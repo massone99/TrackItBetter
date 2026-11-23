@@ -154,4 +154,35 @@ describe('progression chains', () => {
     expect((await getChain(chain))!.steps[0]).toMatchObject({ reached: true, best: { reps: 10 } });
     await deleteChain(chain);
   });
+
+  it('persists form/RPE gates on step criteria and uses them for reached status and OG2 nextStep', async () => {
+    const chain = await createChain({ name: 'Form Gated', description: '', family: 'push' }, ['diamond-push-up', 'decline-push-up']);
+    const step = (await getChain(chain))!.steps[0];
+    await updateStepCriteria(step.id, { sets: 2, reps: 8, requiredSessions: 1, minForm: 4, maxRpe: 8.5 });
+    expect((await getChain(chain))!.steps[0].criteria).toEqual({ sets: 2, reps: 8, requiredSessions: 1, minForm: 4, maxRpe: 8.5 });
+
+    // Hit reps, but sloppy form (3) and high RPE (9.5) -> must NOT reach step yet.
+    const sloppyWorkout = await logCompletedWorkout({ name: 'Sloppy', startedAt: new Date(10000), endedAt: new Date(10500), entries: [
+      { exerciseId: step.exerciseId, sets: [{ reps: 8, completedAt: new Date(10200) }, { reps: 8, completedAt: new Date(10400) }] },
+    ] });
+    const { trainingSets, exerciseEntries } = jest.requireActual('../../../db/schema');
+    const { eq, inArray } = jest.requireActual('drizzle-orm');
+    const sloppyEntries = (await real.db.select().from(exerciseEntries).where(eq(exerciseEntries.workoutId, sloppyWorkout))).map((row: { id: string }) => row.id);
+    await real.db.update(trainingSets).set({ formRating: 3, rpe: 9.5 }).where(inArray(trainingSets.entryId, sloppyEntries));
+    expect((await getChain(chain))!.steps[0].reached).toBe(false);
+    expect((await getProgressionChain(chain))!.suggestion?.nextStep).toEqual({ kind: 'consolidate_form', avgForm: 3 });
+
+    // Clean session meeting minForm >= 4 and maxRpe <= 8.5 -> step reached + advance_hybrid suggestion!
+    const cleanWorkout = await logCompletedWorkout({ name: 'Clean', startedAt: new Date(20000), endedAt: new Date(20500), entries: [
+      { exerciseId: step.exerciseId, sets: [{ reps: 8, completedAt: new Date(20200) }, { reps: 8, completedAt: new Date(20400) }] },
+    ] });
+    const cleanEntries = (await real.db.select().from(exerciseEntries).where(eq(exerciseEntries.workoutId, cleanWorkout))).map((row: { id: string }) => row.id);
+    await real.db.update(trainingSets).set({ formRating: 4, rpe: 8.5 }).where(inArray(trainingSets.entryId, cleanEntries));
+    expect((await getChain(chain))!.steps[0].reached).toBe(true);
+    expect((await getProgressionChain(chain))!.suggestion).toMatchObject({
+      kind: 'advance',
+      nextStep: { kind: 'advance_hybrid', nextExerciseName: 'Decline Push-up' },
+    });
+    await deleteChain(chain);
+  });
 });

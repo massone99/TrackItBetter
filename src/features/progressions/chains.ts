@@ -8,8 +8,17 @@ import { chainEdges, exerciseTree, findCycle, linkProblem, type ExerciseTree, ty
 import { aggregatePairs } from '../../domain/setPairs';
 import { parseCriteria } from './repository';
 
-/** What to reach before moving on: sets of reps or seconds, over some sessions in a row. */
-export type Criteria = { sets: number; reps?: number; seconds?: number; requiredSessions: number };
+/** What to reach before moving on: sets of reps or seconds, over some sessions in a row, with optional form/RPE gates. */
+export type Criteria = {
+  sets: number;
+  reps?: number;
+  seconds?: number;
+  requiredSessions: number;
+  /** Minimum form rating (1–5) required on every counted set. */
+  minForm?: number;
+  /** Maximum RPE (6–10) allowed on every counted set. */
+  maxRpe?: number;
+};
 
 /** A relation or a chain change the graph refuses; `problem` says why (with the loop it would make). */
 export class GraphError extends Error {
@@ -20,21 +29,33 @@ export class GraphError extends Error {
 
 export function criteriaToJson(criteria: Criteria | null): string | null {
   if (!criteria) return null;
+  const gates = {
+    ...(criteria.minForm !== undefined ? { minForm: criteria.minForm } : {}),
+    ...(criteria.maxRpe !== undefined ? { maxRpe: criteria.maxRpe } : {}),
+  };
   return criteria.seconds !== undefined
-    ? JSON.stringify({ sets: criteria.sets, durationSec: criteria.seconds, unit: 'seconds' })
-    : JSON.stringify({ sets: criteria.sets, reps: criteria.reps ?? 1, unit: 'reps' });
+    ? JSON.stringify({ sets: criteria.sets, durationSec: criteria.seconds, unit: 'seconds', ...gates })
+    : JSON.stringify({ sets: criteria.sets, reps: criteria.reps ?? 1, unit: 'reps', ...gates });
 }
 
 export function criteriaFromRow(target: string | null, requiredSessions: number): Criteria | null {
   if (!target) return null;
   const parsed = parseCriteria(target, requiredSessions).target;
   if (!parsed) return null;
+  const gates = {
+    ...(parsed.minForm !== undefined ? { minForm: parsed.minForm } : {}),
+    ...(parsed.maxRpe !== undefined ? { maxRpe: parsed.maxRpe } : {}),
+  };
   return parsed.durationSec !== undefined
-    ? { sets: parsed.sets, seconds: parsed.durationSec, requiredSessions }
-    : { sets: parsed.sets, reps: parsed.reps ?? 1, requiredSessions };
+    ? { sets: parsed.sets, seconds: parsed.durationSec, requiredSessions, ...gates }
+    : { sets: parsed.sets, reps: parsed.reps ?? 1, requiredSessions, ...gates };
 }
 
-const toTarget = (criteria: Criteria): ProgressionTarget => (criteria.seconds !== undefined ? { sets: criteria.sets, durationSec: criteria.seconds } : { sets: criteria.sets, reps: criteria.reps ?? 1 });
+const toTarget = (criteria: Criteria): ProgressionTarget => ({
+  ...(criteria.seconds !== undefined ? { sets: criteria.sets, durationSec: criteria.seconds } : { sets: criteria.sets, reps: criteria.reps ?? 1 }),
+  ...(criteria.minForm !== undefined ? { minForm: criteria.minForm } : {}),
+  ...(criteria.maxRpe !== undefined ? { maxRpe: criteria.maxRpe } : {}),
+});
 
 /** Sessions newest first, with the day each was trained (`dates[i]` goes with `sessions[i]`). */
 type History = { sessions: ProgressionSession[]; dates: Date[]; bestReps: number | null; bestSeconds: number | null };
@@ -54,6 +75,8 @@ async function historyOf(ids: readonly string[]): Promise<Map<string, History>> 
     reps: trainingSets.reps,
     durationSec: trainingSets.durationSec,
     addedLoadKg: trainingSets.addedLoadKg,
+    formRating: trainingSets.formRating,
+    rpe: trainingSets.rpe,
     bands: trainingSets.bands,
   })
     .from(trainingSets)
@@ -69,7 +92,10 @@ async function historyOf(ids: readonly string[]): Promise<Map<string, History>> 
     const sessions = byExercise.get(row.exerciseId) ?? new Map<string, ProgressionSession['sets'][number][]>();
     byExercise.set(row.exerciseId, sessions);
     dateOf.set(row.workoutId, row.startedAt);
-    sessions.set(row.workoutId, [...(sessions.get(row.workoutId) ?? []), { reps: row.reps ?? undefined, durationSec: row.durationSec ?? undefined, addedLoadKg: row.addedLoadKg ?? 0 }]);
+    sessions.set(row.workoutId, [
+      ...(sessions.get(row.workoutId) ?? []),
+      { reps: row.reps ?? undefined, durationSec: row.durationSec ?? undefined, addedLoadKg: row.addedLoadKg ?? 0, formRating: row.formRating, rpe: row.rpe },
+    ]);
   }
   for (const [exerciseId, sessions] of byExercise) {
     const all = [...sessions.values()].flat();

@@ -26,11 +26,16 @@ function keyMaker() {
   };
 }
 
-const criteriaOut = (criteria: Criteria | null) => (criteria
-  ? criteria.seconds !== undefined
-    ? { sets: criteria.sets, seconds: criteria.seconds, requiredSessions: criteria.requiredSessions }
-    : { sets: criteria.sets, reps: criteria.reps, requiredSessions: criteria.requiredSessions }
-  : null);
+const criteriaOut = (criteria: Criteria | null) => {
+  if (!criteria) return null;
+  const gates = {
+    ...(criteria.minForm !== undefined ? { minForm: criteria.minForm } : {}),
+    ...(criteria.maxRpe !== undefined ? { maxRpe: criteria.maxRpe } : {}),
+  };
+  return criteria.seconds !== undefined
+    ? { sets: criteria.sets, seconds: criteria.seconds, requiredSessions: criteria.requiredSessions, ...gates }
+    : { sets: criteria.sets, reps: criteria.reps, requiredSessions: criteria.requiredSessions, ...gates };
+};
 
 /**
  * The chains (all when `chainIds` is null) as a TrackItBetter import file: the chains with their steps

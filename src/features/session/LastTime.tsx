@@ -3,6 +3,7 @@ import { useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import type { LastTimeComparison, Pairing } from '../../domain/lastTime';
+import { formatNextStepScheme, type NextStepSuggestion } from '../../domain/progression';
 import { Icon, Label, tapFeedback, Text } from '../../shared/components/ui';
 import { readBooleanPreference, writePreference } from '../../shared/settings/preferences';
 import { useTheme } from '../../shared/theme/ThemeProvider';
@@ -19,7 +20,7 @@ import { radii } from '../../shared/theme/tokens';
  */
 const LAST_TIME_OPEN_KEY = 'workout.lastTime.open';
 
-export function LastTimeStrip({ comparison, metric, date, detail }: {
+export function LastTimeStrip({ comparison, metric, date, detail, nextStep }: {
   comparison: LastTimeComparison;
   /** The exercise's metric, which names the total (reps, time or metres). */
   metric: string;
@@ -27,6 +28,8 @@ export function LastTimeStrip({ comparison, metric, date, detail }: {
   date: string;
   /** Last time's sets, shown on demand. */
   detail: string;
+  /** Optional OG2 next-session micro-progression cue derived from last time's sets. */
+  nextStep?: NextStepSuggestion | null;
 }) {
   const { t } = useTranslation();
   const { palette } = useTheme();
@@ -35,6 +38,17 @@ export function LastTimeStrip({ comparison, metric, date, detail }: {
   const [open, setOpen] = useState(false);
   const [body, setBody] = useState(() => readBooleanPreference(LAST_TIME_OPEN_KEY, false));
   const toggleBody = (value: boolean) => { setBody(value); writePreference(LAST_TIME_OPEN_KEY, String(value)); };
+  const nextStepText = (() => {
+    if (!nextStep) return null;
+    switch (nextStep.kind) {
+      case 'rep_addition': return t('lastTime.nextStepRepAddition', { scheme: formatNextStepScheme(nextStep.scheme, nextStep.unit) });
+      case 'linear_bump': return t('lastTime.nextStepLinear', { scheme: formatNextStepScheme(nextStep.scheme, nextStep.unit) });
+      case 'consolidate_form': return t('lastTime.nextStepForm', { value: formatNumber(nextStep.avgForm) });
+      case 'consolidate_rpe': return t('lastTime.nextStepRpe', { value: formatNumber(nextStep.avgRpe) });
+      case 'less_assistance': return t('lastTime.nextStepAssist');
+      case 'advance_hybrid': return null;
+    }
+  })();
   const { total, rest, form, rom, rpe, assist, assistUnknown, assistOrder, improved, worse } = comparison;
   const totalLabel = metric === 'time' || metric === 'time_load' ? t('lastTime.totalTime') : metric === 'distance' ? t('lastTime.totalMeters') : t('lastTime.totalReps');
   const cells: { key: string; label: string; pairing: Pairing; trend: 'up' | 'down' | null; delta: string | null; format: (value: number) => string }[] = [];
@@ -107,6 +121,11 @@ export function LastTimeStrip({ comparison, metric, date, detail }: {
         </Label>
       ) : null}
       {assistUnknown ? <Label style={styles.detail}>{t('lastTime.assistUnknown')}</Label> : null}
+      {nextStepText ? (
+        <Label style={[styles.detail, { color: nextStep?.kind === 'consolidate_form' || nextStep?.kind === 'consolidate_rpe' ? palette.warning : palette.accentStrong }]}>
+          {nextStepText}
+        </Label>
+      ) : null}
       {open ? <Label style={styles.detail}>{detail}</Label> : null}
         </>
       ) : null}

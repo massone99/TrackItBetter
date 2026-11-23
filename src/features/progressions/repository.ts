@@ -1,6 +1,7 @@
 import { aggregatePairs } from '../../domain/setPairs';
+import { parseSetBands } from '../../domain/equipment';
 import { and, asc, desc, eq, inArray, isNotNull } from 'drizzle-orm';
-import { evaluateProgression, type ProgressionSession, type ProgressionTarget } from '../../domain/progression';
+import { evaluateProgression, suggestNextStep, type NextStepSuggestion, type ProgressionSession, type ProgressionTarget } from '../../domain/progression';
 import { db, initializeDatabase } from '../../db/client';
 import { chainSteps, exerciseEntries, exercises, progressionChains, trainingSets, workouts } from '../../db/schema';
 
@@ -36,10 +37,16 @@ export function parseCriteria(targetJson: string, requiredSessions: number): Par
     if (typeof parsed.durationSec === 'number') target.durationSec = parsed.durationSec;
   }
   if (typeof parsed.addedLoadKg === 'number') target.addedLoadKg = parsed.addedLoadKg;
+  if (typeof parsed.minForm === 'number' && Number.isFinite(parsed.minForm) && parsed.minForm >= 1 && parsed.minForm <= 5) {
+    target.minForm = parsed.minForm;
+  }
+  if (typeof parsed.maxRpe === 'number' && Number.isFinite(parsed.maxRpe) && parsed.maxRpe >= 6 && parsed.maxRpe <= 10) {
+    target.maxRpe = parsed.maxRpe;
+  }
 
   const hasMetric = target.reps !== undefined || target.durationSec !== undefined || target.addedLoadKg !== undefined;
   const valid = Number.isInteger(target.sets) && target.sets > 0 && hasMetric &&
-    Object.entries(target).every(([key, value]) => key === 'sets' || (typeof value === 'number' && Number.isFinite(value) && value >= 0));
+    Object.entries(target).every(([key, value]) => key === 'sets' || key === 'minForm' || key === 'maxRpe' || (typeof value === 'number' && Number.isFinite(value) && value >= 0));
   return { target: valid ? target : null, requiredSessions: validSessionCount(requiredSessions) };
 }
 
@@ -94,6 +101,9 @@ export async function getProgressionChain(chainId: string) {
       reps: trainingSets.reps,
       durationSec: trainingSets.durationSec,
       addedLoadKg: trainingSets.addedLoadKg,
+      formRating: trainingSets.formRating,
+      rpe: trainingSets.rpe,
+      bands: trainingSets.bands,
       completedAt: trainingSets.completedAt,
     })
     .from(exerciseEntries)
@@ -108,7 +118,7 @@ export async function getProgressionChain(chainId: string) {
   const sessionsByExercise = new Map<string, Map<string, {
     startedAt: Date;
     level: number | null;
-    sets: Map<string, { index: number; reps: number | null; durationSec: number | null; addedLoadKg: number }>;
+    sets: Map<string, { index: number; reps: number | null; durationSec: number | null; addedLoadKg: number; formRating: number | null; rpe: number | null; assisted: boolean }>;
   }>>();
   for (const row of aggregatePairs(historyRows.map((row) => ({ ...row, side: row.side ?? undefined })))) {
     let byWorkout = sessionsByExercise.get(row.exerciseId);
@@ -127,6 +137,9 @@ export async function getProgressionChain(chainId: string) {
         reps: row.reps,
         durationSec: row.durationSec,
         addedLoadKg: row.addedLoadKg ?? 0,
+        formRating: row.formRating ?? null,
+        rpe: row.rpe ?? null,
+        assisted: parseSetBands(row.bands).length > 0,
       });
     }
   }
@@ -136,6 +149,7 @@ export async function getProgressionChain(chainId: string) {
     .sort((a, b) => b.startedAt.getTime() - a.startedAt.getTime())[0];
   let suggestion: null | {
     exerciseId: string;
+    exerciseName: string;
     level: number | null;
     kind: 'advance' | 'repeat' | 'increase' | 'start';
     nextExerciseName?: string;
@@ -143,6 +157,7 @@ export async function getProgressionChain(chainId: string) {
     requiredSessions: number;
     target: ProgressionTarget | null;
     suggestedTarget: ProgressionTarget | null;
+    nextStep: NextStepSuggestion | null;
   } = null;
 
   if (latestTraining) {
@@ -155,7 +170,14 @@ export async function getProgressionChain(chainId: string) {
           completed: true,
           sets: [...session.sets.values()]
             .sort((a, b) => a.index - b.index)
-            .map(({ reps, durationSec, addedLoadKg }) => ({ reps: reps ?? undefined, durationSec: durationSec ?? undefined, addedLoadKg })),
+            .map(({ reps, durationSec, addedLoadKg, formRating, rpe, assisted }) => ({
+              reps: reps ?? undefined,
+              durationSec: durationSec ?? undefined,
+              addedLoadKg,
+              formRating,
+              rpe,
+              assisted,
+            })),
         })) satisfies ProgressionSession[];
       const nextLevel = levels[levelIndex + 1];
       const evaluation = evaluateProgression(currentLevel.target, {
@@ -171,8 +193,16 @@ export async function getProgressionChain(chainId: string) {
       const suggestedTarget = evaluation.eligible
         ? nextLevel ? nextLevel.target ?? currentLevel.target : increaseTarget(currentLevel.target)
         : buildSuggestedTarget(currentLevel.target, lastSets, evaluation.consecutiveSuccessfulSessions);
+      const nextStep = suggestNextStep({
+        metric: currentLevel.metric,
+        sets: lastSets,
+        target: currentLevel.target,
+        nextExerciseName: nextLevel?.name ?? null,
+        eligible: evaluation.eligible,
+      });
       suggestion = {
         exerciseId: currentLevel.id,
+        exerciseName: currentLevel.name,
         level: currentLevel.level,
         kind: evaluation.eligible ? (nextLevel ? 'advance' : 'increase') : recentSessions.length ? 'repeat' : 'start',
         nextExerciseName: nextLevel?.name,
@@ -180,6 +210,7 @@ export async function getProgressionChain(chainId: string) {
         requiredSessions: currentLevel.requiredSessions,
         target: currentLevel.target,
         suggestedTarget,
+        nextStep,
       };
     }
   }

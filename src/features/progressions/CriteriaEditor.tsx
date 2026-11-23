@@ -2,17 +2,22 @@ import { useTranslation } from 'react-i18next';
 import { StyleSheet, View } from 'react-native';
 import type { TFunction } from 'i18next';
 import { SegmentedControl, Stepper, SwitchRow } from '../../shared/components/ui';
-import { formatClock } from '../../shared/utils/format';
+import { formatClock, formatNumber } from '../../shared/utils/format';
 import type { Criteria } from './chains';
 import type { LinkProblem } from '../../domain/progressionGraph';
 
 export const DEFAULT_CRITERIA: Criteria = { sets: 3, reps: 8, requiredSessions: 2 };
 
-/** "3 × 8 · 2 sessions" or "3 × 0:20 · 1 session"; null when no criteria are set. */
+/** "3 × 8 · 2 sessions · form ≥ 4" or "3 × 0:20 · 1 session"; null when no criteria are set. */
 export function criteriaText(criteria: Criteria | null, t: TFunction): string | null {
   if (!criteria) return null;
   const amount = criteria.seconds !== undefined ? formatClock(criteria.seconds) : t('chains.repsShort', { count: criteria.reps ?? 1 });
-  return `${criteria.sets} × ${amount} · ${t('chains.sessions', { count: criteria.requiredSessions })}`;
+  return [
+    `${criteria.sets} × ${amount}`,
+    t('chains.sessions', { count: criteria.requiredSessions }),
+    criteria.minForm !== undefined ? t('chains.formShort', { value: formatNumber(criteria.minForm) }) : null,
+    criteria.maxRpe !== undefined ? t('chains.rpeShort', { value: formatNumber(criteria.maxRpe) }) : null,
+  ].filter(Boolean).join(' · ');
 }
 
 /** Why the graph refused a change, in words, naming the exercises of a loop (A → B → A). */
@@ -23,7 +28,13 @@ export function graphProblemText(problem: LinkProblem | { kind: 'inChain' }, nam
   return t('chains.errorDuplicate');
 }
 
-/** What to reach before moving on: off, or sets of reps or seconds over some sessions in a row. */
+function stepOptionalGate(current: number | undefined, next: number, min: number, max: number, start: number): number | undefined {
+  if (current === undefined) return next > 0 ? start : undefined;
+  if (next < min) return undefined;
+  return Math.min(max, Math.round(next * 2) / 2);
+}
+
+/** What to reach before moving on: off, or sets of reps or seconds over some sessions in a row, with optional form/RPE gates. */
 export function CriteriaEditor({ value, onChange }: { value: Criteria | null; onChange: (next: Criteria | null) => void }) {
   const { t } = useTranslation();
   const unit = value?.seconds !== undefined ? 'seconds' : 'reps';
@@ -35,7 +46,10 @@ export function CriteriaEditor({ value, onChange }: { value: Criteria | null; on
           <SegmentedControl
             value={unit}
             options={[{ value: 'reps', label: t('chains.unitReps') }, { value: 'seconds', label: t('chains.unitSeconds') }]}
-            onChange={(next) => onChange(next === 'seconds' ? { sets: value.sets, seconds: 20, requiredSessions: value.requiredSessions } : { sets: value.sets, reps: 8, requiredSessions: value.requiredSessions })}
+            onChange={(next) => {
+              const gates = { ...(value.minForm !== undefined ? { minForm: value.minForm } : {}), ...(value.maxRpe !== undefined ? { maxRpe: value.maxRpe } : {}) };
+              onChange(next === 'seconds' ? { sets: value.sets, seconds: 20, requiredSessions: value.requiredSessions, ...gates } : { sets: value.sets, reps: 8, requiredSessions: value.requiredSessions, ...gates });
+            }}
           />
           <Stepper label={t('chains.sets')} layout="row" value={value.sets} min={1} max={20} onChange={(sets) => onChange({ ...value, sets: Math.round(sets) })} />
           {unit === 'seconds' ? (
@@ -44,6 +58,34 @@ export function CriteriaEditor({ value, onChange }: { value: Criteria | null; on
             <Stepper label={t('chains.reps')} layout="row" value={value.reps ?? 8} min={1} max={1000} editable onChange={(reps) => onChange({ ...value, reps: Math.max(1, Math.round(reps)) })} />
           )}
           <Stepper label={t('chains.sessionsInRow')} layout="row" value={value.requiredSessions} min={1} max={20} onChange={(count) => onChange({ ...value, requiredSessions: Math.round(count) })} />
+          <Stepper
+            label={t('chains.minForm')}
+            layout="row"
+            value={value.minForm ?? 0}
+            display={value.minForm !== undefined ? `${formatNumber(value.minForm)} / 5` : t('chains.gateOff')}
+            step={0.5}
+            min={0}
+            max={5}
+            onChange={(next) => {
+              const minForm = stepOptionalGate(value.minForm, next, 3, 5, 4);
+              const { minForm: _prev, ...rest } = value;
+              onChange(minForm !== undefined ? { ...rest, minForm } : rest);
+            }}
+          />
+          <Stepper
+            label={t('chains.maxRpe')}
+            layout="row"
+            value={value.maxRpe ?? 0}
+            display={value.maxRpe !== undefined ? formatNumber(value.maxRpe) : t('chains.gateOff')}
+            step={0.5}
+            min={0}
+            max={10}
+            onChange={(next) => {
+              const maxRpe = stepOptionalGate(value.maxRpe, next, 6, 10, 8.5);
+              const { maxRpe: _prev, ...rest } = value;
+              onChange(maxRpe !== undefined ? { ...rest, maxRpe } : rest);
+            }}
+          />
         </>
       ) : null}
     </View>

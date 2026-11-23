@@ -1,4 +1,4 @@
-import { disciplineOf, programSessionWorkoutName, type ProgramDiscipline, type UserProgram, type UserProgramExercise, type UserProgramSession } from './userProgram';
+import { disciplineOf, fitRpePerSet, programSessionWorkoutName, type ProgramDiscipline, type UserProgram, type UserProgramExercise, type UserProgramSession } from './userProgram';
 
 /** Where a program stands in the Programs list: only active ones compete for "next workout". */
 export type ProgramStatus = 'active' | 'paused' | 'archived';
@@ -133,6 +133,10 @@ export function groupProgress(program: UserProgram, groupId: string, recentWorko
   return { done: sessions.filter((session) => done.has(session.id)).length, total: sessions.length };
 }
 
+/** How intensity and reps vary across sessions or weeks (OG2 Ch. 10). */
+export type ProgressionMode = 'linear' | 'light_heavy' | 'dup';
+export const PROGRESSION_MODES: readonly ProgressionMode[] = ['linear', 'light_heavy', 'dup'];
+
 /** Rules that turn one week into the next. All optional; zero means "unchanged". */
 export interface ProgressionRule {
   /** Added to every rep/second target each week. */
@@ -145,9 +149,90 @@ export interface ProgressionRule {
   /** 1-based index of the generated week that is a deload (sets cut by `deloadSetCut`, 0..1), or null. */
   deloadWeek: number | null;
   deloadSetCut: number;
+  /** Added to every set count each week (OG2 Set Addition, e.g. 3×5 → 4×5 → 5×5); 0 or omitted = unchanged. */
+  setStep?: number;
+  /** Maximum sets when `setStep` is active; null or omitted = uncapped. */
+  setCap?: number | null;
+  /** Weekly progression mode: linear (default), light/heavy, or DUP (heavy/medium/light). */
+  mode?: ProgressionMode;
 }
 
-export const DEFAULT_PROGRESSION: ProgressionRule = { targetStep: 1, loadStep: 0, targetCap: null, resetTo: null, deloadWeek: null, deloadSetCut: 0.4 };
+export const DEFAULT_PROGRESSION: ProgressionRule = {
+  targetStep: 1,
+  loadStep: 0,
+  targetCap: null,
+  resetTo: null,
+  deloadWeek: null,
+  deloadSetCut: 0.4,
+  setStep: 0,
+  setCap: null,
+  mode: 'linear',
+};
+
+export type MesocyclePresetId = 'mesocycle6' | 'doubleProgression' | 'setAddition' | 'lightHeavy' | 'dup';
+
+export interface MesocyclePreset {
+  id: MesocyclePresetId;
+  weeks: number;
+  rule: ProgressionRule;
+}
+
+/** Ready-to-use OG2 mesocycle and progression templates for Generate Weeks. */
+export const OG2_MESOCYCLE_PRESETS: readonly MesocyclePreset[] = [
+  {
+    id: 'mesocycle6',
+    weeks: 6,
+    rule: { targetStep: 1, loadStep: 0, targetCap: null, resetTo: null, deloadWeek: 6, deloadSetCut: 0.5, setStep: 0, setCap: null, mode: 'linear' },
+  },
+  {
+    id: 'doubleProgression',
+    weeks: 6,
+    rule: { targetStep: 1, loadStep: 2.5, targetCap: 12, resetTo: 5, deloadWeek: 6, deloadSetCut: 0.5, setStep: 0, setCap: null, mode: 'linear' },
+  },
+  {
+    id: 'setAddition',
+    weeks: 4,
+    rule: { targetStep: 0, loadStep: 0, targetCap: null, resetTo: null, deloadWeek: 4, deloadSetCut: 0.5, setStep: 1, setCap: 5, mode: 'linear' },
+  },
+  {
+    id: 'lightHeavy',
+    weeks: 6,
+    rule: { targetStep: 1, loadStep: 0, targetCap: null, resetTo: null, deloadWeek: 6, deloadSetCut: 0.5, setStep: 0, setCap: null, mode: 'light_heavy' },
+  },
+  {
+    id: 'dup',
+    weeks: 6,
+    rule: { targetStep: 1, loadStep: 0, targetCap: null, resetTo: null, deloadWeek: 6, deloadSetCut: 0.5, setStep: 0, setCap: null, mode: 'dup' },
+  },
+];
+
+/** Applies Heavy / Medium / Light target & rest scaling for Light/Heavy (2 slots) or DUP (3 slots) to main-work exercises. */
+export function applyUndulatingSlot(
+  exercise: UserProgramExercise,
+  slot: number,
+  mode: Exclude<ProgressionMode, 'linear'>,
+): UserProgramExercise {
+  if (exercise.block === 'warmup' || exercise.block === 'mobility' || exercise.totalTarget != null || exercise.target === null) {
+    return exercise;
+  }
+  const base = exercise.target;
+  const slots = mode === 'light_heavy' ? 2 : 3;
+  const index = ((slot % slots) + slots) % slots;
+  // Slot 0 = heavy strength; DUP slot 1 = medium hypertrophy; last slot = light high-rep hypertrophy.
+  if (index === 0) {
+    const target = Math.max(3, Math.round(base * 0.7));
+    const restSeconds = exercise.restSeconds == null ? 180 : Math.max(exercise.restSeconds, 180);
+    return { ...exercise, target, restSeconds };
+  }
+  if (mode === 'dup' && index === 1) {
+    const restSeconds = exercise.restSeconds ?? 120;
+    return { ...exercise, restSeconds };
+  }
+  const target = Math.max(base + 2, Math.round(base * 1.4));
+  const lightRest = mode === 'dup' ? 90 : 120;
+  const restSeconds = exercise.restSeconds == null ? lightRest : Math.min(exercise.restSeconds, lightRest);
+  return { ...exercise, target, restSeconds };
+}
 
 /** The exercise one week later under `rule`. */
 export function progressExercise(exercise: UserProgramExercise, rule: ProgressionRule, deload: boolean, newId: () => string): UserProgramExercise {
@@ -160,8 +245,15 @@ export function progressExercise(exercise: UserProgramExercise, rule: Progressio
       if (rule.loadStep) loadKg = (loadKg ?? 0) + rule.loadStep;
     } else target = next;
   } else if (rule.loadStep && loadKg !== null && rule.targetCap === null) loadKg += rule.loadStep;
-  const sets = deload ? Math.max(1, Math.round(exercise.sets * (1 - rule.deloadSetCut))) : exercise.sets;
-  return { ...exercise, id: newId(), target, loadKg, sets };
+  let sets = exercise.sets;
+  if (deload) {
+    sets = Math.max(1, Math.round(exercise.sets * (1 - rule.deloadSetCut)));
+  } else if (rule.setStep && exercise.totalTarget == null) {
+    const bumped = exercise.sets + rule.setStep;
+    sets = rule.setCap != null ? Math.min(rule.setCap, bumped) : bumped;
+  }
+  const rpePerSet = exercise.rpePerSet ? fitRpePerSet(exercise.rpePerSet, sets) : exercise.rpePerSet;
+  return { ...exercise, id: newId(), target, loadKg, sets, ...(rpePerSet !== undefined ? { rpePerSet } : {}) };
 }
 
 /**
@@ -179,21 +271,33 @@ export function generateWeeks(
   const source = (program.groups ?? []).find((group) => group.id === sourceGroupId);
   if (!source) return { groups: [], sessions: [] };
   let previous = sessionsInGroup(program, sourceGroupId);
+  const mode = rule.mode ?? 'linear';
+  const slots = mode === 'light_heavy' ? 2 : mode === 'dup' ? 3 : 1;
   const groups: ProgramGroup[] = [];
   const sessions: UserProgramSession[] = [];
+  let trainingWeek = 0;
   for (let week = 1; week <= weeks; week += 1) {
     const group: ProgramGroup = { id: newId(), name: nameFor(week), kind: source.kind, parentId: source.parentId ?? null };
     const deload = rule.deloadWeek === week;
-    const made = previous.map((session) => ({
+    const stepRule: ProgressionRule = deload ? { ...rule, targetStep: 0, loadStep: 0, setStep: 0 } : rule;
+    const progressed = previous.map((session) => ({
       ...session,
       id: newId(),
       groupId: group.id,
-      exercises: session.exercises.map((exercise) => progressExercise(exercise, deload ? { ...rule, targetStep: 0, loadStep: 0 } : rule, deload, newId)),
+      exercises: session.exercises.map((exercise) => progressExercise(exercise, stepRule, deload, newId)),
     }));
-    // A deload is a dip: the week after it continues from the last full week, sets restored.
-    if (!deload) previous = made;
+    // Evolve the un-undulated baseline so Heavy/Light/DUP multipliers never compound across weeks.
+    if (!deload) previous = progressed;
+    const out = mode === 'linear' || deload
+      ? progressed
+      : progressed.map((session, sessionIndex) => {
+          // Undulate across sessions within a week when there are enough days, otherwise across weeks (WUP).
+          const slot = progressed.length >= slots ? sessionIndex : trainingWeek;
+          return { ...session, exercises: session.exercises.map((exercise) => applyUndulatingSlot(exercise, slot, mode)) };
+        });
+    if (!deload) trainingWeek += 1;
     groups.push(group);
-    sessions.push(...made);
+    sessions.push(...out);
   }
   return { groups, sessions };
 }

@@ -3,12 +3,13 @@ import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
 import { Text } from '../../src/shared/components/Text';
-import type { ProgressionTarget } from '../../src/domain/progression';
+import { formatNextStepScheme, type NextStepSuggestion, type ProgressionTarget } from '../../src/domain/progression';
 import { getProgressionChain } from '../../src/features/progressions/repository';
 import { Body, Card, Heading, IconButton, Label, PageHeading, Screen, Icon } from '../../src/shared/components/ui';
 import { useTheme } from '../../src/shared/theme/ThemeProvider';
 import { useScaledStyles } from '../../src/shared/theme/useScaledStyles';
 import { radii } from '../../src/shared/theme/tokens';
+import { formatNumber } from '../../src/shared/utils/format';
 
 type Chain = Awaited<ReturnType<typeof getProgressionChain>>;
 
@@ -36,8 +37,32 @@ export default function SkillScreen() {
     const metric = target.reps !== undefined
       ? `${target.reps} ${t('progression.reps')}`
       : `${target.durationSec ?? 0} ${t('progression.seconds')}`;
-    return `${target.sets} × ${metric}`;
+    return [
+      `${target.sets} × ${metric}`,
+      target.minForm !== undefined ? t('progression.gateForm', { value: formatNumber(target.minForm) }) : null,
+      target.maxRpe !== undefined ? t('progression.gateRpe', { value: formatNumber(target.maxRpe) }) : null,
+    ].filter(Boolean).join(' · ');
   };
+
+  const nextStepNote = (step: NextStepSuggestion | null, currentName: string): string | null => {
+    if (!step) return null;
+    switch (step.kind) {
+      case 'advance_hybrid':
+        return t('progression.hybridTip', { next: step.nextExerciseName, current: currentName });
+      case 'rep_addition':
+        return t('progression.nextRepAddition', { scheme: formatNextStepScheme(step.scheme, step.unit) });
+      case 'linear_bump':
+        return t('progression.nextLinearBump', { scheme: formatNextStepScheme(step.scheme, step.unit) });
+      case 'consolidate_form':
+        return t('progression.nextConsolidateForm', { value: formatNumber(step.avgForm) });
+      case 'consolidate_rpe':
+        return t('progression.nextConsolidateRpe', { value: formatNumber(step.avgRpe) });
+      case 'less_assistance':
+        return t('progression.nextLessAssistance');
+    }
+  };
+
+  const cue = chain.suggestion ? nextStepNote(chain.suggestion.nextStep, chain.suggestion.exerciseName) : null;
 
   return (
     <Screen>
@@ -65,6 +90,7 @@ export default function SkillScreen() {
           <Body>
             {t('progression.aimFor', { target: targetText(chain.suggestion.suggestedTarget) })}
           </Body>
+          {cue ? <Label>{cue}</Label> : null}
         </Card>
       )}
       <View style={styles.path}>

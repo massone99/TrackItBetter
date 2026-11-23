@@ -1,5 +1,5 @@
 import {
-  DEFAULT_PROGRESSION, duplicateGroup, filterPrograms, generateWeeks, groupTree, lowCategories, nextSession, parseQuickAdd,
+  DEFAULT_PROGRESSION, OG2_MESOCYCLE_PRESETS, duplicateGroup, filterPrograms, generateWeeks, groupTree, lowCategories, nextSession, parseQuickAdd,
   removeGroup, setsByCategory, type ProgramGroup,
 } from '../programStructure';
 import type { UserProgram, UserProgramExercise, UserProgramSession } from '../userProgram';
@@ -93,6 +93,45 @@ describe('generateWeeks', () => {
   });
   it('unknown source yields nothing', () => {
     expect(generateWeeks(base, 'nope', 2, DEFAULT_PROGRESSION, counter(), String)).toEqual({ groups: [], sessions: [] });
+  });
+  it('set addition adds sets up to setCap and skips deload', () => {
+    const start = prog([ses('s', 'w1', [ex('e1', { target: 5, sets: 3 })])], { layout: 'weeks', groups: [g('w1')] });
+    const r = generateWeeks(start, 'w1', 4, { ...DEFAULT_PROGRESSION, targetStep: 0, setStep: 1, setCap: 5, deloadWeek: 4, deloadSetCut: 0.5 }, counter(), String);
+    expect(r.sessions.map((s) => s.exercises[0].sets)).toEqual([4, 5, 5, 3]);
+  });
+  it('light_heavy alternates heavy/light sessions without compounding and leaves warmups untouched', () => {
+    const twoDay = prog([
+      ses('a', 'w1', [ex('w', { target: 10, sets: 2, block: 'warmup' }), ex('m1', { target: 10, sets: 3 })]),
+      ses('b', 'w1', [ex('m2', { target: 10, sets: 3 })]),
+    ], { layout: 'weeks', groups: [g('w1')] });
+    const r = generateWeeks(twoDay, 'w1', 2, { ...DEFAULT_PROGRESSION, targetStep: 1, mode: 'light_heavy' }, counter(), String);
+    // Week 1 baseline = 11 -> Heavy 8 (180s), Light 15 (120s); Week 2 baseline = 12 -> Heavy 8 (180s), Light 17 (120s).
+    const [w1a, w1b, w2a, w2b] = r.sessions;
+    expect(w1a.exercises[0].target).toBe(11); // warmup untouched by undulating multiplier
+    expect([w1a.exercises[1].target, w1a.exercises[1].restSeconds]).toEqual([8, 180]);
+    expect([w1b.exercises[0].target, w1b.exercises[0].restSeconds]).toEqual([15, 120]);
+    expect([w2a.exercises[1].target, w2b.exercises[0].target]).toEqual([8, 17]);
+  });
+  it('light_heavy alternates across weeks when the source group has a single session', () => {
+    const oneDay = prog([ses('a', 'w1', [ex('m1', { target: 10, sets: 3 })])], { layout: 'weeks', groups: [g('w1')] });
+    const r = generateWeeks(oneDay, 'w1', 2, { ...DEFAULT_PROGRESSION, targetStep: 0, mode: 'light_heavy' }, counter(), String);
+    expect(r.sessions.map((s) => [s.exercises[0].target, s.exercises[0].restSeconds])).toEqual([[7, 180], [14, 120]]);
+  });
+  it('dup cycles heavy, medium and light across three sessions with matching rest defaults', () => {
+    const threeDay = prog([
+      ses('a', 'w1', [ex('m1', { target: 10, sets: 3 })]),
+      ses('b', 'w1', [ex('m2', { target: 10, sets: 3 })]),
+      ses('c', 'w1', [ex('m3', { target: 10, sets: 3 })]),
+    ], { layout: 'weeks', groups: [g('w1')] });
+    const r = generateWeeks(threeDay, 'w1', 1, { ...DEFAULT_PROGRESSION, targetStep: 0, mode: 'dup' }, counter(), String);
+    expect(r.sessions.map((s) => [s.exercises[0].target, s.exercises[0].restSeconds])).toEqual([[7, 180], [10, 120], [14, 90]]);
+  });
+  it('exposes valid OG2 mesocycle presets', () => {
+    expect(OG2_MESOCYCLE_PRESETS.map((p) => p.id)).toEqual(['mesocycle6', 'doubleProgression', 'setAddition', 'lightHeavy', 'dup']);
+    for (const preset of OG2_MESOCYCLE_PRESETS) {
+      const r = generateWeeks(base, 'w1', preset.weeks, preset.rule, counter(), String);
+      expect(r.groups).toHaveLength(preset.weeks);
+    }
   });
 });
 
