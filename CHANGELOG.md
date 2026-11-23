@@ -2,6 +2,12 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.80.0 - 2026-11-23
+
+- Per-exercise progression rules: configure how any individual exercise progresses across 21 methods (intra-exercise: linear load, linear reps/holds, repetition addition, last set to failure, additional set, rest-pause, density, tempo change, frequency/GTG; inter-exercise: weight bridge, band assistance step-down, eccentric clusters, momentum/extra ROM, exercise modification, extra sets + density, hybrid sets, simple hybrid sets; periodization: accumulation/intensification, Light/Heavy, DUP, concurrent/conjugate) or leave on Automatic.
+- Each rule exposes only its relevant parameters (load step, rep/second step, last-set margin, max sets, rest cut and minimum rest, rest-pause interval, eccentric duration, hybrid opening reps), plus optional minimum form, maximum RPE gates, and a personal cue—saved in local settings and included in JSON backups.
+- Accessible from the exercise page and from the exercise menu during a workout, driving the "Next step" cue inside the foldable "Vs last time" strip.
+
 ## 0.79.0 - 2026-11-23
 
 - Estimator: shows the active Repetition & Isometric Continuum adaptation zone, ATP rest range, rep↔hold equivalence (1 rep ≈ 2 s), and—in hold mode—the isometric Prilepin (60–75% max) and 60-second (50% max) prescriptions.

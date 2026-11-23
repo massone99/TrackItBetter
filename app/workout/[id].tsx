@@ -18,6 +18,10 @@ import { getSessionRecords } from '../../src/features/analytics/repository';
 import type { RecordKind, SameLoadRecord, VolumeRecord } from '../../src/features/analytics/records';
 import { ExerciseCompareField } from '../../src/features/session/ExerciseCompareField';
 import { SwitchSection } from '../../src/features/progressions/SwitchSection';
+import { ProgressionRuleSheet } from '../../src/features/progressions/ProgressionRuleSheet';
+import { getAllExerciseRules, saveExerciseRule, type ExerciseRuleMap } from '../../src/features/progressions/exerciseRules';
+import { ruleSummary } from '../../src/features/progressions/ruleText';
+import { DEFAULT_EXERCISE_RULE } from '../../src/domain/progressionMethods';
 import { ExerciseAveragesField } from '../../src/features/session/ExerciseAveragesField';
 import { ExerciseRestFields } from '../../src/features/session/ExerciseRestFields';
 import {
@@ -146,6 +150,8 @@ export default function WorkoutScreen() {
   const sections = useMemo(() => workout ? workoutSections(workout.exercises, workout.groupLayout) : [], [workout]);
   const groups = useOverviewGroups(sections, workout?.groupLayout);
   const [previous, setPrevious] = useState<Map<string, PreviousPerformance>>(new Map());
+  const [exerciseRules, setExerciseRules] = useState<ExerciseRuleMap>(() => new Map());
+  const [ruleFor, setRuleFor] = useState<SessionExercise | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadFailed, setLoadFailed] = useState(false);
   const [loadAttempt, setLoadAttempt] = useState(0);
@@ -275,13 +281,15 @@ export default function WorkoutScreen() {
     // "Last time" only changes when the exercises change, so it is not re-read after every set.
     const exerciseKey = `${next.id}:${next.exercises.map((exercise) => `${exercise.exerciseId}@${exercise.apparatusId ?? ''}${exercise.compareWorkoutId ? `#${exercise.compareWorkoutId}` : ''}`).join(',')}`;
     const apparatusOf = new Map(next.exercises.map((exercise) => [exercise.exerciseId, exercise.apparatusId ?? null] as const));
-    const [previousPerformance, found, timeGoals] = await Promise.all([
+    const [previousPerformance, found, timeGoals, rules] = await Promise.all([
       previousKey.current === exerciseKey ? null : getPreviousPerformance(next.exercises.map((exercise) => exercise.exerciseId), next.id, apparatusOf),
       getSessionRecords(next.id).catch(() => null),
       // Time goals on these exercises move with every set done, so they are read each time.
       getExerciseGoals(next.exercises.map((exercise) => exercise.exerciseId)).catch(() => new Map<string, ExerciseGoalProgress>()),
+      getAllExerciseRules().catch(() => new Map()),
     ]);
     setExerciseGoals(timeGoals);
+    setExerciseRules(rules);
     if (previousPerformance) { previousKey.current = exerciseKey; setPrevious(previousPerformance); }
     if (!found) return;
     const bySet = new Map<string, RecordKind[]>();
@@ -918,6 +926,7 @@ export default function WorkoutScreen() {
         compareBands={compareBands}
         renderBandsEditor={(set) => <SetBandsField key={set.id} exercise={exercise} set={set} onChanged={() => refresh(workout.id)} />}
         onRpe={(set, rpe) => void rateSet(set, rpe)}
+        progressionRule={exerciseRules.get(exercise.exerciseId) ?? null}
         onOptions={() => setOptionsFor(exercise)}
           />
     );
@@ -1294,6 +1303,7 @@ export default function WorkoutScreen() {
               </MenuGrid>
               <MenuList>
                 <MenuRow label={t('logger.restGroup')} value={t('simple.restValue', { working: readExerciseRest(optionsFor.exerciseId, 'working'), warmup: readExerciseRest(optionsFor.exerciseId, 'warmup') })} chevron onPress={() => setOptionsView('rest')} />
+                <MenuRow label={t('progRules.rowTitle')} value={ruleSummary(exerciseRules.get(optionsFor.exerciseId), optionsFor.metric, t)} chevron onPress={() => { const target = optionsFor; setOptionsFor(null); setRuleFor(target); }} />
                 <MenuRow label={t('logger.noteLabel')} value={optionsFor.notes ? optionsFor.notes : t('simple.add')} chevron onPress={() => { setOptionsFor(null); openExerciseNote(optionsFor); }} />
                 {catalog && (optionsFor.apparatusIds?.length ?? 0) > 0 ? <MenuRow label={t('equipment.apparatusInWorkout')} value={apparatusName(catalog.apparatus.find((item) => item.id === optionsFor.apparatusId), t)} chevron onPress={() => setOptionsView('setup')} /> : null}
                 <MenuRow label={t('simple.moveGroup')} value={groups.find((group) => group.exercises.some((entry) => entry.entryId === optionsFor.entryId))?.name} chevron onPress={() => setOptionsView('setup')} />
@@ -1378,6 +1388,23 @@ export default function WorkoutScreen() {
           if (target) void setEntryTotalTarget(target.entryId, value).then(() => refresh(workout.id));
         }}
       />
+
+      {ruleFor ? (
+        <ProgressionRuleSheet
+          key={`workout-rule-${ruleFor.exerciseId}-${exerciseRules.get(ruleFor.exerciseId)?.method ?? 'auto'}`}
+          visible
+          exerciseName={ruleFor.name}
+          metric={ruleFor.metric}
+          initialRule={exerciseRules.get(ruleFor.exerciseId) ?? DEFAULT_EXERCISE_RULE}
+          onSave={async (next) => {
+            const target = ruleFor;
+            await saveExerciseRule(target.exerciseId, next);
+            setExerciseRules(await getAllExerciseRules());
+            setLoadNotice(t('progRules.saved'));
+          }}
+          onClose={() => setRuleFor(null)}
+        />
+      ) : null}
 
       <Sheet
         visible={clearAllOpen}

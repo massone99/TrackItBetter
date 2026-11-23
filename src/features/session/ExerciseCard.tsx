@@ -6,7 +6,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { compareWithLast } from '../../domain/lastTime';
 import { formatRpe } from '../../domain/rpe';
 import { aggregatePairs, completedSetCount, groupSets } from '../../domain/setPairs';
-import { suggestNextStep } from '../../domain/progression';
+import { evaluateExerciseRule, type ExerciseProgressionRule } from '../../domain/progressionMethods';
 import type { RecordKind, SameLoadRecord, VolumeRecord } from '../analytics/records';
 import { openExercisePage } from '../exercises/openExercise';
 import { openReferenceVideo } from '../exercises/ReferenceLinkSheet';
@@ -53,7 +53,7 @@ const BANDS_FOLDED_KEY = 'workout.bandsFolded';
 const ADD_SLOP = { top: spacing.sm, bottom: spacing.sm, left: spacing.sm, right: 0 };
 const ADD_MORE_SLOP = { top: spacing.sm, bottom: spacing.sm, left: 0, right: spacing.md };
 
-export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, previous, hold = null, onChange, onSetValue, onComplete, onStartHold, onFinishHold, onAddSet, onAddCopies, showRatings = readBooleanPreference(SET_RATINGS_KEY, true), onAddWarmup, onCopyAllLast, onSetOptions, onUncomplete, onRemoveSet, onSwiped, showRpe, onRpe, onOptions, onToggleWarmup, setRecords = NO_RECORDS, volumeRecords = [], sameLoadRecords = [], onEntryNote, timeGoals = null, supersetLabel = null, emomLabel: emomBadgeLabel, defaultRest = 0, onFormRating, onRomRating, onNote, focus = false, nowLabel = null, figure = null, editDone = false, typeDone = false, compare = true, apparatusLabel = null, firstTimeLabel, describeBands, compareBands, renderBandsEditor, fixedAction = false, onSetExpanded, liveLayout, onOpenExerciseNote, wrapSetEditor, exerciseNavigation, footerAction = false }: {
+export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, previous, hold = null, onChange, onSetValue, onComplete, onStartHold, onFinishHold, onAddSet, onAddCopies, showRatings = readBooleanPreference(SET_RATINGS_KEY, true), onAddWarmup, onCopyAllLast, onSetOptions, onUncomplete, onRemoveSet, onSwiped, showRpe, onRpe, onOptions, onToggleWarmup, setRecords = NO_RECORDS, volumeRecords = [], sameLoadRecords = [], onEntryNote, timeGoals = null, supersetLabel = null, emomLabel: emomBadgeLabel, defaultRest = 0, onFormRating, onRomRating, onNote, focus = false, nowLabel = null, figure = null, editDone = false, typeDone = false, compare = true, apparatusLabel = null, firstTimeLabel, describeBands, compareBands, renderBandsEditor, fixedAction = false, onSetExpanded, liveLayout, onOpenExerciseNote, wrapSetEditor, exerciseNavigation, footerAction = false, progressionRule = null }: {
   /** One-at-a-time mode: the screen's footer logs the set to do, so the editor drops its own button. */
   footerAction?: boolean;
   handle?: ReactNode;
@@ -131,6 +131,8 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
   renderBandsEditor?: (set: SessionSet) => ReactNode;
   /** Compares two sets' bands by the strength order, for the assistance comparison without kg. */
   compareBands?: (a: readonly SetBand[], b: readonly SetBand[]) => -1 | 0 | 1 | null;
+  /** Optional per-exercise progression rule driving the next-step cue inside "Vs last time". */
+  progressionRule?: ExerciseProgressionRule | null;
 }) {
   const styles = useScaledStyles(baseStyles);
   const { width: windowWidth } = useWindowDimensions();
@@ -175,14 +177,16 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
   const previousText = previous ? describePrevious(previous.sets, exercise.metric) : null;
   const comparison = compareWithLast(exercise.sets, previous?.sets ?? null, exercise.metric, { defaultRest, compareBands });
   const nextStep = previous
-    ? suggestNextStep({
+    ? evaluateExerciseRule(progressionRule, {
         metric: exercise.metric,
+        defaultRestSec: defaultRest > 0 ? defaultRest : undefined,
         sets: aggregatePairs(previous.sets.map((set) => ({ ...set, side: set.side ?? undefined }))).map((set) => ({
           reps: set.reps ?? undefined,
           durationSec: set.durationSec ?? undefined,
           addedLoadKg: set.addedLoadKg ?? 0,
           formRating: set.formRating ?? null,
           rpe: set.rpe ?? null,
+          restSec: set.restSec ?? null,
           assisted: (set.bands?.length ?? 0) > 0,
         })),
       })

@@ -8,3 +8,4 @@ export * from './rpe';
 export * from './mobilityPlan';
 export * from './strengthEstimates';
 export * from './og2Frameworks';
+export * from './progressionMethods';

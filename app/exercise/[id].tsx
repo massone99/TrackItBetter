@@ -279,7 +279,7 @@ export default function ExerciseRoute() {
 
       {exercise.metric === 'time' || exercise.metric === 'time_load' ? <ExerciseGoalsSection key={`goals-${exercise.id}`} exerciseId={exercise.id} exerciseName={exercise.name} /> : null}
 
-      <ExerciseProgressionsSection key={`progressions-${exercise.id}`} exerciseId={exercise.id} exerciseName={exercise.name} />
+      <ExerciseProgressionsSection key={`progressions-${exercise.id}`} exerciseId={exercise.id} exerciseName={exercise.name} metric={exercise.metric} />
 
       {lateral ? <View style={styles.section}>
         <SectionTitle title={scopeTitle} />

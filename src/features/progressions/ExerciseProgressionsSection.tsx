@@ -13,6 +13,10 @@ import {
 } from './chains';
 import { graphProblemText } from './CriteriaEditor';
 import { LinkSheet } from './LinkSheet';
+import { ProgressionRuleSheet } from './ProgressionRuleSheet';
+import { getExerciseRule, saveExerciseRule } from './exerciseRules';
+import { ruleSummary } from './ruleText';
+import { DEFAULT_EXERCISE_RULE, type ExerciseProgressionRule } from '../../domain/progressionMethods';
 import { radii } from '../../shared/theme/tokens';
 
 type Line = { id: string; depth: number; also: string[] };
@@ -21,7 +25,7 @@ type Line = { id: string; depth: number; also: string[] };
  * The progressions of an exercise on its page: the easier exercises above it and the harder ones below
  * (all chains and relations, or one chain), the side relations, and the actions to add, edit and remove them.
  */
-export function ExerciseProgressionsSection({ exerciseId, exerciseName }: { exerciseId: string; exerciseName: string }) {
+export function ExerciseProgressionsSection({ exerciseId, exerciseName, metric = 'reps' }: { exerciseId: string; exerciseName: string; metric?: string }) {
   const styles = useScaledStyles(baseStyles);
   const { t } = useTranslation();
   const { palette } = useTheme();
@@ -33,10 +37,14 @@ export function ExerciseProgressionsSection({ exerciseId, exerciseName }: { exer
   const [addingToChain, setAddingToChain] = useState<ChainView[] | null>(null);
   const [removed, setRemoved] = useState<Awaited<ReturnType<typeof deleteLink>>>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [rule, setRule] = useState<ExerciseProgressionRule>(DEFAULT_EXERCISE_RULE);
+  const [ruleOpen, setRuleOpen] = useState(false);
 
   const load = useCallback(async () => {
     try {
-      setData(await getExerciseProgressions(exerciseId));
+      const [next, nextRule] = await Promise.all([getExerciseProgressions(exerciseId), getExerciseRule(exerciseId)]);
+      setData(next);
+      setRule(nextRule);
       setFailed(false);
     } catch {
       setFailed(true);
@@ -44,7 +52,10 @@ export function ExerciseProgressionsSection({ exerciseId, exerciseName }: { exer
   }, [exerciseId]);
   useEffect(() => {
     let alive = true;
-    getExerciseProgressions(exerciseId).then((next) => { if (alive) setData(next); }, () => { if (alive) setFailed(true); });
+    Promise.all([getExerciseProgressions(exerciseId), getExerciseRule(exerciseId)]).then(
+      ([next, nextRule]) => { if (alive) { setData(next); setRule(nextRule); } },
+      () => { if (alive) setFailed(true); },
+    );
     return () => { alive = false; };
   }, [exerciseId]);
   useEffect(() => {
@@ -125,6 +136,15 @@ export function ExerciseProgressionsSection({ exerciseId, exerciseName }: { exer
   return (
     <View style={styles.section}>
       <SectionTitle title={t('chains.sectionTitle')} action={<IconButton icon="git-network-outline" label={t('chains.allTitle')} onPress={() => router.push('/progressions')} />} />
+      <ListGroup>
+        <ListRow
+          icon="trending-up-outline"
+          title={t('progRules.rowTitle')}
+          value={ruleSummary(rule, metric, t)}
+          subtitle={rule.note ?? undefined}
+          onPress={() => setRuleOpen(true)}
+        />
+      </ListGroup>
       {data.chains.length > 0 ? (
         <View style={styles.chips}>
           <Chip label={t('chains.filterAll')} selected={filter === null} onPress={() => setFilter(null)} />
@@ -209,6 +229,21 @@ export function ExerciseProgressionsSection({ exerciseId, exerciseName }: { exer
           ))}
         </ListGroup>
       </Sheet>
+      {ruleOpen ? (
+        <ProgressionRuleSheet
+          key={`rule-${exerciseId}-${rule.method}`}
+          visible
+          exerciseName={exerciseName}
+          metric={metric}
+          initialRule={rule}
+          onSave={async (next) => {
+            const saved = await saveExerciseRule(exerciseId, next);
+            setRule(saved);
+            setMessage(t('progRules.saved'));
+          }}
+          onClose={() => setRuleOpen(false)}
+        />
+      ) : null}
     </View>
   );
 }
