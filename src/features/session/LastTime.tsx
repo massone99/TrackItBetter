@@ -112,12 +112,12 @@ export function LastTimeStrip({ comparison, metric, date, detail, nextStep }: {
         </Label>
       ) : null}
       {assistUnknown ? <Label style={styles.detail}>{t('lastTime.assistUnknown')}</Label> : null}
+      {open ? <Label style={styles.detail}>{detail}</Label> : null}
       {formattedStep ? (
         <Label style={[styles.detail, { color: formattedStep.tone === 'warning' ? palette.warning : palette.accentStrong }]}>
           {formattedStep.text}
         </Label>
       ) : null}
-      {open ? <Label style={styles.detail}>{detail}</Label> : null}
         </>
       ) : null}
     </View>

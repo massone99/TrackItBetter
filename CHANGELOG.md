@@ -2,6 +2,12 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.82.2 - 2026-11-25
+
+- The workout shows the next-step recommendation directly below the previous workout summary, above the sets.
+- Since 0.82.0, narrated workouts let you edit each set’s reps or hold duration. Timed rep blocks start each rest after you tap Done.
+- The previous workout summary groups consecutive rep sets in a compact sets × reps format.
+
 ## 0.82.1 - 2026-11-25
 
 - Edit the reps or hold duration of a set during narrated workouts. Timed rep blocks start each rest after you tap Done.

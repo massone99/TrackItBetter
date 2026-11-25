@@ -7,6 +7,7 @@ import { compareWithLast } from '../../domain/lastTime';
 import { formatRpe } from '../../domain/rpe';
 import { aggregatePairs, completedSetCount, groupSets } from '../../domain/setPairs';
 import { evaluateExerciseRule, type ExerciseProgressionRule } from '../../domain/progressionMethods';
+import { formatRuleSuggestion } from '../progressions/ruleText';
 import type { RecordKind, SameLoadRecord, VolumeRecord } from '../analytics/records';
 import { openExercisePage } from '../exercises/openExercise';
 import { openReferenceVideo } from '../exercises/ReferenceLinkSheet';
@@ -1179,7 +1180,7 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
           metric={exercise.metric}
           date={previous.workoutStartedAt.toLocaleDateString(i18n.language, { weekday: 'short', day: 'numeric', month: 'short' })}
           detail={previousText ?? ''}
-          nextStep={nextStep}
+          nextStep={liveLayout === 'standalone' ? null : nextStep}
         />
       ) : null}
 
@@ -1233,6 +1234,7 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
     if (standalone) {
       // One card: name and target, last time, then every set with the one in hand open in its place.
       const progression = editor ? progressionLabelFor(editor, editorNumber) : null;
+      const formattedStep = formatRuleSuggestion(nextStep, t);
       const firstWorking = exercise.sets.find((item) => item.kind === 'working');
       const unilateral = exercise.sets.some((item) => item.side === 'left' || item.side === 'right');
       const target = firstWorking ? (timed ? formatClock(firstWorking.durationSec ?? 0) : distance ? `${formatNumber(firstWorking.distanceM ?? 0)} m` : t('simple.repsValue', { count: firstWorking.reps ?? 0 })) : null;
@@ -1262,6 +1264,11 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
                 </Pressable> : null}
               </View>
               {previousText ? <Text style={[styles.liveLastValue, { color: palette.text }]}>{previousText}</Text> : null}
+              {formattedStep ? (
+                <Text style={[styles.liveLastProgression, { color: formattedStep.tone === 'warning' ? palette.warning : palette.accentStrong }]}>
+                  {formattedStep.text}
+                </Text>
+              ) : null}
               {progression ? <Text style={[styles.liveLastProgression, { color: palette.accentStrong }]}>{progression}</Text> : null}
             </View>
           ) : null}
