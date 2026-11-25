@@ -174,7 +174,7 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
     return set.addedLoadKg !== 0 ? `${label} ${formatLoad(set.addedLoadKg)}` : label;
   }).join(' · ');
   const results = doneValues && !timed && !distance ? t('logger.resultsReps', { values: doneValues }) : doneValues;
-  const previousText = previous ? describePrevious(previous.sets, exercise.metric) : null;
+  const previousText = previous ? describePrevious(previous.sets, exercise.metric, liveLayout === 'standalone') : null;
   const comparison = compareWithLast(exercise.sets, previous?.sets ?? null, exercise.metric, { defaultRest, compareBands });
   const previousWorkingGroups = groupSets(previous?.sets ?? []);
   const previousRuleSets = previousWorkingGroups.flatMap((group, index) =>
@@ -1254,12 +1254,14 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
             <IconButton icon="ellipsis-horizontal" label={t('simple.exerciseMenu', { name: exercise.name })} tone="plain" onPress={onOptions} />
           </View>
           {compare ? (
-            <View style={[styles.liveLast, textIsLarge && styles.liveLastStacked, { backgroundColor: palette.background }]}>
-              <Label style={styles.liveLastLabel}>{previous ? t('simple.lastLabel', { date: previous.workoutStartedAt.toLocaleDateString(i18n.language, { month: 'short', day: 'numeric' }) }) : t('simple.firstTime')}</Label>
-              <Text style={[styles.liveLastValue, { color: palette.text }]}>{previousText ?? firstTimeLabel ?? ''}</Text>
-              {onCopyAllLast ? <Pressable accessibilityRole="button" accessibilityLabel={t('logger.copyAllPrevious')} onPress={() => { tapFeedback(); onCopyAllLast(); }} style={styles.liveCopy}>
-                <Text style={[styles.liveCopyText, { color: palette.accentStrong }]}>{t('simple.copy')}</Text>
-              </Pressable> : null}
+            <View style={[styles.liveLast, { backgroundColor: palette.background }]}>
+              <View style={styles.liveLastHeader}>
+                <Label style={styles.liveLastLabel}>{previous ? t('simple.lastLabel', { date: previous.workoutStartedAt.toLocaleDateString(i18n.language, { month: 'short', day: 'numeric' }) }) : firstTimeLabel ?? t('simple.firstTime')}</Label>
+                {onCopyAllLast ? <Pressable accessibilityRole="button" accessibilityLabel={t('logger.copyAllPrevious')} onPress={() => { tapFeedback(); onCopyAllLast(); }} style={styles.liveCopy}>
+                  <Text style={[styles.liveCopyText, { color: palette.accentStrong }]}>{t('simple.copy')}</Text>
+                </Pressable> : null}
+              </View>
+              {previousText ? <Text style={[styles.liveLastValue, { color: palette.text }]}>{previousText}</Text> : null}
             </View>
           ) : null}
           {exercise.sets.map((set) => (
@@ -1429,14 +1431,30 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
 }
 
 /** Last time's sets for the header; L/R pairs are listed per side instead of interleaved. */
-export function describePrevious(sets: PreviousPerformance['sets'], metric: string): string {
-  const sided = sets.some((set) => set.side === 'left' || set.side === 'right');
-  if (!sided) return sets.map((set) => describePreviousSet(set, metric)).join(' · ');
-  const side = (which: 'left' | 'right', letter: string) => {
-    const values = sets.filter((set) => set.side === which).map((set) => describePreviousSet(set, metric));
-    return values.length ? `${letter} ${values.join(' · ')}` : null;
+export function describePrevious(sets: PreviousPerformance['sets'], metric: string, compact = false): string {
+  const summarize = (rows: PreviousPerformance['sets']) => {
+    const runs: { value: string; count: number }[] = [];
+    for (const set of rows) {
+      const value = compact && (metric === 'reps' || metric === 'reps_load')
+        ? String(set.reps ?? 0)
+        : describePreviousSet(set, metric);
+      const last = runs.at(-1);
+      if (last?.value === value) last.count += 1;
+      else runs.push({ value, count: 1 });
+    }
+    return runs.map(({ value, count }) => {
+      if (compact) return `${count}×${value}`;
+      return count > 1 ? `${count} × ${value}` : value;
+    }).join(compact ? ', ' : ' · ');
   };
-  return [side('left', 'L'), side('right', 'R')].filter(Boolean).join('  |  ');
+  const sided = sets.some((set) => set.side === 'left' || set.side === 'right');
+  if (!sided) return summarize(sets);
+  const side = (which: 'left' | 'right', letter: string) => {
+    const values = summarize(sets.filter((set) => set.side === which));
+    return values ? `${letter} ${values}` : null;
+  };
+  const unassigned = summarize(sets.filter((set) => set.side !== 'left' && set.side !== 'right'));
+  return [side('left', 'L'), side('right', 'R'), unassigned].filter(Boolean).join('  |  ');
 }
 
 
@@ -1489,10 +1507,10 @@ const baseStyles = StyleSheet.create({
   liveCard: { gap: spacing.md },
   liveHead: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.md, paddingHorizontal: spacing.lg, paddingVertical: spacing.md },
   liveTarget: { fontFamily: fonts.body, fontSize: 14, lineHeight: 20, marginTop: 4 },
-  liveLast: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginHorizontal: spacing.lg, marginBottom: spacing.md, paddingHorizontal: spacing.md, paddingVertical: spacing.sm, borderRadius: radii.control, minHeight: 48 },
-  liveLastLabel: { flexShrink: 0 },
-  liveLastStacked: { flexDirection: 'column', alignItems: 'flex-start' },
-  liveLastValue: { flex: 1, minWidth: 0, fontFamily: fonts.monoSemibold, fontSize: 14 },
+  liveLast: { gap: spacing.xs, marginHorizontal: spacing.lg, marginBottom: spacing.md, paddingHorizontal: spacing.md, paddingVertical: spacing.sm, borderRadius: radii.control, minHeight: 48 },
+  liveLastHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', columnGap: spacing.sm },
+  liveLastLabel: { flexShrink: 1 },
+  liveLastValue: { fontFamily: fonts.body, fontSize: 15, lineHeight: 22 },
   liveCopy: { minHeight: 48, justifyContent: 'center', paddingHorizontal: 12 },
   liveCopyText: { fontFamily: fonts.monoSemibold, fontSize: 12, letterSpacing: 0.7, textTransform: 'uppercase' },
   liveAddRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingHorizontal: spacing.sm, paddingVertical: spacing.xs, borderTopWidth: 1 },
