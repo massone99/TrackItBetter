@@ -136,7 +136,7 @@ export default function StatsScreen() {
         {dimension === 'tag' && stats.items.length > 0 ? <Body>{t('exerciseGrouping.statsHint')}</Body> : null}
         {stats.items.length === 0 ? <Body>{mainScope === 'mobility' ? t('trainingStats.emptyMobility') : mainScope === 'strength' ? t('trainingStats.emptyStrength') : t('trainingStats.empty')}</Body> : <Paged items={stats.items} pageSize={20} resetKey={`${dimension}:${mainScope}`}>{(shownItems) => shownItems.map((item, index) => <Pressable key={item.id} accessible={false} accessibilityRole="none" onLongPress={dimension === 'exercise' && item.id !== OTHER_ID ? () => openExercisePage(item.id) : undefined} style={[styles.row, index > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: palette.border }]}>
           <View style={styles.rowHead}>
-            <Text numberOfLines={1} style={[styles.rowName, { color: palette.text }]}>{itemName(item.id, item.name)}</Text>
+            <Text style={[styles.rowName, { color: palette.text }]}>{itemName(item.id, item.name)}</Text>
             <Text style={[styles.rowValue, { color: palette.text }]}>{mainScope === 'mobility' && item.metrics.holdSeconds > 0 ? formatDuration(item.metrics.holdSeconds) : item.metrics.sets}</Text>
           </View>
           <View style={[styles.rowBar, { width: `${Math.max(3, (item.metrics.sets / maxSets) * 100)}%`, backgroundColor: palette.accentSoft }]} />

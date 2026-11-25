@@ -62,7 +62,7 @@ export function WorkoutExerciseRow({ exercise, next, marker, expanded, onPress, 
   onLongPress?: () => void;
 }) {
   const { t } = useTranslation();
-  const { palette, mode } = useTheme();
+  const { palette } = useTheme();
   const styles = useScaledStyles(baseStyles);
   const sets = groupSets(exercise.sets);
   const done = completedSetCount(exercise.sets);
@@ -88,7 +88,7 @@ export function WorkoutExerciseRow({ exercise, next, marker, expanded, onPress, 
       onAccessibilityAction={onLongPress ? (event) => { if (event.nativeEvent.actionName === 'longpress') onLongPress(); } : undefined}
       delayLongPress={350}
       onPress={() => { tapFeedback(); onPress(); }}
-      style={({ pressed }) => [styles.exercise, { borderColor: palette.border, backgroundColor: next ? mode === 'light' ? '#e8ebfb' : palette.accentSoft : palette.surface }, pressed && { opacity: 0.72 }]}>
+      style={({ pressed }) => [styles.exercise, { borderColor: palette.border, backgroundColor: next ? palette.nextExercise : palette.surface }, pressed && { opacity: 0.72 }]}>
       {marker ? <Text style={[styles.smallMono, { color: palette.textMuted }]}>{marker}</Text> : null}
       <View style={styles.flex}>
         <Text style={styles.exerciseName}>{exercise.name}</Text>
@@ -323,7 +323,7 @@ const baseStyles = StyleSheet.create({
   newGroup: { marginLeft: 'auto' },
   button: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, minHeight: 48, borderWidth: 1, borderRadius: 4, paddingHorizontal: 8, paddingVertical: 6 },
   grow: { flexGrow: 1, flexShrink: 1 },
-  buttonText: { fontFamily: fonts.semibold, fontSize: 11, flexShrink: 1 },
+  buttonText: { fontFamily: fonts.semibold, fontSize: 12, flexShrink: 1 },
   footerButtonText: { fontSize: 14 },
   group: { gap: spacing.sm },
   nested: { gap: spacing.sm, padding: spacing.sm, borderWidth: 1, borderRadius: 4, overflow: 'hidden' },
@@ -340,12 +340,12 @@ const baseStyles = StyleSheet.create({
   exerciseName: { fontFamily: fonts.semibold, fontSize: 15, lineHeight: 19 },
   exerciseProgress: { alignItems: 'flex-end', gap: 3 },
   exerciseCount: { fontFamily: fonts.monoSemibold, fontSize: 13 },
-  smallMono: { fontFamily: fonts.mono, fontSize: 11 },
+  smallMono: { fontFamily: fonts.mono, fontSize: 12 },
   ticks: { flexDirection: 'row', gap: 2 },
   tick: { width: 8, height: 3 },
   hint: { fontSize: 12, lineHeight: 16 },
   noteLine: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 4 },
-  notePreview: { flex: 1, fontSize: 11 },
+  notePreview: { flex: 1, fontSize: 12 },
   formLabel: { fontFamily: fonts.semibold, fontSize: 14 },
   checkboxRow: { flexDirection: 'row', alignItems: 'center', gap: 11, borderTopWidth: 1, minHeight: 48, paddingHorizontal: 4, paddingVertical: 5 },
   checkbox: { width: 18, height: 18, borderWidth: 1, borderRadius: 3, alignItems: 'center', justifyContent: 'center' },

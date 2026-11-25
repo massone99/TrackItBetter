@@ -1,6 +1,7 @@
 import { Paged } from '../src/shared/components/paging';
 import * as ImagePicker from 'expo-image-picker';
 import { isPickerUnavailableError } from '../src/shared/media/pickerErrors';
+import { alertPermissionDenied } from '../src/shared/media/permissionDenied';
 import { useFocusEffect } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -49,7 +50,7 @@ export default function ProgressPhotosScreen() {
         ? await ImagePicker.requestCameraPermissionsAsync()
         : await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (!permission.granted) {
-        Alert.alert(t('photos.permissionTitle'), t('photos.permissionBody'));
+        alertPermissionDenied(t, t('photos.permissionTitle'), t('photos.permissionBody'), permission);
         return;
       }
       const result = source === 'camera'

@@ -320,7 +320,7 @@ const baseStyles = StyleSheet.create({
   legsNudge: { marginTop: 8, fontSize: 13, lineHeight: 19 },
   bestRow: { borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 10, gap: 7 },
   bestShareCard: { padding: 14, borderRadius: radii.control, gap: 4 },
-  bestBrand: { fontSize: 11, fontWeight: '900', letterSpacing: 1 },
+  bestBrand: { fontSize: 12, fontWeight: '900', letterSpacing: 1 },
   shareControl: { gap: 4 },
   shareBestButton: { minHeight: 48, borderRadius: radii.control, alignItems: 'center', justifyContent: 'center' },
   trendCard: { borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 12, paddingBottom: 8, gap: 8 },

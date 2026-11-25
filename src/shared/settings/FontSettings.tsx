@@ -92,5 +92,5 @@ const baseStyles = StyleSheet.create({
   role: { gap: spacing.sm, marginTop: spacing.sm },
   tiles: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   tile: { flexGrow: 1, flexBasis: 96, minHeight: MIN_TOUCH_TARGET + spacing.lg, borderWidth: instrument.line, borderRadius: radii.control, paddingHorizontal: spacing.md, paddingVertical: spacing.sm, justifyContent: 'center', gap: spacing.xs },
-  tileName: { fontSize: 12, lineHeight: 16, textTransform: 'uppercase', letterSpacing: 1 },
+  tileName: { fontSize: 12, lineHeight: 16, textTransform: 'uppercase', letterSpacing: 0.5 },
 });

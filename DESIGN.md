@@ -43,17 +43,17 @@ colors:
 typography:
   title:
     fontFamily: IBMPlexSansCondensed_700Bold
-    fontSize: "36px"
-    lineHeight: "40px"
-    letterSpacing: "-0.4px"
+    fontSize: "28px"
+    lineHeight: "32px"
+    letterSpacing: "-0.3px"
   section:
     fontFamily: IBMPlexSansCondensed_600SemiBold
-    fontSize: "23px"
-    lineHeight: "28px"
+    fontSize: "21px"
+    lineHeight: "26px"
   heading:
     fontFamily: IBMPlexSans_600SemiBold
-    fontSize: "18px"
-    lineHeight: "25px"
+    fontSize: "17px"
+    lineHeight: "24px"
   body:
     fontFamily: IBMPlexSans_400Regular
     fontSize: "15px"
@@ -67,11 +67,11 @@ typography:
     fontSize: "40px"
     lineHeight: "44px"
 rounded:
-  small: "8px"
-  control: "12px"
-  surface: "16px"
-  sheet: "28px"
-  pill: "999px"
+  small: "2px"
+  control: "4px"
+  surface: "4px"
+  sheet: "4px"
+  pill: "4px"
 spacing:
   xs: "4px"
   sm: "8px"
@@ -120,11 +120,15 @@ The system refines the existing product. Workout controls, program editing, hist
 
 The frontmatter records the light theme and the main dark theme roles. `src/shared/theme/palette.ts` is the runtime source for every role and theme, including dark record, warning, hero, and success foreground colors.
 
+Every colour, in both themes, is a role in `palette.ts`; screens never branch on the theme to pick a hex value. The active workout has its own roles (`workoutBackground`, `workoutFooter`, `noteFill`, `nextExercise`).
+
 Blue identifies actions and selection. Green identifies completed work and reached goals. Warm brown identifies personal records. Warnings use their own role. Secondary text on the blue workout hero uses the hero foreground rather than a neutral gray.
 
 ## Typography
 
-`src/shared/theme/typography.ts` loads IBM Plex Sans for reading and IBM Plex Sans Condensed for page titles, section titles, and measurement values. `tokens.ts` defines the shared type roles. Numeric measurements use tabular figures.
+`src/shared/theme/typography.ts` loads IBM Plex Sans for reading, IBM Plex Sans Condensed for page titles, section titles and large metrics, and IBM Plex Mono for figures, tags, units and tab labels. The code always names the Plex family of a role; users can switch each role (body, display, mono) to Barlow / Barlow Condensed or the system font in settings, and `Text` swaps the family (`fontChoices.ts`). `tokens.ts` defines the shared type roles. Numeric measurements use tabular figures.
+
+No rendered text is smaller than 12 logical units: the interface scale shrinks font metrics, but `Text` raises anything below `MIN_FONT_SIZE` (12) back to it. Text grows with the system font size up to 200 % overall (`cappedTextGrowth`); titles and numbers of 28 and up barely grow.
 
 The shared `Text` component applies the chosen interface scale once to font metrics and resolves explicit font families for Android. Native system font scaling remains enabled. The portable values above describe logical sizes at the default scale; React Native renders them as logical units, not fixed screen pixels.
 
@@ -152,18 +156,20 @@ Use flat, bordered surfaces and tonal controls for ordinary content. Sheets use 
 
 ## Shapes
 
-Cards and list groups use radius 16; buttons, fields, and chips use radius 12. Sheets use radius 28 on their top corners. Pills remain appropriate for small status badges, navigation indicators, and progress tracks.
+Squared look: every corner comes from `radii` in `tokens.ts`, 4 for cards, list groups, buttons, fields, chips, sheets, indicators and progress tracks, 2 for small details. Never hard-code a radius.
 
 ## Components
 
 - Use `ActionButton` variants to distinguish the primary action, supporting actions, and destructive confirmations. The base minimum height is 48 logical units and is clamped to the 48 touch-target minimum at smaller interface scales. Labels can wrap.
+- Icons are Material Design Icons (the Android set), drawn through `Icon`. Names keep the app's original vocabulary and map to Material glyphs in `materialIcons.ts`; `IconName` is that map's keys, so an unmapped name does not type-check.
 - Use `IconButton` for labeled icon actions. Its hit box remains at least 48 even at a small interface scale.
 - Use `TextField` for text entry. When present, its label stays above the field; the single-line base minimum is 48 and the multiline base minimum is 72. Both follow the interface scale and retain at least 48 logical units. Multiline text is top-aligned; focused borders use the accent-strong role and validation uses the warning role.
-- Use `Card` for ordinary content surfaces: a 1px border, 16 radius, 16 padding, and 12 internal gap, with tonal layering instead of a decorative shadow.
+- Use `Card` for ordinary content surfaces: a 1px border, 4 radius, 16 padding, and 12 internal gap, with tonal layering instead of a decorative shadow.
 - Use `ListGroup` and `ListRow` for related destinations or records. Groups use the surface radius and a border; rows have a 68 logical-unit base minimum with 16 horizontal and 14 vertical padding, all scaled with the interface setting. Keep trailing controls separate from the row's pressable area. Descriptions can wrap without truncation.
-- Use `Chip` and `SegmentedControl` for selection. Chips use 12 radius, 10 by 14 padding, and a 48 minimum; their selected state uses the accent-soft fill and accent border and is exposed to accessibility services.
+- Use `Chip` and `SegmentedControl` for selection. Chips use 4 radius, 10 by 14 padding, and a 48 minimum; their selected state uses the accent-soft fill and accent border and is exposed to accessibility services.
 - Use `Metric` for labeled counts and `ProgressMeter` for measured progress. Progress is clamped to its real total and has an accessible numeric value.
-- Use `Sheet` for confirmations and short choices. Sheets use 28 top radius, 20 horizontal padding, and a 640 logical-unit maximum width. Keep Android Back, outside dismissal, and the visible close control working. Content scrolls within the available height.
+- Errors that interrupt (a failed save, a refused permission) use the native Android dialog (`Alert.alert`). When Android will no longer ask for a permission, the dialog offers Open settings (`alertPermissionDenied`).
+- Use `Sheet` for confirmations and short choices. Sheets use 4 top radius, 20 horizontal padding, and a 640 logical-unit maximum width. Keep Android Back, outside dismissal, and the visible close control working. Content scrolls within the available height.
 - Use the five tab destinations in the compact bottom bar or expanded navigation rail. The compact bar is at least 72 logical units high and scales from a 76 base; the expanded rail is 100 logical units wide. Active destinations keep the blue tonal indicator and visible label.
 - The mobility player keeps transport controls fixed while long exercise instructions can scroll. Its timer fits the available width.
 - Duration fields use a shared minute/second editor with exact second entry, quick presets, adjustment buttons, Save, and Cancel. Opening or cancelling the editor never changes stored values. Holds use this editor in active and historical workouts, micro-sessions, program targets, and mobility routines. Existing rest presets remain direct shortcuts.

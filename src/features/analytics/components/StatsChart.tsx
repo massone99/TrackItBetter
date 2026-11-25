@@ -4,6 +4,7 @@ import { Text } from '../../../shared/components/Text';
 import { useTheme } from '../../../shared/theme/ThemeProvider';
 import { useScaledStyles } from '../../../shared/theme/useScaledStyles';
 import { MIN_TOUCH_TARGET } from '../../../shared/theme/tokens';
+import { cappedTextGrowth, MIN_FONT_SIZE } from '../../../shared/theme/scale';
 
 export interface StatsChartProps {
   /** Primary metric per bucket, drawn as bars. */
@@ -33,7 +34,7 @@ const LABEL_COUNT = 5;
 /** Bars for one metric with an optional line for a second one; tap a bar to select its period. */
 export function StatsChart({ values, secondary, labels, selected, onSelect, formatPrimary, zeroBased = true, formatSecondary, accessibilityLabel, comparison, sharedScale = false }: StatsChartProps) {
   const styles = useScaledStyles(baseStyles);
-  const { palette } = useTheme();
+  const { palette, layoutScale, fontScale } = useTheme();
   // Visible width; the plot is at least one 48 dp touch target per period wide and scrolls sideways
   // when that is wider than the screen, starting at the latest periods (the end).
   const [viewport, setViewport] = useState(300);
@@ -52,7 +53,10 @@ export function StatsChart({ values, secondary, labels, selected, onSelect, form
   const secondaryPresent = (secondary ?? []).filter((value): value is number => value != null);
   const secondaryMax = secondaryPresent.length ? Math.max(...secondaryPresent) : 0;
   const slot = width / Math.max(1, values.length);
-  const labelEvery = Math.max(1, Math.ceil(values.length / LABEL_COUNT));
+  // Room one date label ("Nov 23", 12 dp text at the least) needs, so labels never cut each other or the edge.
+  const labelText = Math.max(MIN_FONT_SIZE, 12 * layoutScale) * cappedTextGrowth(12 * layoutScale, fontScale, layoutScale);
+  const labelRoom = labelText * 3.6 + 8;
+  const labelEvery = Math.max(1, Math.ceil(values.length / LABEL_COUNT), Math.ceil(labelRoom / slot));
 
   const pointsFor = (line: readonly (number | null)[], max: number) => max > 0
     ? line.map((value, index) => (value == null ? null : { x: slot * index + slot / 2, y: HEIGHT - 4 - (value / max) * (HEIGHT - 12) }))
@@ -118,15 +122,20 @@ export function StatsChart({ values, secondary, labels, selected, onSelect, form
               </View>
             </View>
             <View style={[styles.labels, { width }]}>
+              {/* Invisible line in the flow: the row is as tall as one label at any interface and text size. */}
+              <Text accessible={false} importantForAccessibility="no-hide-descendants" style={[styles.label, styles.labelSpacer]}>0</Text>
               {labels.map((label, index) => {
                 if (index % labelEvery !== (labels.length - 1) % labelEvery) return null;
                 // Each label is centred under its period; at the two ends its box is cut at the plot's edge
                 // and the text aligned to it, so labels stay inside the plot and never overlap.
                 const center = slot * index + slot / 2;
                 const half = (slot * labelEvery) / 2;
-                const left = Math.max(0, center - half);
+                // The latest period always gets its label: widened to the left, where the previous label is a full step away.
+                const left = index === labels.length - 1 ? Math.max(0, Math.min(center - half, width - labelRoom)) : Math.max(0, center - half);
                 const right = Math.min(width, center + half);
                 const align = center - half < 0 ? 'left' : center + half > width ? 'right' : 'center';
+                // An end label whose box the plot edge cut too short would lose its first or last characters.
+                if (right - left < labelRoom && index !== labels.length - 1) return null;
                 return (
                   <Text key={index} numberOfLines={1} style={[styles.label, { width: right - left, left, textAlign: align, color: palette.textMuted }]}>
                     {label}
@@ -143,7 +152,7 @@ export function StatsChart({ values, secondary, labels, selected, onSelect, form
 
 const baseStyles = StyleSheet.create({
   scaleRow: { flexDirection: 'row', justifyContent: 'space-between', minHeight: 16 },
-  scale: { fontSize: 11, fontWeight: '700' },
+  scale: { fontSize: 12, fontWeight: '700' },
   plot: { position: 'relative', borderBottomWidth: StyleSheet.hairlineWidth },
   gridLine: { position: 'absolute', left: 0, right: 0, height: StyleSheet.hairlineWidth, opacity: 0.6 },
   bars: { flex: 1, flexDirection: 'row', alignItems: 'flex-end' },
@@ -151,6 +160,7 @@ const baseStyles = StyleSheet.create({
   bar: { width: '70%', maxWidth: 26, borderTopLeftRadius: 4, borderTopRightRadius: 4 },
   segment: { position: 'absolute', height: 2 },
   point: { position: 'absolute', width: 7, height: 7, borderRadius: 3.5, borderWidth: 2 },
-  labels: { position: 'relative', height: 18, marginTop: 4 },
-  label: { position: 'absolute', fontSize: 10, textAlign: 'center' },
+  labels: { position: 'relative', marginTop: 4 },
+  labelSpacer: { position: 'relative', opacity: 0 },
+  label: { position: 'absolute', fontSize: 12, lineHeight: 16, textAlign: 'center' },
 });

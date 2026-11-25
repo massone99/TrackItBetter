@@ -32,6 +32,14 @@ export const palettes = {
     mediaScrim: "rgba(0,0,0,0.6)",
     // Text and icons on media, scrims and `mediaBackdrop`.
     onMedia: "#FFFFFF",
+    // Active workout: the page behind the exercise sheets, a shade darker than `background`.
+    workoutBackground: "#EAEFF2",
+    // Active workout footer bar.
+    workoutFooter: "#F5F7F9",
+    // Workout note button (the whole-workout note).
+    noteFill: "#F5F7F9",
+    // The next exercise in the workout overview; `accentStrong` on it is 6.3:1.
+    nextExercise: "#E8EBFB",
   },
   dark: {
     background: "#111A21",
@@ -60,6 +68,10 @@ export const palettes = {
     mediaBackdrop: "#0B1014",
     mediaScrim: "rgba(0,0,0,0.6)",
     onMedia: "#FFFFFF",
+    workoutBackground: "#111A21",
+    workoutFooter: "#111A21",
+    noteFill: "#283742",
+    nextExercise: "#262F52",
   },
 } as const;
 

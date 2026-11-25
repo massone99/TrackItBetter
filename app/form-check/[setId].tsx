@@ -1,5 +1,6 @@
 import * as ImagePicker from 'expo-image-picker';
 import { isPickerUnavailableError } from '../../src/shared/media/pickerErrors';
+import { alertPermissionDenied } from '../../src/shared/media/permissionDenied';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { VideoView, useVideoPlayer } from 'expo-video';
 import { useCallback, useState } from 'react';
@@ -43,7 +44,7 @@ export default function FormCheckScreen() {
         ? await ImagePicker.requestCameraPermissionsAsync()
         : await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (!permission.granted) {
-        Alert.alert(t('formCheck.permissionTitle'), t('formCheck.permissionBody'));
+        alertPermissionDenied(t, t('formCheck.permissionTitle'), t('formCheck.permissionBody'), permission);
         return;
       }
       const result = source === 'camera'

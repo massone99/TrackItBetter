@@ -12,13 +12,13 @@ export function WorkoutNote({ kind, value, onPress, inset = false }: {
   kind: WorkoutNoteKind; value: string | null; onPress: () => void; inset?: boolean;
 }) {
   const { t } = useTranslation();
-  const { palette, mode } = useTheme();
+  const { palette } = useTheme();
   const styles = useScaledStyles(baseStyles);
   return (
     <Pressable accessibilityRole="button" accessibilityLabel={t(`liveWorkout.${kind}`)}
       accessibilityHint={value ?? t('liveWorkout.addNote')} onPress={() => { tapFeedback(); onPress(); }}
       style={({ pressed }) => [styles.note, inset ? styles.inset : styles.outlined,
-        { borderColor: palette.border, backgroundColor: kind === 'exerciseNote' ? palette.surface : mode === 'light' ? '#f5f7f9' : palette.surfaceMuted },
+        { borderColor: palette.border, backgroundColor: kind === 'exerciseNote' ? palette.surface : palette.noteFill },
         pressed && { opacity: 0.75 }]}>
       <Icon name="document-text-outline" size={16} color={palette.accentStrong} />
       <View style={styles.text}>

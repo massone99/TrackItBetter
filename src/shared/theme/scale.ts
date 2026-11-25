@@ -52,6 +52,21 @@ export function cappedTextGrowth(fontSize: number, fontScale: number, layoutScal
   return Math.max(1, Math.min(grow, MAX_TEXT_ZOOM / Math.max(layoutScale, 0.01)));
 }
 
+/** Smallest rendered text (dp): a small interface size never shrinks words below it (WCAG, glanced at mid-set). */
+export const MIN_FONT_SIZE = 12;
+
+/** Raises a font size under MIN_FONT_SIZE to it, growing a numeric lineHeight by the same factor. */
+export function withMinFontSize<T extends { fontSize?: number; lineHeight?: number }>(style: T): T {
+  const size = style.fontSize;
+  if (typeof size !== "number" || size >= MIN_FONT_SIZE || size <= 0) return style;
+  const factor = MIN_FONT_SIZE / size;
+  return {
+    ...style,
+    fontSize: MIN_FONT_SIZE,
+    ...(typeof style.lineHeight === "number" ? { lineHeight: Math.round(style.lineHeight * factor * 10) / 10 } : {}),
+  };
+}
+
 /**
  * The interface size actually used for layout: the chosen one, tightened a little on narrow phones so
  * rows that fit a 390 dp screen still fit a 320 dp one.

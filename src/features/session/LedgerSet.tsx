@@ -497,7 +497,7 @@ const baseStyles = StyleSheet.create({
   liveStepper: { minHeight: 50, flexDirection: 'row', alignItems: 'stretch', gap: spacing.sm, padding: spacing.xs, borderWidth: 1, borderRadius: radii.control },
   stepKey: { flexShrink: 0, minWidth: MIN_TOUCH_TARGET, justifyContent: 'center', alignItems: 'center', borderRadius: radii.control },
   liveValue: { flex: 1, minWidth: 0, flexWrap: 'wrap', flexDirection: 'row', alignItems: 'center', alignContent: 'center', justifyContent: 'center', gap: 3 },
-  unit: { fontFamily: fonts.monoSemibold, fontSize: 11 },
+  unit: { fontFamily: fonts.monoSemibold, fontSize: 12 },
   comparable: { fontSize: 12 },
   liveBands: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 7, padding: 12, minHeight: 44, borderBottomWidth: 1 },
   liveActions: { flexDirection: 'row', alignItems: 'stretch', gap: 8, padding: 12 },

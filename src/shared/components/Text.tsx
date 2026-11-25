@@ -1,6 +1,6 @@
 import { Text as NativeText, StyleSheet, TextProps } from "react-native";
 import { useTheme } from "../theme/ThemeProvider";
-import { cappedTextGrowth, FONT_KEYS, scaleStyle } from "../theme/scale";
+import { cappedTextGrowth, FONT_KEYS, scaleStyle, withMinFontSize } from "../theme/scale";
 import { resolveFont } from "../theme/fontChoices";
 import { bodyFamilyForWeight } from "../theme/typography";
 
@@ -14,7 +14,8 @@ export function Text({ style, maxFontSizeMultiplier, fixedFont = false, ...props
   const { palette, layoutScale: scale, fontScale, fontSelection } = useTheme();
   const flat = StyleSheet.flatten(style) ?? {};
   const { fontWeight, fontFamily, ...rest } = flat;
-  const sized = scaleStyle({ fontSize: 14, ...rest }, scale, FONT_KEYS);
+  // The interface size scales metrics, but never below MIN_FONT_SIZE (70 % would otherwise give 7-8 dp words).
+  const sized = withMinFontSize(scaleStyle({ fontSize: 14, ...rest }, scale, FONT_KEYS));
   // A caller's maxFontSizeMultiplier still caps the growth (e.g. tab labels in a fixed-height bar).
   const grow = Math.min(cappedTextGrowth(sized.fontSize ?? 14, fontScale, scale), maxFontSizeMultiplier ?? Infinity);
   const grown = grow === 1 ? sized : {

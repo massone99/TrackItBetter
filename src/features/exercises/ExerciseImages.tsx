@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { ActivityIndicator, Alert, Image, Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { ActionButton, Body, Icon, IconButton, ListGroup, ListRow, SectionTitle, Sheet, Text } from '../../shared/components/ui';
 import { isPickerUnavailableError } from '../../shared/media/pickerErrors';
+import { alertPermissionDenied } from '../../shared/media/permissionDenied';
 import { useTheme } from '../../shared/theme/ThemeProvider';
 import { fonts } from '../../shared/theme/typography';
 import { useScaledStyles } from '../../shared/theme/useScaledStyles';
@@ -48,7 +49,7 @@ export function ExerciseImagesSection({ exerciseId }: { exerciseId: string }) {
       setBusy(true);
       const permission = source === 'camera' ? await ImagePicker.requestCameraPermissionsAsync() : await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (!permission.granted) {
-        Alert.alert(t('exerciseImages.permissionTitle'), t('exerciseImages.permissionBody'));
+        alertPermissionDenied(t, t('exerciseImages.permissionTitle'), t('exerciseImages.permissionBody'), permission);
         return;
       }
       const result = source === 'camera'

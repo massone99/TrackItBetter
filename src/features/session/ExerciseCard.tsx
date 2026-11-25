@@ -1626,7 +1626,7 @@ const baseStyles = StyleSheet.create({
   setNote: { flex: 1, fontFamily: fonts.body, fontSize: 13, lineHeight: 18 },
   setBadge: { width: 36, height: 36, borderRadius: radii.control, alignItems: 'center', justifyContent: 'center' },
   setBadgeText: { fontFamily: fonts.display, fontSize: 16 },
-  setBadgeSide: { fontFamily: fonts.semibold, fontSize: 10, lineHeight: 11, marginTop: -2 },
+  setBadgeSide: { fontFamily: fonts.semibold, fontSize: 12, lineHeight: 13, marginTop: -2 },
   stepper: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4 },
   setValueLedger: { fontSize: 20, lineHeight: 26 },
   setValue: { fontFamily: fonts.display, fontSize: 24, lineHeight: 30, minWidth: 34, textAlign: 'center', fontVariant: ['tabular-nums'] },

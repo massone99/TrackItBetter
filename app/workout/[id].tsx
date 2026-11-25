@@ -139,7 +139,7 @@ export default function WorkoutScreen() {
   const styles = useScaledStyles(baseStyles);
   const { id } = useLocalSearchParams<{ id: string }>();
   const { t } = useTranslation();
-  const { palette, mode, largeText } = useTheme();
+  const { palette, largeText } = useTheme();
   const [workout, setWorkout] = useState<ActiveWorkout | null>(null);
   const workoutRef = useRef<ActiveWorkout | null>(null);
   useEffect(() => { workoutRef.current = workout; }, [workout]);
@@ -814,8 +814,8 @@ export default function WorkoutScreen() {
   const exercisePosition = focused ? workout.exercises.indexOf(focused) + 1 : 0;
   const previousExercise = focused ? workout.exercises[exercisePosition - 2] : undefined;
   const followingExercise = focused ? workout.exercises[exercisePosition] : undefined;
-  const background = mode === 'light' ? '#eaeff2' : palette.background;
-  const footerColor = mode === 'light' ? '#f5f7f9' : palette.background;
+  const background = palette.workoutBackground;
+  const footerColor = palette.workoutFooter;
   const nextOther = next && next.entryId !== focused?.entryId ? next
     : workout.exercises.slice(exercisePosition).find((entry) => entry.sets.some((set) => !set.completedAt));
   // The set the footer logs: the first one still to do of the exercise in hand.

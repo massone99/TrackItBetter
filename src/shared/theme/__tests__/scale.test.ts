@@ -1,4 +1,4 @@
-import { cappedTextGrowth, FONT_KEYS, MAX_FONT_SCALE, scaleStyle, scaleStyles, TEXT_SCALE_CAPS, textGrowth, toUiScale } from '../scale';
+import { cappedTextGrowth, FONT_KEYS, MAX_FONT_SCALE, scaleStyle, scaleStyles, TEXT_SCALE_CAPS, textGrowth, toUiScale, withMinFontSize } from '../scale';
 
 describe('scaleStyle', () => {
   it('scales layout sizes and leaves fonts, colors and percentages alone', () => {
@@ -18,6 +18,18 @@ describe('scaleStyle', () => {
   it('returns the same objects at 100 %', () => {
     const styles = { card: { padding: 12 } };
     expect(scaleStyles(styles, 1)).toBe(styles);
+  });
+});
+
+describe('withMinFontSize', () => {
+  it('raises small text to 12 dp and grows its line height in proportion', () => {
+    expect(withMinFontSize({ fontSize: 8.4, lineHeight: 11.2 })).toEqual({ fontSize: 12, lineHeight: 16 });
+    expect(withMinFontSize({ fontSize: 9 })).toEqual({ fontSize: 12 });
+  });
+
+  it('leaves text of 12 dp and up alone', () => {
+    const style = { fontSize: 12, lineHeight: 16 };
+    expect(withMinFontSize(style)).toBe(style);
   });
 });
 
