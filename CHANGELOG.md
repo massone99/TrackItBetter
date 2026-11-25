@@ -2,6 +2,13 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.81.1 - 2026-11-25
+
+- Text never gets smaller than 12 dp, even at the smallest interface size.
+- Icons now use the Material set, the Android standard.
+- When Android will no longer ask for camera or gallery access, the message offers a button to open the system settings.
+- Workout screen colours come from the theme in both light and dark; long names in Statistics wrap instead of being cut off.
+
 ## 0.81.0 - 2026-11-25
 
 - Long-press the hold control to complete a timed set immediately with the entered duration, even during the countdown or an active hold.
