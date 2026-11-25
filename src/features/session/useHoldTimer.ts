@@ -27,6 +27,7 @@ export interface ActiveHold {
  */
 export function useHoldTimer(onFinished: (setId: string, seconds: number) => void) {
   const [running, setRunning] = useState<{ setId: string; timer: HoldTimer } | null>(null);
+  const runningRef = useRef<typeof running>(null);
   const [phase, setPhase] = useState<HoldPhase | null>(null);
   const previous = useRef<HoldPhase | null>(null);
   const finished = useRef(onFinished);
@@ -35,12 +36,14 @@ export function useHoldTimer(onFinished: (setId: string, seconds: number) => voi
   useEffect(() => {
     if (!running) return;
     const tick = () => {
+      if (runningRef.current !== running) return;
       const current = holdPhase(running.timer, Date.now());
       const cue = holdCue(previous.current, current);
       previous.current = current;
       if (cue) playBeep(cue);
       setPhase(current);
       if (current.phase === 'done') {
+        runningRef.current = null;
         setRunning(null);
         finished.current(running.setId, current.elapsed);
       }
@@ -51,17 +54,22 @@ export function useHoldTimer(onFinished: (setId: string, seconds: number) => voi
   }, [running]);
 
   const start = useCallback((setId: string, mode: HoldMode, targetSec: number) => {
+    if (runningRef.current) return;
     previous.current = null;
-    setRunning({ setId, timer: startHold(Date.now(), mode, targetSec) });
+    const next = { setId, timer: startHold(Date.now(), mode, targetSec) };
+    runningRef.current = next;
+    setRunning(next);
   }, []);
 
   /** Stops the hold and returns the seconds held (0 while still counting down). */
   const stop = useCallback((): number => {
-    const seconds = running ? recordedSeconds(holdPhase(running.timer, Date.now())) : 0;
+    const current = runningRef.current;
+    const seconds = current ? recordedSeconds(holdPhase(current.timer, Date.now())) : 0;
+    runningRef.current = null;
     setRunning(null);
     setPhase(null);
     return seconds;
-  }, [running]);
+  }, []);
 
   const active: ActiveHold | null = running && phase && phase.phase !== 'done'
     ? { setId: running.setId, phase, mode: running.timer.mode, targetSec: running.timer.targetSec }

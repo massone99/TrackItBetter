@@ -103,4 +103,36 @@ describe('active set in focus mode', () => {
     fireEvent.press(rows[0]);
     expect(screen.getAllByLabelText(/^Complete/i)).toHaveLength(1);
   });
+
+  it.each(['inline', 'standalone'] as const)('shows the progression on the changed working set in the %s layout', (liveLayout) => {
+    show([set(1, { kind: 'warmup' }), set(2), set(3, { reps: 6 }), set(4)], {
+      liveLayout,
+      previous: { sets: [set(1), set(2, { reps: 6 }), set(3)], warmups: [], workoutStartedAt: new Date() },
+      progressionRule: { method: 'rep_addition' },
+    });
+
+    const cue = 'Progression · 6 → 7 reps';
+    const row = screen.getByLabelText(/Set 2: .*Progression · 6 → 7 reps/);
+    expect(screen.getByText(cue)).toBeTruthy();
+    fireEvent.press(row);
+    expect(screen.getByText(cue)).toBeTruthy();
+    expect(screen.queryByText(/Progression · 8/)).toBeNull();
+  });
+
+  it('long pressing a running hold completes the set manually', () => {
+    const timedSet = set(1, { durationSec: 30, reps: null });
+    const onComplete = jest.fn();
+    const onFinishHold = jest.fn();
+    show([timedSet], {
+      exercise: { entryId: 'e1', exerciseId: 'plank', name: 'Plank', metric: 'time', sets: [timedSet] } as SessionExercise,
+      liveLayout: 'inline',
+      hold: { setId: timedSet.id, mode: 'target', targetSec: 30, phase: { phase: 'countdown', secondsLeft: 4 } },
+      onStartHold: jest.fn(),
+      onFinishHold,
+      onComplete,
+    });
+    fireEvent(screen.getByRole('button', { name: i18n.t('logger.doneHold') }), 'longPress');
+    expect(onComplete).toHaveBeenCalledWith(timedSet);
+    expect(onFinishHold).not.toHaveBeenCalled();
+  });
 });

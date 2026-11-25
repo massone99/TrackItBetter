@@ -242,9 +242,12 @@ export function ProgressMeter({ value, total, label, tone = "accent" }: { value:
 
 type ButtonVariant = "primary" | "secondary" | "ghost" | "danger" | "inverse";
 
-export function ActionButton({ label, onPress, secondary = false, variant, icon, disabled = false, compact = false }: {
+export function ActionButton({ label, onPress, onLongPress, longPressLabel, accessibilityHint, secondary = false, variant, icon, disabled = false, compact = false }: {
   label: string;
   onPress?: () => void;
+  onLongPress?: () => void;
+  longPressLabel?: string;
+  accessibilityHint?: string;
   secondary?: boolean;
   variant?: ButtonVariant;
   compact?: boolean;
@@ -262,8 +265,15 @@ export function ActionButton({ label, onPress, secondary = false, variant, icon,
     <Pressable
       accessibilityRole="button"
       accessibilityState={{ disabled }}
+      accessibilityHint={accessibilityHint}
+      accessibilityActions={onLongPress && longPressLabel ? [{ name: 'longpress', label: longPressLabel }] : undefined}
+      onAccessibilityAction={onLongPress ? ({ nativeEvent }) => {
+        if (!disabled && nativeEvent.actionName === 'longpress') onLongPress();
+      } : undefined}
       disabled={disabled}
       onPress={() => { tapFeedback(); onPress?.(); }}
+      onLongPress={onLongPress}
+      delayLongPress={400}
       style={({ pressed }) => [
         styles.button,
         largeText && styles.buttonStacked,

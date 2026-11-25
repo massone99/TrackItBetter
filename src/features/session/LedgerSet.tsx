@@ -34,6 +34,7 @@ export interface LedgerRowProps extends LedgerCommon {
   note?: string | null;
   active?: boolean;
   record?: boolean;
+  progression?: string | null;
   units?: string;
   rpe?: string | null;
   /** Load in kg, already formatted; null hides it. */
@@ -80,6 +81,7 @@ export interface LedgerActiveRowProps extends LedgerCommon {
     fieldLabel: string;
     unit?: string;
     comparable: string | null;
+    progression?: string | null;
     bandsText?: string;
     action: string;
     done: boolean;
@@ -154,6 +156,7 @@ function summary(t: (key: string, options?: Record<string, unknown>) => string, 
   if (props.bands && props.bands.colors.length > 0) parts.push(props.bands.assist ? t('ledger.withAssist', { value: props.bands.assist }) : t('bands.unknown'));
   if ((props.live || !props.bands?.colors.length) && props.withLoad !== false && props.load) parts.push(t('ledger.withLoad', { value: props.load }));
   if (props.rpe) parts.push(t('ledger.withRpe', { value: props.rpe }));
+  if (props.progression) parts.push(props.progression);
   return t(`ledger.${key}`, { set: name, value: parts.join(', ') });
 }
 
@@ -180,7 +183,7 @@ function StaticRow(props: LedgerRowProps & { done: boolean }) {
   if (props.live) return (
     <Pressable accessibilityRole="button" accessibilityLabel={summary(t, props, done ? 'rowDone' : 'rowUpcoming', name)}
       onPress={() => { tapFeedback(); props.onOpen(); }} onLongPress={props.onMenu}
-      style={[styles.row, styles.liveRow, { borderBottomColor: palette.border, backgroundColor: props.active ? palette.accentSoft : palette.surface }]}>
+      style={[styles.row, styles.liveRow, props.progression && styles.progressionRow, { borderBottomColor: palette.border, backgroundColor: props.active || props.progression ? palette.accentSoft : palette.surface }]}>
       <View style={styles.liveRowNumber}>
         <Text style={[styles.figure, { color: props.active ? palette.accentStrong : color }]}>{setText(props.label, props.side).padStart(2, '0')}</Text>
         {props.note ? <Icon name="document-text-outline" size={13} color={palette.accentStrong} /> : null}
@@ -196,6 +199,7 @@ function StaticRow(props: LedgerRowProps & { done: boolean }) {
       </View> : null}
       <View style={styles.colDone}><Icon name={done && !props.active ? 'checkmark' : props.active ? 'chevron-down' : 'chevron-forward'}
         size={17} color={done && !props.active ? palette.success : props.active ? palette.accentStrong : palette.textMuted} /></View>
+      {props.progression ? <Text style={[styles.progression, styles.progressionLine, { color: palette.accentStrong }]}>{props.progression}</Text> : null}
     </Pressable>
   );
   return (
@@ -311,6 +315,7 @@ function LiveSetEditor({ live, note, bands, side, valueField, valueDown, valueUp
         {side ? <View accessible accessibilityLabel={side === 'L' ? t('logger.sideLeft') : t('logger.sideRight')} style={styles.sideTags}>{sideTag('L')}{sideTag('R')}</View> : null}
       </View>
     ) : null}
+    {live.progression ? <Text style={[styles.progression, { color: palette.accentStrong }]}>{live.progression}</Text> : null}
     <View style={[styles.liveFields, largeText && styles.liveFieldsStack]}>
       <LiveField stacked={largeText} big label={live.fieldLabel} unit={live.unit} down={valueDown} up={valueUp}>{valueField}</LiveField>
       {showLoad ? <LiveField stacked={largeText} label={t('liveWorkout.addedLoad')} unit="kg" down={loadDown} up={loadUp}>{loadField}</LiveField> : null}
@@ -320,9 +325,10 @@ function LiveSetEditor({ live, note, bands, side, valueField, valueDown, valueUp
     {live.inlineAction === false && !live.done ? null : (
       <Pressable accessibilityRole="button" accessibilityLabel={live.action} disabled={live.disabled}
         accessibilityState={{ disabled: live.disabled }}
+        accessibilityHint={live.onManual ? t(live.holding ? 'logger.holdForceActiveHint' : 'logger.holdLongPressHint') : undefined}
         accessibilityActions={live.onManual ? [{ name: 'longpress', label: t('logger.markDoneNoTimer') }] : undefined}
         onAccessibilityAction={(event) => { if (event.nativeEvent.actionName === 'longpress') live.onManual?.(); }}
-        onPress={() => { tapFeedback(); live.onAction(); }} onLongPress={live.onManual}
+        onPress={() => { tapFeedback(); live.onAction(); }} onLongPress={live.onManual} delayLongPress={400}
         style={({ pressed }) => [styles.liveComplete, { backgroundColor: palette.accent, opacity: live.disabled || pressed ? 0.65 : 1 }]}>
         <Icon name={live.done ? 'arrow-undo' : live.holding ? 'stop' : live.onManual ? 'play' : 'checkmark'} size={20} color={palette.accentText} />
         <Text style={[styles.liveCompleteText, { color: palette.accentText }]}>{live.action}</Text>
@@ -468,6 +474,9 @@ function ClassicLedgerActiveRow(props: LedgerActiveRowProps) {
 const baseStyles = StyleSheet.create({
   liveHeader: { paddingHorizontal: spacing.md, paddingVertical: spacing.xs },
   liveRow: { minHeight: MIN_TOUCH_TARGET, paddingHorizontal: spacing.md, paddingVertical: spacing.sm },
+  progressionRow: { flexWrap: 'wrap' },
+  progressionLine: { flexBasis: '100%' },
+  progression: { fontSize: 13, fontFamily: fonts.semibold },
   liveRowNumber: { width: 42, flexDirection: 'row', flexWrap: 'wrap', gap: 3, alignItems: 'center' },
   editor: { borderWidth: 1, borderRadius: radii.control, margin: spacing.sm, padding: spacing.md, gap: spacing.md },
   editorTop: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 8 },

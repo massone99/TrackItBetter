@@ -2,6 +2,11 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.81.0 - 2026-11-25
+
+- Long-press the hold control to complete a timed set immediately with the entered duration, even during the countdown or an active hold.
+- The workout highlights sets affected by a progression and shows the previous value alongside the suggested target.
+
 ## 0.80.0 - 2026-11-23
 
 - Per-exercise progression rules: configure how any individual exercise progresses across 21 methods (intra-exercise: linear load, linear reps/holds, repetition addition, last set to failure, additional set, rest-pause, density, tempo change, frequency/GTG; inter-exercise: weight bridge, band assistance step-down, eccentric clusters, momentum/extra ROM, exercise modification, extra sets + density, hybrid sets, simple hybrid sets; periodization: accumulation/intensification, Light/Heavy, DUP, concurrent/conjugate) or leave on Automatic.

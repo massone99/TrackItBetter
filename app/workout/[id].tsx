@@ -631,16 +631,16 @@ export default function WorkoutScreen() {
     if (workout) await refresh(workout.id);
   };
 
-  const completeRegularSet = (set: SessionSet) => settle(set.id, async () => {
+  const completeRegularSet = (setId: string) => settle(setId, async () => {
     tapFeedback('success');
     // In a superset the next set to do is the one the round says, not the exercise that was expanded: the choice is released.
-    if (workout?.exercises.some((exercise) => exercise.groupId && exercise.sets.some((item) => item.id === set.id))) {
+    if (workout?.exercises.some((exercise) => exercise.groupId && exercise.sets.some((item) => item.id === setId))) {
       selectedRef.current = null;
       setSelectedEntryId(null);
     }
-    patchSet(set.id, { completedAt: new Date() });
-    await completeSet(set.id);
-    await afterSetDone(set.id);
+    patchSet(setId, { completedAt: new Date() });
+    await completeSet(setId);
+    await afterSetDone(setId);
   });
 
   /** Reopens a set; when it was the last one done, the rest it started stops too. */
@@ -673,17 +673,17 @@ export default function WorkoutScreen() {
     if (workout) await refresh(workout.id);
   };
 
-  /** Saves a finished hold as the set's time, completes it and starts the rest. */
-  const recordHold = async (setId: string, seconds: number) => {
+  /** Saves the elapsed time and starts rest once, even if manual completion races the timer. */
+  const recordHold = (setId: string, seconds: number) => settle(setId, async () => {
     tapFeedback('success');
     await updateSet(setId, 'durationSec', seconds);
     await completeSet(setId);
     await afterSetDone(setId);
-    if (workout) await refresh(workout.id);
-  };
+  });
 
   // A target hold that reaches its time records itself.
   const hold = useHoldTimer((setId, seconds) => void recordHold(setId, seconds));
+  const holdingSetId = hold.active?.setId;
 
   /** Stop pressed: during the countdown this cancels, afterwards it records the time held. */
   const finishCurrentHold = async () => {
@@ -694,9 +694,9 @@ export default function WorkoutScreen() {
   };
 
   /** Completes a set with its entered value; for holds this skips the timer (a running one is dropped). */
-  const completeHoldManually = async (set: SessionSet) => {
-    if (hold.active?.setId === set.id) hold.stop();
-    await completeRegularSet(set);
+  const completeHoldManually = (setId: string) => {
+    if (hold.active?.setId === setId) hold.stop();
+    return completeRegularSet(setId);
   };
 
   /** Rating a set only saves the RPE: the set is completed by its own button, never by the rating. */
@@ -820,6 +820,8 @@ export default function WorkoutScreen() {
     : workout.exercises.slice(exercisePosition).find((entry) => entry.sets.some((set) => !set.completedAt));
   // The set the footer logs: the first one still to do of the exercise in hand.
   const focusedOpenSet = focused?.sets.find((set) => !set.completedAt) ?? null;
+  const focusedTimedSet = Boolean(focused?.metric.startsWith('time') && !emom.plan);
+  const canForceFocusedHold = focusedTimedSet && !timed.plan;
   const setLabelOf = (exercise: SessionExercise, set: SessionSet) => {
     const number = groupSets(exercise.sets.filter((item) => item.kind === set.kind && item.index <= set.index)).length;
     const name = set.kind === 'warmup' ? t('ledger.warmup') : t('simple.setNumber', { number });
@@ -896,7 +898,7 @@ export default function WorkoutScreen() {
         hold={hold.active}
         onChange={changeSet}
         onSetValue={(set, field, value) => void (field === 'addedLoadKg' && value !== 0 ? allowLoad(exercise) : Promise.resolve()).then(() => updateSet(set.id, field, value)).then(() => refresh(workout.id))}
-        onComplete={(set) => void completeHoldManually(set)}
+        onComplete={(set) => void completeHoldManually(set.id)}
         onStartHold={startHoldFor}
         onFinishHold={() => void finishCurrentHold()}
         onAddSet={() => void (exercise.entryId === emomEntryId ? addEmomRound() : addSet(exercise.entryId).then(() => refresh(workout.id)))}
@@ -966,6 +968,7 @@ export default function WorkoutScreen() {
                 voiceCues={voiceCues}
                 onRestEnd={endRest}
                 onFinishHold={() => void finishCurrentHold()}
+                onForceHold={holdingSetId ? () => void completeHoldManually(holdingSetId) : undefined}
                 onExtend={() => adjustRest(REST_STEP_SEC)}
                 onReduce={() => adjustRest(-REST_STEP_SEC)}
                 onSkip={skipRest}
@@ -979,12 +982,15 @@ export default function WorkoutScreen() {
             <View style={styles.logAction}>
               {focusedOpenSet ? (
                 <ActionButton
-                  icon={focused.metric.startsWith('time') && !emom.plan ? 'play' : 'checkmark'}
-                  label={focused.metric.startsWith('time') && !emom.plan ? t('simple.startHold', { set: focusedOpenLabel }) : t('simple.logSet', { set: focusedOpenLabel })}
+                  icon={focusedTimedSet ? 'play' : 'checkmark'}
+                  label={focusedTimedSet ? t('simple.startHold', { set: focusedOpenLabel }) : t('simple.logSet', { set: focusedOpenLabel })}
+                  accessibilityHint={canForceFocusedHold ? t('logger.holdLongPressHint') : undefined}
+                  longPressLabel={canForceFocusedHold ? t('logger.markDoneNoTimer') : undefined}
+                  onLongPress={canForceFocusedHold ? () => void completeHoldManually(focusedOpenSet.id) : undefined}
                   onPress={() => {
                     tapFeedback('success');
-                    if (focused.metric.startsWith('time') && !emom.plan) startHoldFor(focusedOpenSet);
-                    else void completeHoldManually(focusedOpenSet);
+                    if (focusedTimedSet) startHoldFor(focusedOpenSet);
+                    else void completeHoldManually(focusedOpenSet.id);
                   }}
                 />
               ) : nextOther ? (
@@ -1451,7 +1457,7 @@ export default function WorkoutScreen() {
           onClose={() => setSetSheet(null)}
           onChanged={() => refresh(workout.id)}
           onRemoved={(removed) => offerUndo(t('logger.removedSet', { number: sheetSet.index }), removed)}
-          onCompleteManually={() => void completeHoldManually(sheetSet)}
+          onCompleteManually={() => void completeHoldManually(sheetSet.id)}
           lastTime={lastTimeFor(sheetExercise, sheetSet, previous.get(sheetExercise.exerciseId))}
           onCopyLast={(values) => { tapFeedback(); setSetSheet(null); void copyValuesToSet(sheetSet.id, values).then(() => refresh(workout.id)); }}
         />
@@ -1529,13 +1535,14 @@ function emomBadge(phase: EmomPhase, plan: EmomPlan, t: (key: string, options?: 
   return t('emom.badgeReady', { rounds: plan.rounds });
 }
 
-function TimerBar({ hold, restEndsAt, voiceCues, onRestEnd, onFinishHold, onExtend, onReduce, onSkip, nextName }: {
+function TimerBar({ hold, restEndsAt, voiceCues, onRestEnd, onFinishHold, onForceHold, onExtend, onReduce, onSkip, nextName }: {
   hold: ActiveHold | null;
   /** When the running rest ends; the bar counts it down and calls onRestEnd at zero. */
   restEndsAt: number | null;
   voiceCues: boolean;
   onRestEnd: () => void;
   onFinishHold: () => void;
+  onForceHold?: () => void;
   onExtend: () => void;
   onReduce: () => void;
   onSkip: () => void;
@@ -1564,7 +1571,7 @@ function TimerBar({ hold, restEndsAt, voiceCues, onRestEnd, onFinishHold, onExte
             : <RestCountdown key={restEndsAt} endsAt={restEndsAt} voiceCues={voiceCues} onEnd={onRestEnd} />}
         </View>
         {holding ? (
-          <TimerAction label={countingDown ? t('common.cancel') : t('logger.doneHold')} filled onPress={onFinishHold} />
+          <TimerAction label={countingDown ? t('common.cancel') : t('logger.doneHold')} filled onPress={onFinishHold} onLongPress={onForceHold} />
         ) : (
           <View style={styles.timerActions}>
             <TimerAction label={t('logger.subtractTime')} onPress={onReduce} />
@@ -1605,15 +1612,20 @@ function RestCountdown({ endsAt, voiceCues, onEnd }: { endsAt: number; voiceCues
   return <Text style={[styles.timerValue, { color: palette.heroText }]}>{formatClock(seconds)}</Text>;
 }
 
-function TimerAction({ label, filled = false, accessibilityLabel, onPress }: { label: string; filled?: boolean; accessibilityLabel?: string; onPress: () => void }) {
+function TimerAction({ label, filled = false, onPress, onLongPress }: { label: string; filled?: boolean; onPress: () => void; onLongPress?: () => void }) {
   const styles = useScaledStyles(baseStyles);
   const { palette } = useTheme();
+  const { t } = useTranslation();
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={accessibilityLabel}
+      accessibilityHint={onLongPress ? t('logger.holdForceActiveHint') : undefined}
+      accessibilityActions={onLongPress ? [{ name: 'longpress', label: t('logger.markDoneNoTimer') }] : undefined}
+      onAccessibilityAction={onLongPress ? ({ nativeEvent }) => { if (nativeEvent.actionName === 'longpress') onLongPress(); } : undefined}
       hitSlop={4}
       onPress={() => { tapFeedback(); onPress(); }}
+      onLongPress={onLongPress}
+      delayLongPress={400}
       style={({ pressed }) => [styles.timerAction, { backgroundColor: filled ? palette.heroText : palette.heroOverlay, opacity: pressed ? 0.8 : 1 }]}
     >
       <Text style={[styles.timerActionText, { color: filled ? palette.hero : palette.heroText }]}>{label}</Text>

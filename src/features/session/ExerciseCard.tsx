@@ -176,11 +176,15 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
   const results = doneValues && !timed && !distance ? t('logger.resultsReps', { values: doneValues }) : doneValues;
   const previousText = previous ? describePrevious(previous.sets, exercise.metric) : null;
   const comparison = compareWithLast(exercise.sets, previous?.sets ?? null, exercise.metric, { defaultRest, compareBands });
+  const previousWorkingGroups = groupSets(previous?.sets ?? []);
+  const previousRuleSets = previousWorkingGroups.flatMap((group, index) =>
+    aggregatePairs(group.map((set) => ({ ...set, side: set.side ?? undefined }))).map((set) => ({ ...set, number: index + 1 })),
+  );
   const nextStep = previous
     ? evaluateExerciseRule(progressionRule, {
         metric: exercise.metric,
         defaultRestSec: defaultRest > 0 ? defaultRest : undefined,
-        sets: aggregatePairs(previous.sets.map((set) => ({ ...set, side: set.side ?? undefined }))).map((set) => ({
+        sets: previousRuleSets.map((set) => ({
           reps: set.reps ?? undefined,
           durationSec: set.durationSec ?? undefined,
           addedLoadKg: set.addedLoadKg ?? 0,
@@ -191,6 +195,12 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
         })),
       })
     : null;
+  const previousAmounts = previousRuleSets.flatMap((set) => {
+    const amount = timed ? set.durationSec : set.reps;
+    return amount != null && Number.isFinite(amount) && amount > 0
+      ? [{ number: set.number, amount: Math.round(amount) }]
+      : [];
+  });
   const hasComparison = Boolean(comparison.total || comparison.rest || comparison.form || comparison.rom || comparison.assist || comparison.assistOrder);
   // Average form of today's rated sets (also when there is nothing to compare it with).
   const ratedForms = exercise.sets.filter((set) => set.completedAt && set.kind === 'working' && set.formRating !== null).map((set) => set.formRating as number);
@@ -297,7 +307,7 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
   const previousMatchFor = (set: SessionSet) => {
     if (!previous) return null;
     const number = groupSets(exercise.sets.filter((item) => item.kind === set.kind && item.index <= set.index)).length;
-    const group = groupSets(set.kind === 'warmup' ? previous.warmups : previous.sets)[number - 1];
+    const group = (set.kind === 'warmup' ? groupSets(previous.warmups) : previousWorkingGroups)[number - 1];
     return group?.find((item) => !set.pairId || item.side === set.side || !item.side || item.side === 'both') ?? null;
   };
   const ghostFor = (set: SessionSet): number | null => {
@@ -308,6 +318,54 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
 
   const setInHand = (set: SessionSet) => set.id === focusedId && (!set.completedAt || picked?.id === set.id) && !folded.has(set.id);
   const workingSets = groupSets(exercise.sets.filter((set) => set.kind === 'working')).length;
+  const extraSet = nextStep?.kind === 'add_set' ? nextStep.nextSets
+    : nextStep?.kind === 'reduce_rest' ? nextStep.alsoAddSet : undefined;
+  const addSetCue = liveLayout && compare && !emomBadgeLabel && extraSet && extraSet > workingSets
+    ? t('setProgression.add', { number: extraSet })
+    : null;
+  const progressionLabelFor = (set: SessionSet, number: number) => {
+    if (!liveLayout || !compare || emomBadgeLabel || set.completedAt || set.kind !== 'working' || !nextStep) return null;
+    if (number === extraSet && !previousWorkingGroups[number - 1]) {
+      return nextStep.kind === 'add_set' && nextStep.amount !== null
+        ? t(timed ? 'setProgression.extraTime' : 'setProgression.extraReps', { to: timed ? formatClock(nextStep.amount) : nextStep.amount })
+        : t('setProgression.extra');
+    }
+
+    const previousSet = previousMatchFor(set);
+    if (!previousSet) return null;
+    switch (nextStep.kind) {
+      case 'rep_addition':
+      case 'linear_bump':
+      case 'last_set_ready':
+      case 'last_set_aim': {
+        const index = previousAmounts.findIndex((item) => item.number === number);
+        if (index < 0 || (nextStep.kind === 'last_set_aim' && index !== previousAmounts.length - 1)) return null;
+        const to = nextStep.kind === 'last_set_aim' ? nextStep.targetLast : nextStep.scheme[index];
+        if (to === undefined || to === previousAmounts[index].amount) return null;
+        const from = (timed ? previousSet.durationSec : previousSet.reps) ?? previousAmounts[index].amount;
+        return from === to ? null : t(timed ? 'setProgression.time' : 'setProgression.reps', {
+          from: timed ? formatClock(from) : from,
+          to: timed ? formatClock(to) : to,
+        });
+      }
+      case 'add_load': {
+        const formatKg = new Intl.NumberFormat(i18n.language, { maximumFractionDigits: 2 });
+        return previousSet.addedLoadKg === nextStep.nextLoadKg ? null : t('setProgression.load', {
+          from: formatKg.format(previousSet.addedLoadKg), to: formatKg.format(nextStep.nextLoadKg),
+        });
+      }
+      case 'reduce_rest': {
+        const from = previousSet.restSec ?? defaultRest;
+        return from <= nextStep.nextRestSec ? null : t('setProgression.rest', {
+          from: formatClock(from), to: formatClock(nextStep.nextRestSec),
+        });
+      }
+      case 'less_assistance':
+        return previousSet.bands?.length ? t('setProgression.assist') : null;
+      default:
+        return null;
+    }
+  };
   const liveSetBadge = (set: SessionSet, number: number) => {
     const name = set.kind === 'warmup' ? t('ledger.warmup') : t('liveWorkout.setOf', { number, total: workingSets });
     return set.side === 'left' || set.side === 'right' ? `${name} · ${set.side === 'left' ? t('logger.sideLeft') : t('logger.sideRight')}` : name;
@@ -323,6 +381,7 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
     const showSteps = !done || editDone || editing;
     const editableDone = editDone || typeDone || emomLocked || editing;
     const workingNumber = groupSets(exercise.sets.filter((item) => item.kind === 'working' && item.index <= set.index)).length;
+    const progression = progressionLabelFor(set, workingNumber);
     const sideLabel = set.side === 'left' ? t('logger.sideLeft') : set.side === 'right' ? t('logger.sideRight') : '';
     const holding = hold?.setId === set.id;
     const isOpen = openOf(set);
@@ -471,12 +530,12 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={`${holding ? t('logger.doneHold') : t('logger.startHold')} ${sideLabel}`}
-        accessibilityHint={holding ? undefined : t('logger.holdLongPressHint')}
-        accessibilityActions={holding ? undefined : [{ name: 'longpress', label: t('logger.markDoneNoTimer') }]}
+        accessibilityHint={t(holding ? 'logger.holdForceActiveHint' : 'logger.holdLongPressHint')}
+        accessibilityActions={[{ name: 'longpress', label: t('logger.markDoneNoTimer') }]}
         onAccessibilityAction={(event) => { if (event.nativeEvent.actionName === 'longpress') complete(set); }}
         hitSlop={{ top: 4, bottom: 4, left: 4, right: 0 }}
         onPress={() => holding ? onFinishHold?.() : onStartHold(set)}
-        onLongPress={holding ? undefined : () => { tapFeedback(); complete(set); }}
+        onLongPress={() => complete(set)}
         delayLongPress={400}
         style={({ pressed }) => [styles.checkButton, checkBox, holding || set.id === nextSetId ? { backgroundColor: palette.accent } : { backgroundColor: palette.surfaceMuted }, pressed && styles.checkPressed]}
       >
@@ -755,7 +814,7 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
         const rowLoad = withLoad && (liveLayout !== 'standalone' || exercise.metric.endsWith('_load') || exercise.sets.some((item) => item.addedLoadKg !== 0));
         const row = { label, side, warmup: set.kind === 'warmup', value: timed ? value : distance ? `${value} m` : value, load: rowLoad ? loadText : null, bands, withLoad: rowLoad, onOpen: openSet, onMenu: openMenu,
           live: Boolean(liveLayout), note: liveLayout ? set.note : null, active: Boolean(liveLayout && setInHand(set)), units: liveLayout && !timed && !distance ? t('history.units.reps') : undefined,
-          record: liveLayout && Boolean(setRecords.get(set.id)?.length) };
+          record: liveLayout && Boolean(setRecords.get(set.id)?.length), progression };
 
         return done
           ? swipe(<LedgerDoneRow {...row} rpe={showRatings && set.rpe !== null ? formatRpe(set.rpe) : null} />, 'ld')
@@ -787,7 +846,8 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
               ? holding ? t('logger.doneHold') : t('logger.startHold') : t('liveWorkout.registerSet', { number }),
             onAction: done ? () => uncomplete(set) : timed && onStartHold
               ? () => { if (holding) onFinishHold?.(); else onStartHold(set); } : () => complete(set),
-            onManual: !done && timed && !holding && onStartHold ? () => complete(set) : undefined,
+            onManual: !done && timed && onStartHold ? () => complete(set) : undefined,
+            progression: liveLayout === 'standalone' ? progression : null,
             badge: liveSetBadge(set, number),
             rest: restSec > 0 ? { value: formatClock(restSec), filled: set.restSec !== null, onPress: () => { onSetOptions(set, 'rest'); } } : undefined,
             video: { clips: set.clipCount, onPress: () => { if (set.clipCount > 0) onSetOptions(set); else router.push({ pathname: '/form-check/[setId]', params: { setId: set.id } }); } },
@@ -800,7 +860,7 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
           <Icon name="checkmark" size={22} color={palette.successText} />
         </Pressable>
       ) : timed && onStartHold ? (
-        <Pressable accessibilityRole="button" accessibilityLabel={holding ? t('logger.doneHold') : t('logger.startHold')} accessibilityHint={holding ? undefined : t('logger.holdLongPressHint')} onPress={() => (holding ? onFinishHold?.() : onStartHold(set))} onLongPress={holding ? undefined : () => { tapFeedback(); complete(set); }} delayLongPress={400} hitSlop={6} style={({ pressed }) => [styles.ledgerCheck, { backgroundColor: palette.accent }, pressed && styles.checkPressed]}>
+        <Pressable accessibilityRole="button" accessibilityLabel={holding ? t('logger.doneHold') : t('logger.startHold')} accessibilityHint={t(holding ? 'logger.holdForceActiveHint' : 'logger.holdLongPressHint')} accessibilityActions={[{ name: 'longpress', label: t('logger.markDoneNoTimer') }]} onAccessibilityAction={({ nativeEvent }) => { if (nativeEvent.actionName === 'longpress') complete(set); }} onPress={() => (holding ? onFinishHold?.() : onStartHold(set))} onLongPress={() => complete(set)} delayLongPress={400} hitSlop={6} style={({ pressed }) => [styles.ledgerCheck, { backgroundColor: palette.accent }, pressed && styles.checkPressed]}>
           <Icon name={holding ? 'stop' : 'play'} size={22} color={palette.accentText} />
         </Pressable>
       ) : undefined;
@@ -1038,11 +1098,11 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
           ) : timed && onStartHold ? (
             <Pressable
               accessibilityRole="button"
-              accessibilityHint={holding ? undefined : t('logger.holdLongPressHint')}
-              accessibilityActions={holding ? undefined : [{ name: 'longpress', label: t('logger.markDoneNoTimer') }]}
+              accessibilityHint={t(holding ? 'logger.holdForceActiveHint' : 'logger.holdLongPressHint')}
+              accessibilityActions={[{ name: 'longpress', label: t('logger.markDoneNoTimer') }]}
               onAccessibilityAction={(event) => { if (event.nativeEvent.actionName === 'longpress') complete(set); }}
               onPress={() => holding ? onFinishHold?.() : onStartHold(set)}
-              onLongPress={holding ? undefined : () => { tapFeedback(); complete(set); }}
+              onLongPress={() => complete(set)}
               delayLongPress={400}
               style={({ pressed }) => [styles.largeAction, { backgroundColor: palette.accent }, pressed && styles.checkPressed]}
             >
@@ -1152,15 +1212,15 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
     const note = onOpenExerciseNote ? <WorkoutNote kind="exerciseNote" value={exercise.notes} onPress={onOpenExerciseNote} inset /> : null;
     const setTools = <View style={styles.liveLogTitle}>
       {standalone ? <Text accessibilityRole="header" style={[styles.liveLogHeading, styles.flex]}>{t('liveWorkout.ledger')}</Text> : <View style={styles.flex} />}
-      <ActionButton compact variant="ghost" label={emomBadgeLabel ? t('emom.addRound') : t('liveWorkout.addSet')} onPress={onAddSet} />
+      <ActionButton compact variant="ghost" icon={addSetCue ? 'add' : undefined} label={emomBadgeLabel ? t('emom.addRound') : addSetCue ?? t('liveWorkout.addSet')} onPress={onAddSet} />
       {onAddWarmup ? <IconButton tone="plain" icon="chevron-down" label={t('logger.addMore')} onPress={() => setAddMenuOpen(!addMenuOpen)} /> : null}
     </View>;
     const wrap = (node: ReactNode) => wrapSetEditor ? wrapSetEditor(node) : node;
     const addRow = <>
       <View style={[styles.liveAddRow, { borderTopColor: palette.border }]}>
         <Pressable accessibilityRole="button" onPress={() => { tapFeedback(); setAddMenuOpen(false); onAddSet(); }} style={({ pressed }) => [styles.liveAdd, pressed && { opacity: 0.6 }]}>
-          {emomBadgeLabel ? <Icon name="add" size={18} color={palette.accentStrong} /> : null}
-          <Text style={[styles.liveAddText, { color: palette.accentStrong }]}>{emomBadgeLabel ? t('emom.addRound') : t('liveWorkout.addSet')}</Text>
+          {emomBadgeLabel || addSetCue ? <Icon name="add" size={18} color={palette.accentStrong} /> : null}
+          <Text style={[styles.liveAddText, { color: palette.accentStrong }]}>{emomBadgeLabel ? t('emom.addRound') : addSetCue ?? t('liveWorkout.addSet')}</Text>
         </Pressable>
         {onAddWarmup ? <IconButton tone="plain" icon={addMenuOpen ? 'chevron-up' : 'chevron-down'} label={t('logger.addMore')} onPress={() => setAddMenuOpen(!addMenuOpen)} /> : null}
       </View>
