@@ -81,7 +81,6 @@ export interface LedgerActiveRowProps extends LedgerCommon {
     fieldLabel: string;
     unit?: string;
     comparable: string | null;
-    progression?: string | null;
     bandsText?: string;
     action: string;
     done: boolean;
@@ -315,7 +314,6 @@ function LiveSetEditor({ live, note, bands, side, valueField, valueDown, valueUp
         {side ? <View accessible accessibilityLabel={side === 'L' ? t('logger.sideLeft') : t('logger.sideRight')} style={styles.sideTags}>{sideTag('L')}{sideTag('R')}</View> : null}
       </View>
     ) : null}
-    {live.progression ? <Text style={[styles.progression, { color: palette.accentStrong }]}>{live.progression}</Text> : null}
     <View style={[styles.liveFields, largeText && styles.liveFieldsStack]}>
       <LiveField stacked={largeText} big label={live.fieldLabel} unit={live.unit} down={valueDown} up={valueUp}>{valueField}</LiveField>
       {showLoad ? <LiveField stacked={largeText} label={t('liveWorkout.addedLoad')} unit="kg" down={loadDown} up={loadUp}>{loadField}</LiveField> : null}

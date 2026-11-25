@@ -847,7 +847,6 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
             onAction: done ? () => uncomplete(set) : timed && onStartHold
               ? () => { if (holding) onFinishHold?.(); else onStartHold(set); } : () => complete(set),
             onManual: !done && timed && onStartHold ? () => complete(set) : undefined,
-            progression: liveLayout === 'standalone' ? progression : null,
             badge: liveSetBadge(set, number),
             rest: restSec > 0 ? { value: formatClock(restSec), filled: set.restSec !== null, onPress: () => { onSetOptions(set, 'rest'); } } : undefined,
             video: { clips: set.clipCount, onPress: () => { if (set.clipCount > 0) onSetOptions(set); else router.push({ pathname: '/form-check/[setId]', params: { setId: set.id } }); } },
@@ -1233,6 +1232,7 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
     </>;
     if (standalone) {
       // One card: name and target, last time, then every set with the one in hand open in its place.
+      const progression = editor ? progressionLabelFor(editor, editorNumber) : null;
       const firstWorking = exercise.sets.find((item) => item.kind === 'working');
       const unilateral = exercise.sets.some((item) => item.side === 'left' || item.side === 'right');
       const target = firstWorking ? (timed ? formatClock(firstWorking.durationSec ?? 0) : distance ? `${formatNumber(firstWorking.distanceM ?? 0)} m` : t('simple.repsValue', { count: firstWorking.reps ?? 0 })) : null;
@@ -1262,6 +1262,7 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
                 </Pressable> : null}
               </View>
               {previousText ? <Text style={[styles.liveLastValue, { color: palette.text }]}>{previousText}</Text> : null}
+              {progression ? <Text style={[styles.liveLastProgression, { color: palette.accentStrong }]}>{progression}</Text> : null}
             </View>
           ) : null}
           {exercise.sets.map((set) => (
@@ -1511,6 +1512,7 @@ const baseStyles = StyleSheet.create({
   liveLastHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', columnGap: spacing.sm },
   liveLastLabel: { flexShrink: 1 },
   liveLastValue: { fontFamily: fonts.body, fontSize: 15, lineHeight: 22 },
+  liveLastProgression: { fontFamily: fonts.semibold, fontSize: 13 },
   liveCopy: { minHeight: 48, justifyContent: 'center', paddingHorizontal: 12 },
   liveCopyText: { fontFamily: fonts.monoSemibold, fontSize: 12, letterSpacing: 0.7, textTransform: 'uppercase' },
   liveAddRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingHorizontal: spacing.sm, paddingVertical: spacing.xs, borderTopWidth: 1 },
