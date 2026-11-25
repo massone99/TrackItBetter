@@ -17,7 +17,7 @@ export function TimedMethodSetupSheet({ exercise, onClose, onStart, onNarrate }:
   onClose: () => void;
   onStart: (config: TimedStart) => void;
   /** Reps only: lays the intervals out as sets and narrates them (Done starts each rest). */
-  onNarrate?: (config: TimedStart) => void;
+  onNarrate: (config: TimedStart) => void;
 }) {
   const { t } = useTranslation();
   const reps = exercise !== null && timedKindFor(exercise.metric) === 'reps';
@@ -28,7 +28,7 @@ export function TimedMethodSetupSheet({ exercise, onClose, onStart, onNarrate }:
   );
 }
 
-function Fields({ exercise, onStart, onNarrate }: { exercise: SessionExercise; onStart: (config: TimedStart) => void; onNarrate?: (config: TimedStart) => void }) {
+function Fields({ exercise, onStart, onNarrate }: { exercise: SessionExercise; onStart: (config: TimedStart) => void; onNarrate: (config: TimedStart) => void }) {
   const { t } = useTranslation();
   const kind = timedKindFor(exercise.metric);
   const reps = kind === 'reps';
@@ -77,24 +77,24 @@ function Fields({ exercise, onStart, onNarrate }: { exercise: SessionExercise; o
       ) : null}
       {exercise.unilateral ? <Body>{t('timedMethod.unassignedSides')}</Body> : null}
       <View style={styles.fields}>
-        <Label>{t('timedMethod.cues')}</Label>
+        {!reps ? <Label>{t('timedMethod.cues')}</Label> : null}
         <Stepper layout="row" label={t('timedMethod.preparation')} value={countdownSec} display={seconds(countdownSec)} step={1} min={0} max={30} presets={[0, 3, 5, 10]} presetLabel={seconds} onChange={setCountdownSec} />
-        <Stepper layout="row" label={t('timedMethod.warningSec')} value={cues.warningSec} display={seconds(cues.warningSec)} step={1} min={0} max={10} presets={[0, 1, 3, 5]} presetLabel={seconds} onChange={(value) => changeCue('warningSec', value)} />
-        <MenuList>
-          <MenuSwitchRow label={t(reps ? 'timedMethod.intervalWarningsReps' : 'timedMethod.intervalWarnings')} value={cues.intervalWarnings} onChange={(value) => changeCue('intervalWarnings', value)} />
-          <MenuSwitchRow label={t(reps ? 'timedMethod.intervalCue' : 'timedMethod.holdCue')} value={cues.holdStart} onChange={(value) => changeCue('holdStart', value)} />
-          <MenuSwitchRow label={t('timedMethod.restCue')} value={cues.restStart} onChange={(value) => changeCue('restStart', value)} />
-          <MenuSwitchRow label={t('timedMethod.milestoneCue')} value={cues.milestones} onChange={(value) => changeCue('milestones', value)} />
-        </MenuList>
+        {!reps ? <>
+          <Stepper layout="row" label={t('timedMethod.warningSec')} value={cues.warningSec} display={seconds(cues.warningSec)} step={1} min={0} max={10} presets={[0, 1, 3, 5]} presetLabel={seconds} onChange={(value) => changeCue('warningSec', value)} />
+          <MenuList>
+            <MenuSwitchRow label={t('timedMethod.intervalWarnings')} value={cues.intervalWarnings} onChange={(value) => changeCue('intervalWarnings', value)} />
+            <MenuSwitchRow label={t('timedMethod.holdCue')} value={cues.holdStart} onChange={(value) => changeCue('holdStart', value)} />
+            <MenuSwitchRow label={t('timedMethod.restCue')} value={cues.restStart} onChange={(value) => changeCue('restStart', value)} />
+            <MenuSwitchRow label={t('timedMethod.milestoneCue')} value={cues.milestones} onChange={(value) => changeCue('milestones', value)} />
+          </MenuList>
+        </> : null}
       </View>
       <Body>{summary}</Body>
-      <ActionButton icon="timer-outline" label={t('timedMethod.start')} onPress={() => onStart(startConfig())} />
-      {reps && onNarrate ? (
-        <>
-          <ActionButton variant="secondary" icon="volume-high-outline" label={t('timedMethod.startNarrated')} onPress={() => onNarrate(startConfig())} />
-          <Body>{t('timedMethod.narratedHint')}</Body>
-        </>
-      ) : null}
+      {reps ? (
+        <ActionButton icon="volume-high-outline" label={t('timedMethod.startNarrated')} onPress={() => onNarrate(startConfig())} />
+      ) : (
+        <ActionButton icon="timer-outline" label={t('timedMethod.start')} onPress={() => onStart(startConfig())} />
+      )}
     </>
   );
 }

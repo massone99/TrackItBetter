@@ -1,5 +1,5 @@
 import { router, useLocalSearchParams } from 'expo-router';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ActivityIndicator } from 'react-native';
 import { buildNarrationPlan, type NarrationExercise } from '../../../src/domain/narration';
@@ -10,7 +10,7 @@ import { NarrationPlayer, type NarrationDrill, type NarrationRecord } from '../.
 import { PREP_VOICE_KEY, WORK_VOICE_KEY, readAnnouncementWaitSec, readNarrationPrepSec } from '../../../src/features/narration/settings';
 import { restForSet } from '../../../src/features/session/restDefaults';
 import { completeSet, getActiveWorkout, uncompleteSet, type ActiveWorkout } from '../../../src/features/session/repository';
-import { readTimedNarration, writeTimedNarration } from '../../../src/features/session/timedMethodPlan';
+import { readTimedNarration, rememberMaxReps, writeTimedNarration } from '../../../src/features/session/timedMethodPlan';
 import { PageHeading, Screen } from '../../../src/shared/components/ui';
 import { readBooleanPreference } from '../../../src/shared/settings/preferences';
 import { useTheme } from '../../../src/shared/theme/ThemeProvider';
@@ -69,26 +69,39 @@ export default function NarratedWorkoutScreen() {
         chained: chain.indexOf(set.id) > 0 && set.note !== 'Timed · max reps',
       })),
     }));
-    return buildNarrationPlan(exercises, prepSec);
+    return buildNarrationPlan(exercises, timed?.prepSec ?? prepSec);
   }, [workout, prepSec, timed]);
 
-  const save = useCallback(async (records: NarrationRecord[]) => {
-    for (const record of records) {
-      for (const setId of record.setIds ?? []) await completeSet(setId, record.completedAt);
-    }
-    if (timed && id) writeTimedNarration(id, null);
-    router.replace({ pathname: '/workout/[id]', params: { id } });
-  }, [id, timed]);
-
-  // Sets follow the user's position in the narration: confirmed now, open again when stepping back.
-  const segmentDone = useCallback((record: NarrationRecord) => {
-    for (const setId of record.setIds ?? []) void completeSet(setId, record.completedAt).catch(() => undefined);
+  const writes = useRef(Promise.resolve());
+  const persistRecord = useCallback(async (record: NarrationRecord) => {
+    const values = record.seconds != null ? { durationSec: record.seconds } : record.reps != null ? { reps: record.reps } : undefined;
+    for (const setId of record.setIds ?? []) await completeSet(setId, record.completedAt, values);
   }, []);
+
+  const save = useCallback(async (records: NarrationRecord[]) => {
+    await writes.current;
+    for (const record of records) await persistRecord(record);
+    if (timed && id) {
+      const exercise = workout?.exercises.find((item) => item.entryId === timed.entryId);
+      const maxSet = exercise?.sets.find((set) => timed.setIds.includes(set.id) && set.note === 'Timed · max reps');
+      const max = maxSet && records.find((record) => record.setIds?.includes(maxSet.id));
+      if (exercise && max?.reps != null) rememberMaxReps(exercise.exerciseId, max.reps);
+      writeTimedNarration(id, null);
+    }
+    router.replace({ pathname: '/workout/[id]', params: { id } });
+  }, [id, timed, workout, persistRecord]);
+
+  // Apply confirmations and reopens in tap order, even when the database is still writing.
+  const segmentDone = useCallback((record: NarrationRecord) => {
+    writes.current = writes.current.then(() => persistRecord(record)).catch(() => undefined);
+  }, [persistRecord]);
   const segmentReopened = useCallback((setIds: string[]) => {
-    for (const setId of setIds) void uncompleteSet(setId).catch(() => undefined);
+    writes.current = writes.current.then(async () => {
+      for (const setId of setIds) await uncompleteSet(setId);
+    }).catch(() => undefined);
   }, []);
 
   if (workout === undefined) return <Screen><ActivityIndicator color={palette.accentStrong} /></Screen>;
   if (workout === null) return <Screen><PageHeading title={t('workout.unavailable')} subtitle={t('workout.finished')} /></Screen>;
-  return <NarrationPlayer announcementWaitSec={announcementWaitSec} workVoice={workVoice} prepVoice={prepVoice} draftKey={timed ? `narration.draft.${id}.timed` : `narration.draft.${id}`} title={workout.name} segments={segments} drills={drills} exitHref={{ pathname: '/workout/[id]', params: { id } }} onSave={save} onSegmentDone={segmentDone} onSegmentReopened={segmentReopened} checkPairs={false} />;
+  return <NarrationPlayer editablePrescription announcementWaitSec={announcementWaitSec} workVoice={workVoice} prepVoice={prepVoice} draftKey={timed ? `narration.draft.${id}.timed` : `narration.draft.${id}`} title={workout.name} segments={segments} drills={drills} exitHref={{ pathname: '/workout/[id]', params: { id } }} onSave={save} onSegmentDone={segmentDone} onSegmentReopened={segmentReopened} checkPairs={false} />;
 }

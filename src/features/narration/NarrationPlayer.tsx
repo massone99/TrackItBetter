@@ -9,7 +9,7 @@ import { useAppInsets } from '../../shared/layout/useAppInsets';
 import { type MobilitySegment, type MobilitySide } from '../../domain/mobilityPlan';
 import { openReferenceVideo } from '../exercises/ReferenceLinkSheet';
 import { WorkoutStopwatch } from '../session/WorkoutStopwatch';
-import { ActionButton, Icon, IconButton, PageHeading, Screen, Sheet, tapFeedback, Text } from '../../shared/components/ui';
+import { ActionButton, Icon, IconButton, PageHeading, Screen, Sheet, Stepper, tapFeedback, Text } from '../../shared/components/ui';
 import { readPreference, writePreference } from '../../shared/settings/preferences';
 import { useTheme } from '../../shared/theme/ThemeProvider';
 import { fonts } from '../../shared/theme/typography';
@@ -41,6 +41,7 @@ export interface NarrationPlayerProps {
   announcementWaitSec?: number;
   workVoice?: boolean;
   prepVoice?: boolean;
+  editablePrescription?: boolean;
   /** Saves what was done; rejecting shows the save error and lets the user retry. */
   onSave: (records: NarrationRecord[], startedAt: Date) => Promise<void>;
   /** Called as soon as a work segment is confirmed (countdown over or "done"), so the sets follow the user's position. */
@@ -54,7 +55,7 @@ function planSignature(segments: readonly MobilitySegment[]): string {
   return segments.map((s) => (s.kind === 'work' ? `w${s.stepIndex}.${s.round}.${s.side ?? ''}.${s.setIds?.join('+') ?? ''}` : `${s.kind}${s.stepIndex}.${s.durationSec}`)).join('|');
 }
 
-function readDraft(key: string, signature: string): { records: [number, Performed][]; index: number; startedAt: number } | null {
+function readDraft(key: string, signature: string): { records: [number, Performed][]; index: number; startedAt: number; prescriptions?: [number, number][] } | null {
   try {
     const value = JSON.parse(readPreference(key) ?? 'null');
     if (!value || !Array.isArray(value.records) || value.signature !== signature) return null;
@@ -62,7 +63,7 @@ function readDraft(key: string, signature: string): { records: [number, Performe
   } catch { return null; }
 }
 
-export function NarrationPlayer({ draftKey, title, segments, drills, exitHref, initialVoice, announcementWaitSec = DEFAULT_ANNOUNCEMENT_WAIT_SEC, workVoice = true, prepVoice = true, onSave, onSegmentDone, onSegmentReopened, checkPairs = true }: NarrationPlayerProps & { checkPairs?: boolean }) {
+export function NarrationPlayer({ draftKey, title, segments, drills, exitHref, initialVoice, announcementWaitSec = DEFAULT_ANNOUNCEMENT_WAIT_SEC, workVoice = true, prepVoice = true, editablePrescription = false, onSave, onSegmentDone, onSegmentReopened, checkPairs = true }: NarrationPlayerProps & { checkPairs?: boolean }) {
   useKeepAwake();
   const styles = useScaledStyles(baseStyles);
   const { t, i18n } = useTranslation();
@@ -79,6 +80,8 @@ export function NarrationPlayer({ draftKey, title, segments, drills, exitHref, i
   const speechGeneration = useRef(0);
   const [now, setNow] = useState(() => Date.now());
   const [performed, setPerformed] = useState<Map<number, Performed>>(() => new Map(readDraft(draftKey, signature)?.records ?? []));
+  const [prescriptions, setPrescriptions] = useState(() => new Map(readDraft(draftKey, signature)?.prescriptions ?? []));
+  const [editingPrescription, setEditingPrescription] = useState(false);
   const [ending, setEnding] = useState(false);
   const [voice, setVoice] = useState(() => initialVoice ?? true);
   const [initialStart] = useState(() => new Date(readDraft(draftKey, signature)?.startedAt ?? Date.now()));
@@ -86,12 +89,13 @@ export function NarrationPlayer({ draftKey, title, segments, drills, exitHref, i
   const finished = useRef(false);
   const started = useRef(false);
   useEffect(() => {
-    if (!finished.current) writePreference(draftKey, JSON.stringify({ records: [...performed], index, startedAt: startedAt.current.getTime(), signature }));
-  }, [draftKey, performed, index, signature]);
+    if (!finished.current) writePreference(draftKey, JSON.stringify({ records: [...performed], index, prescriptions: [...prescriptions], startedAt: startedAt.current.getTime(), signature }));
+  }, [draftKey, performed, index, prescriptions, signature]);
 
   useEffect(() => () => { announceToken.current += 1; speechGeneration.current += 1; void Speech.stop(); }, []);
 
   const segment = segments[index] as MobilitySegment | undefined;
+  const prescription = prescriptions.get(index);
   const paused = pausedRemaining !== null;
   const remainingMs = paused ? pausedRemaining : announcingMs ?? (endsAt === null ? null : Math.max(0, endsAt - now));
 
@@ -169,7 +173,8 @@ export function NarrationPlayer({ draftKey, title, segments, drills, exitHref, i
     setIndex(next);
     setPausedRemaining(null);
     const timed = target.kind !== 'work' || target.mode === 'hold';
-    const seconds = target.kind === 'work' ? target.durationSec ?? 0 : target.durationSec;
+    const edited = prescriptions.get(next);
+    const seconds = target.kind === 'work' ? edited ?? target.durationSec ?? 0 : target.durationSec;
     // The countdown starts when the announcement ends, so speaking never eats into the time.
     const token = announceToken.current + 1;
     announceToken.current = token;
@@ -197,7 +202,8 @@ export function NarrationPlayer({ draftKey, title, segments, drills, exitHref, i
     if (target.kind === 'work') {
       const drill = drills[target.stepIndex];
       const side = target.side === 'left' ? t('mobility.left') : target.side === 'right' ? t('mobility.right') : '';
-      const reps = target.mode === 'reps' && target.reps ? t('narration.repsSpoken', { count: target.reps }) : '';
+      const count = edited ?? target.reps;
+      const reps = target.mode === 'reps' && count ? t('narration.repsSpoken', { count }) : '';
       // Within a timed block only the reps are said: the exercise was named at the first interval.
       speak((target.brief && reps ? [reps] : [drill?.name, side, reps]).filter(Boolean).join('. '), startCountdown);
     } else if (target.kind === 'switch') {
@@ -211,7 +217,7 @@ export function NarrationPlayer({ draftKey, title, segments, drills, exitHref, i
       const name = drills[target.stepIndex]?.name ?? '';
       speak(upcoming && rounds > 1 ? t('narration.getReadySet', { name, number: upcoming.round, total: rounds }) : t('mobility.getReadyFor', { name }), startCountdown);
     }
-  }, [segments, drills, finish, speak, t, workVoice, prepVoice, voice]);
+  }, [segments, drills, finish, speak, t, workVoice, prepVoice, voice, prescriptions]);
 
   // Starts the first segment once the drill names are known, so the first cue can name the drill.
   useEffect(() => {
@@ -224,9 +230,9 @@ export function NarrationPlayer({ draftKey, title, segments, drills, exitHref, i
     if (!segment) return records;
     if (segment.kind !== 'work') return records;
     const next = new Map(records);
-    next.set(index, { stepIndex: segment.stepIndex, round: segment.round, side: segment.side, seconds: segment.durationSec, reps: segment.reps, completedAt: new Date(), setIds: segment.setIds });
+    next.set(index, { stepIndex: segment.stepIndex, round: segment.round, side: segment.side, seconds: segment.mode === 'hold' ? prescription ?? segment.durationSec : null, reps: segment.mode === 'reps' ? prescription ?? segment.reps : null, completedAt: new Date(), setIds: segment.setIds });
     return next;
-  }, [segment, index]);
+  }, [segment, index, prescription]);
 
   // Timed segments advance on their own when the countdown reaches zero.
   useEffect(() => {
@@ -270,7 +276,11 @@ export function NarrationPlayer({ draftKey, title, segments, drills, exitHref, i
     else if (announcingMs !== null) setAnnouncingMs(announcingMs + 10_000);
     else if (endsAt !== null) setEndsAt(endsAt + 10_000);
   };
-  const skip = () => goTo(index + 1, performed);
+  const skip = () => {
+    const next = index + 1;
+    const skipRest = editablePrescription && segment?.kind === 'work' && segment.mode === 'reps' && segments[next]?.kind === 'rest';
+    goTo(skipRest ? next + 1 : next, performed);
+  };
   const doneReps = () => {
     const records = completeCurrent(performed);
     setPerformed(records);
@@ -310,7 +320,8 @@ export function NarrationPlayer({ draftKey, title, segments, drills, exitHref, i
   const nextName = nextWork && nextWork.item.stepIndex !== segment.stepIndex ? drills[nextWork.item.stepIndex]?.name : null;
   const isWork = segment.kind === 'work';
   const repsMode = isWork && segment.mode === 'reps';
-  const totalMs = (segment.kind === 'work' ? segment.durationSec ?? 0 : segment.durationSec) * 1000;
+  const targetValue = isWork ? prescription ?? segment.reps ?? segment.durationSec ?? 0 : 0;
+  const totalMs = (isWork ? (repsMode ? 0 : targetValue) : segment.durationSec) * 1000;
   const progress = totalMs > 0 && remainingMs !== null ? 1 - remainingMs / totalMs : 0;
   const background = isWork ? palette.hero : palette.background;
   const ink = isWork ? palette.heroText : palette.text;
@@ -346,10 +357,16 @@ export function NarrationPlayer({ draftKey, title, segments, drills, exitHref, i
           {rounds > 1 && segment.kind === 'work' ? <Badge text={t('mobility.round', { round: segment.round, rounds })} dark={isWork} /> : null}
         </View>
         {repsMode ? (
-          <Text style={[styles.timer, { color: ink }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.5}>{t('mobility.repsValue', { count: segment.reps ?? 0 })}</Text>
+          <Text style={[styles.timer, { color: ink }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.5}>{t('mobility.repsValue', { count: targetValue })}</Text>
         ) : (
           <Text accessibilityLiveRegion="polite" style={[styles.timer, { color: ink }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.5}>{formatClock((remainingMs ?? 0) / 1000 + 0.999)}</Text>
         )}
+        {editablePrescription && isWork ? (
+          <ControlButton icon="create-outline" label={t('narration.editPrescription')} dark onPress={() => {
+            if (!repsMode && !paused) togglePause();
+            setEditingPrescription(true);
+          }} />
+        ) : null}
         {drill?.cue && (isWork || segment.kind === 'prep') ? <Text style={[styles.cue, { color: soft }]}>{drill.cue}</Text> : null}
         {drill?.demoUrl ? (
           <Pressable accessibilityRole="link" onPress={() => openReferenceVideo(drill.demoUrl!)} style={styles.reference}>
@@ -381,6 +398,18 @@ export function NarrationPlayer({ draftKey, title, segments, drills, exitHref, i
         </Pressable>
       )}
 
+      {editablePrescription && isWork ? (
+        <Sheet visible={editingPrescription} onClose={() => setEditingPrescription(false)} title={t('narration.editPrescription')}>
+          <Stepper layout="row" editable clock={!repsMode} label={t(repsMode ? 'metric.reps' : 'metric.time')} value={targetValue} min={repsMode ? 0 : 1}
+            display={repsMode ? String(targetValue) : formatClock(targetValue)} max={Math.max(999, targetValue)}
+            onChange={(value) => {
+              const secondsOrReps = Math.round(value);
+              setPrescriptions((current) => new Map(current).set(index, secondsOrReps));
+              if (!repsMode) setPausedRemaining(Math.max(0, secondsOrReps * 1000 - (totalMs - (remainingMs ?? totalMs))));
+            }} />
+        </Sheet>
+      ) : null}
+
       <Sheet
         visible={ending}
         onClose={() => setEnding(false)}
@@ -405,7 +434,7 @@ function Badge({ text, dark }: { text: string; dark: boolean }) {
   );
 }
 
-function ControlButton({ icon, label, onPress, dark }: { icon: 'play-skip-back' | 'play-skip-forward'; label: string; onPress: () => void; dark: boolean }) {
+function ControlButton({ icon, label, onPress, dark }: { icon: 'play-skip-back' | 'play-skip-forward' | 'create-outline'; label: string; onPress: () => void; dark: boolean }) {
   const styles = useScaledStyles(baseStyles);
   const { palette } = useTheme();
   return (

@@ -81,7 +81,7 @@ export function rememberMaxReps(exerciseId: string, reps: number): void {
 }
 
 /** The sets of a reps plan laid out for the narrated session (`planTimedRepsSets`), so it narrates only them. */
-export interface TimedNarration { entryId: string; setIds: string[] }
+export interface TimedNarration { entryId: string; setIds: string[]; prepSec?: number }
 const narrationKey = (workoutId: string) => `workout.timedNarration.${workoutId}`;
 
 export function writeTimedNarration(workoutId: string, narration: TimedNarration | null): void {
@@ -91,7 +91,8 @@ export function writeTimedNarration(workoutId: string, narration: TimedNarration
 export function readTimedNarration(workoutId: string): TimedNarration | null {
   try {
     const value = JSON.parse(readPreference(narrationKey(workoutId)) || 'null') as TimedNarration | null;
-    return value && typeof value.entryId === 'string' && Array.isArray(value.setIds) && value.setIds.every((item) => typeof item === 'string') ? value : null;
+    return value && typeof value.entryId === 'string' && Array.isArray(value.setIds) && value.setIds.every((item) => typeof item === 'string')
+      && (value.prepSec === undefined || (Number.isInteger(value.prepSec) && value.prepSec >= 0 && value.prepSec <= 30)) ? value : null;
   } catch {
     return null;
   }

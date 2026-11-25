@@ -1225,7 +1225,8 @@ export default function WorkoutScreen() {
             const { entryId, exerciseId, lastMaxReps, ...settings } = config;
             const setIds = await planTimedRepsSets(workout.id, entryId, { ...settings, maxReps: lastMaxReps ?? settings.repsPerRound ?? 1 });
             writeTimedConfig(exerciseId, { ...settings, lastMaxReps });
-            writeTimedNarration(workout.id, { entryId, setIds });
+            writeTimedNarration(workout.id, { entryId, setIds, prepSec: settings.countdownSec });
+            writePreference(`narration.draft.${workout.id}.timed`, 'null');
             setTimedSetupFor(null);
             await refresh(workout.id);
             router.push({ pathname: '/workout/narrate/[id]', params: { id: workout.id, timed: '1' } });

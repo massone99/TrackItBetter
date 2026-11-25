@@ -1,4 +1,4 @@
-import { act, render, screen } from '@testing-library/react-native';
+import { act, fireEvent, render, screen } from '@testing-library/react-native';
 import * as Speech from 'expo-speech';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { playBeep } from '../../../shared/audio/beeps';
@@ -41,4 +41,35 @@ it.each([true, false])('starts after the beep-only preparation, with work speech
   expect(playBeep).toHaveBeenCalledWith('go');
   if (workVoice) expect(Speech.speak).toHaveBeenCalledWith('Plank', expect.anything());
   else expect(Speech.speak).not.toHaveBeenCalled();
+});
+
+it('waits for confirmation before resting and records the edited reps', async () => {
+  const onSegmentDone = jest.fn();
+  render(
+    <SafeAreaProvider initialMetrics={metrics}>
+      <ThemeProvider>
+        <NarrationPlayer title="Session" draftKey="test.timed.reps" exitHref="/" onSave={jest.fn()}
+          drills={[{ name: 'Pull-up', cue: null, demoUrl: null, rounds: 2 }]}
+          initialVoice={false} editablePrescription onSegmentDone={onSegmentDone}
+          segments={[
+            { kind: 'work', stepIndex: 0, mode: 'reps', durationSec: null, round: 1, side: null, reps: 3 },
+            { kind: 'rest', stepIndex: 0, durationSec: 10, brief: true },
+            { kind: 'work', stepIndex: 0, mode: 'reps', durationSec: null, round: 2, side: null, reps: 3 },
+          ]} />
+      </ThemeProvider>
+    </SafeAreaProvider>,
+  );
+
+  await act(async () => { jest.advanceTimersByTime(30_000); });
+  expect(screen.getByText('3 reps')).toBeTruthy();
+  expect(onSegmentDone).not.toHaveBeenCalled();
+  fireEvent.press(screen.getByLabelText('Edit prescription'));
+  fireEvent.press(screen.getByLabelText('Reps +'));
+  fireEvent.press(screen.getAllByLabelText('Close')[0]);
+  expect(screen.getByText('4 reps')).toBeTruthy();
+  fireEvent.press(screen.getByLabelText('Done'));
+  expect(onSegmentDone).toHaveBeenCalledWith(expect.objectContaining({ reps: 4 }));
+  expect(screen.getByText('Rest')).toBeTruthy();
+  await act(async () => { jest.advanceTimersByTime(10_000); });
+  expect(screen.getByText('3 reps')).toBeTruthy();
 });

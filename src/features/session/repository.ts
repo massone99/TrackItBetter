@@ -632,10 +632,14 @@ export async function setEntryBands(entryId: string, bands: readonly SetBand[], 
 }
 
 /** Marks a set done, now or at `at` (a narrated session saves each set with the time it was done). */
-export async function completeSet(setId: string, at: Date = new Date()): Promise<void> {
+export async function completeSet(setId: string, at: Date = new Date(), values?: { reps?: number; durationSec?: number }): Promise<void> {
+  if ((values?.reps !== undefined && !isValidSetValue('reps', values.reps))
+    || (values?.durationSec !== undefined && !isValidSetValue('durationSec', values.durationSec))) {
+    throw new Error('Invalid workout set value');
+  }
   await initializeDatabase();
   await requireActiveSet(setId);
-  await db.update(trainingSets).set({ completedAt: at }).where(eq(trainingSets.id, setId));
+  await db.update(trainingSets).set({ ...values, completedAt: at }).where(eq(trainingSets.id, setId));
 }
 
 /** Rounds of an EMOM already recorded: completed working sets of the entry since round 1 began (a pair counts once). */
