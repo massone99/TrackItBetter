@@ -10,6 +10,8 @@ export interface NarrationSet {
   /** Rest after this set, already resolved from the set, the exercise and the defaults. */
   restSec: number;
   done: boolean;
+  /** Next interval of a timed block: no preparation before it, a short announcement, a silent rest into it. */
+  chained?: boolean;
 }
 
 export interface NarrationExercise {
@@ -69,7 +71,8 @@ export function buildNarrationPlan(exercises: readonly NarrationExercise[], prep
   const segments: MobilitySegment[] = [];
   units.forEach((unit, position) => {
     const exercise = exercises[unit.exerciseIndex];
-    if (prep > 0) segments.push({ kind: 'prep', stepIndex: unit.exerciseIndex, durationSec: prep });
+    const chained = unit.sets.every((set) => set.chained);
+    if (prep > 0 && !chained) segments.push({ kind: 'prep', stepIndex: unit.exerciseIndex, durationSec: prep });
     const sets = [...unit.sets].sort((a, b) => (a.side === 'left' ? -1 : 0) - (b.side === 'left' ? -1 : 0));
     sets.forEach((set, sideIndex) => {
       const hold = set.durationSec != null;
@@ -83,6 +86,7 @@ export function buildNarrationPlan(exercises: readonly NarrationExercise[], prep
         durationSec: hold ? Math.max(1, Math.round(set.durationSec ?? 0)) : null,
         reps: hold ? null : set.reps,
         setIds: [set.id],
+        ...(set.chained ? { brief: true } : {}),
       });
       if (sideIndex < sets.length - 1) {
         // The switch is also the preparation for the other side, so it is at least that long.
@@ -94,7 +98,8 @@ export function buildNarrationPlan(exercises: readonly NarrationExercise[], prep
     if (!next) return;
     const last = sets[sets.length - 1];
     const rest = exercise.groupId && !unit.endOfRound ? betweenSeconds(exercise.groupType) : Math.round(last.restSec);
-    if (rest > 0) segments.push({ kind: 'rest', stepIndex: next.exerciseIndex, durationSec: rest });
+    const intoChain = next.sets.every((set) => set.chained);
+    if (rest > 0) segments.push({ kind: 'rest', stepIndex: next.exerciseIndex, durationSec: rest, ...(intoChain ? { brief: true } : {}) });
   });
   return segments;
 }

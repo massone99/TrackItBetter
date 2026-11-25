@@ -1,4 +1,4 @@
-import { blockEnd, DEFAULT_TIMED_CUES, timedCue, timedHolds, timedPhase, timedRounds, type TimedMethodPlan } from '../timedMethod';
+import { blockEnd, DEFAULT_TIMED_CUES, hasFinal, parseTimedPlan, repsOfRound, timedCue, timedHolds, timedKindFor, timedPhase, timedRounds, type TimedMethodPlan } from '../timedMethod';
 
 const plan: TimedMethodPlan = {
   workoutId: 'w', entryId: 'e', startedAt: 0, countdownSec: 5, blockSec: 180, holdSec: 10, restSec: 10, recoverySec: 240, testSec: 30,
@@ -70,5 +70,38 @@ describe('timed method', () => {
     expect(timedCue({ phase: 'test', seconds: 29 }, { phase: 'test', seconds: 30 }, cues, 30)).toBeNull();
     expect(timedCue({ phase: 'test', seconds: 29 }, { phase: 'test', seconds: 30 }, DEFAULT_TIMED_CUES, 30)).toBe('done');
     expect(timedCue(hold, { ...hold, round: 2 })).toBe('go');
+  });
+});
+
+describe('timed method on reps', () => {
+  const reps: TimedMethodPlan = { ...plan, kind: 'reps', holdSec: 10, restSec: 0, blockSec: 60, testSec: 0, repsPerRound: 1, roundReps: {}, maxSet: false, maxReps: null };
+
+  it('saves the planned reps of each interval, with corrections', () => {
+    const corrected = { ...reps, roundReps: { 2: 0, 3: 2 } };
+    expect(timedHolds(corrected, at(65), false).map((set) => set.reps)).toEqual([1, 0, 2, 1, 1, 1]);
+    expect(timedHolds(corrected, at(65), false)[0]).toEqual({ seconds: 10, reps: 1, completedAt: new Date(at(15)), restSec: 0 });
+  });
+
+  it('ends with the block unless the max set is on', () => {
+    expect(hasFinal(reps)).toBe(false);
+    expect(timedPhase(reps, at(66))).toEqual({ phase: 'done', seconds: 0 });
+    const withMax = { ...reps, maxSet: true };
+    expect(hasFinal(withMax)).toBe(true);
+    expect(timedPhase(withMax, at(66))).toEqual({ phase: 'recovery', secondsLeft: 239 });
+  });
+
+  it('saves the max set with the reps counted, never an empty one', () => {
+    const testing = { ...reps, maxSet: true, testStartedAt: at(310), testEndedAt: at(340), maxReps: 12 };
+    expect(timedHolds(testing, at(340), true).at(-1)).toEqual({ seconds: 30, reps: 12, completedAt: new Date(at(340)), restSec: null });
+    expect(timedHolds({ ...testing, maxReps: 0 }, at(340), true)).toHaveLength(6);
+  });
+
+  it('runs rep exercises as reps and keeps older hold plans as they were', () => {
+    expect(timedKindFor('reps_load')).toBe('reps');
+    expect(timedKindFor('time')).toBe('hold');
+    expect(parseTimedPlan(JSON.stringify(plan))?.kind).toBeUndefined();
+    expect(parseTimedPlan(JSON.stringify({ ...reps, roundReps: { 1: 3, 2: -1 }, repsPerRound: 0 }))).toMatchObject({ kind: 'reps', repsPerRound: 1, roundReps: { 1: 3 }, testSec: 0 });
+    expect(repsOfRound({ repsPerRound: 2, roundReps: { 4: 5 } }, 4)).toBe(5);
+    expect(repsOfRound({ repsPerRound: 2, roundReps: { 4: 5 } }, 1)).toBe(2);
   });
 });

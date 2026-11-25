@@ -23,9 +23,10 @@ export interface MobilityRoutineShape {
   steps: MobilityStep[];
 }
 
+/** `brief`: one interval of a timed block in a narrated workout, announced with the reps only and rested in silence. */
 export type MobilitySegment =
-  | { kind: 'work'; stepIndex: number; round: number; side: MobilitySide | null; mode: MobilityMode; durationSec: number | null; reps: number | null; setIds?: string[] }
-  | { kind: 'switch' | 'rest' | 'transition' | 'prep'; stepIndex: number; durationSec: number };
+  | { kind: 'work'; stepIndex: number; round: number; side: MobilitySide | null; mode: MobilityMode; durationSec: number | null; reps: number | null; setIds?: string[]; brief?: boolean }
+  | { kind: 'switch' | 'rest' | 'transition' | 'prep'; stepIndex: number; durationSec: number; brief?: boolean };
 
 /** Seconds the side switch takes when a drill is done per side. */
 export const SIDE_SWITCH_SEC = 5;

@@ -10,13 +10,20 @@ import { NarrationPlayer, type NarrationDrill, type NarrationRecord } from '../.
 import { PREP_VOICE_KEY, WORK_VOICE_KEY, readAnnouncementWaitSec, readNarrationPrepSec } from '../../../src/features/narration/settings';
 import { restForSet } from '../../../src/features/session/restDefaults';
 import { completeSet, getActiveWorkout, uncompleteSet, type ActiveWorkout } from '../../../src/features/session/repository';
+import { readTimedNarration, writeTimedNarration } from '../../../src/features/session/timedMethodPlan';
 import { PageHeading, Screen } from '../../../src/shared/components/ui';
 import { readBooleanPreference } from '../../../src/shared/settings/preferences';
 import { useTheme } from '../../../src/shared/theme/ThemeProvider';
 
-/** Hands-free session over a workout's open sets: announces, counts down, rests, and marks each set done. */
+/**
+ * Hands-free session over a workout's open sets: announces, counts down, rests, and marks each set done. With
+ * `timed=1` it narrates only the intervals a reps timed method laid out: the user says when the reps are done and
+ * the rest of the interval starts.
+ */
 export default function NarratedWorkoutScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, timed: timedParam } = useLocalSearchParams<{ id: string; timed?: string }>();
+  // Read once: the block is fixed for the whole narration.
+  const [timed] = useState(() => (timedParam === '1' && id ? readTimedNarration(id) : null));
   const { t } = useTranslation();
   const { palette } = useTheme();
   const [workout, setWorkout] = useState<ActiveWorkout | null | undefined>(undefined);
@@ -39,34 +46,39 @@ export default function NarratedWorkoutScreen() {
         name: exercise.name,
         cue: exercises[position] ? firstCue(exercises[position]!.cues) : null,
         demoUrl: exercise.demoUrl,
-        rounds: groupSets(exercise.sets).length,
+        // A timed block counts only its own intervals.
+        rounds: timed && exercise.entryId === timed.entryId ? timed.setIds.length : groupSets(exercise.sets).length,
       })));
       setWorkout(found);
     })();
     return () => { mounted = false; };
-  }, [id]);
+  }, [id, timed]);
 
   const segments = useMemo(() => {
     if (!workout) return [];
+    const chain = timed?.setIds ?? [];
     const exercises: NarrationExercise[] = workout.exercises.map((exercise) => ({
       entryId: exercise.entryId,
-      groupId: exercise.groupId,
-      groupType: exercise.groupType,
+      // The timed block is one exercise on its own: no superset rounds.
+      groupId: timed ? null : exercise.groupId,
+      groupType: timed ? null : exercise.groupType,
       unilateralRestMode: exercise.unilateralRestMode,
-      sets: exercise.sets.map((set) => ({
+      sets: exercise.sets.filter((set) => !timed || (exercise.entryId === timed.entryId && chain.includes(set.id))).map((set) => ({
         id: set.id, pairId: set.pairId, side: set.side, durationSec: set.durationSec, reps: set.reps,
         restSec: restForSet(exercise.exerciseId, set), done: !!set.completedAt,
+        chained: chain.indexOf(set.id) > 0 && set.note !== 'Timed · max reps',
       })),
     }));
     return buildNarrationPlan(exercises, prepSec);
-  }, [workout, prepSec]);
+  }, [workout, prepSec, timed]);
 
   const save = useCallback(async (records: NarrationRecord[]) => {
     for (const record of records) {
       for (const setId of record.setIds ?? []) await completeSet(setId, record.completedAt);
     }
+    if (timed && id) writeTimedNarration(id, null);
     router.replace({ pathname: '/workout/[id]', params: { id } });
-  }, [id]);
+  }, [id, timed]);
 
   // Sets follow the user's position in the narration: confirmed now, open again when stepping back.
   const segmentDone = useCallback((record: NarrationRecord) => {
@@ -78,5 +90,5 @@ export default function NarratedWorkoutScreen() {
 
   if (workout === undefined) return <Screen><ActivityIndicator color={palette.accentStrong} /></Screen>;
   if (workout === null) return <Screen><PageHeading title={t('workout.unavailable')} subtitle={t('workout.finished')} /></Screen>;
-  return <NarrationPlayer announcementWaitSec={announcementWaitSec} workVoice={workVoice} prepVoice={prepVoice} draftKey={`narration.draft.${id}`} title={workout.name} segments={segments} drills={drills} exitHref={{ pathname: '/workout/[id]', params: { id } }} onSave={save} onSegmentDone={segmentDone} onSegmentReopened={segmentReopened} checkPairs={false} />;
+  return <NarrationPlayer announcementWaitSec={announcementWaitSec} workVoice={workVoice} prepVoice={prepVoice} draftKey={timed ? `narration.draft.${id}.timed` : `narration.draft.${id}`} title={workout.name} segments={segments} drills={drills} exitHref={{ pathname: '/workout/[id]', params: { id } }} onSave={save} onSegmentDone={segmentDone} onSegmentReopened={segmentReopened} checkPairs={false} />;
 }

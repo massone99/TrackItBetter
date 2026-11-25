@@ -2,6 +2,9 @@
  * Timed method: a block of repeated holds and rests (e.g. 3 min of 10 s hold / 10 s rest), a recovery, then one
  * attempt at a single long hold (e.g. 30 s) at the same stretch level. Everything is read from timestamps, so the
  * screen can be left or the phone locked without losing the place.
+ *
+ * On a rep exercise (`kind: 'reps'`) the hold is a work interval: `repsPerRound` reps at its start (usually 1 every
+ * 10 s), correctable round by round, and the optional final part is one set of as many reps as possible.
  */
 export interface TimedMethodPlan {
   workoutId: string;
@@ -27,6 +30,35 @@ export interface TimedMethodPlan {
   testEndedAt: number | null;
   /** Older plans that already saved the block as one aggregate set. */
   blockSaved: boolean;
+  /** Absent on holds (every plan before reps existed). */
+  kind?: TimedMethodKind;
+  /** Exercise of the entry, so the last max set can start the next one. */
+  exerciseId?: string;
+  /** Reps planned in each work interval (reps plans). */
+  repsPerRound?: number;
+  /** Reps actually done in a round (1-based), when corrected from the plan. */
+  roundReps?: Record<string, number>;
+  /** Reps plans: recovery and one max-reps set after the block. */
+  maxSet?: boolean;
+  /** Reps of the final max set, as counted on the stage. */
+  maxReps?: number | null;
+}
+
+export type TimedMethodKind = 'hold' | 'reps';
+
+/** Rep exercises run the reps variant; everything measured in time keeps the holds. */
+export const timedKindFor = (metric: string): TimedMethodKind => (metric === 'reps' || metric === 'reps_load' ? 'reps' : 'hold');
+
+export const isRepsPlan = (plan: Pick<TimedMethodPlan, 'kind'>): boolean => plan.kind === 'reps';
+
+/** Whether the block is followed by a recovery and a final attempt (a long hold, or a max-reps set). */
+export function hasFinal(plan: Pick<TimedMethodPlan, 'kind' | 'maxSet' | 'testSec'>): boolean {
+  return isRepsPlan(plan) ? plan.maxSet === true : plan.testSec > 0;
+}
+
+/** Reps done in a round of a reps plan: the correction if any, else the plan. */
+export function repsOfRound(plan: Pick<TimedMethodPlan, 'repsPerRound' | 'roundReps'>, round: number): number {
+  return plan.roundReps?.[String(round)] ?? plan.repsPerRound ?? 1;
 }
 
 export type TimedMethodPhase =
@@ -99,7 +131,7 @@ export function timedPhase(plan: TimedMethodPlan, now: number): TimedMethodPhase
     const phaseEnd = holding ? plan.holdSec * 1000 : cycle;
     return { phase: holding ? 'hold' : 'rest', round, secondsLeft: Math.max(1, Math.ceil((phaseEnd - inCycle) / 1000)) };
   }
-  if (plan.testSec === 0) return { phase: 'done', seconds: 0 };
+  if (!hasFinal(plan)) return { phase: 'done', seconds: 0 };
   if (plan.testStartedAt === null) {
     const over = recoveryEnd(plan);
     return now < over ? { phase: 'recovery', secondsLeft: Math.max(1, Math.ceil((over - now) / 1000)) } : { phase: 'ready' };
@@ -130,11 +162,16 @@ export function timedCue(previous: TimedMethodPhase | null, current: TimedMethod
 
 export interface TimedHold {
   seconds: number;
+  /** Reps plans: the reps of the round or of the max set (the set then has no duration). */
+  reps?: number;
   completedAt: Date;
   restSec: number | null;
 }
 
-/** One measured set per hold. A partial hold counts once a whole second has elapsed. */
+/**
+ * One measured set per hold (or work interval). A partial one counts once a whole second has elapsed. A max set
+ * with no reps counted is not a set.
+ */
 export function timedHolds(plan: TimedMethodPlan, until: number, finish: boolean): TimedHold[] {
   const rounds = timedRounds(plan);
   const start = blockStart(plan);
@@ -147,13 +184,19 @@ export function timedHolds(plan: TimedMethodPlan, until: number, finish: boolean
       const ends = Math.min(until, begins + plan.holdSec * 1000);
       const seconds = Math.floor((ends - begins) / 1000);
       if (seconds < 1) break;
-      sets.push({ seconds, completedAt: new Date(ends), restSec: Math.floor(Math.max(0, Math.min(until - ends, plan.restSec * 1000)) / 1000) });
+      const restSec = Math.floor(Math.max(0, Math.min(until - ends, plan.restSec * 1000)) / 1000);
+      sets.push(isRepsPlan(plan)
+        ? { seconds, reps: repsOfRound(plan, index + 1), completedAt: new Date(ends), restSec }
+        : { seconds, completedAt: new Date(ends), restSec });
     }
   }
   if (finish && plan.testStartedAt !== null) {
     const ends = plan.testEndedAt ?? until;
     const seconds = Math.floor((ends - plan.testStartedAt) / 1000);
-    if (seconds >= 1) sets.push({ seconds, completedAt: new Date(ends), restSec: null });
+    if (isRepsPlan(plan)) {
+      const reps = plan.maxReps ?? 0;
+      if (seconds >= 1 && reps >= 1) sets.push({ seconds, reps, completedAt: new Date(ends), restSec: null });
+    } else if (seconds >= 1) sets.push({ seconds, completedAt: new Date(ends), restSec: null });
   }
   return sets;
 }
@@ -165,7 +208,13 @@ export function parseTimedPlan(raw: string | null): TimedMethodPlan | null {
     const numbers = [plan.startedAt, plan.countdownSec, plan.blockSec, plan.holdSec, plan.restSec, plan.recoverySec, plan.testSec];
     const valid = typeof plan.workoutId === 'string' && typeof plan.entryId === 'string' && numbers.every((value) => Number.isFinite(value))
       && plan.holdSec > 0 && plan.restSec >= 0 && plan.blockSec > 0 && typeof plan.blockSaved === 'boolean';
-    return valid ? { ...plan, recoveryEndedAt: plan.recoveryEndedAt ?? null, testStartedAt: plan.testStartedAt ?? null, testEndedAt: plan.testEndedAt ?? null, cues: parseTimedCues(plan.cues) } : null;
+    if (!valid) return null;
+    const parsed: TimedMethodPlan = { ...plan, recoveryEndedAt: plan.recoveryEndedAt ?? null, testStartedAt: plan.testStartedAt ?? null, testEndedAt: plan.testEndedAt ?? null, cues: parseTimedCues(plan.cues) };
+    if (plan.kind !== 'reps') return parsed;
+    const count = (value: unknown) => (Number.isInteger(value) && (value as number) >= 0 && (value as number) <= 999 ? value as number : null);
+    const roundReps: Record<string, number> = {};
+    for (const [round, reps] of Object.entries(plan.roundReps ?? {})) if (count(reps) !== null) roundReps[round] = reps;
+    return { ...parsed, kind: 'reps', testSec: 0, repsPerRound: Math.max(1, count(plan.repsPerRound) ?? 1), roundReps, maxSet: plan.maxSet === true, maxReps: count(plan.maxReps) };
   } catch {
     return null;
   }

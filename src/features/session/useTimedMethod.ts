@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AppState } from 'react-native';
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
-import { blockEnd, blockStart, recoveryEnd, timedCue, timedPhase, timedRounds, type TimedMethodPhase, type TimedMethodPlan } from '../../domain/timedMethod';
+import { blockEnd, blockStart, hasFinal, isRepsPlan, recoveryEnd, timedCue, timedPhase, timedRounds, type TimedMethodPhase, type TimedMethodPlan } from '../../domain/timedMethod';
 import { playBeep } from '../../shared/audio/beeps';
 import { writePreference } from '../../shared/settings/preferences';
 import { recordTimedMethod } from './repository';
-import { readTimedPlan, timedPlanKey, writeTimedConfig, type TimedMethodConfig } from './timedMethodPlan';
+import { readTimedPlan, rememberMaxReps, timedPlanKey, writeTimedConfig, type TimedMethodConfig } from './timedMethodPlan';
 
 const KEEP_AWAKE_TAG = 'timed-method';
 
@@ -44,6 +44,7 @@ export function useTimedMethod(workoutId: string | undefined, callbacks: { onRec
       try {
         await writing.current;
         await recordTimedMethod(current, stoppedAt, true);
+        if (isRepsPlan(current) && current.exerciseId && current.testStartedAt !== null && (current.maxReps ?? 0) > 0) rememberMaxReps(current.exerciseId, current.maxReps!);
         if (current.cues?.milestones !== false && !alreadyDone) playBeep('done');
         save(null);
         setPhase(null);
@@ -81,7 +82,7 @@ export function useTimedMethod(workoutId: string | undefined, callbacks: { onRec
       justStarted.current = false;
       previous.current = next;
       setPhase((shown) => (shown && JSON.stringify(shown) === JSON.stringify(next) ? shown : next));
-      if (current.testSec === 0 && now >= blockEnd(current)) {
+      if (!hasFinal(current) && now >= blockEnd(current)) {
         void stop();
         return;
       }
@@ -114,8 +115,8 @@ export function useTimedMethod(workoutId: string | undefined, callbacks: { onRec
 
   const start = useCallback((config: TimedStart) => {
     if (!workoutId || planRef.current) return;
-    const { entryId, exerciseId, ...settings } = config;
-    writeTimedConfig(exerciseId, settings);
+    const { entryId, exerciseId, lastMaxReps, ...settings } = config;
+    writeTimedConfig(exerciseId, { ...settings, lastMaxReps });
     previous.current = null;
     justStarted.current = true;
     savedRounds.current = 0;
@@ -123,7 +124,10 @@ export function useTimedMethod(workoutId: string | undefined, callbacks: { onRec
     alertedRound.current = 0;
     stopFailed.current = false;
     setPhase(null);
-    save({ ...settings, workoutId, entryId, startedAt: Date.now(), recoveryEndedAt: null, testStartedAt: null, testEndedAt: null, blockSaved: false });
+    const reps = settings.kind === 'reps'
+      ? { kind: 'reps' as const, exerciseId, testSec: 0, repsPerRound: settings.repsPerRound ?? 1, maxSet: settings.maxSet === true, maxReps: lastMaxReps ?? settings.repsPerRound ?? 1, roundReps: {} }
+      : {};
+    save({ ...settings, ...reps, workoutId, entryId, startedAt: Date.now(), recoveryEndedAt: null, testStartedAt: null, testEndedAt: null, blockSaved: false });
   }, [workoutId, save]);
 
   const skipRecovery = useCallback(() => {
@@ -137,10 +141,24 @@ export function useTimedMethod(workoutId: string | undefined, callbacks: { onRec
   const startTest = useCallback(() => {
     const current = planRef.current;
     const now = Date.now();
-    if (current && current.stoppedAt === undefined && current.testSec > 0 && current.testStartedAt === null && now >= recoveryEnd(current)) {
+    if (current && current.stoppedAt === undefined && hasFinal(current) && current.testStartedAt === null && now >= recoveryEnd(current)) {
       save({ ...current, testStartedAt: now + current.countdownSec * 1000 });
     }
   }, [save]);
 
-  return { plan, phase: plan ? phase : null, start, skipRecovery, startTest, finishTest: stop, stop };
+  /** Reps plans: corrects the reps of a round not yet saved (later ones are edited in the workout). */
+  const setRoundReps = useCallback((round: number, reps: number) => {
+    const current = planRef.current;
+    if (!current || current.stoppedAt !== undefined || !isRepsPlan(current) || round <= savedRounds.current) return;
+    save({ ...current, roundReps: { ...current.roundReps, [String(round)]: Math.max(0, Math.round(reps)) } });
+  }, [save]);
+
+  /** Reps plans: the reps counted during the max set. */
+  const setMaxReps = useCallback((reps: number) => {
+    const current = planRef.current;
+    if (!current || current.stoppedAt !== undefined || !isRepsPlan(current)) return;
+    save({ ...current, maxReps: Math.max(0, Math.round(reps)) });
+  }, [save]);
+
+  return { plan, phase: plan ? phase : null, start, skipRecovery, startTest, finishTest: stop, stop, setRoundReps, setMaxReps };
 }

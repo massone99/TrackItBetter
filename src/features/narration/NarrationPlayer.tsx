@@ -187,7 +187,8 @@ export function NarrationPlayer({ draftKey, title, segments, drills, exitHref, i
       // Short preparations already start with the countdown's first tick.
       if (seconds > 3) playBeep('tick');
     } else tapFeedback();
-    if ((target.kind === 'work' && !workVoice) || (preparation && !prepVoice)) {
+    // The rest between two intervals of a timed block is silent: the countdown starts at once.
+    if ((target.kind === 'work' && !workVoice) || (preparation && !prepVoice) || (target.kind === 'rest' && target.brief)) {
       speechGeneration.current += 1;
       void Speech.stop();
       startCountdown();
@@ -197,7 +198,8 @@ export function NarrationPlayer({ draftKey, title, segments, drills, exitHref, i
       const drill = drills[target.stepIndex];
       const side = target.side === 'left' ? t('mobility.left') : target.side === 'right' ? t('mobility.right') : '';
       const reps = target.mode === 'reps' && target.reps ? t('narration.repsSpoken', { count: target.reps }) : '';
-      speak([drill?.name, side, reps].filter(Boolean).join('. '), startCountdown);
+      // Within a timed block only the reps are said: the exercise was named at the first interval.
+      speak((target.brief && reps ? [reps] : [drill?.name, side, reps]).filter(Boolean).join('. '), startCountdown);
     } else if (target.kind === 'switch') {
       speak(t('mobility.switchLabel'), startCountdown);
     } else if (target.kind === 'rest') {

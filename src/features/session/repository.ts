@@ -1,4 +1,4 @@
-import { timedHolds, timedRounds, type TimedMethodPlan } from '../../domain/timedMethod';
+import { isRepsPlan, timedHolds, timedRounds, type TimedMethodPlan } from '../../domain/timedMethod';
 import { isValidFormRating } from '../../domain/formRating';
 import { readCompareMode } from '../../shared/settings/preferences';
 import { isMobilityExercise } from '../exercises/categories';
@@ -702,8 +702,12 @@ export async function recordTimedMethod(plan: TimedMethodPlan, until: number, fi
     let index = template?.index ?? 0;
     for (const [position, hold] of pending.entries()) {
       const planned = open[position];
-      const values = { durationSec: hold.seconds, restSec: hold.restSec, completedAt: hold.completedAt };
-      const note = hold.restSec === null ? `Timed · final hold target ${plan.testSec}″` : `Timed · ${recorded + position + 1}/${timedRounds(plan)}`;
+      // A reps plan saves the reps of the interval; the set has no duration.
+      const values = hold.reps !== undefined
+        ? { reps: hold.reps, durationSec: null, restSec: hold.restSec, completedAt: hold.completedAt }
+        : { durationSec: hold.seconds, restSec: hold.restSec, completedAt: hold.completedAt };
+      const final = hold.restSec === null ? (isRepsPlan(plan) ? 'Timed · max reps' : `Timed · final hold target ${plan.testSec}″`) : null;
+      const note = final ?? `Timed · ${recorded + position + 1}/${timedRounds(plan)}`;
       if (planned) {
         tx.update(trainingSets).set({ ...values, note: planned.note ?? note }).where(eq(trainingSets.id, planned.id)).run();
         template = planned;
@@ -719,6 +723,55 @@ export async function recordTimedMethod(plan: TimedMethodPlan, until: number, fi
     const value = String(holds.length);
     tx.insert(settings).values({ key, value }).onConflictDoUpdate({ target: settings.key, set: { value } }).run();
   });
+}
+
+/**
+ * Lays out a reps plan as open sets for the narrated session: one set per interval with `repsPerRound` reps, then
+ * the max set when it is on. The narration starts each rest when the user says the reps are done, so a set rests
+ * the whole interval plus the extra break; the last interval rests the recovery before the max set. Open working sets
+ * already planned are reused first, like the timed stage does. Returns the set ids in order.
+ */
+export async function planTimedRepsSets(workoutId: string, entryId: string, plan: Pick<TimedMethodPlan, 'blockSec' | 'holdSec' | 'restSec' | 'recoverySec' | 'repsPerRound' | 'maxSet'> & { maxReps: number }): Promise<string[]> {
+  await initializeDatabase();
+  const rounds = timedRounds(plan);
+  const ids: string[] = [];
+  db.transaction((tx) => {
+    const entry = tx.select({ endedAt: workouts.endedAt }).from(exerciseEntries)
+      .innerJoin(workouts, eq(exerciseEntries.workoutId, workouts.id))
+      .where(and(eq(exerciseEntries.id, entryId), eq(exerciseEntries.workoutId, workoutId))).get();
+    if (!entry || entry.endedAt) throw new Error('Use the completed workout editor');
+    const rows = tx.select().from(trainingSets).where(eq(trainingSets.entryId, entryId)).orderBy(asc(trainingSets.index)).all();
+    const groups = groupSets(rows);
+    const lastDone = groups.reduce((last, group, index) => (group.some((set) => set.completedAt) ? index : last), -1);
+    const open = groups.slice(lastDone + 1).flatMap(([set]) => set.kind === 'working' && !set.pairId ? [set] : []);
+    let template = rows.at(-1);
+    let index = template?.index ?? 0;
+    const interval = plan.holdSec + plan.restSec;
+    const wanted = Array.from({ length: rounds }, (_, round) => ({
+      reps: plan.repsPerRound ?? 1,
+      restSec: round === rounds - 1 && plan.maxSet ? plan.recoverySec : interval,
+      note: `Timed · ${round + 1}/${rounds}`,
+    }));
+    if (plan.maxSet) wanted.push({ reps: Math.max(1, plan.maxReps), restSec: interval, note: 'Timed · max reps' });
+    for (const [position, values] of wanted.entries()) {
+      const planned = open[position];
+      if (planned) {
+        tx.update(trainingSets).set({ reps: values.reps, durationSec: null, restSec: values.restSec, note: values.note }).where(eq(trainingSets.id, planned.id)).run();
+        template = planned;
+        ids.push(planned.id);
+      } else {
+        index += 1;
+        const setId = id();
+        tx.insert(trainingSets).values({
+          ...values, entryId, id: setId, index,
+          addedLoadKg: template?.addedLoadKg, band: template?.band, bands: template?.bands, assistKg: template?.assistKg,
+          targetRpe: template?.targetRpe,
+        }).run();
+        ids.push(setId);
+      }
+    }
+  });
+  return ids;
 }
 
 /** A workout cannot finish with one side of an L/R pair done and the other not; the UI words it. */

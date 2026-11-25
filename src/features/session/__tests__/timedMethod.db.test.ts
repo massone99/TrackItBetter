@@ -1,6 +1,6 @@
 import { migrateDatabase } from '../../../db/migrations';
 import { seedCatalogIfEmpty } from '../../../db/seed/import';
-import { addExerciseToWorkout, recordTimedMethod, startWorkout } from '../repository';
+import { addExerciseToWorkout, planTimedRepsSets, recordTimedMethod, startWorkout } from '../repository';
 import type { TimedMethodPlan } from '../../../domain/timedMethod';
 
 jest.mock('../../../db/client', () => {
@@ -83,5 +83,37 @@ it('does not mark either side of a prescribed pair from a single timed hold', as
     { side: 'left', pair_id: 'pair', completed_at: null },
     { side: 'right', pair_id: 'pair', completed_at: null },
     { side: 'both', pair_id: null, completed_at: 7000 },
+  ]);
+});
+
+it('saves a reps plan as reps with no duration, the max set last', async () => {
+  const workoutId = await startWorkout('Timed reps');
+  const entryId = await addExerciseToWorkout(workoutId, 'push-up');
+  const plan: TimedMethodPlan = {
+    workoutId, entryId, countdownSec: 0, startedAt: 0, blockSec: 30, holdSec: 10, restSec: 0, recoverySec: 60, testSec: 0,
+    recoveryEndedAt: null, testStartedAt: 100000, testEndedAt: 130000, blockSaved: false,
+    kind: 'reps', repsPerRound: 1, roundReps: { 2: 2 }, maxSet: true, maxReps: 9,
+  };
+  await recordTimedMethod(plan, 130000, true);
+  const rows = real.sqlite.prepare('SELECT reps, duration_sec, note FROM training_set WHERE entry_id = ? AND completed_at IS NOT NULL ORDER BY set_index').all(entryId);
+  expect(rows).toEqual([
+    { reps: 1, duration_sec: null, note: expect.any(String) },
+    { reps: 2, duration_sec: null, note: 'Timed · 2/3' },
+    { reps: 1, duration_sec: null, note: 'Timed · 3/3' },
+    { reps: 9, duration_sec: null, note: 'Timed · max reps' },
+  ]);
+});
+
+it('lays a reps plan out as open sets for the narration', async () => {
+  const workoutId = await startWorkout('Narrated reps');
+  const entryId = await addExerciseToWorkout(workoutId, 'push-up');
+  const ids = await planTimedRepsSets(workoutId, entryId, { blockSec: 30, holdSec: 10, restSec: 5, recoverySec: 120, repsPerRound: 2, maxSet: true, maxReps: 7 });
+  const rows = real.sqlite.prepare('SELECT id, reps, rest_sec, note, completed_at FROM training_set WHERE entry_id = ? ORDER BY set_index').all(entryId);
+  // 30 s holds two full 15 s intervals; the last one rests the recovery before the max set.
+  expect(rows.map((row: { id: string }) => row.id).slice(0, ids.length)).toEqual(ids);
+  expect(rows.slice(0, 3)).toEqual([
+    { id: ids[0], reps: 2, rest_sec: 15, note: 'Timed · 1/2', completed_at: null },
+    { id: ids[1], reps: 2, rest_sec: 120, note: 'Timed · 2/2', completed_at: null },
+    { id: ids[2], reps: 7, rest_sec: 15, note: 'Timed · max reps', completed_at: null },
   ]);
 });

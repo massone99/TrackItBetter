@@ -45,3 +45,12 @@ describe('buildNarrationPlan with a half-done pair', () => {
     expect(kinds(buildNarrationPlan([exercise('a', [left, right])], 0))).toEqual(['work0:1r']);
   });
 });
+
+describe('a timed block of reps', () => {
+  it('prepares once, then chains the intervals with silent rests and short announcements', () => {
+    const reps = (id: string, chained: boolean, restSec = 10) => set(id, { durationSec: null, reps: 1, restSec, chained });
+    const plan = buildNarrationPlan([exercise('a', [reps('1', false), reps('2', true), reps('3', true, 240), set('4', { durationSec: null, reps: 8 })])], 5);
+    expect(kinds(plan)).toEqual(['prep0:5', 'work0:1', 'rest0:10', 'work0:2', 'rest0:10', 'work0:3', 'rest0:240', 'prep0:5', 'work0:4']);
+    expect(plan.map((segment) => segment.brief ?? false)).toEqual([false, false, true, true, true, true, false, false, false]);
+  });
+});

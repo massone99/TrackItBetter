@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { BackHandler, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import { timedRounds, type TimedMethodPhase, type TimedMethodPlan } from '../../domain/timedMethod';
+import { isRepsPlan, repsOfRound, timedRounds, type TimedMethodPhase, type TimedMethodPlan } from '../../domain/timedMethod';
 import { Icon, Text, tapFeedback } from '../../shared/components/ui';
 import { useAppInsets } from '../../shared/layout/useAppInsets';
 import { useTheme } from '../../shared/theme/ThemeProvider';
@@ -27,10 +27,14 @@ function stepOf(phase: TimedMethodPhase): number {
   return 3;
 }
 
-export function TimedMethodStage({ exercise, plan, phase, onSkipRecovery, onStartTest, onFinishTest, onStop, onClose }: {
+export function TimedMethodStage({ exercise, plan, phase, onSkipRecovery, onStartTest, onFinishTest, onStop, onClose, onRoundReps, onMaxReps }: {
   exercise: string;
   plan: TimedMethodPlan;
   phase: TimedMethodPhase;
+  /** Reps plans: corrects the reps of the current round. */
+  onRoundReps?: (round: number, reps: number) => void;
+  /** Reps plans: the reps counted in the max set. */
+  onMaxReps?: (reps: number) => void;
   onSkipRecovery: () => void;
   onStartTest: () => void;
   onFinishTest: () => void;
@@ -53,15 +57,21 @@ export function TimedMethodStage({ exercise, plan, phase, onSkipRecovery, onStar
   const step = stepOf(phase);
   const round = phase.phase === 'hold' || phase.phase === 'rest' ? phase.round : phase.phase === 'countdown' ? 0 : rounds;
   const holding = phase.phase === 'hold' || phase.phase === 'test';
+  const reps = isRepsPlan(plan);
   const label = {
-    countdown: t('timedMethod.getReady'), hold: t('timedMethod.holdPhase'), rest: t('timedMethod.restPhase'), recovery: t('timedMethod.recoveryPhase'),
-    ready: t('timedMethod.readyPhase'), testCountdown: t('timedMethod.getReady'), test: t('timedMethod.testPhase'), done: t('timedMethod.donePhase'),
+    countdown: t('timedMethod.getReady'), hold: t(reps ? 'timedMethod.workPhase' : 'timedMethod.holdPhase'), rest: t('timedMethod.restPhase'), recovery: t('timedMethod.recoveryPhase'),
+    ready: t('timedMethod.readyPhase'), testCountdown: t('timedMethod.getReady'), test: t(reps ? 'timedMethod.maxPhase' : 'timedMethod.testPhase'), done: t('timedMethod.donePhase'),
   }[phase.phase];
+  // Reps: the round's reps can be corrected while it runs (work interval and its break), the max set's while counting.
+  const counter = !reps ? null
+    : phase.phase === 'hold' || phase.phase === 'rest'
+      ? { label: t(phase.phase === 'hold' ? 'timedMethod.thisInterval' : 'timedMethod.justDone'), value: repsOfRound(plan, phase.round), onChange: (value: number) => onRoundReps?.(phase.round, value) }
+      : phase.phase === 'test' ? { label: t('timedMethod.maxDone'), value: plan.maxReps ?? 0, onChange: (value: number) => onMaxReps?.(value) } : null;
   // Progress of the clock within the phase (the final hold fills towards its goal).
   const total = phase.phase === 'hold' ? plan.holdSec : phase.phase === 'rest' ? plan.restSec : phase.phase === 'recovery' ? plan.recoverySec : phase.phase === 'test' ? plan.testSec : 0;
   const left = phase.phase === 'test' ? plan.testSec - phase.seconds : 'secondsLeft' in phase ? phase.secondsLeft : 0;
   const filled = total > 0 ? Math.min(1, Math.max(0, phase.phase === 'test' ? phase.seconds / plan.testSec : 1 - left / total)) : 0;
-  const reached = phase.phase === 'test' && phase.seconds >= plan.testSec;
+  const reached = !reps && phase.phase === 'test' && phase.seconds >= plan.testSec;
   const showStopHint = () => {
     tapFeedback();
     setStopHint(true);
@@ -72,8 +82,8 @@ export function TimedMethodStage({ exercise, plan, phase, onSkipRecovery, onStar
     ? { label: t('common.save'), icon: 'save-outline' as const, onPress: onStop }
     : phase.phase === 'recovery'
     ? { label: t('timedMethod.skipRecovery'), icon: 'play-forward' as const, onPress: onSkipRecovery }
-    : phase.phase === 'ready' ? { label: t('timedMethod.startTest', { seconds: plan.testSec }), icon: 'play' as const, onPress: onStartTest }
-      : phase.phase === 'test' ? { label: t('timedMethod.endTest'), icon: 'stop' as const, onPress: onFinishTest } : null;
+    : phase.phase === 'ready' ? { label: reps ? t('timedMethod.startMax') : t('timedMethod.startTest', { seconds: plan.testSec }), icon: 'play' as const, onPress: onStartTest }
+      : phase.phase === 'test' ? { label: t(reps ? 'timedMethod.endMax' : 'timedMethod.endTest'), icon: 'stop' as const, onPress: onFinishTest } : null;
 
   return (
     <View style={[StyleSheet.absoluteFill, styles.stage, { backgroundColor: palette.hero }]}>
@@ -94,8 +104,8 @@ export function TimedMethodStage({ exercise, plan, phase, onSkipRecovery, onStar
             <Text accessibilityLiveRegion="polite" style={[styles.phase, { color: palette.heroText }]}>{label}</Text>
             {phase.phase === 'hold' || phase.phase === 'rest' ? (
               <Text style={[styles.tagWide, { color: muted }]}>{t('timedMethod.round', { round, rounds }).toUpperCase()}</Text>
-            ) : phase.phase === 'recovery' ? <Text style={[styles.tagWide, { color: muted }]}>{t('timedMethod.recoveryHint').toUpperCase()}</Text>
-              : phase.phase === 'ready' || phase.phase === 'test' ? <Text style={[styles.tagWide, { color: muted }]}>{t('timedMethod.testGoal', { seconds: plan.testSec }).toUpperCase()}</Text> : null}
+            ) : phase.phase === 'recovery' ? <Text style={[styles.tagWide, { color: muted }]}>{t(reps ? 'timedMethod.recoveryHintReps' : 'timedMethod.recoveryHint').toUpperCase()}</Text>
+              : phase.phase === 'ready' || phase.phase === 'test' ? <Text style={[styles.tagWide, { color: muted }]}>{(reps ? t('timedMethod.maxHint') : t('timedMethod.testGoal', { seconds: plan.testSec })).toUpperCase()}</Text> : null}
           </View>
           <View style={styles.clockBlock}>
             <Text maxFontSizeMultiplier={1} numberOfLines={1} accessibilityRole="timer" accessibilityLabel={`${label} ${timedClock(phase)}`} style={[styles.clock, { color: palette.heroText }]}>{phase.phase === 'ready' ? 'GO' : timedClock(phase)}</Text>
@@ -104,6 +114,7 @@ export function TimedMethodStage({ exercise, plan, phase, onSkipRecovery, onStar
             </View>
             {reached ? <Text accessibilityLiveRegion="polite" style={[styles.tagStrong, { color: palette.heroText }]}>{t('timedMethod.goalReached').toUpperCase()}</Text> : null}
           </View>
+          {counter ? <RepsCounter {...counter} /> : null}
           {/* One cell per cycle of the block: holds already done are filled, the current one is outlined. */}
           <View style={styles.strip} accessible accessibilityLabel={t('timedMethod.stripLabel', { done: Math.max(0, step > 1 ? rounds : phase.phase === 'rest' ? round : round - 1), rounds })}>
             {Array.from({ length: rounds }, (_, index) => {
@@ -112,7 +123,7 @@ export function TimedMethodStage({ exercise, plan, phase, onSkipRecovery, onStar
               return <View key={index} style={[styles.cell, done ? { backgroundColor: palette.heroText } : current ? [styles.cellCurrent, { borderColor: palette.heroText }] : { borderColor: muted, borderWidth: 1 }]} />;
             })}
           </View>
-          {holding ? null : <Text style={[styles.caption, { color: muted }]}>{phase.phase === 'rest' ? t('timedMethod.restHint') : ''}</Text>}
+          {holding || reps ? null : <Text style={[styles.caption, { color: muted }]}>{phase.phase === 'rest' ? t('timedMethod.restHint') : ''}</Text>}
         </View>
 
         <View style={styles.controls}>
@@ -123,9 +134,9 @@ export function TimedMethodStage({ exercise, plan, phase, onSkipRecovery, onStar
             </Pressable>
           ) : null}
           {phase.phase === 'recovery' || phase.phase === 'ready' ? (
-            <Pressable accessibilityRole="button" accessibilityLabel={t('timedMethod.finishNoTest')} onPress={() => { tapFeedback(); onStop(); }} style={({ pressed }) => [styles.action, largeText && styles.fullRow, styles.actionOutline, { borderColor: muted }, pressed && styles.pressed]}>
+            <Pressable accessibilityRole="button" accessibilityLabel={t(reps ? 'timedMethod.finishNoMax' : 'timedMethod.finishNoTest')} onPress={() => { tapFeedback(); onStop(); }} style={({ pressed }) => [styles.action, largeText && styles.fullRow, styles.actionOutline, { borderColor: muted }, pressed && styles.pressed]}>
               <Icon name="flag-outline" size={16} color={palette.heroText} />
-              <Text style={[styles.actionTextQuiet, { color: palette.heroText }]}>{t('timedMethod.finishNoTest')}</Text>
+              <Text style={[styles.actionTextQuiet, { color: palette.heroText }]}>{t(reps ? 'timedMethod.finishNoMax' : 'timedMethod.finishNoTest')}</Text>
             </Pressable>
           ) : null}
           <Pressable
@@ -149,12 +160,34 @@ export function TimedMethodStage({ exercise, plan, phase, onSkipRecovery, onStar
   );
 }
 
-/** The running method in one line at the bottom of the workout; a tap opens the full screen again. */
-export function TimedMethodMiniDock({ exercise, phase, onOpen }: { exercise: string; phase: TimedMethodPhase; onOpen: () => void }) {
+/** Reps of the running round or max set, on the stage: one tap per rep, large enough for a chalky thumb. */
+function RepsCounter({ label, value, onChange }: { label: string; value: number; onChange: (value: number) => void }) {
   const styles = useScaledStyles(baseStyles);
   const { t } = useTranslation();
   const { palette } = useTheme();
-  const name = { countdown: 'getReady', hold: 'holdPhase', rest: 'restPhase', recovery: 'recoveryPhase', ready: 'readyPhase', testCountdown: 'getReady', test: 'testPhase', done: 'donePhase' }[phase.phase];
+  const step = (delta: number) => { tapFeedback(); onChange(Math.max(0, Math.min(999, value + delta))); };
+  return (
+    <View style={styles.counter}>
+      <Text style={[styles.counterLabel, { color: palette.heroTextMuted }]}>{label.toUpperCase()}</Text>
+      <View style={styles.counterRow}>
+        <Pressable accessibilityRole="button" accessibilityLabel={t('timedMethod.fewerReps')} disabled={value <= 0} onPress={() => step(-1)} style={({ pressed }) => [styles.counterButton, { backgroundColor: palette.heroOverlay }, (pressed || value <= 0) && styles.pressed]}>
+          <Icon name="remove" size={26} color={palette.heroText} />
+        </Pressable>
+        <Text accessibilityLiveRegion="polite" accessibilityLabel={`${label}: ${t('timedMethod.repsCount', { count: value })}`} style={[styles.counterValue, { color: palette.heroText }]}>{value}</Text>
+        <Pressable accessibilityRole="button" accessibilityLabel={t('timedMethod.moreReps')} onPress={() => step(1)} style={({ pressed }) => [styles.counterButton, { backgroundColor: palette.heroOverlay }, pressed && styles.pressed]}>
+          <Icon name="add" size={26} color={palette.heroText} />
+        </Pressable>
+      </View>
+    </View>
+  );
+}
+
+/** The running method in one line at the bottom of the workout; a tap opens the full screen again. */
+export function TimedMethodMiniDock({ exercise, phase, reps = false, onOpen }: { exercise: string; phase: TimedMethodPhase; reps?: boolean; onOpen: () => void }) {
+  const styles = useScaledStyles(baseStyles);
+  const { t } = useTranslation();
+  const { palette } = useTheme();
+  const name = { countdown: 'getReady', hold: reps ? 'workPhase' : 'holdPhase', rest: 'restPhase', recovery: 'recoveryPhase', ready: 'readyPhase', testCountdown: 'getReady', test: reps ? 'maxPhase' : 'testPhase', done: 'donePhase' }[phase.phase];
   return (
     <Pressable accessibilityRole="button" accessibilityLabel={`${t(`timedMethod.${name}`)}, ${exercise}, ${timedClock(phase)}`} accessibilityHint={t('emom.openStage')} onPress={() => { tapFeedback(); onOpen(); }} style={({ pressed }) => [styles.mini, { backgroundColor: palette.hero }, pressed && styles.pressed]}>
       <View style={styles.miniText}>
@@ -200,4 +233,9 @@ const baseStyles = StyleSheet.create({
   miniText: { flexGrow: 1, flexShrink: 1, flexBasis: 140, minWidth: 0 },
   miniLabel: { fontFamily: fonts.display, fontSize: 18, lineHeight: 22 },
   miniClock: { fontFamily: fonts.monoBold, fontSize: 28, lineHeight: 32, fontVariant: ['tabular-nums'] },
+  counter: { gap: spacing.xs },
+  counterLabel: { fontFamily: fonts.monoSemibold, fontSize: 12, lineHeight: 16, letterSpacing: 1 },
+  counterRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
+  counterButton: { width: 64, height: 56, alignItems: 'center', justifyContent: 'center', borderRadius: radii.control },
+  counterValue: { flexGrow: 1, flexShrink: 1, textAlign: 'center', fontFamily: fonts.monoBold, fontSize: 44, lineHeight: 52, fontVariant: ['tabular-nums'] },
 });

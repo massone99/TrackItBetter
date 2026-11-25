@@ -59,7 +59,9 @@ import {
   updateSet,
   setEntryTotalTarget,
   removeSet,
+  planTimedRepsSets,
 } from '../../src/features/session/repository';
+import { writeTimedConfig, writeTimedNarration } from '../../src/features/session/timedMethodPlan';
 import type { ActiveWorkout, PreviousPerformance, PreviousSetValues, RemovedRows, SessionExercise, SessionSet, SwitchSnapshot } from '../../src/features/session/repository';
 import { defaultHoldMode, rememberHoldMode, useHoldTimer, type ActiveHold } from '../../src/features/session/useHoldTimer';
 import { adjustedRest, REST_STEP_SEC } from '../../src/domain/restTimer';
@@ -944,7 +946,7 @@ export default function WorkoutScreen() {
         columnStyle={styles.workoutColumn}
         footerAccessory={<View style={styles.dockStack} onLayout={(event) => setFooterHeight(event.nativeEvent.layout.height)}>
           {timedView ? (
-            <TimedMethodMiniDock exercise={timedView.exercise} phase={timedView.phase} onOpen={() => setTimedStage(true)} />
+            <TimedMethodMiniDock exercise={timedView.exercise} phase={timedView.phase} reps={timed.plan?.kind === 'reps'} onOpen={() => setTimedStage(true)} />
           ) : emomView ? (
             <EmomMiniDock view={emomView} label={emomBadge(emomView.phase, emom.plan!, t)} onOpen={() => setEmomStage(true)} />
           ) : hold.active || restEndsAt !== null ? (
@@ -1174,6 +1176,8 @@ export default function WorkoutScreen() {
           onFinishTest={() => void timed.finishTest()}
           onStop={() => void timed.stop()}
           onClose={closeTimedStage}
+          onRoundReps={timed.setRoundReps}
+          onMaxReps={timed.setMaxReps}
         />
       ) : null}
       {emomView && emomStage && !timedView ? (
@@ -1212,6 +1216,23 @@ export default function WorkoutScreen() {
           setTimedStage(true);
           timed.start(config);
         }}
+        onNarrate={async (config) => {
+          if (!await timed.stop()) return;
+          if (emom.plan) await emom.stop();
+          hold.stop();
+          skipRest();
+          try {
+            const { entryId, exerciseId, lastMaxReps, ...settings } = config;
+            const setIds = await planTimedRepsSets(workout.id, entryId, { ...settings, maxReps: lastMaxReps ?? settings.repsPerRound ?? 1 });
+            writeTimedConfig(exerciseId, { ...settings, lastMaxReps });
+            writeTimedNarration(workout.id, { entryId, setIds });
+            setTimedSetupFor(null);
+            await refresh(workout.id);
+            router.push({ pathname: '/workout/narrate/[id]', params: { id: workout.id, timed: '1' } });
+          } catch (error) {
+            Alert.alert(t('history.saveError'), error instanceof Error ? error.message : String(error));
+          }
+        }}
       />
       <EmomSetupSheet
         exercise={emomSetupFor}
@@ -1249,7 +1270,7 @@ export default function WorkoutScreen() {
         visible={finishOpen}
         onClose={() => setFinishOpen(false)}
         title={t('logger.finishTitle')}
-        body={hasTimedHolds ? t('timedMethod.finishWorkout') : completedCount > 0 ? `${t('logger.finishBody', { count: completedCount })}${tiny ? `\n\n${t('logger.tinyWorkout')}` : ''}` : t('logger.noCompleted')}
+        body={hasTimedHolds ? t(timed.plan?.kind === 'reps' ? 'timedMethod.finishWorkoutReps' : 'timedMethod.finishWorkout') : completedCount > 0 ? `${t('logger.finishBody', { count: completedCount })}${tiny ? `\n\n${t('logger.tinyWorkout')}` : ''}` : t('logger.noCompleted')}
       >
         {hasTimedHolds || workout.exercises.some((e) => e.sets.some((s) => s.completedAt)) ? <ActionButton icon="flag" label={t('workout.finish')} onPress={() => void confirmFinish()} /> : null}
         <ActionButton label={t('logger.keepGoing')} secondary onPress={() => setFinishOpen(false)} />
