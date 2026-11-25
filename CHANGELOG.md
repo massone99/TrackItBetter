@@ -2,6 +2,11 @@
 
 Release notes for TrackItBetter, newest first.
 
+## 0.82.0 - 2026-11-25
+
+- Timed method on rep exercises: work intervals (by default 1 rep every 10 s, reps per interval adjustable), a − / + counter on the timer to correct the running interval, and an optional recovery plus max-reps set. Each interval is saved as a set with its reps.
+- Narrated timed method: the intervals are laid out as sets and narrated one by one; tap Done after the reps and the interval's rest starts, announced with the reps only.
+
 ## 0.81.1 - 2026-11-25
 
 - Text never gets smaller than 12 dp, even at the smallest interface size.
