@@ -122,23 +122,46 @@ export function TimedCuesEditor({ cues, onChange, reps = false }: {
 
       <MenuList>
         <MenuSwitchRow label={t('timedMethod.vibrateWithBeeps')} value={vibrate} onChange={(value) => patch({ vibrate: value })} />
-        <MenuSwitchRow
-          label={t(reps ? 'timedMethod.intervalWarningsReps' : 'timedMethod.intervalWarnings')}
-          value={resolved.intervalWarnings}
-          onChange={(value) => patch({ intervalWarnings: value })}
-        />
       </MenuList>
+
+      {!reps ? (
+        <Stepper
+          layout="row"
+          label={t('timedMethod.holdWarningSec')}
+          value={resolved.holdWarningSec ?? 3}
+          display={(resolved.holdWarningSec ?? 3) === 0 ? t('timedMethod.paceTickOff') : seconds(resolved.holdWarningSec ?? 3)}
+          step={1}
+          min={0}
+          max={10}
+          presets={[0, 1, 3, 5]}
+          presetLabel={(v) => (v === 0 ? t('timedMethod.paceTickOff') : seconds(v))}
+          onChange={(value) => patch({ holdWarningSec: value })}
+        />
+      ) : null}
 
       <Stepper
         layout="row"
-        label={t('timedMethod.warningSec')}
-        value={resolved.warningSec}
-        display={seconds(resolved.warningSec)}
+        label={t('timedMethod.restWarningSec')}
+        value={resolved.restWarningSec ?? 3}
+        display={(resolved.restWarningSec ?? 3) === 0 ? t('timedMethod.paceTickOff') : seconds(resolved.restWarningSec ?? 3)}
         step={1}
         min={0}
         max={10}
         presets={[0, 1, 3, 5]}
-        presetLabel={seconds}
+        presetLabel={(v) => (v === 0 ? t('timedMethod.paceTickOff') : seconds(v))}
+        onChange={(value) => patch({ restWarningSec: value })}
+      />
+
+      <Stepper
+        layout="row"
+        label={t('timedMethod.prepWarningSec')}
+        value={resolved.warningSec}
+        display={resolved.warningSec === 0 ? t('timedMethod.paceTickOff') : seconds(resolved.warningSec)}
+        step={1}
+        min={0}
+        max={10}
+        presets={[0, 1, 3, 5]}
+        presetLabel={(v) => (v === 0 ? t('timedMethod.paceTickOff') : seconds(v))}
         onChange={(value) => patch({ warningSec: value })}
       />
 

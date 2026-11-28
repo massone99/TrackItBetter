@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { BackHandler, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import { isRepsPlan, parseTimedCues, repsOfRound, timedRounds, type TimedMethodCues, type TimedMethodPhase, type TimedMethodPlan } from '../../domain/timedMethod';
+import { hasFinal, isRepsPlan, manualRepsRestSec, parseTimedCues, repsOfRound, timedRounds, type TimedMethodCues, type TimedMethodPhase, type TimedMethodPlan } from '../../domain/timedMethod';
 import { Icon, Sheet, Text, tapFeedback } from '../../shared/components/ui';
 import { useAppInsets } from '../../shared/layout/useAppInsets';
 import { useTheme } from '../../shared/theme/ThemeProvider';
@@ -15,7 +15,8 @@ import { TimedCuesEditor } from './TimedCuesEditor';
 export function timedClock(phase: TimedMethodPhase): string {
   switch (phase.phase) {
     case 'countdown': case 'testCountdown': return String(phase.secondsLeft);
-    case 'hold': case 'rest': case 'recovery': return formatClock(phase.secondsLeft);
+    case 'hold': return phase.awaitingConfirm ? formatClock(phase.elapsedSec ?? 0) : formatClock(phase.secondsLeft);
+    case 'rest': case 'recovery': return formatClock(phase.secondsLeft);
     case 'test': case 'done': return formatClock(phase.seconds);
     default: return '0:00';
   }
@@ -28,10 +29,12 @@ function stepOf(phase: TimedMethodPhase): number {
   return 3;
 }
 
-export function TimedMethodStage({ exercise, plan, phase, onSkipRecovery, onStartTest, onFinishTest, onStop, onClose, onRoundReps, onMaxReps, onUpdateCues }: {
+export function TimedMethodStage({ exercise, plan, phase, onConfirmRound, onSkipRecovery, onStartTest, onFinishTest, onStop, onClose, onRoundReps, onMaxReps, onUpdateCues }: {
   exercise: string;
   plan: TimedMethodPlan;
   phase: TimedMethodPhase;
+  /** Reps plans with manual rest: confirms the current round and starts its rest. */
+  onConfirmRound?: () => void;
   /** Reps plans: corrects the reps of the current round. */
   onRoundReps?: (round: number, reps: number) => void;
   /** Reps plans: the reps counted in the max set. */
@@ -74,7 +77,9 @@ export function TimedMethodStage({ exercise, plan, phase, onSkipRecovery, onStar
       ? { label: t(phase.phase === 'hold' ? 'timedMethod.thisInterval' : 'timedMethod.justDone'), value: repsOfRound(plan, phase.round), onChange: (value: number) => onRoundReps?.(phase.round, value) }
       : phase.phase === 'test' ? { label: t('timedMethod.maxDone'), value: plan.maxReps ?? 0, onChange: (value: number) => onMaxReps?.(value) } : null;
   // Progress of the clock within the phase (the final hold fills towards its goal).
-  const total = phase.phase === 'hold' ? plan.holdSec : phase.phase === 'rest' ? plan.restSec : phase.phase === 'recovery' ? plan.recoverySec : phase.phase === 'test' ? plan.testSec : 0;
+  const restDuration = reps && plan.manualRest ? manualRepsRestSec(plan) : plan.restSec;
+  const awaitingConfirm = phase.phase === 'hold' && phase.awaitingConfirm === true;
+  const total = phase.phase === 'hold' ? (awaitingConfirm ? 0 : plan.holdSec) : phase.phase === 'rest' ? restDuration : phase.phase === 'recovery' ? plan.recoverySec : phase.phase === 'test' ? plan.testSec : 0;
   const left = phase.phase === 'test' ? plan.testSec - phase.seconds : 'secondsLeft' in phase ? phase.secondsLeft : 0;
   const filled = total > 0 ? Math.min(1, Math.max(0, phase.phase === 'test' ? phase.seconds / plan.testSec : 1 - left / total)) : 0;
   const reached = !reps && phase.phase === 'test' && phase.seconds >= plan.testSec;
@@ -84,12 +89,17 @@ export function TimedMethodStage({ exercise, plan, phase, onSkipRecovery, onStar
     if (hintTimer.current) clearTimeout(hintTimer.current);
     hintTimer.current = setTimeout(() => setStopHint(false), 3000);
   };
+  const confirmLabel = phase.phase === 'hold' && phase.round < rounds
+    ? t('timedMethod.confirmStartRest', { seconds: restDuration })
+    : hasFinal(plan) ? t('timedMethod.confirmStartRecovery') : t('timedMethod.confirmFinishBlock');
   const primary = plan.stoppedAt !== undefined
     ? { label: t('common.save'), icon: 'save-outline' as const, onPress: onStop }
-    : phase.phase === 'recovery'
-    ? { label: t('timedMethod.skipRecovery'), icon: 'play-forward' as const, onPress: onSkipRecovery }
-    : phase.phase === 'ready' ? { label: reps ? t('timedMethod.startMax') : t('timedMethod.startTest', { seconds: plan.testSec }), icon: 'play' as const, onPress: onStartTest }
-      : phase.phase === 'test' ? { label: t(reps ? 'timedMethod.endMax' : 'timedMethod.endTest'), icon: 'stop' as const, onPress: onFinishTest } : null;
+    : awaitingConfirm && onConfirmRound
+      ? { label: confirmLabel, icon: 'checkmark' as const, onPress: onConfirmRound }
+      : phase.phase === 'recovery'
+        ? { label: t('timedMethod.skipRecovery'), icon: 'play-forward' as const, onPress: onSkipRecovery }
+        : phase.phase === 'ready' ? { label: reps ? t('timedMethod.startMax') : t('timedMethod.startTest', { seconds: plan.testSec }), icon: 'play' as const, onPress: onStartTest }
+          : phase.phase === 'test' ? { label: t(reps ? 'timedMethod.endMax' : 'timedMethod.endTest'), icon: 'stop' as const, onPress: onFinishTest } : null;
 
   return (
     <View style={[StyleSheet.absoluteFill, styles.stage, { backgroundColor: palette.hero }]}>
@@ -141,7 +151,11 @@ export function TimedMethodStage({ exercise, plan, phase, onSkipRecovery, onStar
               return <View key={index} style={[styles.cell, done ? { backgroundColor: palette.heroText } : current ? [styles.cellCurrent, { borderColor: palette.heroText }] : { borderColor: muted, borderWidth: 1 }]} />;
             })}
           </View>
-          {holding || reps ? null : <Text style={[styles.caption, { color: muted }]}>{phase.phase === 'rest' ? t('timedMethod.restHint') : ''}</Text>}
+          {awaitingConfirm ? (
+            <Text style={[styles.caption, { color: muted }]}>{t('timedMethod.confirmRoundHint')}</Text>
+          ) : holding || reps ? null : (
+            <Text style={[styles.caption, { color: muted }]}>{phase.phase === 'rest' ? t('timedMethod.restHint') : ''}</Text>
+          )}
         </View>
 
         <View style={styles.controls}>

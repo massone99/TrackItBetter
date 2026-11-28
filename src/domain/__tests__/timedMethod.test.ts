@@ -105,6 +105,22 @@ describe('timed method', () => {
     const silent = parseTimedCues({ holdStartTone: 'none', restStartTone: 'none', warningTone: 'none' });
     expect(timedSoundCue({ phase: 'countdown', secondsLeft: 1 }, { phase: 'hold', round: 1, secondsLeft: 10 }, silent, { holdSec: 10 })).toBeNull();
   });
+
+  it('defaults to last-3s warning beeps on both holds and rests and lets each be customized independently', () => {
+    const defaults = parseTimedCues(undefined);
+    expect(defaults.holdWarningSec).toBe(3);
+    expect(defaults.restWarningSec).toBe(3);
+    // Last 3s of hold
+    expect(timedSoundCue({ phase: 'hold', round: 1, secondsLeft: 4 }, { phase: 'hold', round: 1, secondsLeft: 3 }, defaults, { holdSec: 10 })).toBe('tick');
+    expect(timedSoundCue({ phase: 'hold', round: 1, secondsLeft: 5 }, { phase: 'hold', round: 1, secondsLeft: 4 }, defaults, { holdSec: 10 })).toBeNull();
+    // Last 3s of rest
+    expect(timedSoundCue({ phase: 'rest', round: 1, secondsLeft: 4 }, { phase: 'rest', round: 1, secondsLeft: 3 }, defaults, { holdSec: 10 })).toBe('tick');
+    expect(timedSoundCue({ phase: 'rest', round: 1, secondsLeft: 5 }, { phase: 'rest', round: 1, secondsLeft: 4 }, defaults, { holdSec: 10 })).toBeNull();
+    // Independent customization: hold 0 (off), rest 5s
+    const customWarn = parseTimedCues({ holdWarningSec: 0, restWarningSec: 5, warningTone: 'sharp' });
+    expect(timedSoundCue({ phase: 'hold', round: 1, secondsLeft: 2 }, { phase: 'hold', round: 1, secondsLeft: 1 }, customWarn, { holdSec: 10 })).toBeNull();
+    expect(timedSoundCue({ phase: 'rest', round: 1, secondsLeft: 6 }, { phase: 'rest', round: 1, secondsLeft: 5 }, customWarn, { holdSec: 10 })).toBe('sharp');
+  });
 });
 
 describe('timed method on reps', () => {
@@ -137,5 +153,28 @@ describe('timed method on reps', () => {
     expect(parseTimedPlan(JSON.stringify({ ...reps, roundReps: { 1: 3, 2: -1 }, repsPerRound: 0 }))).toMatchObject({ kind: 'reps', repsPerRound: 1, roundReps: { 1: 3 }, testSec: 0 });
     expect(repsOfRound({ repsPerRound: 2, roundReps: { 4: 5 } }, 4)).toBe(5);
     expect(repsOfRound({ repsPerRound: 2, roundReps: { 4: 5 } }, 1)).toBe(2);
+  });
+
+  it('manualRest reps plans never start rest until the user confirms the round', () => {
+    const manual: TimedMethodPlan = { ...reps, blockSec: 20, holdSec: 10, restSec: 0, manualRest: true, roundConfirmedAt: {} };
+    // Even 100s into round 1, still awaiting confirmation (rest does NOT start automatically)
+    expect(timedPhase(manual, at(105))).toEqual({ phase: 'hold', round: 1, secondsLeft: 0, elapsedSec: 100, awaitingConfirm: true });
+    expect(timedHolds(manual, at(105), true)).toEqual([]);
+
+    // User confirms round 1 at t=20s -> 10s rest runs until t=30s
+    const afterR1: TimedMethodPlan = { ...manual, roundConfirmedAt: { 1: at(20) } };
+    expect(timedPhase(afterR1, at(20))).toEqual({ phase: 'rest', round: 1, secondsLeft: 10 });
+    expect(timedPhase(afterR1, at(27))).toEqual({ phase: 'rest', round: 1, secondsLeft: 3 });
+    // At t=30s, round 2 begins and waits for confirmation again
+    expect(timedPhase(afterR1, at(30))).toEqual({ phase: 'hold', round: 2, secondsLeft: 0, elapsedSec: 0, awaitingConfirm: true });
+    expect(timedPhase(afterR1, at(90))).toEqual({ phase: 'hold', round: 2, secondsLeft: 0, elapsedSec: 60, awaitingConfirm: true });
+
+    // Confirming final round ends block cleanly and records both sets
+    const afterR2: TimedMethodPlan = { ...afterR1, roundConfirmedAt: { 1: at(20), 2: at(42) } };
+    expect(timedPhase(afterR2, at(42))).toEqual({ phase: 'done', seconds: 0 });
+    expect(timedHolds(afterR2, at(42), true).map((s) => ({ reps: s.reps, restSec: s.restSec }))).toEqual([
+      { reps: 1, restSec: 10 },
+      { reps: 1, restSec: 0 },
+    ]);
   });
 });

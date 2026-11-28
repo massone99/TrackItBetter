@@ -1191,6 +1191,7 @@ export default function WorkoutScreen() {
           exercise={timedView.exercise}
           plan={timed.plan}
           phase={timedView.phase}
+          onConfirmRound={timed.confirmRound}
           onSkipRecovery={timed.skipRecovery}
           onStartTest={timed.startTest}
           onFinishTest={() => void timed.finishTest()}

@@ -62,3 +62,38 @@ it('plays customized beep tones with volume and updates cues live', async () => 
   await act(async () => { jest.advanceTimersByTime(10000); });
   expect(playBeep).toHaveBeenCalledWith('soft', { volume: 0.75, vibrate: true });
 });
+
+it('waits for confirmRound before starting rest on reps timed method', async () => {
+  const callbacks = { onRecorded: jest.fn(), onSaveError: jest.fn() };
+  const { result } = renderHook(() => useTimedMethod('w', callbacks));
+  act(() => result.current.start({
+    ...DEFAULT_TIMED_CONFIG,
+    kind: 'reps',
+    repsPerRound: 3,
+    maxSet: false,
+    entryId: 'entry',
+    exerciseId: 'exercise',
+    countdownSec: 0,
+    blockSec: 20,
+    holdSec: 10,
+    restSec: 0,
+    testSec: 0,
+  }));
+  // Even after 25s, still waiting in round 1 — rest has NOT started
+  await act(async () => { jest.advanceTimersByTime(25000); });
+  expect(result.current.phase).toMatchObject({ phase: 'hold', round: 1, awaitingConfirm: true });
+
+  // User presses confirm -> rest starts immediately (10s)
+  act(() => result.current.confirmRound());
+  expect(result.current.phase).toEqual({ phase: 'rest', round: 1, secondsLeft: 10 });
+  expect(playBeep).toHaveBeenCalledWith('double', { volume: 1, vibrate: true });
+
+  // Rest finishes after 10s -> round 2 awaits confirmation
+  await act(async () => { jest.advanceTimersByTime(10250); });
+  expect(result.current.phase).toMatchObject({ phase: 'hold', round: 2, awaitingConfirm: true });
+
+  // Confirm final round -> block completes and saves
+  await act(async () => { result.current.confirmRound(); });
+  expect(recordTimedMethod).toHaveBeenCalled();
+  expect(result.current.plan).toBeNull();
+});

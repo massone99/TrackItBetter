@@ -64,14 +64,20 @@ function Fields({ exercise, onStart, onNarrate }: { exercise: SessionExercise; o
       : t('timedMethod.summaryNoTest', { count: rounds, rounds, hold: seconds(holdSec), rest: seconds(restSec) });
 
   const volumePct = Math.round((cues.volume ?? 1) * 100);
+  const holdWarn = cues.holdWarningSec ?? 3;
+  const restWarn = cues.restWarningSec ?? 3;
+  const warnSummary = reps
+    ? (restWarn > 0 ? t('timedMethod.warningsRestOnly', { rest: restWarn }) : null)
+    : (holdWarn > 0 || restWarn > 0 ? t('timedMethod.warningsSummary', { hold: holdWarn, rest: restWarn }) : null);
   const cuesSummary = volumePct === 0
     ? t('timedMethod.volumeMute')
     : [
       `${volumePct}%`,
+      warnSummary,
       t(toneLabelKey(cues.holdStart ? (cues.holdStartTone ?? 'go') : 'none')),
       t(toneLabelKey(cues.restStart ? (cues.restStartTone ?? 'double') : 'none')),
       t(toneLabelKey(cues.milestones ? (cues.milestoneTone ?? 'done') : 'none')),
-    ].join(' · ');
+    ].filter(Boolean).join(' · ');
 
   return (
     <>

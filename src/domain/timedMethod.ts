@@ -40,8 +40,12 @@ export interface TimedMethodPlan {
   roundReps?: Record<string, number>;
   /** Reps plans: recovery and one max-reps set after the block. */
   maxSet?: boolean;
-  /** Reps of the final max set, as counted on the stage. */
+  /** Reps plans: the reps counted during the max set. */
   maxReps?: number | null;
+  /** Reps plans: wait for user confirmation before starting each round's rest. */
+  manualRest?: boolean;
+  /** Reps plans with manualRest: timestamp (ms) when each round (1-based) was confirmed. */
+  roundConfirmedAt?: Record<string, number>;
 }
 
 export type TimedMethodKind = 'hold' | 'reps';
@@ -63,7 +67,8 @@ export function repsOfRound(plan: Pick<TimedMethodPlan, 'repsPerRound' | 'roundR
 
 export type TimedMethodPhase =
   | { phase: 'countdown'; secondsLeft: number }
-  | { phase: 'hold' | 'rest'; round: number; secondsLeft: number }
+  | { phase: 'hold'; round: number; secondsLeft: number; elapsedSec?: number; awaitingConfirm?: boolean }
+  | { phase: 'rest'; round: number; secondsLeft: number }
   | { phase: 'recovery'; secondsLeft: number }
   | { phase: 'ready' }
   | { phase: 'testCountdown'; secondsLeft: number }
@@ -83,10 +88,14 @@ function parseTone(value: unknown, fallback: TimedBeepTone): TimedBeepTone {
 export interface TimedMethodCues {
   warningSec: number;
   intervalWarnings: boolean;
+  /** Warning beeps in the last N seconds of each hold (0 = off, default 3). */
+  holdWarningSec?: number;
+  /** Warning beeps in the last N seconds of each rest/break (0 = off, default 3). */
+  restWarningSec?: number;
   holdStart: boolean;
   restStart: boolean;
   milestones: boolean;
-  /** Tone for countdown warnings (before start and optionally during holds/breaks). */
+  /** Tone for countdown warnings (before start and last seconds of holds/breaks). */
   warningTone?: TimedBeepTone;
   /** Tone when a hold / work interval starts. */
   holdStartTone?: TimedBeepTone;
@@ -109,6 +118,8 @@ export interface TimedMethodCues {
 export const DEFAULT_TIMED_CUES: TimedMethodCues = {
   warningSec: 3,
   intervalWarnings: false,
+  holdWarningSec: 3,
+  restWarningSec: 3,
   holdStart: true,
   restStart: true,
   milestones: true,
@@ -125,15 +136,24 @@ export const DEFAULT_TIMED_CUES: TimedMethodCues = {
 
 export function parseTimedCues(cues: Partial<TimedMethodCues> | null | undefined): TimedMethodCues {
   const warningSec = cues?.warningSec;
+  const resolvedWarning = warningSec !== undefined && Number.isInteger(warningSec) && warningSec >= 0 && warningSec <= 10
+    ? warningSec : DEFAULT_TIMED_CUES.warningSec;
+  const pickWarn = (value: unknown) =>
+    typeof value === 'number' && Number.isInteger(value) && value >= 0 && value <= 10
+      ? value
+      : cues?.intervalWarnings === true ? resolvedWarning : 3;
+  const holdWarningSec = pickWarn(cues?.holdWarningSec);
+  const restWarningSec = pickWarn(cues?.restWarningSec);
   const holdStart = cues?.holdStart !== false;
   const restStart = cues?.restStart !== false;
   const milestones = cues?.milestones !== false;
   const intervalTickSec = cues?.intervalTickSec;
   const volume = cues?.volume;
   return {
-    warningSec: warningSec !== undefined && Number.isInteger(warningSec) && warningSec >= 0 && warningSec <= 10
-      ? warningSec : DEFAULT_TIMED_CUES.warningSec,
-    intervalWarnings: cues?.intervalWarnings === true,
+    warningSec: resolvedWarning,
+    intervalWarnings: cues?.intervalWarnings === true || holdWarningSec > 0 || restWarningSec > 0,
+    holdWarningSec,
+    restWarningSec,
     holdStart,
     restStart,
     milestones,
@@ -159,8 +179,18 @@ export function blockStart(plan: Pick<TimedMethodPlan, 'startedAt' | 'countdownS
   return plan.startedAt + plan.countdownSec * 1000;
 }
 
-/** When the last cycle ends (ms). */
-export function blockEnd(plan: Pick<TimedMethodPlan, 'startedAt' | 'countdownSec' | 'blockSec' | 'holdSec' | 'restSec'>): number {
+/** Rest duration (seconds) after confirming a round in manual-confirm reps mode. */
+export function manualRepsRestSec(plan: Pick<TimedMethodPlan, 'holdSec' | 'restSec'>): number {
+  return Math.max(0, plan.holdSec + plan.restSec);
+}
+
+/** When the last cycle ends (ms). For manual-confirm reps plans, returns null until the final round is confirmed. */
+export function blockEnd(plan: Pick<TimedMethodPlan, 'startedAt' | 'countdownSec' | 'blockSec' | 'holdSec' | 'restSec' | 'kind' | 'manualRest' | 'roundConfirmedAt'>): number {
+  if (plan.kind === 'reps' && plan.manualRest) {
+    const rounds = timedRounds(plan);
+    const lastConfirmed = plan.roundConfirmedAt?.[String(rounds)];
+    return lastConfirmed ?? Number.POSITIVE_INFINITY;
+  }
   return blockStart(plan) + timedRounds(plan) * (plan.holdSec + plan.restSec) * 1000;
 }
 
@@ -171,6 +201,32 @@ export function recoveryEnd(plan: TimedMethodPlan): number {
 export function timedPhase(plan: TimedMethodPlan, now: number): TimedMethodPhase {
   const start = blockStart(plan);
   if (now < start) return { phase: 'countdown', secondsLeft: Math.ceil((start - now) / 1000) };
+  if (isRepsPlan(plan) && plan.manualRest) {
+    const rounds = timedRounds(plan);
+    const restMs = manualRepsRestSec(plan) * 1000;
+    let roundStart = start;
+    for (let round = 1; round <= rounds; round++) {
+      const confirmedAt = plan.roundConfirmedAt?.[String(round)];
+      if (confirmedAt === undefined) {
+        return { phase: 'hold', round, secondsLeft: 0, elapsedSec: Math.max(0, Math.floor((now - roundStart) / 1000)), awaitingConfirm: true };
+      }
+      if (round < rounds) {
+        const restEnds = confirmedAt + restMs;
+        if (now < restEnds) {
+          return { phase: 'rest', round, secondsLeft: Math.max(1, Math.ceil((restEnds - now) / 1000)) };
+        }
+        roundStart = restEnds;
+      }
+    }
+    if (!hasFinal(plan)) return { phase: 'done', seconds: 0 };
+    if (plan.testStartedAt === null) {
+      const over = recoveryEnd(plan);
+      return now < over ? { phase: 'recovery', secondsLeft: Math.max(1, Math.ceil((over - now) / 1000)) } : { phase: 'ready' };
+    }
+    if (plan.testEndedAt !== null) return { phase: 'done', seconds: Math.max(0, Math.round((plan.testEndedAt - plan.testStartedAt) / 1000)) };
+    if (now < plan.testStartedAt) return { phase: 'testCountdown', secondsLeft: Math.ceil((plan.testStartedAt - now) / 1000) };
+    return { phase: 'test', seconds: Math.floor((now - plan.testStartedAt) / 1000) };
+  }
   const end = blockEnd(plan);
   if (now < end) {
     const cycle = (plan.holdSec + plan.restSec) * 1000;
@@ -231,7 +287,8 @@ export function timedSoundCue(
   }
   if (current.phase === 'recovery') {
     if (changedPhase && cues.milestones) return toneOrNull(cues.milestoneTone);
-    if (cues.intervalWarnings && current.secondsLeft <= cues.warningSec &&
+    const restWarn = cues.restWarningSec ?? 0;
+    if (restWarn > 0 && current.secondsLeft <= restWarn &&
       (changedPhase || (previous && 'secondsLeft' in previous && previous.secondsLeft !== current.secondsLeft))) {
       return toneOrNull(cues.warningTone);
     }
@@ -265,22 +322,30 @@ export function timedSoundCue(
   const secondChanged = changedPhase || newRound || (previous !== null && 'secondsLeft' in previous && previous.secondsLeft !== current.secondsLeft);
   if (!secondChanged) return null;
 
-  const canWarn = current.phase === 'countdown' || current.phase === 'testCountdown' || cues.intervalWarnings;
-  if (canWarn && current.secondsLeft <= cues.warningSec) {
-    return toneOrNull(cues.warningTone);
+  if (current.phase === 'countdown' || current.phase === 'testCountdown') {
+    return current.secondsLeft <= cues.warningSec ? toneOrNull(cues.warningTone) : null;
   }
-
-  if (current.phase === 'hold' && holdSec > 0 && previous?.phase === 'hold' && !newRound) {
-    const prevElapsed = holdSec - previous.secondsLeft;
-    const elapsed = holdSec - current.secondsLeft;
-    if (elapsed > prevElapsed) {
-      if (holdSec >= 4 && cues.halfwayTone && cues.halfwayTone !== 'none') {
-        const half = Math.floor(holdSec / 2);
-        if (prevElapsed < half && elapsed >= half) return cues.halfwayTone;
-      }
-      if ((cues.intervalTickSec ?? 0) > 0 && elapsed > 0 && elapsed < holdSec &&
-        Math.floor(prevElapsed / cues.intervalTickSec!) < Math.floor(elapsed / cues.intervalTickSec!)) {
-        return toneOrNull(cues.intervalTickTone);
+  if (current.phase === 'rest') {
+    const restWarn = cues.restWarningSec ?? 0;
+    return restWarn > 0 && current.secondsLeft <= restWarn ? toneOrNull(cues.warningTone) : null;
+  }
+  if (current.phase === 'hold' && !current.awaitingConfirm) {
+    const holdWarn = cues.holdWarningSec ?? 0;
+    if (holdWarn > 0 && current.secondsLeft <= holdWarn) {
+      return toneOrNull(cues.warningTone);
+    }
+    if (holdSec > 0 && previous?.phase === 'hold' && !newRound) {
+      const prevElapsed = holdSec - previous.secondsLeft;
+      const elapsed = holdSec - current.secondsLeft;
+      if (elapsed > prevElapsed) {
+        if (holdSec >= 4 && cues.halfwayTone && cues.halfwayTone !== 'none') {
+          const half = Math.floor(holdSec / 2);
+          if (prevElapsed < half && elapsed >= half) return cues.halfwayTone;
+        }
+        if ((cues.intervalTickSec ?? 0) > 0 && elapsed > 0 && elapsed < holdSec &&
+          Math.floor(prevElapsed / cues.intervalTickSec!) < Math.floor(elapsed / cues.intervalTickSec!)) {
+          return toneOrNull(cues.intervalTickTone);
+        }
       }
     }
   }
@@ -306,15 +371,30 @@ export function timedHolds(plan: TimedMethodPlan, until: number, finish: boolean
   const sets: TimedHold[] = [];
   // Older versions already saved an aggregate set. Continue from there on a restored plan.
   if (!plan.blockSaved) {
-    for (let index = 0; index < rounds; index++) {
-      const begins = start + index * cycleMs;
-      const ends = Math.min(until, begins + plan.holdSec * 1000);
-      const seconds = Math.floor((ends - begins) / 1000);
-      if (seconds < 1) break;
-      const restSec = Math.floor(Math.max(0, Math.min(until - ends, plan.restSec * 1000)) / 1000);
-      sets.push(isRepsPlan(plan)
-        ? { seconds, reps: repsOfRound(plan, index + 1), completedAt: new Date(ends), restSec }
-        : { seconds, completedAt: new Date(ends), restSec });
+    if (isRepsPlan(plan) && plan.manualRest) {
+      const restSec = manualRepsRestSec(plan);
+      let roundStart = start;
+      for (let round = 1; round <= rounds; round++) {
+        const confirmedAt = plan.roundConfirmedAt?.[String(round)];
+        if (confirmedAt === undefined || confirmedAt > until) break;
+        const seconds = Math.max(1, Math.floor((confirmedAt - roundStart) / 1000));
+        const actualRest = round < rounds
+          ? Math.floor(Math.max(0, Math.min(until - confirmedAt, restSec * 1000)) / 1000)
+          : hasFinal(plan) ? Math.floor(Math.max(0, Math.min(until - confirmedAt, plan.recoverySec * 1000)) / 1000) : 0;
+        sets.push({ seconds, reps: repsOfRound(plan, round), completedAt: new Date(confirmedAt), restSec: actualRest });
+        roundStart = confirmedAt + restSec * 1000;
+      }
+    } else {
+      for (let index = 0; index < rounds; index++) {
+        const begins = start + index * cycleMs;
+        const ends = Math.min(until, begins + plan.holdSec * 1000);
+        const seconds = Math.floor((ends - begins) / 1000);
+        if (seconds < 1) break;
+        const restSec = Math.floor(Math.max(0, Math.min(until - ends, plan.restSec * 1000)) / 1000);
+        sets.push(isRepsPlan(plan)
+          ? { seconds, reps: repsOfRound(plan, index + 1), completedAt: new Date(ends), restSec }
+          : { seconds, completedAt: new Date(ends), restSec });
+      }
     }
   }
   if (finish && plan.testStartedAt !== null) {
@@ -341,7 +421,20 @@ export function parseTimedPlan(raw: string | null): TimedMethodPlan | null {
     const count = (value: unknown) => (Number.isInteger(value) && (value as number) >= 0 && (value as number) <= 999 ? value as number : null);
     const roundReps: Record<string, number> = {};
     for (const [round, reps] of Object.entries(plan.roundReps ?? {})) if (count(reps) !== null) roundReps[round] = reps;
-    return { ...parsed, kind: 'reps', testSec: 0, repsPerRound: Math.max(1, count(plan.repsPerRound) ?? 1), roundReps, maxSet: plan.maxSet === true, maxReps: count(plan.maxReps) };
+    const roundConfirmedAt: Record<string, number> = {};
+    for (const [round, ts] of Object.entries(plan.roundConfirmedAt ?? {})) {
+      if (typeof ts === 'number' && Number.isFinite(ts)) roundConfirmedAt[round] = ts;
+    }
+    return {
+      ...parsed,
+      kind: 'reps',
+      testSec: 0,
+      repsPerRound: Math.max(1, count(plan.repsPerRound) ?? 1),
+      roundReps,
+      maxSet: plan.maxSet === true,
+      maxReps: count(plan.maxReps),
+      ...(plan.manualRest ? { manualRest: true, roundConfirmedAt } : {}),
+    };
   } catch {
     return null;
   }

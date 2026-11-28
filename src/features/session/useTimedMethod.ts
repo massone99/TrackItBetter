@@ -23,6 +23,7 @@ export function useTimedMethod(workoutId: string | undefined, callbacks: { onRec
   const alertedRound = useRef(0);
   const stopFailed = useRef(false);
   const justStarted = useRef(false);
+  const tickRef = useRef<(() => void) | null>(null);
   const callbacksRef = useRef(callbacks);
   useEffect(() => { callbacksRef.current = callbacks; });
 
@@ -93,10 +94,14 @@ export function useTimedMethod(workoutId: string | undefined, callbacks: { onRec
         return;
       }
       if (current.blockSaved || writing.current) return;
+      const isManualReps = isRepsPlan(current) && current.manualRest === true;
       const cycleMs = (current.holdSec + current.restSec) * 1000;
-      const rounds = Math.min(timedRounds(current), Math.floor((now - blockStart(current)) / cycleMs));
+      const rounds = isManualReps
+        ? Object.keys(current.roundConfirmedAt ?? {}).length
+        : Math.min(timedRounds(current), Math.floor((now - blockStart(current)) / cycleMs));
       if (rounds <= savedRounds.current || now < retryAt.current) return;
-      writing.current = recordTimedMethod(current, blockStart(current) + rounds * cycleMs, false)
+      const recordUntil = isManualReps ? now : blockStart(current) + rounds * cycleMs;
+      writing.current = recordTimedMethod(current, recordUntil, false)
         .then(() => {
           savedRounds.current = rounds;
           callbacksRef.current.onRecorded();
@@ -109,10 +114,12 @@ export function useTimedMethod(workoutId: string | undefined, callbacks: { onRec
         })
         .finally(() => { writing.current = null; });
     };
+    tickRef.current = tick;
     tick();
     const interval = setInterval(tick, 250);
     const subscription = AppState.addEventListener('change', (state) => { if (state === 'active') tick(); });
     return () => {
+      tickRef.current = null;
       clearInterval(interval);
       subscription.remove();
       void deactivateKeepAwake(KEEP_AWAKE_TAG).catch(() => undefined);
@@ -131,10 +138,21 @@ export function useTimedMethod(workoutId: string | undefined, callbacks: { onRec
     stopFailed.current = false;
     setPhase(null);
     const reps = settings.kind === 'reps'
-      ? { kind: 'reps' as const, exerciseId, testSec: 0, repsPerRound: settings.repsPerRound ?? 1, maxSet: settings.maxSet === true, maxReps: lastMaxReps ?? settings.repsPerRound ?? 1, roundReps: {} }
+      ? { kind: 'reps' as const, exerciseId, testSec: 0, repsPerRound: settings.repsPerRound ?? 1, maxSet: settings.maxSet === true, maxReps: lastMaxReps ?? settings.repsPerRound ?? 1, roundReps: {}, manualRest: true, roundConfirmedAt: {} }
       : { exerciseId };
     save({ ...settings, ...reps, workoutId, entryId, startedAt: Date.now(), recoveryEndedAt: null, testStartedAt: null, testEndedAt: null, blockSaved: false });
   }, [workoutId, save]);
+
+  /** Reps plans: confirms the current round and starts its rest (or ends the block on the final round). */
+  const confirmRound = useCallback(() => {
+    const current = planRef.current;
+    if (!current || current.stoppedAt !== undefined || !isRepsPlan(current) || !current.manualRest) return;
+    const now = Date.now();
+    const activePhase = timedPhase(current, now);
+    if (activePhase.phase !== 'hold' || !activePhase.awaitingConfirm) return;
+    save({ ...current, roundConfirmedAt: { ...current.roundConfirmedAt, [String(activePhase.round)]: now } });
+    tickRef.current?.();
+  }, [save]);
 
   /** Updates custom audio cues live while the timed method is running and persists them for this exercise. */
   const updateCues = useCallback((nextCues: TimedMethodCues) => {
@@ -179,5 +197,5 @@ export function useTimedMethod(workoutId: string | undefined, callbacks: { onRec
     save({ ...current, maxReps: Math.max(0, Math.round(reps)) });
   }, [save]);
 
-  return { plan, phase: plan ? phase : null, start, skipRecovery, startTest, finishTest: stop, stop, setRoundReps, setMaxReps, updateCues };
+  return { plan, phase: plan ? phase : null, start, confirmRound, skipRecovery, startTest, finishTest: stop, stop, setRoundReps, setMaxReps, updateCues };
 }
