@@ -36,6 +36,7 @@ import { RpePicker } from './RpePicker';
 import { formatLoad, LOAD_STEP_KG, StepButton } from './SetEntry';
 import { DoneTint, PopOnActivate, SwipeableSetRow } from './SwipeableSetRow';
 import type { ActiveHold } from './useHoldTimer';
+import type { HoldMode } from '../../domain/holdTimer';
 
 /** Narrowest screen width, in dp, that lists the sets as table rows. */
 const TABLE_MIN_WIDTH = 300;
@@ -54,7 +55,7 @@ const BANDS_FOLDED_KEY = 'workout.bandsFolded';
 const ADD_SLOP = { top: spacing.sm, bottom: spacing.sm, left: spacing.sm, right: 0 };
 const ADD_MORE_SLOP = { top: spacing.sm, bottom: spacing.sm, left: 0, right: spacing.md };
 
-export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, previous, hold = null, onChange, onSetValue, onComplete, onStartHold, onFinishHold, onAddSet, onAddCopies, showRatings = readBooleanPreference(SET_RATINGS_KEY, true), onAddWarmup, onCopyAllLast, onSetOptions, onUncomplete, onRemoveSet, onSwiped, showRpe, onRpe, onOptions, onToggleWarmup, setRecords = NO_RECORDS, volumeRecords = [], sameLoadRecords = [], onEntryNote, timeGoals = null, supersetLabel = null, emomLabel: emomBadgeLabel, defaultRest = 0, onFormRating, onRomRating, onNote, focus = false, nowLabel = null, figure = null, editDone = false, typeDone = false, compare = true, apparatusLabel = null, firstTimeLabel, describeBands, compareBands, renderBandsEditor, fixedAction = false, onSetExpanded, liveLayout, onOpenExerciseNote, wrapSetEditor, exerciseNavigation, footerAction = false, progressionRule = null }: {
+export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, previous, hold = null, holdModeFor, onHoldMode, onChange, onSetValue, onComplete, onStartHold, onFinishHold, onAddSet, onAddCopies, showRatings = readBooleanPreference(SET_RATINGS_KEY, true), onAddWarmup, onCopyAllLast, onSetOptions, onUncomplete, onRemoveSet, onSwiped, showRpe, onRpe, onOptions, onToggleWarmup, setRecords = NO_RECORDS, volumeRecords = [], sameLoadRecords = [], onEntryNote, timeGoals = null, supersetLabel = null, emomLabel: emomBadgeLabel, defaultRest = 0, onFormRating, onRomRating, onNote, focus = false, nowLabel = null, figure = null, editDone = false, typeDone = false, compare = true, apparatusLabel = null, firstTimeLabel, describeBands, compareBands, renderBandsEditor, fixedAction = false, onSetExpanded, liveLayout, onOpenExerciseNote, wrapSetEditor, exerciseNavigation, footerAction = false, progressionRule = null }: {
   /** One-at-a-time mode: the screen's footer logs the set to do, so the editor drops its own button. */
   footerAction?: boolean;
   handle?: ReactNode;
@@ -68,6 +69,10 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
   previous?: PreviousPerformance;
   /** The running hold; holds are timed only when `onStartHold` is given. */
   hold?: ActiveHold | null;
+  /** Current hold timer mode ("free" count-up or "target" countdown) for a timed set. */
+  holdModeFor?: (setId: string) => HoldMode;
+  /** Changes a timed set's hold timer mode in place. */
+  onHoldMode?: (setId: string, mode: HoldMode) => void;
   onChange: (set: SessionSet, field: 'reps' | 'durationSec' | 'distanceM' | 'addedLoadKg', delta: number) => Promise<void>;
   onSetValue: (set: SessionSet, field: 'reps' | 'durationSec' | 'distanceM' | 'addedLoadKg', value: number) => void;
   onComplete: (set: SessionSet) => void;
@@ -416,12 +421,14 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
     // The chip strip shows on done sets and the next one (every set in a finished workout); other sets show only what they carry.
     const strip = done || editDone || set.id === nextSetId || isOpen || editing;
     const title = `${set.kind === 'warmup' ? t('workout.blocks.warmup') : t('logger.setTitle', { number: workingNumber })}${set.side === 'left' ? ' · L' : set.side === 'right' ? ' · R' : ''}`;
-    const valueDown = showSteps ? <StepButton flat={focus && !textIsLarge} large={textIsLarge || bigButtons} icon="remove" label={t('logger.stepDown', { field: fieldLabel, number: workingNumber, side: sideLabel }).trim()} onPress={(multiplier) => step(set, field, (distance ? -0.5 : timed ? -5 : -1) * multiplier)} /> : null;
-    const valueUp = showSteps ? <StepButton flat={focus && !textIsLarge} large={textIsLarge || bigButtons} icon="add" label={t('logger.stepUp', { field: fieldLabel, number: workingNumber, side: sideLabel }).trim()} onPress={(multiplier) => step(set, field, (distance ? 0.5 : timed ? 5 : 1) * multiplier)} /> : null;
+    const liveStepLarge = liveLayout ? bigButtons : (textIsLarge || bigButtons);
+    const liveStepFlat = Boolean(liveLayout) || (focus && !textIsLarge);
+    const valueDown = showSteps ? <StepButton flat={liveStepFlat} large={liveStepLarge} icon="remove" label={t('logger.stepDown', { field: fieldLabel, number: workingNumber, side: sideLabel }).trim()} onPress={(multiplier) => step(set, field, (distance ? -0.5 : timed ? -5 : -1) * multiplier)} /> : null;
+    const valueUp = showSteps ? <StepButton flat={liveStepFlat} large={liveStepLarge} icon="add" label={t('logger.stepUp', { field: fieldLabel, number: workingNumber, side: sideLabel }).trim()} onPress={(multiplier) => step(set, field, (distance ? 0.5 : timed ? 5 : 1) * multiplier)} /> : null;
     const valueField = (done && !editableDone) || holding ? (
       <Text style={[styles.setValue, { color: holding ? palette.accentStrong : palette.text }]}>{value}</Text>
     ) : timed ? (
-      <HoldDurationField compact flat={table || focus} value={stored} label={`${t('logger.holdCol')} · ${t('logger.editValue', { number: set.index })}`} onChange={(next) => onSetValue(set, 'durationSec', next)} />
+      <HoldDurationField compact flat={table || focus} value={stored} label={`${t('logger.holdCol')} · ${t('logger.setTitle', { number: workingNumber })}`} onChange={(next) => onSetValue(set, 'durationSec', next)} />
     ) : (
       <NumberEdit
         value={stored}
@@ -434,8 +441,8 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
         style={[styles.setValue, focus && styles.setValueLedger, liveLayout && styles.liveValueFigure, { color: palette.text }]}
       />
     );
-    const loadDown = showSteps ? <StepButton flat={focus && !textIsLarge} large={textIsLarge || bigButtons} icon="remove" label={t('logger.stepDown', { field: t('history.addedLoad'), number: workingNumber, side: sideLabel }).trim()} onPress={(multiplier) => step(set, 'addedLoadKg', -LOAD_STEP_KG * multiplier)} /> : null;
-    const loadUp = showSteps ? <StepButton flat={focus && !textIsLarge} large={textIsLarge || bigButtons} icon="add" label={t('logger.stepUp', { field: t('history.addedLoad'), number: workingNumber, side: sideLabel }).trim()} onPress={(multiplier) => step(set, 'addedLoadKg', LOAD_STEP_KG * multiplier)} /> : null;
+    const loadDown = showSteps ? <StepButton flat={liveStepFlat} large={liveStepLarge} icon="remove" label={t('logger.stepDown', { field: t('history.addedLoad'), number: workingNumber, side: sideLabel }).trim()} onPress={(multiplier) => step(set, 'addedLoadKg', -LOAD_STEP_KG * multiplier)} /> : null;
+    const loadUp = showSteps ? <StepButton flat={liveStepFlat} large={liveStepLarge} icon="add" label={t('logger.stepUp', { field: t('history.addedLoad'), number: workingNumber, side: sideLabel }).trim()} onPress={(multiplier) => step(set, 'addedLoadKg', LOAD_STEP_KG * multiplier)} /> : null;
     const loadField = done && !editableDone ? (
       <Text style={[styles.loadValue, liveLayout && styles.liveValueFigure, { color: set.addedLoadKg === 0 ? palette.textMuted : palette.text }]}>{loadText}</Text>
     ) : (
@@ -799,7 +806,7 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
       // Every ledger row swipes: right completes (or reopens a done set), left removes it.
       const swipe = (node: ReactNode, mode: string) => (
         <SwipeableSetRow
-          key={`${set.id}-${mode}`}
+          key={`${set.id}-${mode}-${layoutScale}-${textIsLarge ? 1 : 0}`}
           done={done}
           completeLabel={t('logger.swipeComplete')}
           reopenLabel={t('logger.swipeReopen')}
@@ -810,9 +817,10 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
           {node}
         </SwipeableSetRow>
       );
+      const showLiveLoadCol = withLoad && (exercise.metric.endsWith('_load') || exercise.sets.some((item) => item.addedLoadKg !== 0));
       if (!inHand) {
-        // One-at-a-time card: a bodyweight set shows no "0 kg" column.
-        const rowLoad = withLoad && (liveLayout !== 'standalone' || exercise.metric.endsWith('_load') || exercise.sets.some((item) => item.addedLoadKg !== 0));
+        // Live workout rows: a bodyweight exercise hides the empty "0 kg" column in both standalone and inline views.
+        const rowLoad = liveLayout ? showLiveLoadCol : withLoad;
         const row = { label, side, warmup: set.kind === 'warmup', value: timed ? value : distance ? `${value} m` : value, load: rowLoad ? loadText : null, bands, withLoad: rowLoad, onOpen: openSet, onMenu: openMenu,
           live: Boolean(liveLayout), note: liveLayout ? set.note : null, active: Boolean(liveLayout && setInHand(set)), units: liveLayout && !timed && !distance ? t('history.units.reps') : undefined,
           record: liveLayout && Boolean(setRecords.get(set.id)?.length), progression };
@@ -830,8 +838,16 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
         const comparable = match && match.addedLoadKg === set.addedLoadKg && sameAssistance
           ? describePreviousSet(match, exercise.metric) : null;
         const number = set.kind === 'warmup' ? set.index : workingNumber;
+        const currentHoldMode: HoldMode = holdModeFor ? holdModeFor(set.id) : 'free';
+        const holdPhaseLabel = holding && hold
+          ? hold.phase.phase === 'countdown'
+            ? t('logger.getReady')
+            : hold.mode === 'target'
+              ? t('logger.holdingTarget', { time: formatClock(hold.targetSec) })
+              : t('logger.holding')
+          : null;
         return <LedgerActiveRow
-          key={set.id}
+          key={`${set.id}-${layoutScale}-${textIsLarge ? 1 : 0}`}
           label={label} side={side} warmup={set.kind === 'warmup'} withLoad={withLoad && (exercise.metric.endsWith('_load') || set.addedLoadKg !== 0)}
           onComplete={() => complete(set)} onMenu={openMenu}
           valueField={valueField} valueDown={valueDown} valueUp={valueUp}
@@ -852,6 +868,14 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
             rest: restSec > 0 ? { value: formatClock(restSec), filled: set.restSec !== null, onPress: () => { onSetOptions(set, 'rest'); } } : undefined,
             video: { clips: set.clipCount, onPress: () => { if (set.clipCount > 0) onSetOptions(set); else router.push({ pathname: '/form-check/[setId]', params: { setId: set.id } }); } },
             inlineAction: !(footerAction && set.id === nextSetId),
+            hold: timed && onStartHold && !emomBadgeLabel ? {
+              mode: currentHoldMode,
+              onToggleMode: () => onHoldMode?.(set.id, currentHoldMode === 'target' ? 'free' : 'target'),
+              phaseLabel: holdPhaseLabel,
+              liveValue: holding && hold ? holdDisplay(hold) : null,
+              manualLabel: !done ? t('logger.logNoTimer', { time: formatClock(stored) }) : null,
+              onManual: () => complete(set),
+            } : undefined,
           }}
         />;
       }
@@ -1198,6 +1222,12 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
     const editor = exercise.sets.find(setInHand);
     const standalone = liveLayout === 'standalone';
     const editorNumber = editor ? groupSets(exercise.sets.filter((item) => item.kind === 'working' && item.index <= editor.index)).length : 0;
+    const inlineHasLoad = withLoad && (exercise.metric.endsWith('_load') || exercise.sets.some((item) => item.addedLoadKg !== 0));
+    const optionsButton = (label: string) => (
+      <View style={[styles.optionsFrame, { borderColor: ink, backgroundColor: palette.surfaceMuted }]}>
+        <IconButton icon="options-outline" label={label} tone="plain" onPress={onOptions} />
+      </View>
+    );
     const title = <View style={[styles.liveTitle, !standalone && styles.liveInlineTitle, textIsLarge && styles.liveTitleWrap]}>
       <View style={[styles.flex, textIsLarge && styles.liveNameWide]}>
         <Pressable accessibilityLabel={exercise.name} accessibilityRole="header" onLongPress={() => openExercisePage(exercise.exerciseId)}>
@@ -1205,15 +1235,19 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
         </Pressable>
         <Text style={{ color: palette.textMuted }}>{t('liveWorkout.completedCount', { done: doneSets, total: totalSets })}</Text>
       </View>
-      {editor ? <Text style={[styles.liveBadge, { color: palette.accentStrong, backgroundColor: palette.accentSoft }]}>{liveSetBadge(editor, editorNumber)}</Text> : null}
-      {exercise.demoUrl ? <IconButton icon="play-circle-outline" label={t('logger.referenceOpen')} tone="plain" onPress={() => openReferenceVideo(exercise.demoUrl!)} /> : null}
-      <IconButton icon="ellipsis-horizontal" label={t('logger.options')} tone="plain" onPress={onOptions} />
+      <View style={styles.liveTitleActions}>
+        {editor ? <Text style={[styles.liveBadge, { color: palette.accentStrong, backgroundColor: palette.accentSoft }]}>{liveSetBadge(editor, editorNumber)}</Text> : null}
+        {exercise.demoUrl ? <IconButton icon="play-circle-outline" label={t('logger.referenceOpen')} tone="plain" onPress={() => openReferenceVideo(exercise.demoUrl!)} /> : null}
+        {optionsButton(t('logger.options'))}
+      </View>
     </View>;
-    const note = onOpenExerciseNote ? <WorkoutNote kind="exerciseNote" value={exercise.notes} onPress={onOpenExerciseNote} inset /> : null;
+    const note = onOpenExerciseNote ? <WorkoutNote kind="exerciseNote" value={exercise.notes} onPress={onOpenExerciseNote} /> : null;
     const setTools = <View style={styles.liveLogTitle}>
-      {standalone ? <Text accessibilityRole="header" style={[styles.liveLogHeading, styles.flex]}>{t('liveWorkout.ledger')}</Text> : <View style={styles.flex} />}
-      <ActionButton compact variant="ghost" icon={addSetCue ? 'add' : undefined} label={emomBadgeLabel ? t('emom.addRound') : addSetCue ?? t('liveWorkout.addSet')} onPress={onAddSet} />
-      {onAddWarmup ? <IconButton tone="plain" icon="chevron-down" label={t('logger.addMore')} onPress={() => setAddMenuOpen(!addMenuOpen)} /> : null}
+      {exerciseNavigation ? <View style={styles.inlineNav}>{exerciseNavigation}</View> : <View style={styles.flex} />}
+      <View style={styles.liveAddGroup}>
+        <ActionButton compact variant="ghost" icon={addSetCue ? 'add' : undefined} label={emomBadgeLabel ? t('emom.addRound') : addSetCue ?? t('liveWorkout.addSet')} onPress={onAddSet} />
+        {onAddWarmup ? <IconButton tone="plain" icon={addMenuOpen ? 'chevron-up' : 'chevron-down'} label={t('logger.addMore')} onPress={() => setAddMenuOpen(!addMenuOpen)} /> : null}
+      </View>
     </View>;
     const wrap = (node: ReactNode) => wrapSetEditor ? wrapSetEditor(node) : node;
     const addRow = <>
@@ -1245,7 +1279,7 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
       ].filter(Boolean).join(' · ');
       return <View style={styles.liveCard}>
         <View style={[styles.liveFrame, { borderColor: ink, backgroundColor: palette.surface }]}>
-          <View style={styles.liveHead}>
+          {wrap(<View style={styles.liveHead}>
             <View style={styles.flex}>
               <Pressable accessibilityLabel={exercise.name} accessibilityRole="header" onLongPress={() => openExercisePage(exercise.exerciseId)}>
                 <Text style={styles.liveExerciseName}>{exercise.name}</Text>
@@ -1253,8 +1287,12 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
               {targetLine ? <Text style={[styles.liveTarget, { color: palette.textMuted }]}>{targetLine}</Text> : null}
               {emomBadgeLabel ? <Label accessibilityLiveRegion="polite" style={{ color: palette.accentStrong }}>{emomBadgeLabel}</Label> : null}
             </View>
-            <IconButton icon="ellipsis-horizontal" label={t('simple.exerciseMenu', { name: exercise.name })} tone="plain" onPress={onOptions} />
-          </View>
+            <View style={styles.liveHeadActions}>
+              {exercise.demoUrl ? <IconButton icon="play-circle-outline" label={t('logger.referenceOpen')} tone="plain" onPress={() => openReferenceVideo(exercise.demoUrl!)} /> : null}
+              {optionsButton(t('simple.exerciseMenu', { name: exercise.name }))}
+            </View>
+          </View>)}
+          {exercise.notes && onOpenExerciseNote ? <View style={styles.liveNoteInset}><WorkoutNote kind="exerciseNote" value={exercise.notes} onPress={onOpenExerciseNote} /></View> : null}
           {compare ? (
             <View style={[styles.liveLast, { backgroundColor: palette.background }]}>
               <View style={styles.liveLastHeader}>
@@ -1282,21 +1320,21 @@ export function ExerciseCard({ handle, exercise, collapsed, onToggleCollapsed, p
       </View>;
     }
     return <View style={styles.liveCard}>
-      {exerciseNavigation}
-      {title}
+      {wrap(title)}
+      {exercise.notes ? note : null}
       {setTools}
       {bulkAdd}
       {addMenuOpen && onAddWarmup ? <ActionButton compact secondary icon="flame-outline" label={t('logger.addWarmup')} onPress={() => { setAddMenuOpen(false); onAddWarmup(); }} /> : null}
       {exercise.sets.length > 0 ? <View style={[styles.liveFrame, { borderColor: palette.border, backgroundColor: palette.surface }]}>
-        <LedgerHeader valueLabel={timed ? t('ledger.secCol') : distance ? t('ledger.metresCol') : t('liveWorkout.repsColumn')} withLoad={withLoad} live />
+        <LedgerHeader valueLabel={timed ? t('logger.holdCol') : distance ? t('ledger.metresCol') : t('liveWorkout.repsColumn')} withLoad={inlineHasLoad} live />
         {exercise.sets.map((set) => (
           <View key={set.id}>
             {renderSet(set, true)}
-            {editor?.id === set.id ? wrap(<>{note}{renderSet(editor)}</>) : null}
+            {editor?.id === set.id ? wrap(renderSet(editor)) : null}
           </View>
         ))}
       </View> : null}
-      {!editor ? note : null}
+      {!exercise.notes ? note : null}
       {recordBadges}
       {exerciseDetails}
     </View>;
@@ -1512,8 +1550,14 @@ function ValueChip({ label, icon, filled, open = false, grow = false, lines = 1,
 }
 
 const baseStyles = StyleSheet.create({
-  liveCard: { gap: spacing.md },
-  liveHead: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.md, paddingHorizontal: spacing.lg, paddingVertical: spacing.md },
+  liveCard: { gap: spacing.sm },
+  liveHead: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.sm, paddingHorizontal: spacing.lg, paddingVertical: spacing.md },
+  liveHeadActions: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, flexShrink: 0 },
+  liveNoteInset: { paddingHorizontal: spacing.lg, paddingBottom: spacing.sm },
+  optionsFrame: { borderWidth: 1, borderRadius: radii.control },
+  liveTitleActions: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, flexWrap: 'wrap' },
+  inlineNav: { flexDirection: 'row', alignItems: 'center' },
+  liveAddGroup: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
   liveTarget: { fontFamily: fonts.body, fontSize: 14, lineHeight: 20, marginTop: 4 },
   liveLast: { gap: spacing.xs, marginHorizontal: spacing.lg, marginBottom: spacing.md, paddingHorizontal: spacing.md, paddingVertical: spacing.sm, borderRadius: radii.control, minHeight: 48 },
   liveLastHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', columnGap: spacing.sm },
@@ -1528,13 +1572,13 @@ const baseStyles = StyleSheet.create({
   liveAddMenu: { gap: spacing.md, paddingHorizontal: spacing.lg, paddingTop: spacing.sm, paddingBottom: spacing.lg },
   copyForm: { gap: spacing.sm },
   liveFrame: { overflow: 'hidden', borderWidth: 1, borderRadius: 5 },
-  liveTitle: { flexDirection: 'row', alignItems: 'flex-start', gap: 4, padding: 14, paddingBottom: 9 },
-  liveInlineTitle: { paddingHorizontal: 0, paddingVertical: 8 },
+  liveTitle: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: spacing.sm, padding: 14, paddingBottom: 9 },
+  liveInlineTitle: { paddingHorizontal: 0, paddingVertical: spacing.xs },
   liveTitleWrap: { flexWrap: 'wrap' },
   liveNameWide: { flexBasis: '100%' },
   liveBadge: { fontFamily: fonts.monoSemibold, fontSize: 12, textTransform: "uppercase", borderRadius: 4, padding: 7, flexShrink: 1 },
   liveValueFigure: { fontFamily: fonts.monoBold, fontSize: 21, lineHeight: 25 },
-  liveExerciseName: { fontFamily: fonts.display, fontSize: 30, lineHeight: 34 },
+  liveExerciseName: { fontFamily: fonts.display, fontSize: 28, lineHeight: 32 },
   liveLogTitle: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: spacing.sm },
   liveLogHeading: { fontFamily: fonts.display, fontSize: 21, lineHeight: 26 },
   bandDot: { width: 12, height: 12, borderRadius: radii.control, borderWidth: 1 },
@@ -1678,6 +1722,7 @@ const baseStyles = StyleSheet.create({
 
 /** The set's note typed in place: the keyboard opens at once, and the text is saved on blur or when the field closes. */
 function NoteInput({ value, label, placeholder, onSave }: { value: string; label: string; placeholder: string; onSave: (note: string) => void }) {
+  const styles = useScaledStyles(baseStyles);
   const [text, setText] = useState(value);
   const latest = useRef({ text, value, onSave });
   useEffect(() => { latest.current = { text, value, onSave }; });
@@ -1695,7 +1740,7 @@ function NoteInput({ value, label, placeholder, onSave }: { value: string; label
       multiline
       autoFocus
       maxLength={500}
-      style={baseStyles.noteInput}
+      style={styles.noteInput}
     />
   );
 }

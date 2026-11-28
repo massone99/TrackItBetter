@@ -1,4 +1,4 @@
-import { blockEnd, DEFAULT_TIMED_CUES, hasFinal, parseTimedPlan, repsOfRound, timedCue, timedHolds, timedKindFor, timedPhase, timedRounds, type TimedMethodPlan } from '../timedMethod';
+import { blockEnd, DEFAULT_TIMED_CUES, hasFinal, parseTimedCues, parseTimedPlan, repsOfRound, timedCue, timedHolds, timedKindFor, timedPhase, timedRounds, timedSoundCue, type TimedMethodPlan } from '../timedMethod';
 
 const plan: TimedMethodPlan = {
   workoutId: 'w', entryId: 'e', startedAt: 0, countdownSec: 5, blockSec: 180, holdSec: 10, restSec: 10, recoverySec: 240, testSec: 30,
@@ -70,6 +70,40 @@ describe('timed method', () => {
     expect(timedCue({ phase: 'test', seconds: 29 }, { phase: 'test', seconds: 30 }, cues, 30)).toBeNull();
     expect(timedCue({ phase: 'test', seconds: 29 }, { phase: 'test', seconds: 30 }, DEFAULT_TIMED_CUES, 30)).toBe('done');
     expect(timedCue(hold, { ...hold, round: 2 })).toBe('go');
+  });
+
+  it('resolves custom beep tones, halfway cues and periodic pace ticks', () => {
+    const custom = parseTimedCues({
+      warningSec: 2,
+      intervalWarnings: true,
+      warningTone: 'sharp',
+      holdStartTone: 'bell',
+      restStartTone: 'double',
+      milestoneTone: 'done',
+      halfwayTone: 'soft',
+      intervalTickSec: 5,
+      intervalTickTone: 'tick',
+      volume: 0.75,
+      vibrate: false,
+    });
+    expect(custom.volume).toBe(0.75);
+    expect(custom.vibrate).toBe(false);
+    // Start of hold -> custom bell; start of rest -> custom double
+    expect(timedSoundCue({ phase: 'countdown', secondsLeft: 1 }, { phase: 'hold', round: 1, secondsLeft: 20 }, custom, { holdSec: 20 })).toBe('bell');
+    expect(timedSoundCue({ phase: 'hold', round: 1, secondsLeft: 1 }, { phase: 'rest', round: 1, secondsLeft: 10 }, custom, { holdSec: 20 })).toBe('double');
+    // Periodic pace tick at 5s elapsed (secondsLeft 16 -> 15 on 20s hold)
+    expect(timedSoundCue({ phase: 'hold', round: 1, secondsLeft: 16 }, { phase: 'hold', round: 1, secondsLeft: 15 }, custom, { holdSec: 20 })).toBe('tick');
+    // Halfway wins over pace tick at 10s elapsed (secondsLeft 11 -> 10 on 20s hold)
+    expect(timedSoundCue({ phase: 'hold', round: 1, secondsLeft: 11 }, { phase: 'hold', round: 1, secondsLeft: 10 }, custom, { holdSec: 20 })).toBe('soft');
+    // Warning wins in last 2s
+    expect(timedSoundCue({ phase: 'hold', round: 1, secondsLeft: 3 }, { phase: 'hold', round: 1, secondsLeft: 2 }, custom, { holdSec: 20 })).toBe('sharp');
+    // Halfway and pace tick in final test hold (goal 30s)
+    expect(timedSoundCue({ phase: 'test', seconds: 4 }, { phase: 'test', seconds: 5 }, custom, { testSec: 30 })).toBe('tick');
+    expect(timedSoundCue({ phase: 'test', seconds: 14 }, { phase: 'test', seconds: 15 }, custom, { testSec: 30 })).toBe('soft');
+    expect(timedSoundCue({ phase: 'test', seconds: 29 }, { phase: 'test', seconds: 30 }, custom, { testSec: 30 })).toBe('done');
+    // Silent tone produces null
+    const silent = parseTimedCues({ holdStartTone: 'none', restStartTone: 'none', warningTone: 'none' });
+    expect(timedSoundCue({ phase: 'countdown', secondsLeft: 1 }, { phase: 'hold', round: 1, secondsLeft: 10 }, silent, { holdSec: 10 })).toBeNull();
   });
 });
 

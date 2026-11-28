@@ -3,7 +3,7 @@ import { Fragment } from "react";
 import { useTranslation } from "react-i18next";
 import { Pressable, StyleSheet, View } from "react-native";
 import { Card, Icon, Label, ListGroup, ListRow, PageHeading, Screen, SegmentedControl, Text, tapFeedback } from "../../src/shared/components/ui";
-import i18n, { setAppLanguage } from "../../src/shared/i18n";
+import { setAppLanguage } from "../../src/shared/i18n";
 import { UI_SCALES, type TextScaleMode, type UiScale } from "../../src/shared/theme/scale";
 import { presetOf } from "../../src/shared/theme/fontChoices";
 import { useInk } from "../../src/shared/theme/ink";
@@ -21,11 +21,11 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 /** Appearance and text: a live preview on top, so size, text and font changes show while they are made. */
 export default function AppearanceScreen() {
   const styles = useScaledStyles(baseStyles);
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { preference, setMode, palette, scale, setScale, textScaleMode, setTextScaleMode, layoutScale, fontScale, fontSelection, setLayout } = useTheme();
   const { speed, setSpeed, reducedMotion } = useAnimationSettings();
   const ink = useInk();
-  const language = i18n.language.startsWith("it") ? "it" : "en";
+  const language = (i18n.resolvedLanguage ?? i18n.language).startsWith("it") ? "it" : "en";
   const index = UI_SCALES.indexOf(scale);
   const sizeName = scale === 1 ? t("profile.sizeDefault") : scale < 1 ? t("profile.sizeCompact") : t("profile.sizeLarge");
   const step = (delta: number) => {
@@ -116,7 +116,7 @@ const baseStyles = StyleSheet.create({
   sizeRow: { flexDirection: "row", alignItems: "stretch", gap: spacing.sm },
   sizeButton: { minWidth: 56, minHeight: MIN_TOUCH_TARGET, borderWidth: 1, borderRadius: radii.control, alignItems: "center", justifyContent: "center" },
   sizeButtonText: { fontFamily: fonts.display, fontSize: 17 },
-  sizeValue: { flex: 1, minHeight: MIN_TOUCH_TARGET, borderWidth: 1, borderRadius: radii.control, flexDirection: "row", flexWrap: "wrap", alignItems: "center", justifyContent: "center", gap: spacing.sm },
+  sizeValue: { flex: 1, minHeight: MIN_TOUCH_TARGET, borderWidth: 1, borderRadius: radii.control, flexDirection: "row", flexWrap: "wrap", alignItems: "center", alignContent: "center", justifyContent: "center", gap: spacing.sm },
   sizePercent: { fontFamily: fonts.monoSemibold, fontSize: 16 },
   hint: { fontFamily: fonts.body, fontSize: 13, lineHeight: 18 },
 });

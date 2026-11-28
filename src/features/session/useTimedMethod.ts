@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AppState } from 'react-native';
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
-import { blockEnd, blockStart, hasFinal, isRepsPlan, recoveryEnd, timedCue, timedPhase, timedRounds, type TimedMethodPhase, type TimedMethodPlan } from '../../domain/timedMethod';
+import { blockEnd, blockStart, hasFinal, isRepsPlan, parseTimedCues, recoveryEnd, timedPhase, timedRounds, timedSoundCue, type TimedMethodCues, type TimedMethodPhase, type TimedMethodPlan } from '../../domain/timedMethod';
 import { playBeep } from '../../shared/audio/beeps';
 import { writePreference } from '../../shared/settings/preferences';
 import { recordTimedMethod } from './repository';
-import { readTimedPlan, rememberMaxReps, timedPlanKey, writeTimedConfig, type TimedMethodConfig } from './timedMethodPlan';
+import { readTimedConfig, readTimedPlan, rememberMaxReps, timedPlanKey, writeTimedConfig, type TimedMethodConfig } from './timedMethodPlan';
 
 const KEEP_AWAKE_TAG = 'timed-method';
 
@@ -45,7 +45,10 @@ export function useTimedMethod(workoutId: string | undefined, callbacks: { onRec
         await writing.current;
         await recordTimedMethod(current, stoppedAt, true);
         if (isRepsPlan(current) && current.exerciseId && current.testStartedAt !== null && (current.maxReps ?? 0) > 0) rememberMaxReps(current.exerciseId, current.maxReps!);
-        if (current.cues?.milestones !== false && !alreadyDone) playBeep('done');
+        const resolvedCues = parseTimedCues(current.cues);
+        if (resolvedCues.milestones && resolvedCues.milestoneTone && resolvedCues.milestoneTone !== 'none' && !alreadyDone) {
+          playBeep(resolvedCues.milestoneTone, { volume: resolvedCues.volume, vibrate: resolvedCues.vibrate });
+        }
         save(null);
         setPhase(null);
         previous.current = null;
@@ -77,8 +80,11 @@ export function useTimedMethod(workoutId: string | undefined, callbacks: { onRec
         return;
       }
       const next = timedPhase(current, now);
-      const cue = timedCue(previous.current, next, current.cues, current.testSec);
-      if (cue && (previous.current || justStarted.current)) playBeep(cue);
+      const resolvedCues = parseTimedCues(current.cues);
+      const cue = timedSoundCue(previous.current, next, resolvedCues, { holdSec: current.holdSec, testSec: current.testSec });
+      if (cue && (previous.current || justStarted.current)) {
+        playBeep(cue, { volume: resolvedCues.volume, vibrate: resolvedCues.vibrate });
+      }
       justStarted.current = false;
       previous.current = next;
       setPhase((shown) => (shown && JSON.stringify(shown) === JSON.stringify(next) ? shown : next));
@@ -126,9 +132,22 @@ export function useTimedMethod(workoutId: string | undefined, callbacks: { onRec
     setPhase(null);
     const reps = settings.kind === 'reps'
       ? { kind: 'reps' as const, exerciseId, testSec: 0, repsPerRound: settings.repsPerRound ?? 1, maxSet: settings.maxSet === true, maxReps: lastMaxReps ?? settings.repsPerRound ?? 1, roundReps: {} }
-      : {};
+      : { exerciseId };
     save({ ...settings, ...reps, workoutId, entryId, startedAt: Date.now(), recoveryEndedAt: null, testStartedAt: null, testEndedAt: null, blockSaved: false });
   }, [workoutId, save]);
+
+  /** Updates custom audio cues live while the timed method is running and persists them for this exercise. */
+  const updateCues = useCallback((nextCues: TimedMethodCues) => {
+    const current = planRef.current;
+    if (!current || current.stoppedAt !== undefined) return;
+    const cues = parseTimedCues(nextCues);
+    save({ ...current, cues });
+    if (current.exerciseId) {
+      const kind = isRepsPlan(current) ? 'reps' : 'hold';
+      const existing = readTimedConfig(current.exerciseId, kind);
+      writeTimedConfig(current.exerciseId, { ...existing, cues });
+    }
+  }, [save]);
 
   const skipRecovery = useCallback(() => {
     const current = planRef.current;
@@ -160,5 +179,5 @@ export function useTimedMethod(workoutId: string | undefined, callbacks: { onRec
     save({ ...current, maxReps: Math.max(0, Math.round(reps)) });
   }, [save]);
 
-  return { plan, phase: plan ? phase : null, start, skipRecovery, startTest, finishTest: stop, stop, setRoundReps, setMaxReps };
+  return { plan, phase: plan ? phase : null, start, skipRecovery, startTest, finishTest: stop, stop, setRoundReps, setMaxReps, updateCues };
 }

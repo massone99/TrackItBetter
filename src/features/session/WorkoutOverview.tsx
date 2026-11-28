@@ -3,7 +3,7 @@ import { ReorderableList, type ReorderRow } from '../../shared/components/Reorde
 import { Pressable, StyleSheet, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { completedSetCount, groupSets } from '../../domain/setPairs';
-import { ActionButton, Body, Icon, MenuList, MenuRow, Sheet, tapFeedback, Text, TextField, type IconName } from '../../shared/components/ui';
+import { ActionButton, Body, Icon, IconButton, MenuList, MenuRow, Sheet, tapFeedback, Text, TextField, type IconName } from '../../shared/components/ui';
 import { useTheme } from '../../shared/theme/ThemeProvider';
 import { spacing } from '../../shared/theme/tokens';
 import { fonts } from '../../shared/theme/typography';
@@ -56,10 +56,12 @@ export function exerciseValue(exercise: SessionExercise, set: SessionSet, reps: 
   return `${set.reps ?? 0} ${reps}`;
 }
 
-export function WorkoutExerciseRow({ exercise, next, marker, expanded, onPress, onLongPress }: {
+export function WorkoutExerciseRow({ exercise, next, marker, expanded, onPress, onLongPress, onOptions }: {
   exercise: SessionExercise; next: boolean; marker?: string; expanded?: boolean; onPress: () => void;
   /** Opens the exercise menu; without it a long press is left to drag to reorder. */
   onLongPress?: () => void;
+  /** Explicit 1-tap button to open exercise settings beside the row. */
+  onOptions?: () => void;
 }) {
   const { t } = useTranslation();
   const { palette } = useTheme();
@@ -80,34 +82,41 @@ export function WorkoutExerciseRow({ exercise, next, marker, expanded, onPress, 
       finished ? t('liveWorkout.completed') : null,
     ].filter(Boolean).join(' · ');
   return (
-    <Pressable accessibilityRole="button" accessibilityState={expanded === undefined ? undefined : { expanded }} aria-expanded={expanded}
-      accessibilityLabel={exercise.name}
-      accessibilityHint={[hint, exercise.notes, t('liveWorkout.count', { done, total: sets.length })].filter(Boolean).join(' · ')}
-      onLongPress={onLongPress ?? (() => {})}
-      accessibilityActions={onLongPress ? [{ name: 'longpress', label: t('logger.options') }] : undefined}
-      onAccessibilityAction={onLongPress ? (event) => { if (event.nativeEvent.actionName === 'longpress') onLongPress(); } : undefined}
-      delayLongPress={350}
-      onPress={() => { tapFeedback(); onPress(); }}
-      style={({ pressed }) => [styles.exercise, { borderColor: palette.border, backgroundColor: next ? palette.nextExercise : palette.surface }, pressed && { opacity: 0.72 }]}>
-      {marker ? <Text style={[styles.smallMono, { color: palette.textMuted }]}>{marker}</Text> : null}
-      <View style={styles.flex}>
-        <Text style={styles.exerciseName}>{exercise.name}</Text>
-        {hint ? <Text style={[styles.hint, { color: next ? palette.accentStrong : palette.textMuted }]}>{hint}</Text> : null}
-        {exercise.notes ? (
-          <View style={styles.noteLine}>
-            <Icon name="document-text-outline" size={11} color={palette.accentStrong} />
-            <Text numberOfLines={1} style={[styles.notePreview, { color: palette.textMuted }]}>{exercise.notes}</Text>
-          </View>
-        ) : null}
-      </View>
-      <View style={styles.exerciseProgress}>
-        <Text style={[styles.exerciseCount, { color: finished ? palette.success : palette.text }]}>{done}/{sets.length}</Text>
-        {sets.length > 0 && sets.length <= 10 ? <View style={styles.ticks}>{sets.map((set) => (
-          <View key={set[0].id} style={[styles.tick, { backgroundColor: set.every((side) => side.completedAt) ? palette.success : next && set.some(({ id }) => id === open?.id) ? palette.accentStrong : palette.border }]} />
-        ))}</View> : null}
-      </View>
-      <Icon name={expanded ? 'chevron-up' : 'chevron-forward'} size={15} color={palette.textMuted} />
-    </Pressable>
+    <View style={[styles.exerciseOuter, { borderColor: palette.border, backgroundColor: next ? palette.nextExercise : palette.surface }]}>
+      <Pressable accessibilityRole="button" accessibilityState={expanded === undefined ? undefined : { expanded }} aria-expanded={expanded}
+        accessibilityLabel={exercise.name}
+        accessibilityHint={[hint, exercise.notes, t('liveWorkout.count', { done, total: sets.length })].filter(Boolean).join(' · ')}
+        onLongPress={onLongPress ?? (() => {})}
+        accessibilityActions={onLongPress ? [{ name: 'longpress', label: t('logger.options') }] : undefined}
+        onAccessibilityAction={onLongPress ? (event) => { if (event.nativeEvent.actionName === 'longpress') onLongPress(); } : undefined}
+        delayLongPress={350}
+        onPress={() => { tapFeedback(); onPress(); }}
+        style={({ pressed }) => [styles.exercise, pressed && { opacity: 0.72 }]}>
+        {marker ? <Text style={[styles.smallMono, { color: palette.textMuted }]}>{marker}</Text> : null}
+        <View style={styles.flex}>
+          <Text style={styles.exerciseName}>{exercise.name}</Text>
+          {hint ? <Text style={[styles.hint, { color: next ? palette.accentStrong : palette.textMuted }]}>{hint}</Text> : null}
+          {exercise.notes ? (
+            <View style={styles.noteLine}>
+              <Icon name="document-text-outline" size={11} color={palette.accentStrong} />
+              <Text numberOfLines={1} style={[styles.notePreview, { color: palette.textMuted }]}>{exercise.notes}</Text>
+            </View>
+          ) : null}
+        </View>
+        <View style={styles.exerciseProgress}>
+          <Text style={[styles.exerciseCount, { color: finished ? palette.success : palette.text }]}>{done}/{sets.length}</Text>
+          {sets.length > 0 && sets.length <= 10 ? <View style={styles.ticks}>{sets.map((set) => (
+            <View key={set[0].id} style={[styles.tick, { backgroundColor: set.every((side) => side.completedAt) ? palette.success : next && set.some(({ id }) => id === open?.id) ? palette.accentStrong : palette.border }]} />
+          ))}</View> : null}
+        </View>
+        {onOptions ? null : <Icon name={expanded ? 'chevron-up' : 'chevron-forward'} size={15} color={palette.textMuted} />}
+      </Pressable>
+      {onOptions ? (
+        <View style={[styles.exerciseOptionsDivider, { borderLeftColor: palette.border }]}>
+          <IconButton icon="options-outline" tone="plain" label={t('simple.exerciseMenu', { name: exercise.name })} onPress={onOptions} />
+        </View>
+      ) : null}
+    </View>
   );
 }
 
@@ -335,7 +344,9 @@ const baseStyles = StyleSheet.create({
   groupTitle: { fontFamily: fonts.display, fontSize: 21, lineHeight: 24 },
   nestedTitle: { fontFamily: fonts.semibold, fontSize: 13 },
   groupMenu: { minWidth: 48, minHeight: 48, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderRadius: 4 },
-  exercise: { flexDirection: 'row', alignItems: 'center', gap: 9, borderRadius: 4, borderWidth: 1, paddingHorizontal: 11, paddingVertical: 10, minHeight: 61 },
+  exerciseOuter: { flexDirection: 'row', alignItems: 'stretch', borderRadius: 4, borderWidth: 1, minHeight: 61, overflow: 'hidden' },
+  exercise: { flex: 1, minWidth: 0, minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: 9, paddingHorizontal: 11, paddingVertical: 10 },
+  exerciseOptionsDivider: { borderLeftWidth: StyleSheet.hairlineWidth, alignSelf: 'stretch', justifyContent: 'center', paddingHorizontal: 2 },
   flex: { flex: 1, minWidth: 0 },
   exerciseName: { fontFamily: fonts.semibold, fontSize: 15, lineHeight: 19 },
   exerciseProgress: { alignItems: 'flex-end', gap: 3 },

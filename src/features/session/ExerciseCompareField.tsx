@@ -9,6 +9,7 @@ import { useTheme } from '../../shared/theme/ThemeProvider';
 import { ComparePicker } from './ComparePicker';
 import { setEntryCompareWorkout, type SessionExercise } from './repository';
 import { radii } from '../../shared/theme/tokens';
+import { useScaledStyles } from '../../shared/theme/useScaledStyles';
 
 type Mode = CompareMode | 'pick';
 
@@ -20,6 +21,7 @@ type Mode = CompareMode | 'pick';
 export function ExerciseCompareField({ exercise, workoutId, workoutName = '', onChanged }: { exercise: SessionExercise; workoutId: string; workoutName?: string; onChanged: () => void }) {
   const { t, i18n } = useTranslation();
   const { palette } = useTheme();
+  const styles = useScaledStyles(baseStyles);
   const stored = exercise.compareWorkoutId ?? null;
   const [mode, setMode] = useState<Mode>(stored === '@session' || stored === '@any' ? (stored.slice(1) as CompareMode) : stored ? 'pick' : readCompareMode());
   const [pickedId, setPickedId] = useState<string | null>(stored && !stored.startsWith('@') ? stored : null);
@@ -66,6 +68,6 @@ export function ExerciseCompareField({ exercise, workoutId, workoutName = '', on
   );
 }
 
-const styles = StyleSheet.create({
+const baseStyles = StyleSheet.create({
   list: { borderRadius: radii.control, borderWidth: StyleSheet.hairlineWidth, overflow: 'hidden' },
 });

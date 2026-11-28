@@ -1,14 +1,15 @@
 import { useEffect, useRef, useState } from 'react';
 import { BackHandler, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import { isRepsPlan, repsOfRound, timedRounds, type TimedMethodPhase, type TimedMethodPlan } from '../../domain/timedMethod';
-import { Icon, Text, tapFeedback } from '../../shared/components/ui';
+import { isRepsPlan, parseTimedCues, repsOfRound, timedRounds, type TimedMethodCues, type TimedMethodPhase, type TimedMethodPlan } from '../../domain/timedMethod';
+import { Icon, Sheet, Text, tapFeedback } from '../../shared/components/ui';
 import { useAppInsets } from '../../shared/layout/useAppInsets';
 import { useTheme } from '../../shared/theme/ThemeProvider';
 import { MIN_TOUCH_TARGET, radii, spacing } from '../../shared/theme/tokens';
 import { fonts } from '../../shared/theme/typography';
 import { useScaledStyles } from '../../shared/theme/useScaledStyles';
 import { formatClock } from '../../shared/utils/format';
+import { TimedCuesEditor } from './TimedCuesEditor';
 
 /** The clock the stage and the dock show for a phase. */
 export function timedClock(phase: TimedMethodPhase): string {
@@ -27,7 +28,7 @@ function stepOf(phase: TimedMethodPhase): number {
   return 3;
 }
 
-export function TimedMethodStage({ exercise, plan, phase, onSkipRecovery, onStartTest, onFinishTest, onStop, onClose, onRoundReps, onMaxReps }: {
+export function TimedMethodStage({ exercise, plan, phase, onSkipRecovery, onStartTest, onFinishTest, onStop, onClose, onRoundReps, onMaxReps, onUpdateCues }: {
   exercise: string;
   plan: TimedMethodPlan;
   phase: TimedMethodPhase;
@@ -35,6 +36,8 @@ export function TimedMethodStage({ exercise, plan, phase, onSkipRecovery, onStar
   onRoundReps?: (round: number, reps: number) => void;
   /** Reps plans: the reps counted in the max set. */
   onMaxReps?: (reps: number) => void;
+  /** Updates custom audio cues live without stopping the running timer. */
+  onUpdateCues?: (cues: TimedMethodCues) => void;
   onSkipRecovery: () => void;
   onStartTest: () => void;
   onFinishTest: () => void;
@@ -46,7 +49,10 @@ export function TimedMethodStage({ exercise, plan, phase, onSkipRecovery, onStar
   const { palette, largeText } = useTheme();
   const insets = useAppInsets();
   const [stopHint, setStopHint] = useState(false);
+  const [soundSheetOpen, setSoundSheetOpen] = useState(false);
   const hintTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const resolvedCues = parseTimedCues(plan.cues);
+  const mutedAudio = (resolvedCues.volume ?? 1) <= 0;
   useEffect(() => {
     const subscription = BackHandler.addEventListener('hardwareBackPress', () => { onClose(); return true; });
     return () => { subscription.remove(); if (hintTimer.current) clearTimeout(hintTimer.current); };
@@ -93,10 +99,22 @@ export function TimedMethodStage({ exercise, plan, phase, onSkipRecovery, onStar
             <Text style={[styles.exercise, { color: palette.heroText }]}>{exercise}</Text>
             <Text style={[styles.tag, { color: muted }]}>{t('timedMethod.stepOf', { step }).toUpperCase()}</Text>
           </View>
-          <Pressable accessibilityRole="button" accessibilityLabel={t('emom.showWorkout')} onPress={() => { tapFeedback(); onClose(); }} style={({ pressed }) => [styles.workoutButton, { borderColor: muted }, pressed && styles.pressed]}>
-            <Icon name="list" size={18} color={palette.heroText} />
-            <Text style={[styles.tagStrong, { color: palette.heroText }]}>{t('emom.workout').toUpperCase()}</Text>
-          </Pressable>
+          <View style={styles.topActions}>
+            {onUpdateCues ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={t('timedMethod.soundSettings')}
+                onPress={() => { tapFeedback(); setSoundSheetOpen(true); }}
+                style={({ pressed }) => [styles.soundButton, { borderColor: muted }, pressed && styles.pressed]}
+              >
+                <Icon name={mutedAudio ? 'volume-mute-outline' : 'volume-high-outline'} size={20} color={palette.heroText} />
+              </Pressable>
+            ) : null}
+            <Pressable accessibilityRole="button" accessibilityLabel={t('emom.showWorkout')} onPress={() => { tapFeedback(); onClose(); }} style={({ pressed }) => [styles.workoutButton, { borderColor: muted }, pressed && styles.pressed]}>
+              <Icon name="list" size={18} color={palette.heroText} />
+              <Text style={[styles.tagStrong, { color: palette.heroText }]}>{t('emom.workout').toUpperCase()}</Text>
+            </Pressable>
+          </View>
         </View>
 
         <View style={styles.figures}>
@@ -156,6 +174,11 @@ export function TimedMethodStage({ exercise, plan, phase, onSkipRecovery, onStar
           {stopHint ? <Text accessibilityLiveRegion="polite" style={[styles.caption, styles.hint, styles.fullRow, { color: palette.heroText }]}>{t('timedMethod.holdToSave')}</Text> : null}
         </View>
       </ScrollView>
+      {onUpdateCues ? (
+        <Sheet visible={soundSheetOpen} onClose={() => setSoundSheetOpen(false)} title={t('timedMethod.soundSettings')}>
+          <TimedCuesEditor cues={resolvedCues} onChange={onUpdateCues} reps={reps} />
+        </Sheet>
+      ) : null}
     </View>
   );
 }
@@ -207,6 +230,8 @@ const baseStyles = StyleSheet.create({
   fullRow: { flexBasis: '100%' },
   scroll: { flex: 1 },
   topRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: spacing.sm, minHeight: MIN_TOUCH_TARGET },
+  topActions: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
+  soundButton: { minWidth: MIN_TOUCH_TARGET, minHeight: MIN_TOUCH_TARGET, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderRadius: radii.control },
   titles: { flexGrow: 1, flexShrink: 1, flexBasis: 160, minWidth: 0 },
   exercise: { fontFamily: fonts.display, fontSize: 20, lineHeight: 24, textTransform: 'uppercase' },
   tag: { fontFamily: fonts.mono, fontSize: 12, lineHeight: 16, letterSpacing: 1 },

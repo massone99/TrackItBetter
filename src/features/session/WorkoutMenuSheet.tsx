@@ -2,6 +2,7 @@ import { useTranslation } from 'react-i18next';
 import { StyleSheet, View } from 'react-native';
 import { ActionButton, Label, MenuList, MenuRow, MenuSwitchRow, Sheet } from '../../shared/components/ui';
 import { spacing } from '../../shared/theme/tokens';
+import { useScaledStyles } from '../../shared/theme/useScaledStyles';
 
 /**
  * The workout's one menu: Finish first, then actions on this workout, then display and sound switches with their
@@ -35,6 +36,7 @@ export function WorkoutMenuSheet({ visible, onClose, subtitle, position, hasNote
   onDiscard: () => void;
 }) {
   const { t } = useTranslation();
+  const styles = useScaledStyles(baseStyles);
   // Each row closes the menu first, so the sheet it opens is not stacked on this one.
   const row = (action: () => void) => () => { onClose(); action(); };
   return (
@@ -66,6 +68,6 @@ export function WorkoutMenuSheet({ visible, onClose, subtitle, position, hasNote
   );
 }
 
-const styles = StyleSheet.create({
+const baseStyles = StyleSheet.create({
   group: { gap: spacing.sm },
 });

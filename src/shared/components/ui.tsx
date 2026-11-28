@@ -353,9 +353,9 @@ export function PageHeading({ title, subtitle, action, onTitleLongPress, titleLo
             onAccessibilityAction={(event) => { if (event.nativeEvent.actionName === "longpress") onTitleLongPress(); }}
             style={styles.pageTitlePress}
           >
-            <Title style={styles.pageTitle}>{title}</Title>
+            <Title numberOfLines={3} adjustsFontSizeToFit minimumFontScale={0.72} style={styles.pageTitle}>{title}</Title>
           </Pressable>
-        ) : <Title style={styles.pageTitle}>{title}</Title>}
+        ) : <Title numberOfLines={3} adjustsFontSizeToFit minimumFontScale={0.72} style={styles.pageTitle}>{title}</Title>}
         {action}
       </View>
       {subtitle ? <Body style={styles.pageSubtitle}>{subtitle}</Body> : null}
@@ -1043,7 +1043,7 @@ const baseStyles = StyleSheet.create({
   numberEditTarget: { minHeight: MIN_TOUCH_TARGET, justifyContent: "center" },
   footer: { borderTopWidth: StyleSheet.hairlineWidth, paddingTop: spacing.md, paddingHorizontal: spacing.page, alignItems: "center" },
   footerColumn: { width: "100%", maxWidth: 640, flexDirection: "row", flexWrap: "wrap", gap: spacing.md },
-  footerColumnStacked: { flexDirection: "column" },
+  footerColumnStacked: { flexDirection: "column", flexWrap: "nowrap", alignItems: "stretch" },
   footerCell: { flexGrow: 1, flexShrink: 1, flexBasis: 120 },
   footerCellFull: { flexBasis: "100%" },
   footerScroll: { width: "100%", flexGrow: 0 },

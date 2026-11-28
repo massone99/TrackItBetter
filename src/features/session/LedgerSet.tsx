@@ -95,6 +95,15 @@ export interface LedgerActiveRowProps extends LedgerCommon {
     video?: { clips: number; onPress: () => void };
     /** Off when the screen's footer carries the action (the set to do in one-at-a-time mode). */
     inlineAction?: boolean;
+    /** Timed/hold set controls: active mode toggle, live countdown readout, and 1-tap manual log without timer. */
+    hold?: {
+      mode: 'free' | 'target';
+      onToggleMode: () => void;
+      phaseLabel: string | null;
+      liveValue: string | null;
+      manualLabel: string | null;
+      onManual: () => void;
+    };
   };
 }
 
@@ -116,7 +125,7 @@ export function LedgerHeader({ valueLabel, withLoad = true, live = false }: Ledg
   const cell = [styles.headText, { color: palette.textMuted }];
   return (
     <View style={[styles.header, { borderBottomColor: ink }, live && [styles.liveHeader, { backgroundColor: palette.surfaceMuted }]]} accessibilityRole="header">
-      <Text style={[live ? styles.liveRowNumber : styles.colSet, ...cell]}>{live ? t('liveWorkout.setColumn') : t('ledger.setCol')}</Text>
+      <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75} style={[live ? styles.liveRowNumber : styles.colSet, ...cell]}>{live ? t('liveWorkout.setColumn') : t('ledger.setCol')}</Text>
       <Text style={[styles.colField, ...cell]}>{valueLabel}</Text>
       {withLoad ? <Text style={[styles.colField, ...cell]}>{t(live ? 'liveWorkout.loadColumn' : 'ledger.kgCol')}</Text> : null}
       {live ? <View style={styles.colDone} /> : <Text style={[styles.colDone, ...cell]}>{t('ledger.doneCol')}</Text>}
@@ -184,7 +193,7 @@ function StaticRow(props: LedgerRowProps & { done: boolean }) {
       onPress={() => { tapFeedback(); props.onOpen(); }} onLongPress={props.onMenu}
       style={[styles.row, styles.liveRow, props.progression && styles.progressionRow, { borderBottomColor: palette.border, backgroundColor: props.active || props.progression ? palette.accentSoft : palette.surface }]}>
       <View style={styles.liveRowNumber}>
-        <Text style={[styles.figure, { color: props.active ? palette.accentStrong : color }]}>{setText(props.label, props.side).padStart(2, '0')}</Text>
+        <Text style={[styles.figure, { color: props.active ? palette.accentStrong : color }]}>{props.warmup ? setText(props.label, props.side) : setText(props.label, props.side).padStart(2, '0')}</Text>
         {props.note ? <Icon name="document-text-outline" size={13} color={palette.accentStrong} /> : null}
         {props.record ? <Icon name="trophy-outline" size={13} color={palette.record} /> : null}
       </View>
@@ -287,18 +296,34 @@ function LiveSetEditor({ live, note, bands, side, valueField, valueDown, valueUp
   const [loadOpen, setLoadOpen] = useState(false);
   const showLoad = withLoad || loadOpen;
   const chip = (key: string, icon: IconName, label: string, onPress: () => void, filled = false, dashed = false, colors?: string[]) => (
-    <Pressable key={key} accessibilityRole="button" accessibilityLabel={label} onPress={() => { tapFeedback(); onPress(); }}
+    <Pressable key={key} accessibilityRole="button" accessibilityLabel={label} hitSlop={4} onPress={() => { tapFeedback(); onPress(); }}
       style={({ pressed }) => [styles.editorChip, { borderColor: dashed ? palette.accentStrong : palette.text, borderStyle: dashed ? 'dashed' : 'solid', backgroundColor: filled ? palette.accentSoft : palette.surface, opacity: pressed ? 0.7 : 1 }]}>
-      {colors && colors.length > 0 ? <Swatches colors={colors} /> : <Icon name={icon} size={16} color={dashed ? palette.accentStrong : palette.text} />}
+      {colors && colors.length > 0 ? <Swatches colors={colors} /> : <Icon name={icon} size={15} color={dashed ? palette.accentStrong : palette.text} />}
       <Text style={[styles.editorChipText, { color: dashed ? palette.accentStrong : palette.text }]}>{label}</Text>
     </Pressable>
   );
   const chips = [
+    live.hold && !live.done && !live.holding ? chip(
+      'hold-mode',
+      live.hold.mode === 'target' ? 'hourglass-outline' : 'timer-outline',
+      t(live.hold.mode === 'target' ? 'logger.holdModeShortTarget' : 'logger.holdModeShortFree'),
+      live.hold.onToggleMode,
+      live.hold.mode === 'target',
+    ) : null,
+    live.hold && !live.done && !live.holding && live.hold.manualLabel ? chip(
+      'hold-manual',
+      'checkmark-circle-outline',
+      live.hold.manualLabel,
+      live.hold.onManual,
+      false,
+      true,
+    ) : null,
     withLoad ? null : chip('load', loadOpen ? 'remove' : 'add', t('simple.load'), () => setLoadOpen(!loadOpen), loadOpen, !loadOpen),
     bands ? chip('bands', 'git-commit-outline', bands.colors.length > 0 ? (bands.assist ? `−${bands.assist} kg` : t('bands.title')) : t('bands.title'), bands.onPress, bands.colors.length > 0, false, bands.colors) : null,
     live.rest ? chip('rest', 'timer-outline', t('logger.restChip', { value: live.rest.value }), live.rest.onPress, live.rest.filled) : null,
     note ? chip('note', 'document-text-outline', note.text ? note.text : t('logger.noteLabel'), note.onPress, Boolean(note.text)) : null,
     live.video ? chip('video', live.video.clips > 0 ? 'play-circle-outline' : 'videocam-outline', live.video.clips > 0 ? t('logger.clip', { count: live.video.clips }) : t('logger.videoChip'), live.video.onPress, live.video.clips > 0) : null,
+    onMenu ? chip('more', 'options-outline', t('logger.setDetailsChip'), onMenu) : null,
   ];
   const sideTag = (letter: 'L' | 'R') => {
     const current = side === letter;
@@ -315,7 +340,14 @@ function LiveSetEditor({ live, note, bands, side, valueField, valueDown, valueUp
       </View>
     ) : null}
     <View style={[styles.liveFields, largeText && styles.liveFieldsStack]}>
-      <LiveField stacked={largeText} big label={live.fieldLabel} unit={live.unit} down={valueDown} up={valueUp}>{valueField}</LiveField>
+      {live.holding && live.hold?.liveValue ? (
+        <View style={[styles.liveHoldReadout, { backgroundColor: palette.surface, borderColor: palette.accentStrong }]}>
+          {live.hold.phaseLabel ? <Text style={[styles.liveHoldPhase, { color: palette.accentStrong }]}>{live.hold.phaseLabel}</Text> : null}
+          <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6} style={[styles.liveHoldClock, { color: palette.text }]}>{live.hold.liveValue}</Text>
+        </View>
+      ) : (
+        <LiveField stacked={largeText} big label={live.fieldLabel} unit={live.unit} down={valueDown} up={valueUp}>{valueField}</LiveField>
+      )}
       {showLoad ? <LiveField stacked={largeText} label={t('liveWorkout.addedLoad')} unit="kg" down={loadDown} up={loadUp}>{loadField}</LiveField> : null}
     </View>
     {live.comparable ? <Text style={[styles.comparable, { color: palette.textMuted }]}>{t('liveWorkout.comparable', { value: live.comparable })}</Text> : null}
@@ -338,7 +370,7 @@ function LiveSetEditor({ live, note, bands, side, valueField, valueDown, valueUp
 function LiveField({ stacked, big = false, label, unit, down, up, children }: { stacked: boolean; big?: boolean; label: string; unit?: string; down?: ReactNode; up?: ReactNode; children: ReactNode }) {
   const { palette } = useTheme();
   const styles = useScaledStyles(baseStyles);
-  return <View style={[styles.liveField, !stacked && styles.liveFieldInline]}>
+  return <View style={[styles.liveField, stacked ? styles.liveFieldStacked : styles.liveFieldInline]}>
     <Text style={styles.fieldLabel}>{label}</Text>
     <View style={[styles.liveStepper, big && styles.liveStepperBig, { backgroundColor: palette.surface, borderColor: palette.text }]}>
       {down ? <View style={[styles.stepKey, { backgroundColor: palette.surfaceMuted }]}>{down}</View> : null}
@@ -475,26 +507,31 @@ const baseStyles = StyleSheet.create({
   progressionRow: { flexWrap: 'wrap' },
   progressionLine: { flexBasis: '100%' },
   progression: { fontSize: 13, fontFamily: fonts.semibold },
-  liveRowNumber: { width: 42, flexDirection: 'row', flexWrap: 'wrap', gap: 3, alignItems: 'center' },
+  liveRowNumber: { minWidth: MIN_TOUCH_TARGET, width: 52, flexDirection: 'row', flexWrap: 'wrap', gap: 3, alignItems: 'center' },
   editor: { borderWidth: 1, borderRadius: radii.control, margin: spacing.sm, padding: spacing.md, gap: spacing.md },
   editorTop: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
   editorBadge: { fontFamily: fonts.monoSemibold, fontSize: 12, lineHeight: 16, letterSpacing: 0.7, textTransform: 'uppercase', flexShrink: 1 },
   sideTags: { flexDirection: 'row', gap: 4 },
   sideTag: { minWidth: 28, minHeight: 24, borderRadius: 4, alignItems: 'center', justifyContent: 'center' },
   sideTagText: { fontFamily: fonts.monoBold, fontSize: 12 },
-  editorChips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
-  editorChip: { minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, borderWidth: 1, borderRadius: 4 },
-  editorChipText: { fontFamily: fonts.monoSemibold, fontSize: 12, letterSpacing: 0.5, textTransform: 'uppercase', maxWidth: 160 },
-  liveStepperBig: { minHeight: 64 },
+  editorChips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs },
+  editorChip: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 10, paddingVertical: 6, borderWidth: 1, borderRadius: radii.control, maxWidth: '100%' },
+  editorChipText: { fontFamily: fonts.monoSemibold, fontSize: 12, letterSpacing: 0.4, textTransform: 'uppercase', flexShrink: 1 },
+  liveStepperBig: { minHeight: 60 },
   liveMeasurements: { borderTopWidth: 1, borderBottomWidth: 1, paddingHorizontal: 13, paddingVertical: 12, gap: 10 },
   liveFields: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md },
-  liveFieldsStack: { flexDirection: 'column' },
+  // Always nowrap + stretch when stacked: flexWrap: 'wrap' with column wraps children into a clipped second column on Android Yoga.
+  liveFieldsStack: { flexDirection: 'column', flexWrap: 'nowrap', alignItems: 'stretch' },
   liveField: { gap: 5, minWidth: 0 },
+  liveFieldStacked: { width: '100%', alignSelf: 'stretch' },
   liveFieldInline: { flexGrow: 1, flexBasis: 176 },
   fieldLabel: { fontFamily: fonts.semibold, fontSize: 13 },
-  liveStepper: { minHeight: 50, flexDirection: 'row', alignItems: 'stretch', gap: spacing.sm, padding: spacing.xs, borderWidth: 1, borderRadius: radii.control },
-  stepKey: { flexShrink: 0, minWidth: MIN_TOUCH_TARGET, justifyContent: 'center', alignItems: 'center', borderRadius: radii.control },
-  liveValue: { flex: 1, minWidth: 0, flexWrap: 'wrap', flexDirection: 'row', alignItems: 'center', alignContent: 'center', justifyContent: 'center', gap: 3 },
+  liveStepper: { width: '100%', minHeight: 52, flexDirection: 'row', alignItems: 'center', gap: spacing.xs, padding: spacing.xs, borderWidth: 1, borderRadius: radii.control },
+  stepKey: { flexShrink: 0, width: MIN_TOUCH_TARGET, minHeight: MIN_TOUCH_TARGET, justifyContent: 'center', alignItems: 'center', borderRadius: radii.control },
+  liveValue: { flex: 1, minWidth: 72, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, paddingHorizontal: spacing.xs },
+  liveHoldReadout: { width: '100%', alignSelf: 'stretch', minHeight: 72, borderWidth: 1.5, borderRadius: radii.control, paddingHorizontal: spacing.md, paddingVertical: spacing.sm, alignItems: 'center', justifyContent: 'center', gap: spacing.xs },
+  liveHoldPhase: { fontFamily: fonts.monoSemibold, fontSize: 12, letterSpacing: 1, textTransform: 'uppercase' },
+  liveHoldClock: { fontFamily: fonts.monoBold, fontSize: 32, lineHeight: 38, fontVariant: ['tabular-nums'], textAlign: 'center' },
   unit: { fontFamily: fonts.monoSemibold, fontSize: 12 },
   comparable: { fontSize: 12 },
   liveBands: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 7, padding: 12, minHeight: 44, borderBottomWidth: 1 },

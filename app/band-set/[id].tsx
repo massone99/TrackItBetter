@@ -191,7 +191,7 @@ const baseStyles = StyleSheet.create({
   colors: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   colorOption: { width: 44, height: 44, borderRadius: radii.control },
   kgRow: { flexDirection: 'row', gap: 12 },
-  kgStack: { flexDirection: 'column' },
+  kgStack: { flexDirection: 'column', flexWrap: 'nowrap', alignItems: 'stretch' },
   orderActions: { gap: 8 },
   hexRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 12 },
   hexSwatch: { width: 48, height: 48, borderRadius: radii.control, borderWidth: 1, marginBottom: 2 },

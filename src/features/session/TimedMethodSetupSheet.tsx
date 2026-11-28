@@ -1,12 +1,16 @@
 import { useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import { ActionButton, Body, Label, MenuList, MenuSwitchRow, Sheet, Stepper } from '../../shared/components/ui';
-import { spacing } from '../../shared/theme/tokens';
+import { ActionButton, Body, Icon, Label, MenuList, MenuSwitchRow, Sheet, Stepper, Text, tapFeedback } from '../../shared/components/ui';
+import { useTheme } from '../../shared/theme/ThemeProvider';
+import { MIN_TOUCH_TARGET, radii, spacing } from '../../shared/theme/tokens';
+import { fonts } from '../../shared/theme/typography';
+import { useScaledStyles } from '../../shared/theme/useScaledStyles';
 import { formatClock } from '../../shared/utils/format';
-import { timedKindFor, timedRounds, type TimedMethodCues } from '../../domain/timedMethod';
+import { parseTimedCues, timedKindFor, timedRounds } from '../../domain/timedMethod';
 import type { SessionExercise } from './repository';
 import { DEFAULT_TIMED_CONFIG, readTimedConfig } from './timedMethodPlan';
+import { TimedCuesEditor, toneLabelKey } from './TimedCuesEditor';
 import type { TimedStart } from './useTimedMethod';
 
 /** Exercises measured in time run holds; rep exercises run work intervals (with or without load). */
@@ -30,16 +34,16 @@ export function TimedMethodSetupSheet({ exercise, onClose, onStart, onNarrate }:
 
 function Fields({ exercise, onStart, onNarrate }: { exercise: SessionExercise; onStart: (config: TimedStart) => void; onNarrate: (config: TimedStart) => void }) {
   const { t } = useTranslation();
+  const { palette } = useTheme();
+  const styles = useScaledStyles(baseStyles);
   const kind = timedKindFor(exercise.metric);
   const reps = kind === 'reps';
   const [config] = useState(() => readTimedConfig(exercise.exerciseId, kind));
   const [repsPerRound, setRepsPerRound] = useState(config.repsPerRound ?? 1);
   const [blockSec, setBlockSec] = useState(config.blockSec);
   const [countdownSec, setCountdownSec] = useState(config.countdownSec);
-  const [cues, setCues] = useState(config.cues);
-  function changeCue<K extends keyof TimedMethodCues>(key: K, value: TimedMethodCues[K]) {
-    setCues((current) => ({ ...current, [key]: value }));
-  }
+  const [cues, setCues] = useState(() => parseTimedCues(config.cues));
+  const [cuesOpen, setCuesOpen] = useState(false);
   const [holdSec, setHoldSec] = useState(config.holdSec);
   const [restSec, setRestSec] = useState(config.restSec);
   const [recoverySec, setRecoverySec] = useState(config.recoverySec);
@@ -58,6 +62,17 @@ function Fields({ exercise, onStart, onNarrate }: { exercise: SessionExercise; o
     ? t(withTest ? 'timedMethod.summaryReps' : 'timedMethod.summaryRepsNoTest', { count: rounds, rounds, interval, reps: repsText, recovery: formatClock(recoverySec) })
     : withTest ? t('timedMethod.summary', { count: rounds, rounds, hold: seconds(holdSec), rest: seconds(restSec), recovery: formatClock(recoverySec), test: seconds(testSec) })
       : t('timedMethod.summaryNoTest', { count: rounds, rounds, hold: seconds(holdSec), rest: seconds(restSec) });
+
+  const volumePct = Math.round((cues.volume ?? 1) * 100);
+  const cuesSummary = volumePct === 0
+    ? t('timedMethod.volumeMute')
+    : [
+      `${volumePct}%`,
+      t(toneLabelKey(cues.holdStart ? (cues.holdStartTone ?? 'go') : 'none')),
+      t(toneLabelKey(cues.restStart ? (cues.restStartTone ?? 'double') : 'none')),
+      t(toneLabelKey(cues.milestones ? (cues.milestoneTone ?? 'done') : 'none')),
+    ].join(' · ');
+
   return (
     <>
       <View style={styles.fields}>
@@ -77,21 +92,30 @@ function Fields({ exercise, onStart, onNarrate }: { exercise: SessionExercise; o
       ) : null}
       {exercise.unilateral ? <Body>{t('timedMethod.unassignedSides')}</Body> : null}
       <View style={styles.fields}>
-        {!reps ? <Label>{t('timedMethod.cues')}</Label> : null}
+        <Label>{t('timedMethod.cues')}</Label>
         <Stepper layout="row" label={t('timedMethod.preparation')} value={countdownSec} display={seconds(countdownSec)} step={1} min={0} max={30} presets={[0, 3, 5, 10]} presetLabel={seconds} onChange={setCountdownSec} />
-        {!reps ? <>
-          <Stepper layout="row" label={t('timedMethod.warningSec')} value={cues.warningSec} display={seconds(cues.warningSec)} step={1} min={0} max={10} presets={[0, 1, 3, 5]} presetLabel={seconds} onChange={(value) => changeCue('warningSec', value)} />
-          <MenuList>
-            <MenuSwitchRow label={t('timedMethod.intervalWarnings')} value={cues.intervalWarnings} onChange={(value) => changeCue('intervalWarnings', value)} />
-            <MenuSwitchRow label={t('timedMethod.holdCue')} value={cues.holdStart} onChange={(value) => changeCue('holdStart', value)} />
-            <MenuSwitchRow label={t('timedMethod.restCue')} value={cues.restStart} onChange={(value) => changeCue('restStart', value)} />
-            <MenuSwitchRow label={t('timedMethod.milestoneCue')} value={cues.milestones} onChange={(value) => changeCue('milestones', value)} />
-          </MenuList>
-        </> : null}
+        <Pressable
+          accessibilityRole="button"
+          accessibilityState={{ expanded: cuesOpen }}
+          accessibilityLabel={`${t('timedMethod.customizeBeeps')}, ${cuesSummary}`}
+          onPress={() => { tapFeedback(); setCuesOpen((open) => !open); }}
+          style={({ pressed }) => [styles.cuesToggle, { borderColor: cuesOpen ? palette.accentStrong : palette.border, backgroundColor: cuesOpen ? palette.accentSoft : palette.surface, opacity: pressed ? 0.75 : 1 }]}
+        >
+          <Icon name={volumePct === 0 ? 'volume-mute-outline' : 'volume-high-outline'} size={20} color={palette.accentStrong} />
+          <View style={styles.cuesToggleCopy}>
+            <Text style={[styles.cuesToggleTitle, { color: palette.text }]}>{t('timedMethod.customizeBeeps')}</Text>
+            <Text style={[styles.cuesToggleValue, { color: palette.textMuted }]}>{cuesSummary}</Text>
+          </View>
+          <Icon name={cuesOpen ? 'chevron-up' : 'chevron-down'} size={18} color={palette.textMuted} />
+        </Pressable>
+        {cuesOpen ? <TimedCuesEditor cues={cues} onChange={setCues} reps={reps} /> : null}
       </View>
       <Body>{summary}</Body>
       {reps ? (
-        <ActionButton icon="volume-high-outline" label={t('timedMethod.startNarrated')} onPress={() => onNarrate(startConfig())} />
+        <View style={styles.startActions}>
+          <ActionButton icon="volume-high-outline" label={t('timedMethod.startNarrated')} onPress={() => onNarrate(startConfig())} />
+          <ActionButton secondary icon="timer-outline" label={t('timedMethod.startTimerReps')} onPress={() => onStart(startConfig())} />
+        </View>
       ) : (
         <ActionButton icon="timer-outline" label={t('timedMethod.start')} onPress={() => onStart(startConfig())} />
       )}
@@ -99,4 +123,20 @@ function Fields({ exercise, onStart, onNarrate }: { exercise: SessionExercise; o
   );
 }
 
-const styles = StyleSheet.create({ fields: { gap: spacing.md } });
+const baseStyles = StyleSheet.create({
+  fields: { gap: spacing.md },
+  startActions: { gap: spacing.sm },
+  cuesToggle: {
+    minHeight: MIN_TOUCH_TARGET,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderWidth: 1,
+    borderRadius: radii.control,
+  },
+  cuesToggleCopy: { flex: 1, minWidth: 0, gap: 2 },
+  cuesToggleTitle: { fontFamily: fonts.semibold, fontSize: 14, lineHeight: 19 },
+  cuesToggleValue: { fontFamily: fonts.mono, fontSize: 12, lineHeight: 16 },
+});

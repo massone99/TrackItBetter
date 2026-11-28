@@ -1,16 +1,17 @@
 import { ExerciseSwipeArea } from '../../src/features/session/ExerciseSwipeArea';
+import { ExerciseSwitcherBar } from '../../src/features/session/ExerciseSwitcherBar';
 import { displayWorkoutName } from '../../src/features/session/workoutName';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import * as Speech from 'expo-speech';
 import { useTranslation } from 'react-i18next';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AccessibilityInfo, ActivityIndicator, Alert, BackHandler, Pressable, StyleSheet, View } from 'react-native';
 import { groupSets, completedSetCount } from '../../src/domain/setPairs';
 import { ExercisePicker, type ExerciseChoice } from '../../src/features/exercises/ExercisePicker';
 import { ReferenceLinkSheet } from '../../src/features/exercises/ReferenceLinkSheet';
 import { openExercisePage } from '../../src/features/exercises/openExercise';
 import { cancelRestFinishedNotification, scheduleRestFinishedNotification } from '../../src/features/session/restNotifications';
-import { readExerciseRest, restForSet } from '../../src/features/session/restDefaults';
+import { restForSet } from '../../src/features/session/restDefaults';
 import { supersetStep } from '../../src/features/session/superset';
 import { SupersetActions, SupersetSettings } from '../../src/features/session/SupersetFields';
 import type { ScrollHandle } from '../../src/shared/components/keyboard';
@@ -87,7 +88,6 @@ import {
   Body,
   IconButton,
   Label,
-  ListRow,
   MenuGrid,
   MenuGroup,
   MenuList,
@@ -99,6 +99,7 @@ import {
   Icon,
   PageHeading,
   Screen,
+  SegmentedControl,
   Sheet,
   Text,
   Toast,
@@ -141,7 +142,9 @@ export default function WorkoutScreen() {
   const styles = useScaledStyles(baseStyles);
   const { id } = useLocalSearchParams<{ id: string }>();
   const { t } = useTranslation();
-  const { palette, largeText } = useTheme();
+  const { palette, largeText, layoutScale, fontScale } = useTheme();
+  // Rebuilds the workout layout tree on any scale/font-size change so Android Yoga & swipe rows drop stale measurements while keeping all workout/timer state intact.
+  const scaleKey = `${layoutScale}-${fontScale}-${largeText ? 1 : 0}`;
   const [workout, setWorkout] = useState<ActiveWorkout | null>(null);
   const workoutRef = useRef<ActiveWorkout | null>(null);
   useEffect(() => { workoutRef.current = workout; }, [workout]);
@@ -165,9 +168,24 @@ export default function WorkoutScreen() {
     const endsAt = id ? runningRests.get(id) : undefined;
     return endsAt && endsAt > Date.now() ? endsAt : null;
   });
-  // Hold mode chosen per set during this session; unset sets use the last mode picked.
+  // Hold mode chosen per set during this session; unset sets follow the current session/device preference.
+  const [sessionHoldMode, setSessionHoldMode] = useState<HoldMode>(() => defaultHoldMode());
   const [holdModes, setHoldModes] = useState<Map<string, HoldMode>>(new Map());
-  const holdModeFor = (setId: string) => holdModes.get(setId) ?? defaultHoldMode();
+  const holdModeFor = (setId: string) => holdModes.get(setId) ?? sessionHoldMode;
+  const updateHoldMode = (setId: string, mode: HoldMode) => {
+    rememberHoldMode(mode);
+    setSessionHoldMode(mode);
+    setHoldModes((current) => new Map(current).set(setId, mode));
+  };
+  const updateExerciseHoldMode = (exercise: SessionExercise, mode: HoldMode) => {
+    rememberHoldMode(mode);
+    setSessionHoldMode(mode);
+    setHoldModes((current) => {
+      const next = new Map(current);
+      for (const item of exercise.sets) next.set(item.id, mode);
+      return next;
+    });
+  };
   // The last removal, offered for a few seconds as "Restore".
   const [undo, setUndo] = useState<{ message: string; removed?: RemovedRows; switched?: SwitchSnapshot } | null>(null);
   // Once the Restore offer is gone, clip files kept for it are deleted (files restored meanwhile stay).
@@ -195,10 +213,14 @@ export default function WorkoutScreen() {
   // Self-regulated rest under a total goal: when the clock started, and the rest offered on demand.
   const [freeRest, setFreeRest] = useState<{ since: number; restSec: number } | null>(null);
   const [totalFor, setTotalFor] = useState<SessionExercise | null>(null);
-  const [optionsFor, setOptionsForState] = useState<SessionExercise | null>(null);
-  // Which part of the exercise menu is open: the main list, or one of its settings.
-  const [optionsView, setOptionsView] = useState<'rest' | 'replace' | 'setup' | 'history' | 'library' | null>(null);
-  const setOptionsFor = (exercise: SessionExercise | null) => { setOptionsView(null); setOptionsForState(exercise); };
+  const [optionsEntryId, setOptionsEntryId] = useState<string | null>(null);
+  // Which sub-view of the exercise menu is open: null for the main settings sheet, or a secondary view.
+  const [optionsView, setOptionsView] = useState<'replace' | 'setup' | 'history' | null>(null);
+  const optionsFor = useMemo(
+    () => (optionsEntryId ? workout?.exercises.find((entry) => entry.entryId === optionsEntryId) ?? null : null),
+    [workout, optionsEntryId],
+  );
+  const setOptionsFor = (exercise: SessionExercise | null) => { setOptionsView(null); setOptionsEntryId(exercise?.entryId ?? null); };
   const closeOptions = () => setOptionsFor(null);
   const [clearAllOpen, setClearAllOpen] = useState(false);
   const [emomSetupFor, setEmomSetupFor] = useState<SessionExercise | null>(null);
@@ -874,23 +896,15 @@ export default function WorkoutScreen() {
     const copyable = copyableSets(exercise, previous.get(exercise.exerciseId));
     return (
       <ExerciseCard
-        key={exercise.entryId}
+        key={`${exercise.entryId}-${scaleKey}`}
         focus
         liveLayout={focusMode ? 'standalone' : 'inline'}
-        footerAction={focusMode}
+        footerAction
         wrapSetEditor={(editor) => (
           <ExerciseSwipeArea previousId={previousExercise?.entryId} nextId={followingExercise?.entryId} onNavigate={swipeToExercise}>
             {editor}
           </ExerciseSwipeArea>
         )}
-        exerciseNavigation={previousExercise || followingExercise ? (
-          <View style={styles.exerciseNavigation}>
-            <IconButton icon="chevron-back" tone="plain" label={t('liveWorkout.previousMovement')} disabled={!previousExercise}
-              onPress={() => { if (previousExercise) openExercise(previousExercise); }} />
-            <IconButton icon="chevron-forward" tone="plain" label={t('liveWorkout.nextMovement')} disabled={!followingExercise}
-              onPress={() => { if (followingExercise) openExercise(followingExercise); }} />
-          </View>
-        ) : null}
         onOpenExerciseNote={() => openExerciseNote(exercise)}
         onSetExpanded={() => selectEntry(exercise.entryId)}
         exercise={exercise}
@@ -898,6 +912,8 @@ export default function WorkoutScreen() {
         onToggleCollapsed={showOverview}
         previous={previous.get(exercise.exerciseId)}
         hold={hold.active}
+        holdModeFor={holdModeFor}
+        onHoldMode={updateHoldMode}
         onChange={changeSet}
         onSetValue={(set, field, value) => void (field === 'addedLoadKg' && value !== 0 ? allowLoad(exercise) : Promise.resolve()).then(() => updateSet(set.id, field, value)).then(() => refresh(workout.id))}
         onComplete={(set) => void completeHoldManually(set.id)}
@@ -944,7 +960,7 @@ export default function WorkoutScreen() {
         backgroundColor={background}
         footerColor={footerColor}
         columnStyle={styles.workoutColumn}
-        footerAccessory={<View style={styles.dockStack} onLayout={(event) => setFooterHeight(event.nativeEvent.layout.height)}>
+        footerAccessory={<View key={`dock-${scaleKey}`} style={styles.dockStack} onLayout={(event) => setFooterHeight(event.nativeEvent.layout.height)}>
           {timedView ? (
             <TimedMethodMiniDock exercise={timedView.exercise} phase={timedView.phase} reps={timed.plan?.kind === 'reps'} onOpen={() => setTimedStage(true)} />
           ) : emomView ? (
@@ -1004,6 +1020,7 @@ export default function WorkoutScreen() {
           )) : actions}
         </View>}
       >
+        <Fragment key={scaleKey}>
         <WorkoutHeader
           title={workoutName}
           startedAt={workout.startedAt}
@@ -1035,6 +1052,7 @@ export default function WorkoutScreen() {
 
 
         {focused ? <>
+          <ExerciseSwitcherBar exercises={workout.exercises} currentId={focused.entryId} onSelect={openExercise} />
           {telemetryOn && telemetry ? (
             <Pressable accessibilityRole="button" onPress={() => { tapFeedback(); setTelemetrySheet(true); }} style={[styles.telemetryRow, { borderColor: palette.border }]}>
               <Icon name="speedometer-outline" size={18} color={palette.textMuted} />
@@ -1072,7 +1090,8 @@ export default function WorkoutScreen() {
               <View style={styles.overviewExerciseRow}>
                 {wrapDrag(<View collapsable={false} style={styles.flex}>
                   <WorkoutExerciseRow exercise={exercise} marker={marker} next={exercise.entryId === next?.entryId} onPress={() => openExercise(exercise)}
-                    onLongPress={editingOverview ? undefined : () => setOptionsFor(exercise)} />
+                    onLongPress={editingOverview ? undefined : () => setOptionsFor(exercise)}
+                    onOptions={editingOverview ? undefined : () => setOptionsFor(exercise)} />
                 </View>)}
                 {editingOverview ? <IconButton icon="close" tone="plain" size={44} color={palette.textMuted}
                   label={t('liveWorkout.removeNamedExercise', { name: exercise.name })}
@@ -1082,6 +1101,7 @@ export default function WorkoutScreen() {
           />
           {workout.exercises.length === 0 ? <EmptyState icon="barbell-outline" title={t('workout.addFirst')} body={t('workout.savedDescription')} /> : null}
         </>}
+        </Fragment>
       </Screen>
 
       {noteTarget ? <WorkoutNoteSheet key={`${noteTarget.kind}:${noteTarget.id}`} kind={noteTarget.kind} initial={noteTarget.value} context={noteTarget.context}
@@ -1178,6 +1198,7 @@ export default function WorkoutScreen() {
           onClose={closeTimedStage}
           onRoundReps={timed.setRoundReps}
           onMaxReps={timed.setMaxReps}
+          onUpdateCues={timed.updateCues}
         />
       ) : null}
       {emomView && emomStage && !timedView ? (
@@ -1303,23 +1324,53 @@ export default function WorkoutScreen() {
       <Sheet visible={optionsFor !== null} onClose={closeOptions} title={optionsFor?.name ?? t('logger.options')}
         subtitle={optionsFor ? t('simple.exercisePosition', { current: workout.exercises.indexOf(optionsFor) + 1, total: workout.exercises.length }) : undefined}>
         {optionsFor ? (
-          <View key={`${optionsFor.entryId}-${optionsView ?? 'main'}`} style={styles.dockStack}>
+          <View key={`${optionsFor.entryId}-${optionsView ?? 'main'}-${scaleKey}`} style={styles.dockStack}>
             {optionsView === null ? <>
-              {/* The four things done most often, then one flat row per setting with its value, then removal apart. */}
+              {/* Frequently tweaked mid-workout settings stay directly editable in one tap (rest, apparatus, hold timer mode). */}
+              <ExerciseRestFields key={`rest-${optionsFor.entryId}`} exercise={optionsFor} onSaved={() => void refresh(workout.id)} />
+              {catalog && (optionsFor.apparatusIds?.length ?? 0) > 0 ? (
+                <MenuGroup title={t('equipment.apparatusInWorkout')}>
+                  <View style={styles.choiceRow}>
+                    {optionsFor.apparatusIds!.map((apparatusId) => (
+                      <Chip
+                        key={apparatusId}
+                        label={apparatusName(catalog.apparatus.find((item) => item.id === apparatusId), t)}
+                        selected={optionsFor.apparatusId === apparatusId}
+                        onPress={() => { void setEntryApparatus(optionsFor.entryId, apparatusId).then(() => refresh(workout.id)); }}
+                      />
+                    ))}
+                  </View>
+                  {optionsFor.apparatusAffectsDifficulty ? <Label>{t('equipment.apparatusCompareHint')}</Label> : null}
+                </MenuGroup>
+              ) : null}
+              {optionsFor.metric === 'time' || optionsFor.metric === 'time_load' ? (
+                <MenuGroup title={t('logger.holdMode')}>
+                  <SegmentedControl<HoldMode>
+                    value={optionsFor.sets[0] ? holdModeFor(optionsFor.sets[0].id) : sessionHoldMode}
+                    onChange={(mode) => updateExerciseHoldMode(optionsFor, mode)}
+                    options={[{ value: 'free', label: t('logger.holdFree') }, { value: 'target', label: t('logger.holdTarget') }]}
+                  />
+                  <Body>
+                    {(optionsFor.sets[0] ? holdModeFor(optionsFor.sets[0].id) : sessionHoldMode) === 'target'
+                      ? t('logger.holdTargetHint', { time: formatClock(optionsFor.sets.find((s) => !s.completedAt)?.durationSec ?? optionsFor.sets[0]?.durationSec ?? 30) })
+                      : t('logger.holdFreeHint')}
+                  </Body>
+                </MenuGroup>
+              ) : null}
               <MenuGrid>
                 <MenuTile icon="swap-horizontal" label={t('simple.replace')} onPress={() => setOptionsView('replace')} />
-              {emomFieldFor(optionsFor.metric) ? (
-                <MenuTile
-                  icon="timer-outline"
-                  label={optionsFor.entryId === emomEntryId ? t('emom.stop') : t('emom.open')}
-                  onPress={() => {
-                    const exercise = optionsFor;
-                    setOptionsFor(null);
-                    if (exercise.entryId === emomEntryId) void emom.stop();
-                    else setEmomSetupFor(exercise);
-                  }}
-                />
-              ) : null}
+                {emomFieldFor(optionsFor.metric) ? (
+                  <MenuTile
+                    icon="timer-outline"
+                    label={optionsFor.entryId === emomEntryId ? t('emom.stop') : t('emom.open')}
+                    onPress={() => {
+                      const exercise = optionsFor;
+                      setOptionsFor(null);
+                      if (exercise.entryId === emomEntryId) void emom.stop();
+                      else setEmomSetupFor(exercise);
+                    }}
+                  />
+                ) : null}
                 {timedMethodFits(optionsFor.metric) ? <MenuTile icon="hourglass-outline" label={t('timedMethod.menu')} onPress={() => { const exercise = optionsFor; setOptionsFor(null); setTimedSetupFor(exercise); }} /> : null}
                 <MenuTile icon="flag-outline" label={optionsFor.totalTarget != null ? t('totalGoal.edit') : t('totalGoal.set')} onPress={() => { setTotalFor(optionsFor); setOptionsFor(null); }} />
                 <MenuTile icon="flame-outline" label={t('simple.addWarmups')} onPress={() => {
@@ -1330,78 +1381,51 @@ export default function WorkoutScreen() {
                 }} />
               </MenuGrid>
               <MenuList>
-                <MenuRow label={t('logger.restGroup')} value={t('simple.restValue', { working: readExerciseRest(optionsFor.exerciseId, 'working'), warmup: readExerciseRest(optionsFor.exerciseId, 'warmup') })} chevron onPress={() => setOptionsView('rest')} />
-                <MenuRow label={t('progRules.rowTitle')} value={ruleSummary(exerciseRules.get(optionsFor.exerciseId), optionsFor.metric, t)} chevron onPress={() => { const target = optionsFor; setOptionsFor(null); setRuleFor(target); }} />
-                <MenuRow label={t('logger.noteLabel')} value={optionsFor.notes ? optionsFor.notes : t('simple.add')} chevron onPress={() => { setOptionsFor(null); openExerciseNote(optionsFor); }} />
-                {catalog && (optionsFor.apparatusIds?.length ?? 0) > 0 ? <MenuRow label={t('equipment.apparatusInWorkout')} value={apparatusName(catalog.apparatus.find((item) => item.id === optionsFor.apparatusId), t)} chevron onPress={() => setOptionsView('setup')} /> : null}
-                <MenuRow label={t('simple.moveGroup')} value={groups.find((group) => group.exercises.some((entry) => entry.entryId === optionsFor.entryId))?.name} chevron onPress={() => setOptionsView('setup')} />
-                <MenuRow label={t('simple.historyCompare')} chevron onPress={() => setOptionsView('history')} />
-                <MenuRow label={t('simple.exercisePage')} chevron onPress={() => setOptionsView('library')} />
+                <MenuRow icon="construct-outline" label={t('logger.editExercise')} chevron onPress={() => {
+                  const exerciseId = optionsFor.exerciseId;
+                  setOptionsFor(null);
+                  router.push({ pathname: '/exercise/new', params: { edit: exerciseId } });
+                }} />
+                <MenuRow icon="document-text-outline" label={t('logger.noteLabel')} value={optionsFor.notes ? optionsFor.notes : t('simple.add')} chevron onPress={() => { setOptionsFor(null); openExerciseNote(optionsFor); }} />
+                <MenuRow icon="trending-up-outline" label={t('progRules.rowTitle')} value={ruleSummary(exerciseRules.get(optionsFor.exerciseId), optionsFor.metric, t)} chevron onPress={() => { const target = optionsFor; setOptionsFor(null); setRuleFor(target); }} />
+                <MenuRow icon={optionsFor.demoUrl ? 'play-circle-outline' : 'link'} label={optionsFor.demoUrl ? t('logger.reference') : t('exercise.addReference')} chevron onPress={() => { setReferenceFor(optionsFor); setOptionsFor(null); }} />
+                <MenuRow icon="open-outline" label={t('logger.openExercise')} chevron onPress={() => { const exerciseId = optionsFor.exerciseId; setOptionsFor(null); openExercisePage(exerciseId); }} />
+                <MenuRow icon="layers-outline" label={t('simple.moveGroup')} value={groups.find((group) => group.exercises.some((entry) => entry.entryId === optionsFor.entryId))?.name} chevron onPress={() => setOptionsView('setup')} />
+                <MenuRow icon="analytics-outline" label={t('simple.historyCompare')} chevron onPress={() => setOptionsView('history')} />
               </MenuList>
               <MenuList>
                 {optionsFor.sets.length > 0 ? <MenuRow tone="danger" icon="remove-circle-outline" label={t('logger.clearSets')} onPress={() => void clearSets({ exercise: optionsFor })} /> : null}
                 <MenuRow tone="danger" icon="trash-outline" label={t('logger.removeExercise')} onPress={() => void removeExerciseOrConfirm(optionsFor)} />
               </MenuList>
             </> : <>
-              {optionsView === 'rest' ? <ExerciseRestFields key={`rest-${optionsFor.entryId}`} exercise={optionsFor} onSaved={() => void refresh(workout.id)} /> : null}
-              {optionsView === 'replace' ? <>
-              <SwitchSection key={`switch-${optionsFor.entryId}-${optionsFor.exerciseId}`} exercise={optionsFor} onSwitch={(id, name) => void switchTo(optionsFor, id, name)} onOther={() => { setReplacing(optionsFor); setOptionsFor(null); setPickerOpen(true); }} />
-              </> : null}
-              {optionsView === 'setup' ? <>
-              {catalog && (optionsFor.apparatusIds?.length ?? 0) > 0 ? (
-                <MenuGroup title={t('equipment.apparatusInWorkout')}>
-                  <View style={styles.choiceRow}>
-                    {optionsFor.apparatusIds!.map((apparatusId) => (
-                      <Chip
-                        key={apparatusId}
-                        label={apparatusName(catalog.apparatus.find((item) => item.id === apparatusId), t)}
-                        selected={optionsFor.apparatusId === apparatusId}
-                        onPress={() => { const entryId = optionsFor.entryId; setOptionsFor(null); void setEntryApparatus(entryId, apparatusId).then(() => refresh(workout.id)); }}
-                      />
-                    ))}
-                  </View>
-                  {optionsFor.apparatusAffectsDifficulty ? <Label>{t('equipment.apparatusCompareHint')}</Label> : null}
-                </MenuGroup>
+              {optionsView === 'replace' ? (
+                <SwitchSection key={`switch-${optionsFor.entryId}-${optionsFor.exerciseId}`} exercise={optionsFor} onSwitch={(id, name) => void switchTo(optionsFor, id, name)} onOther={() => { setReplacing(optionsFor); setOptionsFor(null); setPickerOpen(true); }} />
               ) : null}
-              {!workout.groupLayout ? <ExerciseBlockField key={`block-${optionsFor.entryId}-${optionsFor.block}`} entryId={optionsFor.entryId} value={optionsFor.block} onChanged={() => { setOptionsFor(null); void refresh(workout.id); }} /> : null}
-              <SupersetSettings key={`superset-${optionsFor.entryId}-${optionsFor.groupId ?? ''}`} exercise={optionsFor} />
+              {optionsView === 'setup' ? <>
+                {!workout.groupLayout ? <ExerciseBlockField key={`block-${optionsFor.entryId}-${optionsFor.block}`} entryId={optionsFor.entryId} value={optionsFor.block} onChanged={() => { void refresh(workout.id); }} /> : null}
+                <SupersetSettings key={`superset-${optionsFor.entryId}-${optionsFor.groupId ?? ''}`} exercise={optionsFor} />
                 <MenuGrid>
-                <SupersetActions
-                  key={`superset-actions-${optionsFor.entryId}-${optionsFor.groupId ?? ''}`}
-                  exercise={optionsFor}
-                  hasNext={(() => {
-                    const candidate = workout.exercises[workout.exercises.findIndex((item) => item.entryId === optionsFor.entryId) + 1];
-                    return Boolean(candidate && (workout.groupLayout ? candidate.workoutGroupId === optionsFor.workoutGroupId : candidate.block === optionsFor.block));
-                  })()}
-                  onChanged={() => { setOptionsFor(null); void refresh(workout.id); }}
-                />
-                {([-1, 1] as const).map((offset) => {
-                  if (!canMove(optionsFor, offset)) return null;
-                  return <MenuTile key={offset} icon={offset < 0 ? 'arrow-up' : 'arrow-down'} label={t(offset < 0 ? 'liveWorkout.moveUp' : 'liveWorkout.moveDown')}
-                    onPress={() => { setOptionsFor(null); void changeWorkoutGroups(workout.id, { type: 'moveExercise', id: optionsFor.entryId, offset }).then(() => refresh(workout.id)); }} />;
-                })}
+                  <SupersetActions
+                    key={`superset-actions-${optionsFor.entryId}-${optionsFor.groupId ?? ''}`}
+                    exercise={optionsFor}
+                    hasNext={(() => {
+                      const candidate = workout.exercises[workout.exercises.findIndex((item) => item.entryId === optionsFor.entryId) + 1];
+                      return Boolean(candidate && (workout.groupLayout ? candidate.workoutGroupId === optionsFor.workoutGroupId : candidate.block === optionsFor.block));
+                    })()}
+                    onChanged={() => { void refresh(workout.id); }}
+                  />
+                  {([-1, 1] as const).map((offset) => {
+                    if (!canMove(optionsFor, offset)) return null;
+                    return <MenuTile key={offset} icon={offset < 0 ? 'arrow-up' : 'arrow-down'} label={t(offset < 0 ? 'liveWorkout.moveUp' : 'liveWorkout.moveDown')}
+                      onPress={() => { void changeWorkoutGroups(workout.id, { type: 'moveExercise', id: optionsFor.entryId, offset }).then(() => refresh(workout.id)); }} />;
+                  })}
                 </MenuGrid>
               </> : null}
               {optionsView === 'history' ? <>
-              <ExerciseCompareField key={`compare-${optionsFor.entryId}`} exercise={optionsFor} workoutId={workout.id} workoutName={workout.name} onChanged={() => void refresh(workout.id)} />
-              <ExerciseAveragesField key={`averages-${optionsFor.entryId}`} exercise={optionsFor} onChanged={() => void refresh(workout.id)} />
+                <ExerciseCompareField key={`compare-${optionsFor.entryId}`} exercise={optionsFor} workoutId={workout.id} workoutName={workout.name} onChanged={() => void refresh(workout.id)} />
+                <ExerciseAveragesField key={`averages-${optionsFor.entryId}`} exercise={optionsFor} onChanged={() => void refresh(workout.id)} />
               </> : null}
-              {optionsView === 'library' ? <>
-                <MenuGrid>
-                <MenuTile
-                  icon="construct-outline"
-                  label={t('logger.editExercise')}
-                  onPress={() => {
-                    const exerciseId = optionsFor.exerciseId;
-                    setOptionsFor(null);
-                    router.push({ pathname: '/exercise/new', params: { edit: exerciseId } });
-                  }}
-                />
-                <MenuTile icon={optionsFor.demoUrl ? 'create-outline' : 'link'} label={optionsFor.demoUrl ? t('logger.reference') : t('exercise.addReference')} onPress={() => { setReferenceFor(optionsFor); setOptionsFor(null); }} />
-                </MenuGrid>
-                <ListRow icon="open-outline" title={t('logger.openExercise')} onPress={() => { const exerciseId = optionsFor.exerciseId; setOptionsFor(null); openExercisePage(exerciseId); }} />
-              </> : null}
-              <ActionButton icon="arrow-back" secondary label={t('bands.back')} onPress={() => setOptionsView(null)} />
+              <ActionButton icon="arrow-back" secondary label={t('common.back')} onPress={() => setOptionsView(null)} />
             </>}
           </View>
         ) : null}
@@ -1475,7 +1499,7 @@ export default function WorkoutScreen() {
           exercise={sheetExercise}
           set={sheetSet}
           holdMode={holdModeFor(sheetSet.id)}
-          onHoldMode={(mode) => { rememberHoldMode(mode); setHoldModes((current) => new Map(current).set(sheetSet.id, mode)); }}
+          onHoldMode={(mode) => updateHoldMode(sheetSet.id, mode)}
           onClose={() => setSetSheet(null)}
           onChanged={() => refresh(workout.id)}
           onRemoved={(removed) => offerUndo(t('logger.removedSet', { number: sheetSet.index }), removed)}
@@ -1586,8 +1610,8 @@ function TimerBar({ hold, restEndsAt, voiceCues, onRestEnd, onFinishHold, onForc
   return (
     <View style={[styles.timerBar, { backgroundColor: palette.hero }]}>
       <View style={[styles.timerInner, largeText && styles.timerInnerStacked]}>
-        <View style={styles.timerReadout}>
-          <Text numberOfLines={largeText ? undefined : 2} style={[styles.timerLabel, { color: palette.heroText }]}>{label}</Text>
+        <View style={[styles.timerReadout, largeText && styles.timerReadoutCompact]}>
+          <Text numberOfLines={2} style={[styles.timerLabel, largeText && styles.timerLabelCompact, { color: palette.heroText }]}>{label}</Text>
           {hold || restEndsAt === null
             ? <Text style={[styles.timerValue, { color: palette.heroText }]}>{hold ? holdDisplay(hold) : ''}</Text>
             : <RestCountdown key={restEndsAt} endsAt={restEndsAt} voiceCues={voiceCues} onEnd={onRestEnd} />}
@@ -1689,7 +1713,7 @@ const baseStyles = StyleSheet.create({
   overStage: { zIndex: 30, elevation: 30 },
   dockStack: { gap: spacing.md },
   workoutColumn: { gap: spacing.lg },
-  footerStacked: { flexDirection: 'column', alignItems: 'stretch' },
+  footerStacked: { flexDirection: 'column', flexWrap: 'nowrap', alignItems: 'stretch' },
   plannedRest: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 10, minHeight: 64, borderWidth: 1, borderRadius: 4 },
   plannedLabel: { fontSize: 12 },
   plannedValue: { fontFamily: fonts.monoBold, fontSize: 27, lineHeight: 31 },
@@ -1716,13 +1740,15 @@ const baseStyles = StyleSheet.create({
   readinessOption: { width: 44, height: MIN_TOUCH_TARGET, borderRadius: radii.control, alignItems: 'center', justifyContent: 'center' },
   readinessValue: { fontFamily: fonts.display, fontSize: 18 },
   footerRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 8 },
-  timerBar: { borderRadius: instrument.radius, padding: spacing.md },
-  timerInner: { width: '100%', maxWidth: 640, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
-  timerLabel: { fontFamily: fonts.medium, fontSize: 12, lineHeight: 14, opacity: 0.85 },
+  timerBar: { borderRadius: instrument.radius, paddingHorizontal: spacing.md, paddingVertical: spacing.sm },
+  timerInner: { width: '100%', maxWidth: 640, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: spacing.sm },
+  timerLabel: { fontFamily: fonts.medium, fontSize: 12, lineHeight: 16, opacity: 0.9 },
+  timerLabelCompact: { flex: 1, minWidth: 0 },
   timerValue: { fontFamily: fonts.monoBold, fontSize: 24, lineHeight: 28, fontVariant: ['tabular-nums'] },
   timerInnerStacked: { flexDirection: 'column', flexWrap: 'nowrap', alignItems: 'stretch' },
   timerReadout: { flexGrow: 1, flexShrink: 1, minWidth: 100, minHeight: MIN_TOUCH_TARGET, justifyContent: 'center', gap: spacing.xs },
+  timerReadoutCompact: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 36, gap: spacing.sm },
   timerActions: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: spacing.sm, maxWidth: '100%' },
-  timerAction: { minWidth: MIN_TOUCH_TARGET, minHeight: MIN_TOUCH_TARGET, borderRadius: instrument.radius, paddingHorizontal: 8, paddingVertical: 6, alignItems: 'center', justifyContent: 'center' },
-  timerActionText: { fontFamily: fonts.semibold, fontSize: 12 },
+  timerAction: { flexGrow: 1, minWidth: MIN_TOUCH_TARGET, minHeight: MIN_TOUCH_TARGET, borderRadius: instrument.radius, paddingHorizontal: 10, paddingVertical: 6, alignItems: 'center', justifyContent: 'center' },
+  timerActionText: { fontFamily: fonts.semibold, fontSize: 13 },
 });

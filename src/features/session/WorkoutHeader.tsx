@@ -4,7 +4,6 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { IconButton, Text, tapFeedback } from '../../shared/components/ui';
 import { useInk } from '../../shared/theme/ink';
 import { useTheme } from '../../shared/theme/ThemeProvider';
-import { STACK_TEXT_SCALE } from '../../shared/theme/scale';
 import { radii, spacing } from '../../shared/theme/tokens';
 import { fonts } from '../../shared/theme/typography';
 import { useScaledStyles } from '../../shared/theme/useScaledStyles';
@@ -32,7 +31,7 @@ export function WorkoutHeader({ title, startedAt, done, total, exercises, curren
 }) {
   const styles = useScaledStyles(baseStyles);
   const { t } = useTranslation();
-  const { palette, fontScale } = useTheme();
+  const { palette, largeText } = useTheme();
   const ink = useInk();
   const goBack = () => (router.canGoBack() ? router.back() : router.replace('/(tabs)/today'));
   // "Push Pull Legs · Push": the program goes above, the workout is the title.
@@ -41,40 +40,59 @@ export function WorkoutHeader({ title, startedAt, done, total, exercises, curren
   const name = split > 0 ? title.slice(split + 3) : title;
   const sets = t('simple.setsCount', { done, total });
   const progressLine = position ? `${t('simple.exercisePosition', { current: position, total: exercises.length })} · ${sets}` : sets;
+  const titleBlock = (
+    <Pressable
+      accessibilityRole="header"
+      accessibilityLabel={title}
+      accessibilityHint={titleLongPressLabel}
+      onLongPress={onTitleLongPress}
+      delayLongPress={500}
+      style={[styles.middle, largeText && styles.middleFull]}
+    >
+      {eyebrow ? <Text style={[styles.mono, { color: palette.textMuted }]}>{eyebrow}</Text> : null}
+      {/* Between the back and menu buttons a long word in capitals may not fit: it shrinks to fit, up to two lines. */}
+      <Text numberOfLines={2} adjustsFontSizeToFit minimumFontScale={0.65} style={[styles.title, { color: palette.text }]}>{name}</Text>
+    </Pressable>
+  );
   const progress = (
     <>
       {exercises.length > 0 ? <ExerciseSegments exercises={exercises} currentId={currentId} done={done} total={total} /> : null}
-      <View style={styles.progressText}>
-        <Text style={[styles.mono, styles.flex, { color: palette.textMuted }]}>{progressLine}</Text>
-        {position && onBack ? <Text style={[styles.mono, { color: palette.accentStrong }]}>{t('simple.allExercisesLink')}</Text> : null}
+      <View style={[styles.progressText, largeText && styles.progressTextStacked]}>
+        <Text style={[styles.mono, styles.progressLine, { color: palette.textMuted }]}>{progressLine}</Text>
+        {position && onBack ? <Text style={[styles.mono, styles.allLink, { color: palette.accentStrong }]}>{t('simple.allExercisesLink')}</Text> : null}
       </View>
     </>
   );
   return (
     <View style={styles.wrap}>
-      <View style={styles.topRow}>
-        <View style={[styles.leading, fontScale >= STACK_TEXT_SCALE && styles.leadingLarge]}>
-          <IconButton icon="arrow-back" tone="plain" label={t(onBack ? 'liveWorkout.overview' : 'common.back')} onPress={onBack ?? goBack} />
-          <Pressable
-            accessibilityRole="header"
-            accessibilityLabel={title}
-            accessibilityHint={titleLongPressLabel}
-            onLongPress={onTitleLongPress}
-            delayLongPress={500}
-            style={styles.middle}
-          >
-            {eyebrow ? <Text style={[styles.mono, { color: palette.textMuted }]}>{eyebrow}</Text> : null}
-            {/* Between the back and menu buttons a long word in capitals may not fit: it shrinks to fit, up to three lines. */}
-            <Text numberOfLines={3} adjustsFontSizeToFit minimumFontScale={0.6} style={[styles.title, { color: palette.text }]}>{name}</Text>
-          </Pressable>
-        </View>
-        <View style={styles.trailing}>
-          <WorkoutStopwatch startedAt={startedAt} size={15} bare />
-          <View style={[styles.menuFrame, { borderColor: ink, backgroundColor: palette.surface }]}>
-            <IconButton icon="ellipsis-horizontal" tone="plain" label={t('workout.menu')} onPress={onMenu} />
+      {largeText ? (
+        /* Large text / max UI zoom: toolbar row (back, stopwatch, menu) stays crisp and full-width title sits right below so words never split mid-syllable. */
+        <>
+          <View style={styles.toolbarRow}>
+            <IconButton icon="arrow-back" tone="plain" label={t(onBack ? 'liveWorkout.overview' : 'common.back')} onPress={onBack ?? goBack} />
+            <View style={styles.trailing}>
+              <WorkoutStopwatch startedAt={startedAt} size={15} bare />
+              <View style={[styles.menuFrame, { borderColor: ink, backgroundColor: palette.surface }]}>
+                <IconButton icon="ellipsis-horizontal" tone="plain" label={t('workout.menu')} onPress={onMenu} />
+              </View>
+            </View>
+          </View>
+          {titleBlock}
+        </>
+      ) : (
+        <View style={styles.topRow}>
+          <View style={styles.leading}>
+            <IconButton icon="arrow-back" tone="plain" label={t(onBack ? 'liveWorkout.overview' : 'common.back')} onPress={onBack ?? goBack} />
+            {titleBlock}
+          </View>
+          <View style={styles.trailing}>
+            <WorkoutStopwatch startedAt={startedAt} size={15} bare />
+            <View style={[styles.menuFrame, { borderColor: ink, backgroundColor: palette.surface }]}>
+              <IconButton icon="ellipsis-horizontal" tone="plain" label={t('workout.menu')} onPress={onMenu} />
+            </View>
           </View>
         </View>
-      </View>
+      )}
       {position && onBack ? (
         <Pressable accessibilityRole="button" accessibilityLabel={`${progressLine}. ${t('simple.allExercises')}`} onPress={() => { tapFeedback(); onBack(); }} style={styles.progress}>
           {progress}
@@ -85,16 +103,19 @@ export function WorkoutHeader({ title, startedAt, done, total, exercises, curren
 }
 
 const baseStyles = StyleSheet.create({
-  wrap: { gap: spacing.sm },
-  topRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'flex-end', gap: spacing.sm },
+  wrap: { gap: spacing.xs },
+  topRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: spacing.sm },
+  toolbarRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.sm },
   leading: { flexDirection: 'row', flexGrow: 1, flexShrink: 1, flexBasis: 176, minWidth: 0, alignItems: 'center', gap: spacing.sm },
-  leadingLarge: { flexBasis: 260 },
-  trailing: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  trailing: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, flexShrink: 0 },
   middle: { flex: 1, minWidth: 0, justifyContent: 'center', minHeight: 48 },
+  middleFull: { flex: 0, width: '100%', minHeight: 36, paddingHorizontal: spacing.xs },
   menuFrame: { borderWidth: 1, borderRadius: radii.control },
   title: { fontFamily: fonts.display, fontSize: 24, lineHeight: 28, textTransform: 'uppercase' },
-  progress: { gap: 6, paddingVertical: spacing.sm, minHeight: 48, justifyContent: 'center' },
-  progressText: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
-  flex: { flexGrow: 1, flexShrink: 1 },
+  progress: { gap: 6, paddingVertical: spacing.xs, minHeight: 48, justifyContent: 'center' },
+  progressText: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', columnGap: spacing.sm, rowGap: spacing.xs },
+  progressTextStacked: { flexDirection: 'column', flexWrap: 'nowrap', alignItems: 'flex-start' },
+  progressLine: { flexGrow: 1, flexShrink: 1, flexBasis: 160 },
+  allLink: { flexShrink: 0 },
   mono: { fontFamily: fonts.monoSemibold, fontSize: 12, lineHeight: 16, letterSpacing: 0.7, textTransform: 'uppercase' },
 });

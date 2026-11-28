@@ -7,7 +7,6 @@ import { useScaledStyles } from '../theme/useScaledStyles';
 import { ActionButton, Chip, Icon, IconButton, NumberEdit, Sheet, Text, tapFeedback } from './ui';
 import { Wheel } from './Wheel';
 import { formatClock } from '../utils/format';
-import { STACK_TEXT_SCALE } from '../theme/scale';
 import { radii, spacing } from '../theme/tokens';
 
 const dayStart = (date: Date) => new Date(date.getFullYear(), date.getMonth(), date.getDate());
@@ -172,10 +171,10 @@ const baseStyles = StyleSheet.create({
   durationValue: { fontFamily: fonts.display, fontSize: 44, lineHeight: 50, minWidth: 120, textAlign: 'center', fontVariant: ['tabular-nums'] },
   durationField: { gap: spacing.sm },
   inlinePresets: { paddingBottom: 0 },
-  compactDurationWrapper: { flexShrink: 1 },
+  compactDurationWrapper: { flex: 1, minWidth: 64, alignItems: 'center', justifyContent: 'center' },
   compactDuration: { minWidth: 64, minHeight: 48, paddingHorizontal: 8, paddingVertical: 8, borderRadius: radii.control, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
-  compactDurationFlat: { borderWidth: 0, backgroundColor: 'transparent', paddingHorizontal: 0, paddingVertical: 0, minWidth: 0 },
-  compactDurationText: { fontFamily: fonts.display, fontSize: 24, lineHeight: 30, fontVariant: ['tabular-nums'] },
+  compactDurationFlat: { borderWidth: 0, backgroundColor: 'transparent', paddingHorizontal: 4, paddingVertical: 0, minWidth: 64, width: '100%' },
+  compactDurationText: { fontFamily: fonts.display, fontSize: 24, lineHeight: 30, fontVariant: ['tabular-nums'], textAlign: 'center' },
 });
 
 /**
@@ -197,7 +196,7 @@ export function DurationField({ label, value, min = 0, max = 600, step = 5, pres
   onChange: (value: number) => void;
 }) {
   const styles = useScaledStyles(baseStyles);
-  const { palette, fontScale } = useTheme();
+  const { palette, largeText } = useTheme();
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const [draft, setDraftState] = useState(0);
@@ -229,7 +228,7 @@ export function DurationField({ label, value, min = 0, max = 600, step = 5, pres
       </Pressable> : <FieldRow label={label} icon="timer-outline" open={open} disabled={disabled} value={format(value)} onToggle={show} />}
       {!compact && !disabled && presets && presets.length > 0 ? (
         <View style={[styles.presets, styles.inlinePresets]}>
-          {presets.map((preset) => <View key={preset} style={[styles.presetCell, fontScale >= STACK_TEXT_SCALE && styles.presetCellLarge]}><Chip label={format(preset)} selected={value === preset} onPress={() => onChange(Math.min(upperBound, Math.max(min, preset)))} /></View>)}
+          {presets.map((preset) => <View key={preset} style={[styles.presetCell, largeText && styles.presetCellLarge]}><Chip label={format(preset)} selected={value === preset} onPress={() => onChange(Math.min(upperBound, Math.max(min, preset)))} /></View>)}
         </View>
       ) : null}
       {open ? <Sheet visible onClose={() => setOpen(false)} title={label}>
@@ -239,7 +238,7 @@ export function DurationField({ label, value, min = 0, max = 600, step = 5, pres
           <NumberEdit value={draft} display={formatClock(draft)} label={`${label} · ${t('durationPicker.typeHint')}`} clock onCommit={setDraft} style={[styles.durationValue, { color: palette.text }]} />
           <IconButton icon="add" label={t('durationPicker.increase')} disabled={draft >= upperBound} onPress={() => setDraft(draft + step)} />
         </View>
-        {presets?.length ? <View style={styles.presets}>{presets.filter((preset) => preset >= min && preset <= upperBound).map((preset) => <View key={preset} style={[styles.presetCell, fontScale >= STACK_TEXT_SCALE && styles.presetCellLarge]}><Chip label={formatClock(preset)} selected={value === preset} onPress={() => choose(preset)} /></View>)}</View> : null}
+        {presets?.length ? <View style={styles.presets}>{presets.filter((preset) => preset >= min && preset <= upperBound).map((preset) => <View key={preset} style={[styles.presetCell, largeText && styles.presetCellLarge]}><Chip label={formatClock(preset)} selected={value === preset} onPress={() => choose(preset)} /></View>)}</View> : null}
         <View style={styles.wheels}>
           <Wheel label={t('picker.minutes')} items={minuteItems} value={Math.floor(draft / 60)} width={96} onChange={(minute) => setDraft(minute * 60 + (draft % 60))} />
           <Text style={[styles.colon, { color: palette.textMuted }]}>:</Text>

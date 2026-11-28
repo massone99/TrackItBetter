@@ -57,7 +57,15 @@ export default function TabLayout() {
           paddingBottom: insets.bottom + 4,
         },
         tabBarLabel: ({ color, children }) => (
-          <Text numberOfLines={1} maxFontSizeMultiplier={LABEL_MAX_SCALE} style={{ color: String(color), fontFamily: fonts.monoSemibold, fontSize: 12, lineHeight: 16, textAlign: "center", marginTop: 2, textTransform: "uppercase" }}>{children}</Text>
+          <Text
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            minimumFontScale={0.7}
+            maxFontSizeMultiplier={LABEL_MAX_SCALE}
+            style={{ color: String(color), fontFamily: fonts.monoSemibold, fontSize: Math.round((12 / scale) * 10) / 10, lineHeight: 16, textAlign: "center", marginTop: 2, textTransform: "uppercase" }}
+          >
+            {children}
+          </Text>
         ),
         tabBarIcon: ({ color, focused }) => (
           <View style={{ width: 56, height: 26, borderRadius: radii.pill, alignItems: "center", justifyContent: "center", backgroundColor: focused ? palette.accentSoft : "transparent" }}>

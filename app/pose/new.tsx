@@ -419,7 +419,7 @@ const baseStyles = StyleSheet.create({
   frameCount: { fontFamily: fonts.medium, fontSize: 13 },
   saveBar: { position: 'absolute', left: 0, right: 0, bottom: 0, paddingTop: 12, paddingHorizontal: 20, borderTopWidth: StyleSheet.hairlineWidth },
   sources: { flexDirection: 'row', gap: 10 },
-  sourcesStacked: { flexDirection: 'column' },
+  sourcesStacked: { flexDirection: 'column', flexWrap: 'nowrap', alignItems: 'stretch' },
   sourceStacked: { flex: 0 },
   source: { flex: 1, alignItems: 'center', gap: 10, paddingVertical: 16, paddingHorizontal: 6, borderRadius: radii.control, borderWidth: 1 },
   sourceLabel: { fontFamily: fonts.semibold, fontSize: 14, lineHeight: 20, textAlign: 'center' },

@@ -131,4 +131,55 @@ describe('LedgerActiveRow', () => {
     expect(screen.getByText('Set 2')).toBeTruthy();
     for (const text of ['8', '40']) expect(screen.getByText(text)).toBeTruthy();
   });
+
+  it('live warm-up row shows W instead of 0W', () => {
+    wrap(<LedgerDoneRow live label="W" warmup value="0:10" onOpen={noop} onMenu={noop} />);
+    expect(screen.getByText('W')).toBeTruthy();
+    expect(screen.queryByText('0W')).toBeNull();
+  });
+
+  it('live hold editor exposes mode toggle, manual log, and live hold readout without steppers', () => {
+    const onToggleMode = jest.fn();
+    const onManual = jest.fn();
+    const onMenu = jest.fn();
+    wrap(<LedgerActiveRow {...active({
+      withLoad: false,
+      onMenu,
+      live: {
+        fieldLabel: 'Hold time',
+        comparable: null,
+        done: false,
+        holding: false,
+        action: 'Start hold',
+        onAction: noop,
+        hold: { mode: 'free', onToggleMode, phaseLabel: null, liveValue: null, manualLabel: 'Log 0:30', onManual },
+      },
+    })} />);
+    fireEvent.press(screen.getByLabelText('Timer: Free'));
+    expect(onToggleMode).toHaveBeenCalledTimes(1);
+    fireEvent.press(screen.getByLabelText('Log 0:30'));
+    expect(onManual).toHaveBeenCalledTimes(1);
+    fireEvent.press(screen.getByLabelText('Set options'));
+    expect(onMenu).toHaveBeenCalledTimes(1);
+  });
+
+  it('live hold editor hides steppers and renders live readout while holding', () => {
+    mockFontScale = 2;
+    wrap(<LedgerActiveRow {...active({
+      withLoad: false,
+      live: {
+        fieldLabel: 'Hold time',
+        comparable: null,
+        done: false,
+        holding: true,
+        action: 'Done',
+        onAction: noop,
+        hold: { mode: 'target', onToggleMode: noop, phaseLabel: 'Holding · target 0:30', liveValue: '0:24', manualLabel: null, onManual: noop },
+      },
+    })} />);
+    expect(screen.getByText('Holding · target 0:30')).toBeTruthy();
+    expect(screen.getByText('0:24')).toBeTruthy();
+    expect(screen.queryByText('v-')).toBeNull();
+    expect(screen.queryByText('v+')).toBeNull();
+  });
 });

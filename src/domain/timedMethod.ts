@@ -72,12 +72,38 @@ export type TimedMethodPhase =
 
 export const TIMED_COUNTDOWN_SEC = 5;
 
+export type TimedBeepTone = 'none' | 'soft' | 'tick' | 'sharp' | 'double' | 'go' | 'bell' | 'done';
+
+const TIMED_BEEP_TONES: readonly TimedBeepTone[] = ['none', 'soft', 'tick', 'sharp', 'double', 'go', 'bell', 'done'];
+
+function parseTone(value: unknown, fallback: TimedBeepTone): TimedBeepTone {
+  return typeof value === 'string' && (TIMED_BEEP_TONES as readonly string[]).includes(value) ? value as TimedBeepTone : fallback;
+}
+
 export interface TimedMethodCues {
   warningSec: number;
   intervalWarnings: boolean;
   holdStart: boolean;
   restStart: boolean;
   milestones: boolean;
+  /** Tone for countdown warnings (before start and optionally during holds/breaks). */
+  warningTone?: TimedBeepTone;
+  /** Tone when a hold / work interval starts. */
+  holdStartTone?: TimedBeepTone;
+  /** Tone when a break starts. */
+  restStartTone?: TimedBeepTone;
+  /** Tone for milestones (block end, recovery end, final goal reached, stop). */
+  milestoneTone?: TimedBeepTone;
+  /** Optional tone at the halfway point of each hold and the final hold goal. */
+  halfwayTone?: TimedBeepTone;
+  /** Optional periodic pace beep every N seconds during holds and the final hold (0 = off). */
+  intervalTickSec?: number;
+  /** Tone used for periodic pace beeps. */
+  intervalTickTone?: TimedBeepTone;
+  /** Beep playback volume from 0 to 1 (default 1). */
+  volume?: number;
+  /** Trigger matching haptic vibration with cues (default true). */
+  vibrate?: boolean;
 }
 
 export const DEFAULT_TIMED_CUES: TimedMethodCues = {
@@ -86,17 +112,41 @@ export const DEFAULT_TIMED_CUES: TimedMethodCues = {
   holdStart: true,
   restStart: true,
   milestones: true,
+  warningTone: 'tick',
+  holdStartTone: 'go',
+  restStartTone: 'double',
+  milestoneTone: 'done',
+  halfwayTone: 'none',
+  intervalTickSec: 0,
+  intervalTickTone: 'soft',
+  volume: 1,
+  vibrate: true,
 };
 
 export function parseTimedCues(cues: Partial<TimedMethodCues> | null | undefined): TimedMethodCues {
   const warningSec = cues?.warningSec;
+  const holdStart = cues?.holdStart !== false;
+  const restStart = cues?.restStart !== false;
+  const milestones = cues?.milestones !== false;
+  const intervalTickSec = cues?.intervalTickSec;
+  const volume = cues?.volume;
   return {
     warningSec: warningSec !== undefined && Number.isInteger(warningSec) && warningSec >= 0 && warningSec <= 10
       ? warningSec : DEFAULT_TIMED_CUES.warningSec,
     intervalWarnings: cues?.intervalWarnings === true,
-    holdStart: cues?.holdStart !== false,
-    restStart: cues?.restStart !== false,
-    milestones: cues?.milestones !== false,
+    holdStart,
+    restStart,
+    milestones,
+    warningTone: parseTone(cues?.warningTone, 'tick'),
+    holdStartTone: parseTone(cues?.holdStartTone, holdStart ? 'go' : 'none'),
+    restStartTone: parseTone(cues?.restStartTone, restStart ? 'double' : 'none'),
+    milestoneTone: parseTone(cues?.milestoneTone, milestones ? 'done' : 'none'),
+    halfwayTone: parseTone(cues?.halfwayTone, 'none'),
+    intervalTickSec: intervalTickSec !== undefined && Number.isInteger(intervalTickSec) && intervalTickSec >= 0 && intervalTickSec <= 60
+      ? intervalTickSec : 0,
+    intervalTickTone: parseTone(cues?.intervalTickTone, 'soft'),
+    volume: typeof volume === 'number' && Number.isFinite(volume) ? Math.max(0, Math.min(1, Math.round(volume * 100) / 100)) : 1,
+    vibrate: cues?.vibrate !== false,
   };
 }
 
@@ -158,6 +208,83 @@ export function timedCue(previous: TimedMethodPhase | null, current: TimedMethod
   const canWarn = current.phase === 'countdown' || current.phase === 'testCountdown' || cues.intervalWarnings;
   return canWarn && current.secondsLeft <= cues.warningSec &&
     (changedPhase || newRound || (previous && 'secondsLeft' in previous && previous.secondsLeft !== current.secondsLeft)) ? 'tick' : null;
+}
+
+/**
+ * Resolves the customizable sound tone for a phase step: transitions win over countdown warnings,
+ * which win over halfway and periodic pace beeps. Returns `null` when silent.
+ */
+export function timedSoundCue(
+  previous: TimedMethodPhase | null,
+  current: TimedMethodPhase,
+  rawCues?: Partial<TimedMethodCues> | null,
+  timing?: { holdSec?: number; testSec?: number },
+): TimedBeepTone | null {
+  const cues = parseTimedCues(rawCues);
+  const goalSec = timing?.testSec ?? 0;
+  const holdSec = timing?.holdSec ?? 0;
+  const toneOrNull = (tone: TimedBeepTone | undefined) => (tone && tone !== 'none' ? tone : null);
+  const changedPhase = previous?.phase !== current.phase;
+
+  if (current.phase === 'done' || current.phase === 'ready') {
+    return previous && changedPhase && cues.milestones ? toneOrNull(cues.milestoneTone) : null;
+  }
+  if (current.phase === 'recovery') {
+    if (changedPhase && cues.milestones) return toneOrNull(cues.milestoneTone);
+    if (cues.intervalWarnings && current.secondsLeft <= cues.warningSec &&
+      (changedPhase || (previous && 'secondsLeft' in previous && previous.secondsLeft !== current.secondsLeft))) {
+      return toneOrNull(cues.warningTone);
+    }
+    return null;
+  }
+  if (current.phase === 'test') {
+    if (changedPhase) return cues.holdStart ? toneOrNull(cues.holdStartTone) : null;
+    if (previous?.phase !== 'test' || previous.seconds === current.seconds) return null;
+    if (cues.milestones && goalSec > 0 && previous.seconds < goalSec && current.seconds >= goalSec) {
+      return toneOrNull(cues.milestoneTone);
+    }
+    if (goalSec >= 4 && cues.halfwayTone && cues.halfwayTone !== 'none') {
+      const half = Math.floor(goalSec / 2);
+      if (previous.seconds < half && current.seconds >= half) return cues.halfwayTone;
+    }
+    if ((cues.intervalTickSec ?? 0) > 0 && current.seconds > 0 && current.seconds !== goalSec &&
+      Math.floor(previous.seconds / cues.intervalTickSec!) < Math.floor(current.seconds / cues.intervalTickSec!)) {
+      return toneOrNull(cues.intervalTickTone);
+    }
+    return null;
+  }
+
+  const newRound = 'round' in current && previous && 'round' in previous && previous.round !== current.round;
+  if (current.phase === 'hold' && (changedPhase || newRound)) {
+    return cues.holdStart ? toneOrNull(cues.holdStartTone) : null;
+  }
+  if (current.phase === 'rest' && changedPhase) {
+    return cues.restStart ? toneOrNull(cues.restStartTone) : null;
+  }
+
+  const secondChanged = changedPhase || newRound || (previous !== null && 'secondsLeft' in previous && previous.secondsLeft !== current.secondsLeft);
+  if (!secondChanged) return null;
+
+  const canWarn = current.phase === 'countdown' || current.phase === 'testCountdown' || cues.intervalWarnings;
+  if (canWarn && current.secondsLeft <= cues.warningSec) {
+    return toneOrNull(cues.warningTone);
+  }
+
+  if (current.phase === 'hold' && holdSec > 0 && previous?.phase === 'hold' && !newRound) {
+    const prevElapsed = holdSec - previous.secondsLeft;
+    const elapsed = holdSec - current.secondsLeft;
+    if (elapsed > prevElapsed) {
+      if (holdSec >= 4 && cues.halfwayTone && cues.halfwayTone !== 'none') {
+        const half = Math.floor(holdSec / 2);
+        if (prevElapsed < half && elapsed >= half) return cues.halfwayTone;
+      }
+      if ((cues.intervalTickSec ?? 0) > 0 && elapsed > 0 && elapsed < holdSec &&
+        Math.floor(prevElapsed / cues.intervalTickSec!) < Math.floor(elapsed / cues.intervalTickSec!)) {
+        return toneOrNull(cues.intervalTickTone);
+      }
+    }
+  }
+  return null;
 }
 
 export interface TimedHold {
